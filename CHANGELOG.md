@@ -31,6 +31,17 @@ Every version that went out, newest first. The version is written in one place,
   lines with them. The technical README and the method stay as they were, at Jacob's word.
 - **The words on the figures** -- axis labels, legends and titles -- follow it: the quantity in words and its unit, what
   each line is, the finding. Colours and layout wait for Jacob's house style.
+- **Every figure is in Jacob's house style** (2026-11-07, after the figures of his 2026 EBM/THAI paper, with his
+  changes): a full black box with the ticks in on all four sides and no grid; tick labels 10 pt, axis labels 11 pt in
+  bold, titles 12 pt and short (a name; the finding is the report's caption); the paper's colours -- blue first, amber
+  second, red for measured points; legends inside the plot, borderless on white, or under it; no panel letters; and no
+  text over a line. `figures.setup` sets it, `figures.dress` puts the frame on any figure, `figures.clear` moves a legend
+  or a label off the lines (a label by at most 24 pixels, so that it stays by what it names) and reports what it cannot,
+  and `figures.save` runs both. The report's figures were redrawn to it (the speed, the size and speed against distance,
+  what the video allows, the track, the beat, the fold, the noise), the beat figure leaving the PR135 paper's own look,
+  and the eleven stages' figures with them. The suites fail on any figure with text over a line, over other text or off
+  the figure (`MCDONALD_FIGURE_CLASHES`, set by `tools/suites.sbatch`), and test_reduction holds the report's figures to
+  the box, the ticks, bold labels and short titles.
 
 ## 0.4.3 (2026-11-07)
 

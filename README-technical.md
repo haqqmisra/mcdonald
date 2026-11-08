@@ -181,8 +181,11 @@ mcdonald symbology CLIP.mp4
 
 # v_px -> omega -> what the motion permits (with --ladder when k is unknown); the speed band -- the rate along the
 # track with its error from the track's own covariance (<tag>_speed.csv, .png), a changing speed described, not refused;
-# and what survives with no range, field of view or platform speed: the constant-velocity test, the turn radius in
-# body widths (--size-px), the smear number
+# a sudden change of velocity beyond the track's own wander, dated with an interval (in `run`, set against the scene the
+# layers step measured: the camera's or not; method section 51); and what survives with no range, field of view or
+# platform speed: the constant-velocity test, the turn radius in body widths (--size-px), the smear number, and which
+# motion models survive as a 90 % model confidence set (a line, constant velocity in projection, a steady turn); beside
+# the band, its jitter read with no model (a beat it misses)
 mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?
@@ -245,6 +248,11 @@ mcdonald zoom CLIP.mp4 --rd --out CASE               # each zoom also as a regre
                                                      # 3 frames either side with its interval, and placebo cutoffs inside the
                                                      # states (how often a step is found where there is none; method 49)
 
+# What a phone wrote down about its own clip: an iPhone's frame-by-frame record (its LivePhotoInfo track, found by its
+# key and read with ffmpeg alone: the zoom, the camera's shift and the exposure on every frame) into CASE/clip_phone.csv,
+# and what the file says of the device, the lens, the software and its own history; exit 5 where there is no record
+mcdonald phone IMG_0001.MOV --out CASE
+
 # The sea's horizon as a ruler: a thing seen against the sea is nearer than where its line of sight meets it; a thing
 # above the horizon is at least as high as its line of sight's lowest point (a point on the horizon, the camera's
 # height and k needed; the line is found through the point and followed)
@@ -261,10 +269,15 @@ mcdonald focus CLIP.mp4 --track track.csv --graticule 900 --pupil 10cm
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --visibility 20km
 mcdonald haze CLIP.mp4 --track track.csv --size 12 --reference 1,410,212,3000
 
-# The dash a fast object draws in one frame (PR43's), read along the track: the exposure (its length taken back
-# through the picture's blur, read off the scene's points, over the speed), and a flicker far above the frame rate as
+# The dash a fast object draws in one frame (PR43's), read along the track on each frame less the median of its
+# neighbours 4-6 frames away (where that is quieter round the dash): the dash fitted whole (Vereš et al. 2012's trailed
+# point-spread function) for its centre, length, direction, width and flux -- the exposure from its length over the
+# speed, the half-peak length beside it; its centres as a track, with the projective test's T on them and on the track's
+# points; its flux as a second clock on T, if the object is a steady point -- and a flicker far above the frame rate as
 # beads along it (each pixel is 1/speed seconds)
 mcdonald streak CLIP.mp4 --track track.csv              # --blur 2 to give the blur rather than read it
+mcdonald streak CLIP.mp4 --track track.csv --centres dash_track.csv   # the dash's centres as a track `run --track` reads
+mcdonald streak CLIP.mp4 --track track.csv --scene-in   # each frame read as it is, the scene left in
 
 # A number the overlay prints (an angle in whole degrees), timed to the frame: first a strip to read it off, then the
 # value on each stretch; its ticks, the rate they make, and whether its holding still can say the camera stopped
@@ -273,7 +286,8 @@ mcdonald readout CLIP.mp4 --box X0,Y0,X1,Y1 --values "1-256:4,271-706:3,721-961:
 
 # What the camera did: a zoom inside the track (from the object's size and its jump about the zoom's centre), the
 # rate's steps set beside the camera's events, and -- with a scale and the camera's rate before -- whether a track
-# that was let go explains the object's departure
+# that was let go explains the object's departure (with each rate's error from the departure's own wander beside the
+# white one's: z_wander, method section 51)
 mcdonald camera CLIP.mp4 --track track.csv --fov 0.7 --fov-px 244 --los-rate 0.247 --events "2208:gate collapses"
 mcdonald camera CLIP.mp4 --track track.csv --events auto     # the overlay's own events, found (as `events` finds them)
 mcdonald camera CLIP.mp4 --track track.csv --scene CASE/clip_layers.csv --after 4439 --fov 0.08 --pixel-aspect 1.333
@@ -286,6 +300,8 @@ mcdonald camera CLIP.mp4 --track track.csv --fov-px 244 --fields "1-2156:0.7,215
 mcdonald camera CLIP.mp4 --track track.csv --zoom CASE/clip_zoom.json   # the zooms `mcdonald zoom` measured in the
                                                                # picture, taken out the same way (read by default where
                                                                # the case has one); its other bursts are camera events
+mcdonald camera IMG_0001.MOV --track track.csv --phone         # a phone's own record of its zoom on every frame, checked
+                                                               # on the object's size first, and k from its lens and zoom
 
 # The overlay's own events: its text boxes and when each changes (timed to the half frame), clocks, the strokes round
 # the object (its gate), the picture's steps and held frames
@@ -330,7 +346,12 @@ test and the turn. `run --pixel-aspect 1.333,symbols` gives the picture's stretc
 a pixel, and after the comma where that was read (`symbols`, `scene`, or your own words) -- so that the angle marks' scale
 is read up the picture, the field of view counted in square pixels and the turn rate taken from the track's own direction;
 without it a stretched file (PR113: a 720x480 raster shown as 1080p) reads a diagonal rate up to the stretch times too
-high. `docs/method.md` §14-30, §34, §36, §37, §39 and §40 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
+high. A phone's clip (an iPhone's maker or model tag, or timed-metadata tracks) has its own record read at `run`'s ingest, as
+`mcdonald phone` reads it: where the object's size follows the record's zoom (or the zoom cannot be checked), k comes from
+the lens's 35-mm tag and the zoom ("the phone's record", to within 10 %; a `--fov` or `--graticule` given wins), the
+kinematics stage fits its rate to the track on one scale, and the camera stage takes the zoom on every frame; a record
+the pictures disagree with is said so and not used. `run --no-phone` refuses the record. Any other clip is not asked.
+`docs/method.md` §14-30, §34, §36, §37, §39, §40, §42 and §45 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
 case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
 assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound.
 
@@ -557,10 +578,12 @@ the first that will open.
   conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
   sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
   the checks as rows -- each test as a question in plain words, its answer in a word (Yes, No,
-  Partly, Can't tell, Not yet) and why in the tooltip: the report's own checklist, which sits
+  Partly, Can't tell, Not yet; integrity's row Consistent or Inconsistent) and why in the tooltip: the report's own checklist, which sits
   under the conclusion's sentence in the report too, the paragraph of reasoning folded under it
-  (`report.Case.checklist`; a tester's ask, 2026-11-01) -- then the numbers found as label-and-value rows, "More" for the bottom line's
-  paragraph (which says what a real speed still needs), "I looked" when the track sheet has not been
+  (`report.Case.checklist`; a tester's ask, 2026-11-01) -- then the numbers found as label-and-value rows, "More" for how sure
+  the conclusion is (`report.Case.grade`: GRADE's domains, computed), what it rests on, at most four reasons the heaviest first,
+  each weighed on the labelled infrared set where it can be (`report.Case.reasons`, `controls`; method section 47), and the bottom
+  line's paragraph (which says what a real speed still needs), "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
   (`measure_qt.show_report`), whose "Save as PDF…" writes it as one file with its pictures in it
   (`paper.write`, which `mcdonald report CASE.json --pdf` is too); Measure → Open the case folder finds the files. **Measure → The sound
@@ -727,7 +750,11 @@ The tools run on any file. The package also carries the list of the U.S. DoW
 PURSUE release's videos (war.gov/UFO), so a record id works with nothing set up:
 the first time a video is named, it is downloaded from DVIDS into the storage
 folder (below), and the integrity report quotes the releasing body's own words,
-including any alteration statement, alongside the pixel tests:
+including any alteration statement, alongside the pixel tests. Its record also
+gives the clip's levels: the range the stream declares, what the frame
+extraction does to it (a studio-range stream's Y 16-235 is stretched to 0-255
+and every code past them cut), the share of pixels outside the nominal range,
+and how often the object's own core is past it (docs/method.md §50):
 
 ```bash
 mcdonald integrity PR144            # downloads PR144 the first time (31 MB)
@@ -779,6 +806,7 @@ and it models a naive overlay rather than a match-moved physical composite.
 - **A field of view from a pointer that does not say what it points at.** `slew` reads k cos(depression) off a slew only if the north pointer is an azimuth dial; a pointer drawing ground north projected into the image is off by a factor up to 1/sin(depression), and one drawn against the platform's heading registers no slew at all. A clip whose pointer registers none of its slews is NO POWER: the field may be that narrow, or the pointer may not follow the turret, and the clip cannot tell which. A pointer drawn on a coarse grid needs a slew that turns it by more than half a step beyond the platform's own share; a pointer that runs a second or more behind the picture (PR051's dial, two seconds) is a stale reading, and its slope is refused.
 - **A scale from a narrow swell alone.** At one wavelength the waves' dispersion and the sensor's drift are one number, so `waves` gives a scale from a narrow-band swell only with the drift assumed, and claims one only where its band of scales is bounded, the dispersion beats drift alone, and the same frames shuffled in time score well below. Most PURSUE sea is refused, saying why.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
+- **A clip below the file's top that has been through a codec.** A core is called clipped where it sits at the picture's ceiling (255 on the extracted frames; Y 255 where the headroom the extraction cuts is read) or has a flat top (five of its 3 x 3 pixels within a code of its top, 50 codes over its surroundings; method §50). A peak a camera cut at 235, or a sensor at its own ceiling, before the encoder is rippled by the codec, and the null finds only 5-21 % of such cores flat; the rest read as peaks. Where that matters -- a width measured on a core cut below 255 -- the clip cannot say it was cut.
 
 ## Roadmap
 

@@ -4052,6 +4052,7 @@ and answered in one of five words:
 | Partly | the test decided part of what was asked: a beat in one stretch only, or too faint to name a bird; a speed bounded but not found |
 | Can't tell | the test could not decide on this video. A verdict, never dropped for a "No" (the package's third rule: a test that cannot decide has not passed) |
 | Not yet | the person's part is still to do: the track sheet not looked at |
+| Consistent / Inconsistent | integrity's row only (2026-11-07, section 47): agreement with the camera's own picture, from checks never tried on a real insert |
 
 The rows, in a fixed order, and what each reads:
 
@@ -4062,16 +4063,16 @@ The rows, in a fixed order, and what each reads:
 | does the object move against the background | `Case.rate` | the rate, against the background or across a picture that held still | under half a pixel a second | Can't tell where the rate is the picture's and the camera moved: the rate against the background was not measured |
 | straight at a steady speed | the speed band's `constant`, the turn's `turned`, the loop | the band held, the path straight | the speed's range along the track and the bend; "(the camera moved, so some of this may be its motion)" where it did | Can't tell under the frames a band needs |
 | coming toward the camera | tau from its size (section 33), the projective fit, the depth bound, the size's trend | its size grows or its path fits an approach, with the time to the camera's distance | the depth bound, under the hypothesis | Can't tell where its size held, could not be read, or its path fits only roughly |
-| beats as a wingbeat would | `flicker`'s beats, by the headline's rule (section 13) | the rate, the object's own; a flock's members each their own | no rhythm of its own; or a beat outside the wingbeat band, said | Can't tell where the picture shakes at that rate; Partly in one stretch, or under BIRD_FLOOR |
+| beats as a wingbeat would | `flicker`'s beats, by the headline's rule (section 13), and its power (`analytic`) | the rate, the object's own; a flock's members each their own | no rhythm of its own on a track that could have shown a bird's (`Case.beat_power` at most BIRD_FLOOR, section 47); or a beat outside the wingbeat band, said | Can't tell where the picture shakes at that rate, where the track is too noisy to show a bird's beat, or where the stage refused, a peak measured or not (section 47); Partly in one stretch, or under BIRD_FLOOR |
 | could something other than a bird beat like this | the look-alikes (section 9) | always, where a beat is the object's own: a tumbling body, a blinking light; a flame's band or a rotor's look where marked | -- | -- |
 | flashes in a train | `flicker`'s blink (section 19) | the flashes a minute and the rule they meet | no train | -- |
 | a single thing | `groups` | one point on most frames | so many things moving together, keeping their places or changing them | -- |
 | anything moving with it | `tether` (section 6) | the companion, its distance in object widths, its swing or its steady angle; a fellow member | nothing within the ring | Can't tell under the frames it needs |
 | moves through what is round it | `comotion` | MOVES THROUGH | CARRIED | INCONCLUSIVE, NO POWER |
-| added to the video afterwards | `integrity`'s object tests (section 2) | checks that flag it, named | the checks that could decide pass, the rest said | Can't tell where none could decide |
+| consistent with the camera's own picture | `integrity`'s object tests (section 2) | Consistent: the checks that could decide pass, the rest said | Inconsistent: checks that flag it, named | Can't tell where none could decide; each decided answer says no check has been tested on a real insert (section 47) |
 | a real speed and size | the four unknowns (ROADMAP 0.4 objective 6) | the speed and size, "a guess" where k is | what it needs: the field of view, the distance | Partly: a bound from a thing of known size or a farthest range, a least speed at a given distance, or a turn rate with no distance |
-| a person picked out the object | `identified_by` | marks placed by hand | an agent's, typed, the computer's suggestion taken, or snapped marks: "every measurement of the object rests on that choice" | -- |
-| a person checked the track | `verify`'s `reviewed` | the sheet looked at | -- | Not yet |
+| a person picked out the object | `identified_by`, the track stage's `placed_by` (section 47) | marks placed by hand, or a track file that says it was linked from them | an agent's, typed, the computer's suggestion taken, or snapped marks, or a track file that says so: "every measurement of the object rests on that choice" | Can't tell where the track file says nothing of who placed it (`run --track`) |
+| a person checked the track | `verify`'s `reviewed`, and how (its result's "yes (how)") | the sheet looked at, and when: shown before anything was measured, after the report, or said with `run --i-looked` before this run drew its sheet (section 47) | -- | Not yet |
 
 A row whose stage did not run has no row: the table says nothing it did not check. The camera's row agrees with the
 first line (2026-11-02): where that line says the object moved "as the camera held it", the row says whether the camera
@@ -4083,8 +4084,8 @@ the same rows above its numbers, the answer in a word and why in the tooltip; `m
 `results.checklist`. The rows are read from the stages' fields, as the conclusion and the bottom line are, so a case file
 from an earlier version gets its checklist when its report is opened or written again. Measured: the rows' own words are
 97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).
-What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56), which are
-still to do.
+What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56); the first
+two are section 47.
 
 ## 39. Two nulls read as the data is, and the rate each really holds (B1, B5; added 2026-11-02)
 
@@ -4381,6 +4382,1029 @@ bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a 
 one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
 and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.
 
+## 42. A phone's own record: `mcdonald phone` (the phone scope's WP1 and WP4; added 2026-11-07)
+
+**What it answers.** An iPhone writes, beside its picture, a frame-by-frame record of its own camera: QuickTime timed
+metadata (`mebx` tracks, Core Media metadata, a sample a frame), one of them keyed `com.apple.quicktime.live-photo-info`.
+The file's one lens number, its 35-mm equivalent focal length, is a single value for the whole clip; the record has the
+zoom on every frame. On the clip that called for this -- a witness's, which cannot be shared, so no number from it is
+given here -- the tag fitted the record's lowest zoom while the clip sat well above that on most of its frames: a reader
+who took the tag at face value was out by the ratio in every angle, and dips in the object's height over the horizon
+were the zoom, not the object. Uploads and releases strip the track (of the data folder's videos none carries one), so
+**each clip checks itself**, and the suite's clip is drawn (`tests/test_phone.py`).
+
+**Reading it with ffmpeg alone.** The track is found by its key, not by a stream's number: the moov box is walked
+(`phone.tracks`: each trak's id from its `tkhd`, its handler, its sample description's four letters, and for a `mebx`
+description the `keys` box, whose children are boxes typed by their local key id, each holding a `keyd` with the key's
+namespace and name), and the trak whose table names the key is matched to ffprobe's stream by its track id
+(`phone.stream_of`). The samples come out with `ffmpeg -map 0:<n> -c copy -f data -`, cut by ffprobe's packet sizes; each
+sample is items of [4-byte length][4-byte local key id][value], big-endian heads as every QuickTime box. ExifTool unpacks
+the first 80 bytes of the value as 27 little-endian fields (`VfVVf6c4lCCcclf4Vvv`, its QuickTime module's
+`live-photo-info`); the reader here gives ExifTool's 27 numbers, to rounding, on every frame of the one clip. A value
+shorter than 80 bytes, or one that reads a zoom outside 0.5-30, an exposure of a second or more, or a NaN in the fields
+used, is an unknown layout: NO POWER, never a guess (`phone.unpack`). The illuminance track
+(`com.apple.quicktime.scene-illuminance`) is a big-endian uint32 in thousandths of a lux. A record's time is its packet's,
+and its frame the one shown then (frames counted from 1, as they are extracted).
+
+**What the fields mean** (Apple documents none of them; read on the one clip against its own pictures): field 1 the
+exposure time; fields 4 and 5 the camera's shift since the first frame, in the coded picture's pixels at the zoom of the
+moment, along its long and short sides, the content moving the other way (with ffmpeg's display rotation of 270, a
+quarter turn clockwise, the clouds moved +field 5 across and -field 4 up and down; `phone.upright` turns the other
+rotations by the same rule, unchecked);
+fields 6 and 7 a shift of the frame's own; field 8 the video zoom factor of the camera the phone presents -- on a
+two-camera iPhone 2.0 is the main lens at the "1x" its screen shows -- which the object's height over the horizon followed
+through the clip's zoom slips at a slope near 1 and r near 1 (the scope's own check, rebuilt). Two fields are not
+understood.
+
+**k from the lens and the zoom** (`phone.k_at`). The 35-mm equivalent is the lens's angle across the picture's
+diagonal, as on a 36 x 24 mm frame 43.27 mm across (CIPA DC-008). Read at the record's lowest zoom z_min, at frame n
+
+    f(n) = f35 * z(n) / z_min,    k(n) = f(n) * hypot(W, H) / 43.27 mm,
+
+px/rad. The share it may be off by is the larger of the width's reading's difference (f spread over the long side as over
+36 mm: 4.7 % more on a 16:9 picture) and **K_SHARE 0.10** (a stabiliser's crop narrows the field the tag was written for;
+a judgement). On the one clip this k agreed, within that share, with two measurements free of the tag -- the picture's
+keystone as the phone turned, and the object's path fitted with k free -- and both refused the tag at the clip's usual
+zoom. **The rule that the tag is the lens at the lowest zoom rests on that one clip**; the provenance flag says so in
+words wherever the record's zoom moves. `scale` takes this k at the track's first frame where no graticule or field of view
+is given, sourced as "the phone's record ... to within 10 %", and the ledger's k is then constrained by it, not assumed. A
+field of view given wins, and the record's k is kept in the scale stage's fields (`phone_k`) so that a case worked out
+again (`report CASE`) gives it back.
+
+**The zoom inside the track** (`camera.record_steps`, `record_check`). The record's zoom becomes a zoom step at every
+tracked frame whose zoom differs from the one before, about the frame's centre (a phone's zoom crops about the middle of
+its sensor), and `to_one_scale` puts the track -- and `size_trend` the object's size -- on the scale of its first frame.
+The kinematics stage fits its rate to that track (`stages.PHONE_NOTE` says so); the camera stage's rates are in it, and
+the start and end of each stretch where the record's zoom moves are the camera's events. **The check comes first:** over
+the tracked frames within RECORD_PAD (8) of each stretch where the record's zoom moves, the object's log length against
+the record's log zoom, each stretch's own means out (so that the object's slow change of size between stretches does not
+count): the slope, 1 where the picture follows the record, with its error from the residuals with their lag-one memory
+counted (variance times (1 + rho) / (1 - rho) for a smooth zoom), and r. It **agrees** where the slope is within
+SLOPE_TOL (0.25) of 1 and known to better than that (1.96 errors inside the margin); **disagrees** where the slope's
+interval (1.96 errors either side) lies wholly outside 1 +- SLOPE_TOL -- the record is then said so, as no power for the
+phone's record, and used for nothing (not k, not the zoom); and is **no power** where the zoom moves by less than x1.10
+over the tracked frames, fewer than 12 of them have a size, the object at the lowest zoom (its median length there) is
+under 1.5 blurs long (the blur then sets its size), or neither verdict is reached. A half-maximum size runs a little under a slope of 1 (a blur adds in quadrature: a 20-px image under
+4 px of blur reads 0.96); what the check is for is a record that is not this clip's zoom -- a field read in another
+phone's layout, a record shifted in time against its pictures -- whose slope is near 0 or anywhere. **SLOPE_TOL is a
+judgement, not a threshold from a null**: one clip carries the track. **Its rates on drawn sizes** (72 configurations of
+400 draws: an 80-frame clip with one zoom slip and a 400-frame clip with two, the object 10, 20 or 40 px through a 4-px blur,
+log-size noise AR(1) of sd 0.02-0.20 and memory 0-0.8, a slow drift of the object's own size): a right record is refused
+in at most 3.8 % of draws in 70 configurations (0-1 % in most), 5.8 and 7.2 % in the two noisiest on the short clip (sd
+0.20 with memory 0.8), so the interval is about as stated; a wrong record -- 25 frames late, or moving while the sizes
+hold -- is never let through as agreeing (0.0 % everywhere) and is refused in at least half the draws in 70 of the 72
+configurations. Where the check cannot decide (the object under the blur at the lowest zoom, or sizes too unsteady), **a
+record is used, and said to be unchecked**. Under the first rule tried (refused only where the slope's interval was
+narrower than the margin) a record 25 frames late mostly came out no power: its misfit is structured, its residuals'
+memory reaches the 0.95 cap, and the inflated error read as unsteadiness. On drawn
+sizes (the suite): sizes following the
+record with 3 % noise agree, sizes held while the record says x1.5 disagree, a record 25 frames late disagrees, a
+record whose zoom holds is no power, sizes with 60 % noise are no power, a 3-px object is no power; on the drawn clip
+the right record agrees and puts a blob still in the sky still on one scale, and a record whose zoom moves the other way
+(another layout's field) disagrees and is not used.
+
+**Provenance** (`phone.provenance`): the maker, the model, the software, the lens and the 35-mm tag from the container's
+own `mdta` keys (an iPhone keeps the lens and the tag in the video track's `meta`, which ffprobe does not show), the two
+creation times, the codec and any encoder that wrote the file again. Flags, each a thing to know about the file and not
+a verdict on the clip: the container's creation time more than two minutes from the phone's own (a copy written later, a
+share or an export, which can keep the record); H.264 from an iPhone (which records HEVC unless set to "Most
+Compatible"); a software tag that is not a system version; an encoder's own tag (Lavf, Lavc, HandBrake); an iPhone's
+file with no record; the 35-mm tag against the record's zoom.
+
+**What a case gets, and what it does not.** `run` reads the record at ingest only for a phone's clip (an iPhone's maker or
+model tag, or a `mebx` track: `phone.is_phones`); any other clip is not asked, and its case's fields, words and numbers are
+as they were -- of the data folder's 193 videos none has either (one, an editor's export, carries other
+`com.apple.quicktime` tags, a title and an author, and is not asked), so none of the fourteen reference cases moves. `--no-phone` refuses it (the ingest says "not read:
+refused"). `mcdonald phone VIDEO` reads it alone into `<tag>_phone.csv` (frame, time, zoom, the shifts along the coded
+sides and as the content moves upright, the exposure, the light, the 27 fields), exit 5 with no record; `camera --phone`
+takes it into the camera stage. **Not done:** fields 4-5 checked against the picture's own shift (the scope's "slope about
+1" on the shake) -- `layers` holds a smooth sky still, so there is no picture shift to hold them to, and the sky as a
+background (WP2) is the route; another phone's layout; the 56 bytes after the 80; a zoom read from the horizon or the sky
+on a clip with no record (WP4's larger part).
+
+## 43. The bird floor set from a null, and held to a set it was not set on (B24, E9, E19; added 2026-11-07)
+
+**What it is.** `report.BIRD_FLOOR` is the share of the object's brightness its beat must reach before the conclusion
+names a bird. Section 13's headline rule asks the beat to be the object's own, to come back, to lie at a wingbeat's rate
+(2-25 Hz) and not to be the camera's shake (item 17); the floor is the last condition. It was first set by eye on
+2026-10-19. On the Svanström labelled infrared set the calls on birds beat at a median 15-18 % of their brightness and
+the false calls on aircraft, drones and helicopters at 1.8-2.3 % (AUC 0.96), and 8 %, chosen on the birds and airplanes,
+left 2 of 307 non-bird tracks called. Chosen after seeing the data, it was a candidate. Here it is set by a rule written
+down before the data were measured again (the session's notes, 2026-11-07), and tested once on a set it had not met.
+
+**The rule** (`tools/sweep/floor.py set`). The null is a labelled set's non-bird tracks, each measured by `mcdonald
+flicker` on its label boxes as a track (`--no-nulls`, as `run` measures; `--scene-shift`, so that the shake is read at
+every beat of the object's own and not only at those a floor would let through). A track is named a bird under a floor
+where `Case.conclusion` would name one. The false-alarm rate at a floor is the share of all non-bird tracks named,
+refused ones in the denominator. The stated rate is **alpha = 1 %** (`report.BIRD_FLOOR_RATE`), the level of every null
+the package states (CONTINUUM_P, ONCE_P, FAP_MAX); the level is a policy, the maintainer's to change. For each beat rule
+the floor is the median, over 2,000 resamples of the null's clips with replacement (a clip's tracks together, since a
+clip's objects are not independent), of the smallest floor on a 0.1 % grid at which no more than alpha of the resample's
+tracks are named. BIRD_FLOOR is the larger rule's, rounded up to the next 0.5 %.
+
+**The set it is set on.** Svanström et al. (2021), the infrared clips: 432 tracks of 60 frames or more in 365 clips (125
+birds; 82 airplanes, 168 drones and 57 helicopters, 307 non-birds in 286 clips), the 2026-10-19 conventions, measured on
+d46d3a8 (`flicker` as 0.4.3 released it) by this session for the 67 tracks with a bird call in any of eight earlier runs
+(0.3.1's two rules, the aperture study's six apertures), and for all 432 by the controls harness's run of the same
+commit (the 67 measured by both agree on all 134 calls). The 2026-10-19 numbers rebuilt first, from that run's own
+table: the amplitude's AUC, bird over non-bird among every bird or one-stretch call, 0.959 (stage) and 0.962 (paper),
+and 2 of 307 non-bird tracks named at 8 % under either rule -- reproduced. On 0.4.3 the AUC is 0.935 and 0.960 (0.919
+and 0.956 among the calls that come back). Before any floor the stage's rule calls 16 non-bird tracks a bird (12 on
+0.3.1), not counting two the shake gate stops (item 17; one is AIRPLANE_064, which the 8 % floor had kept, 8.03 Hz at
+14.9 %): the capped disc (2026-10-24) adds the close helicopters 024 (7.8 %) and 027 (3.6 %); and three drones now beat
+at 10.0 Hz, a third of the frame rate (`fps/3`, marked as a look-alike), 059 at 15.4 % among them -- the band's top on
+this chain is 12 Hz since the held-picture test (section 35), where 0.3.1 had misread the chain and cut it at 9.9. The
+paper's rule calls 23 (24). Bird tracks called: 31 and 30 of 125 (30 and 34; the continuum's correction, section 39,
+takes out four).
+
+**The floor.** The stage's rule gives 7.0 % (5-95 % over the resamples 4.7-15.4 %), the paper's 5.1 % (3.1-7.9 %):
+**BIRD_FLOOR = 7 %**. At it the stage's rule names 3 of the 307 non-bird tracks (1.0 %; 0.0-2.3 % by clip; the exact
+one-sided 95 % bound 2.5 %): helicopter 043 (21 %, a fence line and poles passing behind it), drone 059 (15 % at 10.0
+Hz) and helicopter 024 (7.8 %); the paper's names 2 (0.7 %; bound 2.0 %). The false beats are as they are: by the
+stage's rule the 16 non-bird calls before any floor beat at 21.0, 15.4, 7.8, 6.97, 6.1, 5.0, 4.8, 4.6, 4.3, 4.1, 3.9,
+3.6, 3.1, 2.5, 2.1 and 1.6 % of their brightness, so no floor separates them from the birds cleanly; the 8 % chosen by
+eye had been said as a line false alarms "stay under", which two of them do not. The rate is a point estimate with its
+bound, and the report says "about 1 in 100", never "under": with none in 286 the bound is still 1.04 %, so no set of
+about 300 tracks can show a rate under 1 %. To show it -- false alarms at or under alpha with probability 1 - delta --
+the floor would be an order statistic of the non-bird scores (the Neyman-Pearson umbrella; Tong, Feng & Li 2018), which
+here would sit over the strongest false call, 21 %, and name 15 and 13 of the 125 birds where 7 % names 30 and 27; the
+maintainer's choice, not taken. The 8 % chosen by eye names 2 and 1 non-bird tracks and 29 and 26 birds. (The floor was
+first set at 6.5 % with 173 tracks not yet measured counted as not named, none having a bird call in eight earlier runs;
+two drones at 10.0 Hz among them did call, and the rule on the complete set gives 7 %. It was re-set before any unseen
+track was read.) The labels say a bird is there, not that it flapped, so 24 % of bird tracks named is a floor on the
+test's sensitivity to flapping birds, not its measure. Rates by what a clip offers (`floor.py strata`; a description,
+never an input): the stage's misses run 56 % at medium range, 72 % close and 91 % distant; 62-80 % across track lengths;
+and the test answers at all on 88 % of bird tracks, 97 % of airplanes, 96 % of drones and 81 % of helicopters -- a NO
+POWER is not shown to carry the class (refused birds over refused non-birds 1.9, by clip 0.8-3.9, and about 1.2-1.4
+within strata of contrast; the diagnostic-accuracy survey), but helicopters are refused far more often. Every clip here
+runs at 30 frames a second.
+
+**The cost of a false bird (B24).** A receiver sets its criterion by the odds and the costs (Wiley 2006): with
+equal-variance normal evidence, the likelihood ratio at the criterion, beta = exp(d' c), equals (1 - pi) / pi times
+C(false alarm) / C(miss) where the criterion is best. In this tool "bird" closes a case: a false bird explains something
+away, a missed one leaves it on the list, so a false bird should cost more than a missed one. Read off the set at one
+object in twelve a bird, the beat's tests alone price a false bird at 0.27 (stage) and 0.20 (paper) of a missed one --
+the wrong way round; the floor at 1 in 100 at 1.08 and 1.46, and the old 8 % at 1.5 and 2.6. At one object in three a
+bird the floor's prices are 6.0 and 8.0. The rate, not the floor, is the lever: a stricter rate prices a false bird
+higher, and needs a larger null to be set on (1 in 200 needs some 600 non-bird tracks). The base rate of birds among the
+objects a camera records is not known; one video in twelve is an anchor, not a measurement.
+
+**How overfit the choice is (E9; `tools/sweep/pbo.py`).** Combinatorially symmetric cross-validation (Bailey, Borwein,
+López de Prado & Zhu 2017): the clips in 16 blocks (whole clips, dealt round within the birds and within the rest after
+a seeded shuffle), and all 12,870 ways of taking half of them. On each half a floor is chosen -- by the floor's own rule
+at 1 %, or by the largest U = TPR - 11 FPR (a false and a missed bird priced alike at one object in twelve a bird) --
+and ranked by U among the 41 candidates, 0-20 % by 0.5 %, on the other half. PBO is the share of halves where the choice
+ranks at or under the median out of sample. On the set here, chosen by the floor's own rule the floor's PBO is 0.45
+(stage) and 0.47 (paper), the choices running 5.0-15.5 % and 4.5-8.0 % across halves; chosen by the best U, 0.35 and
+0.37 (0.12-0.38 and 0.14-0.48 at w 5.5 and 16.5). So the set does not pin the floor's exact value within about 5-15 %:
+chosen on half the clips, it is close to the median candidate on the other half. What it does pin is that a floor helps:
+on every one of the halves the floor chosen beats no floor out of sample (U by +0.42 and +0.68 at the median). On
+0.3.1's table the same runs give 0.54 and 0.50, and 0.40 and 0.36. For `flicker.POINT_DISC` (the capped disc of
+2026-10-24) the tool was run on the data the cap was chosen on, the aperture study's tables (mcdonald 0.3.x, the floor
+at 8 %): among the three apertures tried on both the labelled set and the 38 known-beat birds (no cap, the 6-px cap, a
+fixed 4-px disc) PBO is 0.25, the cap chosen on most halves; among the seven tried on the 38 known-beat birds alone
+(fixed discs of 3, 4, 4 with a wider ring, 5 and 6 px, the cap, and no cap; their 15 videos in 8 blocks) it is 0.71 --
+the cap's lead over the discs of 4-6 px whose ring clears the bird (23 of 38 against 21) is noise, while the cap's lead
+over no cap carries over. A disc's candidates need `flicker` run at each size; the tool takes any gate's candidates as a
+table (`pbo.py configs`).
+
+**The challenger (E19; `floor.py challenger`).** The simplest rule that could do the floor's job is the amplitude alone:
+the strongest beat the stage reports, in the wingbeat band, with none of its tests (whether it is the object's own,
+whether it comes back, the shake), its threshold set by the same rule at the same 1 % (15.0 % by the stage's
+measurement, 11.4 % by the paper's). It names 3 of 307 non-bird tracks under each, and 27 and 37 of the 125 birds, where
+the gate names 30 and 27. The gate's margin, in birds named at the same rate: **+2.4 points under the stage's rule (by
+clip -4.8 to +10.1) and -8.0 under the paper's (-14.8 to -0.8)**; on 0.3.1's table, against the 8 % floor, -8.0 and
+-3.2. On this set the beat's tests do not beat the amplitude alone: on 0.3.1's table, of the 14 birds the amplitude
+alone added, 9 had beats the tests did not hold to be the object's own and 5 came back in one stretch only. The set does
+not hold what the tests were built for -- a codec's rhythm, a beat the background shares, the camera's shake; its camera
+tracks its target against clean sky -- and their worth was shown on PURSUE's background apertures (0.15 % / 0.36 %
+pass). A challenger held on a null with those in it is what would settle whether they earn their place here.
+
+**The test on a set it had not met.** Once, with the floor frozen, on two sets the floor and these gates had not met.
+The Svanström set's visible-band clips (640 by 512, colour, the same platform; their bird calls never tabulated before),
+measured by the stage's rule in a seeded random order with the non-birds first: by the time of the look 190 of the 279
+non-bird tracks were measured, and 2 are named a bird (1.1 %; the one-sided 95 % bound 3.3 %), drone 009 (9.9 Hz, 16 %)
+and airplane 017 (5.0 Hz, 7.5 %), against at most 4 that a rate of 1 in 100 allows on 190 at the 5 % level: not shown
+above the stated rate -- a weak test at this size, which a detector at 2 % would pass two times in three. With no floor,
+7. The visible birds were not reached, so the floor's cost there is not measured. And AARO's resolved cases, as run
+blind in the same session (10 cases, 16 objects): none has a beat of its own, so the floor decides nothing there; the
+two bird cases are stopped by the beat's own tests. The 10-Hz drones of the infrared set have company in the visible
+(drone 009, and 007 at 10.3 Hz under the floor): a third of the frame rate, which the held-picture test (section 35)
+reads as uneven holds rather than a cadence (drone 059's balance 0.84 against the 0.85 it needs), so the band's top
+stays at 12 Hz.
+
+**The held-out third** was not looked at. Its look was spent on 2026-10-18 (ffa9f3f), before this floor, the capped
+disc, the continuum's correction, the one-stretch rule and the shake gate; the ledger of looks (`tools/sweep/looks.tsv`)
+records it spent for them and owes them a set none has met. The visible-band clips and AARO's resolved cases are that
+set here.
+
+**As a diagnostic-accuracy study** (the items of STARD 2015). Fixed in advance, in the session's notes before the set
+was measured again: the rule, the sets it is set on and tested on, the pass test, the CSCV design and the challenger.
+Judged: the rate (1 in 100, a policy), the 0.5 % rounding, and three amendments written before the data they concern
+were read -- tracks not yet measured counted as not named (dropped when the set was complete, which moved the floor from
+6.5 to 7 %), the visible set by the stage's rule only, and the time of the look. What the reader knew: the infrared
+set's calls of 2026-10-19 and 2026-10-24 (the floor's first choice was made on them, so it is the setting set, never a
+test); the visible set's bird calls had never been tabulated; AARO's cases were run blind by another agent. Sample: 432
+infrared tracks in 365 clips; 190 visible non-bird tracks at the look. Flow, by the stage's rule at 7 %: airplanes 82,
+answered 80, named 0; birds 125, answered 110, named 30; drones 168, answered 162, named 1; helicopters 57, answered 46,
+named 2. The nulls, the planted beats and this labelled set are the bird call's validity as applied (PCAST 2016; Federal
+Rule of Evidence 702(d)): what it does on footage like the case's, not on footage in general. The controls harness keeps
+the QUADAS-2 table and the bird call's validation file; this section does not repeat them.
+
+**What it moves.** Of the 31 reference objects (the 14 case files, measured by the paper's rule), none changes its call:
+every one named a bird beats at 10.3 % of its brightness or more (PR097 object 3 the faintest), and the one beat of its
+own under 8 % that comes back, PR085's (7.37 Hz, 5.0 %), stays under 7 %, "too faint to name a bird"; only the words
+that say so change ("about 1 in 100 of them reach 7 %"). By the stage's rule -- each of the 28 objects with a beat
+measured again with its case file's track, frames, aperture and avoided tracks -- none moves either: every one it names
+beats at 10.3 % or more, and the beats it does not hold to be the object's own (PR085 at 13.5 %, PR088 object 1, PR097
+objects 2 and 4, PR099 object 2, PR141's two copies) name nothing under either floor. PR41's bird (11.6 % in its 12-px
+disc by the paper's rule) was not measured again by the stage's rule in the session (its run outlasted its slot); the
+paper's rule keeps it a bird at either floor. (The two rules differ, as before this change, on PR088 object 1, which the
+paper's names and the stage's does not, and PR097 object 7, the reverse.)
+
+**What no floor near it stops** (the air-and-sea survey of 2026-11-07, its W3, rebuilt through `flicker`'s own judging;
+stated here as an open limit, not built). Atmospheric twinkle -- log-normal scintillation with a Kolmogorov corner -- planted
+in the light curves of 18 real non-flapping tracks of the labelled set was named a bird in 18 of 540 draws (3.3 %, 2.1-5.2 %),
+every one at 2.1-4.4 Hz and at a strength sigma_I of 0.25 or more, with beats of 8.8-30 % that a floor near 7-8 % does not
+reach; the unplanted templates gave none, planted wingbeats came back 33 of 36. The continuum null (§39) refuses 17 of the 18
+(at a cost of 5 of the set's 31 named birds and none of the reference beats), and the steadiness test reads twinkle as a
+clock. The rate is before the encoder: the twinkle was planted in curves, not in frames through the clip's codec. Strong
+twinkle is mostly refused as NO POWER with "lost against what is behind it", which is the wrong reason for it (Jacob's
+words to set: the survey's W5). Only a compact source twinkles (about sqrt(lambda L) or smaller: 0.14-0.45 m in the long-wave
+infrared at 2-20 km), so the aircraft controls are nulls for it, and a hot engine seen in the mid-wave infrared is not.
+
+## 44. The controls harness: one of everything, and the rates it stands for (I1, T9, B28, B17; added 2026-11-07)
+
+**What it answers.** A control says what the stage did on one thing. What that says of the stage's rates depends on how many
+such things were tried, and on whether what each is was known from outside the tool. The harness keeps the two apart: a
+sample of one of everything, judged again after every change in a minute or two (`tests/test_controls.py`, a regression),
+and the labelled infrared set's whole run, a tool that runs through the job scheduler, where the rates come from
+(`tools/controls/`). It lifts the hold of 2026-10-20 ("the harness waits for the new workstation") for the sample on the
+present machine; the whole set stays a scheduled run.
+
+**The labelled set as tracks** (`tools/controls/svanstrom_labels.py`). Svanström et al. (2021) keep a box on every frame of
+their 365 thermal clips as MATLAB `groundTruth` objects (MCOS class instances), which `scipy.io.loadmat` does not decode.
+The object is a MAT stream of its own inside the file's `__function_workspace__`; given a header, scipy's own version-5
+reader reads it, and its FileWrapper cell array holds `LabelData`, a row a frame. The boxes of the clip's own class become
+tracks: the centre (x + w/2 - 1.5, y + h/2 - 1.5) in the package's pixels (on 48 sampled tracks the contrast centroid sat
+0.5-2 px from it on 46), frames 1-based (row i is frame i + 1: written 0-based, a frame early, the 2026-10-19 run had put a
+periodic centring error into the aperture of every track whose labels follow the platform's 2-3 Hz wobble), several boxes in
+a frame linked by nearest neighbour within 25 px and 15 frames. The polarity is read from the pixels, never the class. 446
+objects, **432 tracks** of 60 frames or more (125 birds, 82 airplanes, 168 drones, 57 helicopters), written once to the
+reference-data folder's `svanstrom2021/tracks/` -- the same 432, frame for frame and polarity for polarity, as the PURSUE
+analysis's conversion of 2026-10-19. The camera follows its target on a pan-and-tilt platform, so the object stays near the
+middle and the scene moves behind it; the pictures change on every frame.
+
+**The whole-set run** (`run_set.py`, `svanstrom.sbatch`, `summarise.py`). Every track through `flicker.measure` as `mcdonald
+run` puts an object through it -- the aperture following its size, the clip's other tracks avoided, the scene's own motion
+read at a beat that would name a bird -- under the stage's rule and the paper's; nothing tuned per clip. A call is read two
+ways: as the run of 2026-10-19 read it (**bird**: the object's own beat at 2-25 Hz that comes back), and as the report says
+it today (**named**, "Beats like a bird": the same at BIRD_FLOOR, 7 % of the brightness since the floor's merge (section 43;
+8 % when the set was run), or more, and the camera's shake not at the beat -- the two tracks with a beat between 7 and 8 %,
+IR_BIRD_065 and HELICOPTER_024, measured again at 7 % so that their shake was read: neither shaken). Every rate with its
+exact (Clopper-Pearson) 95 % interval over tracks and a 95 % interval from resampling clips, since a clip's tracks are not
+independent (E10):
+
+| tracks | the stage's rule: a bird call (2026-10-19's reading) | named today | the paper's rule: a bird call | named today |
+|---|---|---|---|---|
+| birds (125) | 31 of 125 (24.8 %; 17.5-33.3, by clip 16.7-33.3) | 30 of 125 (24.0 %; 16.8-32.5, by clip 15.8-32.5) | 30 of 125 (24.0 %; 16.8-32.5, by clip 16.1-32.4) | 27 of 125 (21.6 %; 14.7-29.8, by clip 13.8-29.8) |
+| airplanes (82) | 7 of 82 (8.5 %; 3.5-16.8, by clip 3.3-15.0) | 0 of 82 (0.0 %; 0.0-4.4, by clip 0.0-0.0) | 11 of 82 (13.4 %; 6.9-22.7, by clip 6.3-21.0) | 0 of 82 (0.0 %; 0.0-4.4, by clip 0.0-0.0) |
+| drones (168) | 3 of 168 (1.8 %; 0.4-5.1, by clip 0.0-4.1) | 1 of 168 (0.6 %; 0.0-3.3, by clip 0.0-1.8) | 7 of 168 (4.2 %; 1.7-8.4, by clip 1.2-7.3) | 0 of 168 (0.0 %; 0.0-2.2, by clip 0.0-0.0) |
+| helicopters (57) | 8 of 57 (14.0 %; 6.3-25.8, by clip 3.6-25.0) | 2 of 57 (3.5 %; 0.4-12.1, by clip 0.0-8.9) | 7 of 57 (12.3 %; 5.1-23.7, by clip 3.6-23.3) | 2 of 57 (3.5 %; 0.4-12.1, by clip 0.0-8.9) |
+| all non-birds (307) | 18 of 307 (5.9 %; 3.5-9.1, by clip 3.2-8.9) | 3 of 307 (1.0 %; 0.2-2.8, by clip 0.0-2.3) | 25 of 307 (8.1 %; 5.3-11.8, by clip 5.1-11.6) | 2 of 307 (0.7 %; 0.1-2.3, by clip 0.0-1.7) |
+| distant birds | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) |
+| distant non-birds | 3 of 100 (3.0 %; 0.6-8.5, by clip 0.0-6.9) | 1 of 100 (1.0 %; 0.0-5.4, by clip 0.0-3.0) | 5 of 100 (5.0 %; 1.6-11.3, by clip 1.0-9.9) | 0 of 100 (0.0 %; 0.0-3.6, by clip 0.0-0.0) |
+
+Coverage -- the share answered, not NO POWER -- is not the same for every class, so it stands beside every rate: under the
+stage's rule birds 110 of 125 (88 %), airplanes 80 of 82, drones 162 of 168, helicopters 46 of 57 (81 %), 398 of 432 in all
+(92 %). A refusal is 1.9 times as likely on a bird as on anything else, but by clip 0.8-3.9 (2.1 and 1.0-4.1 under the
+paper's rule): the interval holds 1, and the diagnostic-accuracy survey (2026-11-07) finds the objects' contrast accounts
+for it, so a NO POWER is not shown to carry class information. Each false-alarm rate is a point estimate with its exact
+one-sided 95 % upper bound: named non-birds 3 of 307, 1.0 %, under 2.5 % (stage), 2 of 307, 0.7 %, under 2.0 % (paper). None
+in 286 would bound the rate only under 1.04 %, so no count on a set this size can show "under 1 %". Among the answered
+non-birds, 3 of 288. The three named are DRONE_059 (10.0 Hz, 15 %, stage only), HELICOPTER_024 (3.53 Hz, 7.8 %, both; over
+the floor since it went to 7 %) and HELICOPTER_043 (2.09 Hz, 21 %, both); of the 33 tracks the report names a bird under the
+stage's rule, 3 are not birds. Read as a test, a name is 25 times likelier on a bird track than on any other (24.0 % against
+0.98 %; 33 under the paper's rule, 21.6 % against 0.65 %). By clip, 3 of 286 non-bird clips are named (stage), 2 (paper).
+Among the tracks already called (bird or once), the beat's amplitude separates the calls on birds from those on everything
+else with an AUC of 0.94 (stage) and 0.96 (paper) -- the 2026-10-19 figure's definition. Over every track with a measured
+amplitude (400) it is 0.90 and 0.91, and among the tracks with no beat of their own still 0.88 and 0.89: most of the
+separation is the birds' faintness, not their beat (the diagnostic-accuracy survey reads 0.82 over all 432). The two rules
+as two raters on one set of tracks (the biology survey's X6): a bird call or not, raw agreement 97.2 %, chance 78.8 %, kappa
+0.87, positive agreement 88.5 % (46 called by both, 3 by the stage's rule alone, 9 by the paper's); by class, kappa 0.94 on
+birds, 0.75 airplanes, 0.59 drones, 0.92 helicopters; named or not, 98.6 %, 86.7 %, 0.90, positive agreement 90.3 %.
+
+**Flow, and how the set was read (STARD 2015; QUADAS-2).** From the labels to the calls, under the stage's rule (the
+paper's in brackets where it differs):
+
+| | birds | airplanes | drones | helicopters |
+|---|---|---|---|---|
+| labelled objects of the clip's class (446, in 365 clips) | 137 | 84 | 168 | 57 |
+| shorter than 60 frames: listed, no track | 12 | 2 | 0 | 0 |
+| tracks measured (432) | 125 | 82 | 168 | 57 |
+| refused, NO POWER | 15 [17] | 2 | 6 [7] | 11 |
+| answered | 110 [108] | 80 | 162 [161] | 46 |
+| named "Beats like a bird" (at 7 %) | 30 [27] | 0 | 1 [0] | 2 |
+
+| QUADAS-2 domain | how this set stands |
+|---|---|
+| selection | every labelled object of 60 frames or more, none chosen; the set's own clips (a pan-and-tilt tracking camera, ground-based, 30 frames a second, 320x256) -- not PURSUE's airborne turrets: applicability, not bias |
+| the test | run blind to the label: `flicker` sees a track and the pixels, never the class; the polarity read from the pixels; nothing tuned per clip. Fixed before the run: every gate and constant of 0.4.3. BIRD_FLOOR's 7 % was set afterwards on this very set, by the floor's null (section 43): for the floor this set is the setting set, not a test -- its tests are section 43's unseen sets. Judged, and flagged: STRATUM_MIN, the strata's edges, the sample's picks |
+| the reference standard | the set's own labels (a box on every frame, by its authors): a class, not a behaviour -- a bird's label does not say it flapped; some clips labelled between key frames |
+| flow and timing | all 432 tracks under both rules, no track lost (the replays 864 of 864); refusals reported by class, never dropped |
+
+The sample size was not chosen: it is the set. With 307 non-bird tracks, no count can show a false-alarm rate under 1 % at
+95 % (none in 307 would bound it under 0.97 %; 3 bound it under 2.5 %, 2 under 2.0 %), and 125 bird tracks put an exact
+interval of about 15 points on the share named.
+
+**Validity as applied** (PCAST 2016; Federal Rule of Evidence 702(d)). The rates above say how the method does on such
+clips; whether it was applied reliably to *this* clip is a different question, and the stage answers it per clip: the
+planted beats and the planted-dot encoding control (what this clip's own noise and encoder can make and hide), the
+aperture that follows this object's size, the background apertures beside it, and the nulls -- the drift test, the
+continuum null, the one-stretch rule -- each read on this clip's own curves. They are the method's validity as applied, and
+the report carries them with the call.
+
+**The 2026-10-19 headline, rebuilt, and what 0.4.3 changes.** The reading of 2026-10-19 on today's code, against that day's
+(0.3.1): birds 31 of 125 (24.8 %) against 30 (24 %) under the stage's rule, 30 (24.0 %) against 34 (27 %) under the paper's;
+non-birds 18 of 307 (5.9 %) against 12 (3.9 %), 25 (8.1 %) against 24 (7.8 %); airplanes 7 and 11 against 7 and 12, drones 3
+and 7 against 0 and 6, helicopters 8 and 7 against 5 and 6; the amplitude's AUC 0.94-0.96 against 0.96. Of 432 tracks, 64
+calls move under the stage's rule and 74 under the paper's; where a bird call stands on both days its frequency is the same
+to the digit (42 of 42, stage). Each move has its cause in the measurement's own fields:
+- **A beat in one stretch, against its own continuum** (item 15, 2026-10-31): 42 "once" calls and 8 "other" calls become no
+  beat of its own under the stage's rule (36 and 12 under the paper's) -- the largest change, and none of them was a bird
+  call.
+- **The continuum null read as the curve is** (B1, 0.4.2; section 39): under the paper's rule 8 bird calls become no beat,
+  four by the null alone (IR_BIRD_006, 072 o1, IR_DRONE_026, 033; p now 0.021-0.088) and four with the one-stretch rule
+  (IR_BIRD_024 o1, 074, IR_DRONE_057, IR_AIRPLANE_063).
+- **The band's top at 12 Hz** (M3, 2026-10-29; section 35): `flicker.pictures` no longer reads this chain as about 24.7
+  pictures a second (429 of 432 tracks now have the frame grid's 12 Hz; three read a cadence near 8 Hz), so beats between
+  9.9 and 12 Hz are heard. Three drones beat at 10.0 Hz, a third of the frame rate: DRONE_023 and 098 at 5 %, under the
+  floor, and **DRONE_059 at 15 %, named "Beats like a bird" under the stage's rule** (5 % under the paper's), a new false
+  alarm of 0.4.3. A third of DRONE_059's frames are held (a 20-a-second source in a 30-a-second file, perhaps), and the
+  held-pictures test misses the cadence by a hair (the word's balance 0.84 against BALANCED's 0.85), so the band stays at 12
+  Hz and the holds' own rhythm at fps/3 is heard as the object's; 50-Hz mains fold to the same 10 Hz. The suite holds it as
+  a false alarm of record, with that cause.
+- **The capped point disc** (2026-10-24): helicopters 024 and 027 at 3.5-3.9 Hz (7.8 % and 3.6 %), as the aperture study
+  predicted (helicopters 5 -> 9 there); 027 under the floor, and 024 over it since the floor went to 7 %: named under both
+  rules, its shake read and not at the beat.
+- **The camera's shake at the beat** (item 17, 2026-10-31): AIRPLANE_064's 8.03-Hz beat at 15 % -- the false alarm of record
+  the 8 % floor kept on 2026-10-24 -- is still called, and no longer named: the whole picture moves 0.04 px at that
+  frequency, 60 times its neighbours.
+- **BIRD_FLOOR** (7 % since the floor's merge, section 43; 8 % when the set was run) names 30 of the 31 bird calls on birds
+  under the stage's rule (IR_BIRD_053 at 6.2 % falls under it; 065 at 7.5 % is named, its shake read at 7 % and not at the
+  beat) and 27 of 30 under the paper's (042, 053, 068 at 5.4-6.7 %). Of the 18 non-bird calls under the stage's rule, 14
+  fall under the floor, one is the shake's and three are named; of the paper's 25, 22 fall under it, one is the shake's and
+  two are named.
+
+**By what a clip offers** (the diagnostic-accuracy survey's spectrum bias: a pooled rate over easy tracks overstates the
+test's power on hard ones). The same rates in strata read from what the outcome cannot set -- the track's length, the
+label's size, the set's distance bin, the frame rate -- and the object's contrast over its ring (a reading of its pixels,
+never flicker's `needs`, which follows the outcome); exact 95 % intervals; a stratum of under ten tracks (STRATUM_MIN, a
+judgement call) gives its count and no rate. The edges are round numbers near the set's quartiles, fixed before these were
+read:
+
+| stratum | birds named, stage | non-birds named, stage | birds named, paper | non-birds named, paper |
+|---|---|---|---|---|
+| frames: 60-149 frames | 9 of 43 (21 %; 10-36) | 0 of 17 (0 %; 0-20) | 8 of 43 (19 %; 8-33) | 0 of 17 (0 %; 0-20) |
+| frames: 150-299 frames | 8 of 22 (36 %; 17-59) | 0 of 11 (0 %; 0-28) | 8 of 22 (36 %; 17-59) | 0 of 11 (0 %; 0-28) |
+| frames: 300 frames or more | 13 of 60 (22 %; 12-34) | 3 of 279 (1 %; 0-3) | 11 of 60 (18 %; 10-30) | 2 of 279 (1 %; 0-3) |
+| size: under 14 px wide | 11 of 48 (23 %; 12-37) | 1 of 66 (2 %; 0-8) | 10 of 48 (21 %; 10-35) | 0 of 66 (0 %; 0-5) |
+| size: 14-20 px | 15 of 66 (23 %; 13-35) | 0 of 118 (0 %; 0-3) | 13 of 66 (20 %; 11-31) | 0 of 118 (0 %; 0-3) |
+| size: 20 px or more | 4 of 11 (36 %; 11-69) | 2 of 123 (2 %; 0-6) | 4 of 11 (36 %; 11-69) | 2 of 123 (2 %; 0-6) |
+| contrast: under 10 grey levels | 5 of 39 (13 %; 4-27) | 0 of 31 (0 %; 0-11) | 6 of 39 (15 %; 6-31) | 0 of 31 (0 %; 0-11) |
+| contrast: 10-40 grey levels | 17 of 53 (32 %; 20-46) | 0 of 84 (0 %; 0-4) | 14 of 53 (26 %; 15-40) | 0 of 84 (0 %; 0-4) |
+| contrast: 40 or more | 8 of 33 (24 %; 11-42) | 3 of 192 (2 %; 0-4) | 7 of 33 (21 %; 9-39) | 2 of 192 (1 %; 0-4) |
+| frame rate: 30 a second | 30 of 125 (24 %; 17-32) | 3 of 307 (1 %; 0-3) | 27 of 125 (22 %; 15-30) | 2 of 307 (1 %; 0-2) |
+| distance: CLOSE | 8 of 29 (28 %; 13-47) | 1 of 61 (2 %; 0-9) | 8 of 29 (28 %; 13-47) | 1 of 61 (2 %; 0-9) |
+| distance: MEDIUM | 17 of 39 (44 %; 28-60) | 1 of 146 (1 %; 0-4) | 13 of 39 (33 %; 19-50) | 1 of 146 (1 %; 0-4) |
+| distance: DISTANT | 5 of 57 (9 %; 3-19) | 1 of 100 (1 %; 0-5) | 6 of 57 (11 %; 4-22) | 0 of 100 (0 %; 0-4) |
+
+The set holds no track at 60 frames a second, so no rate of it speaks for the Galileo flyers, which sit there; and the
+non-birds are nearly all long tracks (279 of 307 at 300 frames or more), so their false-alarm rate on short tracks rests on
+17 and 11 tracks. Distant birds are named 9-11 % of the time, against 28-44 % close and medium: the distance bin, which the
+outcome cannot set, carries most of the spread. PURSUE's objects are mostly short, faint and small: the pooled rates
+overstate what the test hears there.
+
+**The saved curves** (`run_set.Capture`, `replay`). What `flicker.judge` is given -- the curves of the object, its four
+background apertures and its lights, its size and ring level on each frame, its smoothed track, the fields measured before
+the judging (the codec's lines, the pictures' reading, the spans) and the planted dots of the encoding control where they
+were made -- is kept, 10-40 kB a track, and judged again with no video. On the whole set, all 864 judgings (432 tracks, two
+rules) replay to the call, the frequency and the amplitude their measurement gave. Two readings need the frames and are not
+replayed: the astronomer's fold (it changes no call) and the scene's own motion at a beat (`shaken`, which keeps a bird from
+being named), carried over from the measurement to a beat the replay finds at the same frequency. The curves are what the
+photometry made, so a change to the photometry -- the aperture, the track's smoothing, the lights -- leaves them stale: then
+the whole set and the sample are made again (`tools/controls/README.md`), and the rates of record move with the table, each
+said.
+
+**The sample** (`tests/golden/controls.csv`; the curves in the reference-data folder's `controls/curves/`). Twenty-seven
+controls, each of a kind that says what it must give, under both rules:
+
+| kind | what it holds | controls |
+|---|---|---|
+| bird | its own beat at a wingbeat's rate (whether the report names a bird, the record holds) | the labelled set's distant, medium and close birds; Galileo flyers 1-5 |
+| flock | every member beats, each its own | PR135's six (frames 1240-1389) |
+| non-bird | never "Beats like a bird" | the labelled set's distant and close drone, distant and medium airplane, distant and close helicopter, and AIRPLANE_064 (named on 2026-10-19 from an 8-Hz beat at 15 %; the camera's shake at the beat, item 17, has kept it from being named since 2026-10-31); the WA9ONY-5 balloon; PR23, PR055, PR071 |
+| strobe | a light's flash train (item 13) | Svanström V_HELICOPTER_054 and _030 |
+| false alarm | held as the record has it, with its cause: non-birds the report names a bird on the whole set | DRONE_059 (10.00 Hz at 15 % under the stage's rule: a third of its frames held, a cadence the held-pictures test just misses, heard as a beat at fps/3), HELICOPTER_043 (a 2.09-Hz beat at 21 % under both rules: a fence line and poles passing behind it, which background apertures 25 px away do not see), HELICOPTER_024 (3.53 Hz at 7.8 %: named since the floor went to 7 %) |
+| miss | measured, and no bird named | a distant bird with no beat where one would show (gliding, most likely) |
+| no power | NO POWER | a distant dark bird the stage cannot decide on |
+
+Each is also held, rule by rule, to the outcome the manifest records (its call, its train, its beat's frequency to a
+thousandth of a hertz). After a change to the judging -- a gate, a floor, a rule -- `save_controls.py --record` judges the
+saved curves again and writes the record anew, so the manifest's diff is what moved; `summarise.py --rejudge` does the same
+for all 432 tracks of the set from their saved curves (the reference-data folder's `controls/set/`), with no video. The
+false alarms of record are held as they are: a change that removes one is an improvement to be looked at and written down,
+not a silent pass. The sample's labelled-set tracks were chosen knowing their outcomes, a distant one of each class among
+them (the bin nearest PURSUE's), and each must give its own row of the whole-set table.
+
+**The exact bound beside each control (B28).** For k events in n trials the exact 95 % interval is Clopper-Pearson's; with
+none, its upper end is 1 - 0.025^(1/n). One silent negative control bounds the false-alarm rate only under 97.5 %; the four
+of `test_golden` (PR23, the balloon, PR055, PR071) under 60 %, and three of them are not known non-birds from outside the
+tool at all. So the goldens and the sample are regressions: they find a change. The rate is the whole set's: 3 of 307
+non-bird tracks named, under 2.5 % (stage; one-sided 95 %), 2 of 307, under 2.0 % (paper). The suite prints the bound beside
+each control and holds the rates of record (RECORD) to the table, a regression on the table with the rate from the set.
+
+**Controls and regressions (B28).** A control has its answer from outside the tool: a label, a data bar, a laser, a header,
+a filmed launch, a documented hand measurement. A regression holds the tool to what it said before. Of `test_golden`'s 36
+checks, 20 are controls (PR113's two documented clicks, the WA9ONY-5 balloon, the audio cases, PR051's and Puerto Rico's
+data bars, the Yemen laser, FLIR1's header and readouts, the ATFLIR displays, the strobe helicopters, the known cadences)
+and 16 regressions (PR144's window and whole clip, PR43's link and band, the checklist on the case files, the birds' bands,
+the projective test, the Galileo flyers and PR135's flock -- known birds by the beat the gates were tuned on --, PR23,
+PR071, PR055, PR051's released-track null, FLIR1's glyphs, and the exercises). All four exercise answers follow the tool:
+PR149's ship and PR113's field of view are from outside, the answers are the tool's. `test_controls` fails on a golden check
+or an exercise page that is in neither list.
+
+**The held-out third (B17).** It was drawn on 2026-10-17 and run once, on ffa9f3f (2026-10-18): 27 of 441 objects beat (6.1
+%) against 6.4 % on the tuning set. Read again as B17 asks (the biology survey, 2026-11-01, on the census table's calls; no
+new look at the videos): held out 6.8 % (30 of 439 objects in 29 videos; 0.9-16.5 % by video), tuning 6.3 % (45 of 715 in
+58; 2.7-11.5 %), **a difference of -8.0 to +10.6 points** by video -- a difference under about 8 points could not have shown
+-- and 2.1 % held out without LLE-PR002, which holds most of the held-out calls. `tools/sweep/looks.tsv` is the ledger of
+looks (date, commit, gates, set, who, what was seen), with the draw, the look of 2026-10-18, its reading of 2026-11-01 and
+the scene gate's look of 2026-11-02; `tools/sweep/agreement.py` states a look's agreement as a difference with a by-video
+interval. The gates changed since ffa9f3f -- BIRD_FLOOR, the capped point disc, the shake gate, a stretch's own continuum,
+the continuum null's correction -- have not met the held-out third, and it is spent for them: they are owed a set none of
+them has met (AARO's resolved cases, the drone-show clips), entered as `owed`.
+
+**The exotica list (T9).** After Breakthrough Listen's Exotica catalog (Lacki et al. 2021: prototypes, superlatives,
+anomalies, controls), the suite prints one of everything the harness should hold. Held, with saved curves: a flapping bird
+on a still camera, a flock, the labelled set's birds near and distant, a bird the test does not hear, a drone, an airplane
+and a helicopter near and distant, an anti-collision strobe, a propeller's folded line (a candidate), held pictures' rhythm
+heard as a beat, a background crossing, a helicopter's own modulation over the floor, a balloon, an object lost against a
+hot roof, two unidentified objects, a track with NO POWER. Held elsewhere, with no saved beat curve yet: a codec's cadence,
+sky lanterns, a hovering helicopter's rotor. Missing: a balloon with its payload resolved in the thermal infrared, flares,
+an insect near the lens, a bird known to glide, a drone's light at night, a visible-band airplane at night with ADS-B,
+airborne helicopters and aircraft from the flyers' cameras, a wind farm's lights, a satellite or star, sea glint and a
+ship's lights, the sensor's own defects as curves.
+
+**What it does not do.** It does not run the whole set after every change: that is the scheduled tool, about an hour and a
+half six abreast (two CPUs a track, about a minute a track for both rules). The sample was chosen knowing each track's
+outcome, so it bounds nothing; it holds the stage to what it did. The camera's shake is read, as `run` reads it, only at a
+beat that would name a bird when the track was measured: judged again under a lower floor, a beat between the two floors has
+no shake reading, and wants measuring again (done for the 7 % floor: IR_BIRD_065 and HELICOPTER_024, both rules). The labels
+were made differently by class (the air-and-sea survey, 2026-11-07): the median share of a track's frames on an exact
+straight line while the object moves -- key frames with straight lines between -- is 86 % on birds, 95 % on airplanes, 5 %
+on drones and 5 % on helicopters. So on bird and airplane tracks the aperture follows a straight line between key frames,
+not the object; within each class no bias in these rates was found, but any difference between birds and drones in centring
+or jitter may be the labels'. A bird's label says a bird is there, not that it flapped: gulls glide, so the share of bird
+tracks called is a floor on the test's sensitivity to flapping birds, not a measure of it.
+
+## 45. The dash read better: the scene taken out, and the dash fitted whole (F11, F12, F41, F51; added 2026-11-07)
+
+**What it answers.** `streak` (section 30) read a dash along one line of pixels on the frame as it is, and took its length at
+half its peak through a blur borrowed from the scene's points. The single-camera survey of 2026-11-01 (its Part 9 §1.1-1.2,
+1.6, and the rebuild's M2) found two better readings, both from other fields: read the frame less its neighbours, as
+`autolink.follow_by_motion` already does (Kotera et al. 2019's background), and fit the dash whole, the trailed
+point-spread function astronomy uses for a moving object on a fixed exposure (Vereš et al. 2012). This section is those two,
+rebuilt, built, and held to drawn dashes and to PR43.
+
+**The scene taken out** (`streak.Scene`, `quieter`). Each frame less the median of its six neighbours 4-6 frames away, each
+brought onto it by one shift where that fits better than none (`propose.onto`). 4-6 frames, not `follow_by_motion`'s 1-2: a
+long dash's nearest neighbours lie beside it, and the median would take part of it out. A frame is read on that picture
+where it is quieter round the dash than the frame itself with a plane taken out (each picture's rms over the patch the fit
+reads, with the dash's possible place left out); else on the frame, and the stage says on which frames, as no power. That is
+no tuned threshold, only the choice of the picture with less else in it. It cannot tell a flat sky (where either reads as
+well) from a ground that changed in a way one shift does not bring back (where neither does): both leave the frame as it is.
+
+**The dash fitted whole** (`streak.fit_dash`, `trail`). The model is a Gaussian of width sigma drawn evenly along a segment of
+length L through (cx, cy) at angle phi -- 0.5 [erf((u + L/2) / sqrt(2) sigma) - erf((u - L/2) / sqrt(2) sigma)] exp(-w^2 / 2
+sigma^2), u along the segment and w across it -- times an amplitude, over a plane, fitted by least squares to every pixel of a
+patch round the track's point 0.6 steps, three blurs and 5 px in radius (the part inside the picture at its edge). The
+amplitude and the plane are solved exactly at each step (they enter linearly); the centre, length, direction and width are
+searched from the track's point and direction, the half-peak length and the scene's blur, and from half and one and a half
+times that length. Its integral, the flux, is the amplitude times L sqrt(2 pi) sigma, exactly, at any length. The fit
+**holds** on a frame where its amplitude stands `FIT_Z` of its own errors from none (the least-squares error from the fit's
+residual) and its length is within the frame's step, 1.2 steps + 3 px (`FIT_CAP`: a dash cannot outrun the step, and one that
+seems to has taken in the next dash's ghost, a neighbour or the plane's edge). **No length is read under `FIT_MIN_PX`, 4 px**:
+there every reader reads 2-4 px long and a round spot is not told from a short dash (the survey's 3,072 drawn dashes).
+
+Where it holds on three frames or more with a length, the **exposure** is the median of the fitted length over the track's
+speed, said with the half-peak reading beside it (which `streak` reported until now; its fields stay as `half_peak`), and the
+share's first and last thirds of the frames are said, since PR43's runs from 0.37 to 0.78 (F27). Its **centres** are the
+dash's own track points: `--centres` writes them as a track (the fit's centre where it holds, the track's point elsewhere, a
+source column and the header naming which frames), and the stage gives the projective test's T (section 33) on that track and
+on the track's own points, with each one's jitter. Its **flux** is a second clock on T, for a steady point closing straight at
+a steady speed: the flux goes as 1/R^2 and R as (t_z - t), so the root of the flux as a / (t_z - t), the looming law with no
+offset (`kinematics.looming_fit`), and T = t_z less the track's last frame, its 16-84 % band from the fit's bootstrap. It is
+read only where the flux changes by `kinematics.TAU_LIGHT` in ln over the stretch at `TAU_Z` sigmas (the trend's sigma
+widened for the fluxes' own wander, as the light-curve route of section 33), on 10 frames or more, and where the law describes
+the root of the flux as well as a free quadratic does. It is said with what it assumes -- a steady point, the exposure and the
+gain held, the picture's gamma left out (a video's levels compress a change of brightness by up to 2.2, and the clock reads
+long by up to that) -- and beside it what the clip shows of two of them: the dash's share of the step at the start and the
+end, and the scene's level round the dash.
+
+**The survey's numbers rebuilt first** (`/scratch/mcdonald/s18-2026-11-07/streak/`, notes.md). The rebuild's own M2 script on
+its own draws (seed 3) and on fresh ones (seed 11), about 187 dashes a family each: the shipped half-peak reading on the
+frame against the same less the neighbours' median, all families 5.36 and 3.99 px rms against 2.14 and 2.28 (the survey's
+5.03 against 2.08); cloud 7.0-7.4 against 0.8-0.9 (8 times), real PURSUE frames 5.3-11.4 against 2.0-3.6 (2.6-3.2), a flat
+sky no change. On PR43 (its case file's track, the survey's own): the motion's scatter about a line in speed 6.39 px on the
+frame and 1.93 less its neighbours on the 20 frames the survey's cut keeps (amplitude 15 DN or more and the length within
+the cap: frames 50, 52, 58 and 71 out), the survey's 6.4 and 1.9 -- **but on all 24 frames 5.97 and 6.86**: three frames
+read long once the scene is out, so the gain rests on a cut, which here is `FIT_Z` and `FIT_CAP` in place of a level in DN.
+The fit's centres about a quartic 1.89 px against the track's 3.34, and its width 2.7 px against the scene's points' 3.6, as
+the survey had them. **The flux clock does not reproduce as the survey stated it**: its "T = 0.63 s at the last frame" is
+2 over the slope of ln flux on time (3.0-3.2 /s), which is tau at the stretch's middle, not at its last frame; fitted as
+1/R^2 with its own t_z the flux gives **0.37 s at the last frame (16-84 % 0.32-0.43)**, where the track's projective T is
+0.76 s -- at the middle the track says about 1.1 s against the flux's 0.66. The two clocks differ by about two times
+either way.
+
+**Drawn dashes** (M2's seven families by its own drawing, 609 dashes, 87 a family; the fit on the picture `quieter` picks):
+
+| family | half-peak, frame | half-peak, less neighbours | fit, frame | fit, less neighbours | fit, picked | ratio |
+|---|---|---|---|---|---|---|
+| Gaussian spot | 0.50 | 1.17 | 0.17 | 0.20 | 0.17 | 2.9 |
+| Moffat wings | 0.84 | 0.89 | 0.19 | 0.28 | 0.19 | 4.5 |
+| a defocus disc | 0.72 | 0.54 | 0.19 | 0.19 | 0.19 | 3.8 |
+| brightness ramped ±50 % | 4.68 | 5.11 | 1.00 | 1.06 | 1.00 | 4.7 |
+| speed changing by a third | 1.63 | 1.64 | 0.21 | 0.23 | 0.21 | 7.7 |
+| cloud of 10-40 % of the dash | 7.76 | 0.91 | 13.73 | 0.20 | 0.25 | 31 |
+| real PURSUE frames (no shift) | 4.00 | 0.88 | 15.71 | 1.85 | 1.87 | 2.1 |
+| all | 3.82 | 2.17 | 7.89 | 0.83 | 0.82 | 4.7 |
+
+(rms px of the motion; "ratio" the half-peak on the frame over the fit on the picture picked). The fit is ahead in every
+family, 2.1-31 times, its width 3.43 px against 3.23 drawn, its centre 0.07 px off (median); `quieter` took the frame less
+its neighbours on 99 % of cloud and 93 % of real frames and on none of the flat ones. **A fit on a textured frame left as it
+is reads the ground with the dash** (13.7 and 15.7 px rms, worse than the half-peak): the scene must come out for the fit
+to help, and where no shift brings it back the stage says the scene was left in but does not refuse the fit.
+
+**FIT_Z from a null.** The same fit started at three places a frame with no object (a dash's patch drawn from the same
+lengths, a random direction), on the picture the stage reads there: on the six noise-only families, 1,562 places, z
+reached at most 5.0 (99th percentile 4.5), so at 6 none holds (under 0.2 % at 95 %). On real PURSUE frames taken out with
+no shift (the rebuild's stacks, 260 places), 40 % reach 6 and 25 % hold with the cap; with the neighbours brought on by
+a shift, as the stage does (335 places), 36 % and 21 %: what a real scene leaves behind fits as a dash. So the fit's holding
+is a guard against noise, not against the scene, and the fit is only ever started where the track says the object is. Of 112
+dashes drawn on those registered frames the fit held on 110, two of them more than 5 px off (one ran onto a feature beside
+the dash: 23.6 px read 45.6, its centre 21 px off); the median error was 0.13 px against the half-peak's 0.46 on the frame.
+
+**Rendered frames** (`tests/test_streak.py`): a dash at 20 px a frame on a textured ground held still and moving 3 px a
+frame, read half a frame on all 16 frames less their neighbours where the frame as it is spread 0.18-0.19 about it; a ground
+new every frame left in and said; the dash fitted whole at 30 px a frame, its last frame's patch cut by the picture's edge,
+half a frame, 2.0 px wide, its axis 0.02° off and its centres within 0.04 px; and a steady point closing straight on a
+pinhole camera (its distance from the vanishing point as 1/(t_z - t), its flux as 1/(t_z - t)^2, T 0.6 s): the centres'
+projective T 0.59 s and the flux's 0.60.
+
+**PR43** (its case file's track, frames 50-74; `mcdonald streak` with the blur read off 40 of the scene's points, 3.6 px;
+2026-11-07, test_golden's run on the final code). The scene came out on all 24 frames, the neighbours brought on by a shift
+where that fitted better than none. The fit holds on 23 of 24 frames; frame 52's ran 40 px against a step of 12 (the cap).
+Its width is 2.7 px at half its peak, against the scene's points' 3.6: the dash is drawn sharper than the scene's compact
+spots, which are not points. **The exposure moves from 16.3 ms (0.49 of a frame, the half-peak length on the frame) to 20.3
+ms (0.61, the fit's, a median over 21 frames)**; the half-peak length on the frames less their neighbours reads 15.2 ms
+(0.45). The share runs from 0.50 on the first third of the frames to 0.72 on the last (F27: no one shutter). **The dash's
+centres** give the
+projective test's T 0.72 ± 0.03 s at a jitter of 2.8 px, the track's points 0.76 ± 0.04 at 2.9: the survey's 1.9 against
+3.3 px (rms about a quartic) needs its cut, which dropped frames 58 and 71 -- on the stage's own rule frame 58's fit runs
+20.5 px at a step of 18.5, within the cap, with its centre 10.5 px off the path (rms about a quartic on the 23 frames 2.99
+against the track's 3.40; without 58 and 71, 1.96 against 2.91). Whether the chain's ghost a step behind each dash (the
+survey's §1.6) draws it there is not shown. **The flux clock:** the flux grows 11 times over the stretch while the scene's
+level round the dash falls 21 %, and the root of the flux as 1/(t_z - t) gives **T 0.39 s (16-84 % 0.33-0.47)** against the track's 0.76: short of it, its 84th
+percentile under it. It rests on its last frames: with frame 74 read on the frame as it is (at the picture's edge) it gave
+0.49 s (0.40-0.65). Read as clocks, the two do not show a steady point closing at a steady speed together; which condition
+fails -- a source that brightens, the exposure (the share above), the gamma (which would make the flux's T shorter still) --
+the clip does not say. With the scene left in (`--scene-in`) the fit holds on 21 frames, its centres jitter 4.5 px, and no
+change in the flux stands out of its wander (3.5 sigma): no clock.
+
+**What it cannot do.** Tell a flat sky from a ground no shift brings back (both are read as they are, and the fit then reads
+that ground too); refuse a fit on such a ground; tell a dash from a copy of the last one left by the chain where the two
+nearly touch; read a length under 4 px; or say which of its conditions a flux clock that disagrees with the track has broken.
+`streak` is a command of its own, not a stage of `run`: no case report changes, and the case track stays the measurement of
+record.
+
+## 46. Known answers: AARO's resolved cases run blind (ROADMAP 0.5.0; added 2026-11-07)
+
+**What it asks.** The All-domain Anomaly Resolution Office (AARO) has published videos with a stated resolution: birds,
+balloons, sky lanterns, aircraft. Run through `mcdonald run` with only what a person holding the video and its public
+description would have, does the report's conclusion agree with AARO's? Where it does not, which side's evidence is
+stronger? The manifest is the data folder's `aaro/resolved_cases.csv` (checked by hand against AARO's case-resolution
+reports): 14 videos with a known answer, 2 weak ones (closed as not anomalous, or not anomalous and unidentified), PR-003
+held out (AARO's table says resolved, its own page unresolved), 14 unresolved, and two with no video.
+
+**The protocol** (fixed before the first run; the runs' commands are in each case file).
+
+- *Inputs.* The video, and the facts of its public description (AARO's imagery page, the text DVIDS carries): the
+  sensor, the platform, the place and the year, the length, and a count of objects where the description's account of
+  the sighting gives one (Puerto Rico 2, "splitting into two objects"; Al Taqaddum, Mt. Etna, the Middle East red
+  balloon and Go Fast 1). Never AARO's assessment, its case-resolution analyses, or the manifest's answer columns. No
+  description states a field of view or a distance, so none is given.
+- *Blind in its inputs, not in its operator.* One agent did everything: it chose the segments, ran the commands,
+  judged which object each run followed, and later read AARO's answers. Before the first run it had read the data
+  folder's README, which lists each case's class, and the imagery page, whose titles carry the resolution ("Resolved as
+  Birds", "Resolved as a Balloon"); it read the manifest's answer columns, the case-resolution reports and the earlier
+  analyses only after every run had finished. What it knew could enter at three places: the segment of a long video, the
+  judgement that a run followed the description's object, and a second run's marks (none was needed). Each rule was
+  written down before it was used and each choice recorded with its reason, but the choices were made by someone who
+  knew the answer. Linear sequential unmasking (Dror and Kukucka 2021) would split the work: a case manager who cleans
+  the inputs, and an operator who never saw AARO's classes, choosing the segments and judging the followed object with
+  the label hidden, a first impression recorded before any second mark. That was not done here and cannot be done
+  after the fact. With every label "No physical conclusion" (below) it could not have moved a label; it matters most for
+  the two bird cases, where a different segment is where a wingbeat would be seen or not.
+- *The first run is the one press* (`auto_qt.AutoRun`), from the command line: `look --propose` over the segment (Find);
+  the rows the one press takes -- the N likeliest where a count is given, otherwise row 1 and every row that is not
+  weak -- each made an object folder by `mark --no-window --set` at the row's seeds; then `run --each`, which follows and
+  measures each object over its marked frames and 2 s either side. The marks are recorded as an agent's, with the row
+  and the rule as the reason; no track sheet is confirmed, so every report is provisional.
+- *Segments.* A video of 35 s or less is opened whole; a longer one on 20 s (200 frames for Mt. Etna's 10 frames a
+  second) chosen from a 40-tile overview of the whole video, where the description's object is in view and the picture
+  steady, or where the description points (Puerto Rico's "splitting").
+- *A second run* where the one press followed something other than the description's object: marks placed by eye on
+  that object (the one at or nearest the boresight, which the camera holds, or the one the description names), read
+  off enlargements, not copied from a detector, then `run --each` the same way. Both runs are reported: the first also
+  measures Find.
+- *The quick pass.* Every run skips `layers` and `integrity` (`--skip layers,integrity`), which with no scale or
+  distance do not enter the conclusion's label (`Case.conclusion` reads the kinematics' rate and scale, the flicker beat
+  and any given range or reference object; integrity adds a sentence, layers says whether the rate is against the
+  background). Together they are most of a run's time, about 3 s a frame pair an object on three CPUs; with them the
+  sixteen runs would not have finished in the session. What the skip costs: the checklist's camera and integrity rows.
+
+**The rule, fixed before the runs** (`tools/aaro_blind.py`, `verdict`). AARO's resolutions say what the object is and
+that it showed no anomalous performance. The report's label speaks to the second, and for a bird to the first. So
+"Beats like a bird" agrees with birds and disagrees with any other class; "Subsonic motion" agrees with any prosaic
+class; "Supersonic motion" disagrees; every other label is the report declining (**no power**). An agreement is
+**informative** where the label names AARO's class (a bird's beat on birds), and only **consistent** where no prosaic
+answer could have failed it ("Subsonic motion" beside a balloon): without the distinction, a tool with no identifying
+power could agree on every case. A run's outcome counts only its objects on the description's object; a run with none
+is **Find failed** (or, for a second run, the marks failed). A case is scored by its second run where it has one, else
+its first. No power and Find failed are outcomes of their own, never folded into agree or disagree, which misstates
+accuracy (Shinkins et al. 2013). The numbers of record, over the 14 known answers and each with its exact
+(Clopper-Pearson) 95 % interval: **coverage**, the share the report answered (agreed or disagreed); **accuracy** on the
+answered ones; agreement over all, informative and consistent apart. The 2 weak cases are read beside them. Fourteen
+is a small set, and resolved cases are the ones easy enough to resolve: the agreement here is an upper bound for
+unresolved footage (partial verification bias, Begg and Greenes 1983).
+
+**Flow** (after STARD 2015). AARO's imagery and case-resolution pages: 34 videos. The manifest's cases with a stated
+resolution and a video: 14 known answers (15 videos: the Atmospheric Wakes case has two sensors), 2 weak ones, and
+PR-003, held out and not run; 2 resolved cases have no video and 14 videos are unresolved (0.6's catalog runs). Run: 17
+videos, 16 cases, each once by the one press (no case called for a second run: every run followed the description's
+object, judged from Find's strips before the answers were read). Find's rows taken: 54 objects (49 in the 14 known
+cases), 51 of them on the description's object and 3 beside it (PR-004's rows 7 and 8, a faint spot riding just above the
+bright point; the Middle East Object's row 4, a bright point among the overlay's marks). Answered: 0 objects; refused
+(no power): 54. Scored: 14 cases, 0 answered, 14 refused, 0 Find failed. The sample is 14 by what AARO has published;
+at n = 14 even 14 agreements of 14 would bound accuracy only above 77 % (the exact lower limit).
+
+**The scorecard of record** (`tests/golden/aaro_blind.json`; `tools/aaro_blind.py --markdown` prints it, and the data
+folder's `aaro/blind/README.md` has it case by case):
+
+| | count | exact 95 % interval |
+|---|---|---|
+| known answers | 14 | |
+| agree, informative | 0 | 0-23 % |
+| agree, consistent | 0 | |
+| disagree | 0 | |
+| no power (the report declines) | 14 | |
+| Find failed | 0 | |
+| coverage (answered) | 0 of 14 | 0-23 % |
+| accuracy on the answered | none answered | -- |
+| the 2 weak cases | no power, both | |
+
+Every one of the 54 objects' conclusions is "No physical conclusion": "The object moved about N pixels a second across
+the picture. Its real speed and size cannot be found from this video alone." That is right as far as it goes. No
+description gives a field of view, a distance or a reference object of known size, so no label can turn a rate in
+pixels into a speed; and no label names a class except a bird's beat, which nothing here showed.
+
+**Reading the refusals.** With no disagreement there is nothing to read for which side's evidence is stronger. The
+refusals are read instead, by Dror and Scurich's (2020) convention: an inconclusive counts as an error only where the
+evidence was enough to decide. Counting every refusal as an error, the worst case, is 14 of 14.
+
+- *The twelve non-bird cases.* Every label they could reach needs a scale or a distance that neither the video's
+  description nor the run's inputs gave. AARO resolved them with what the runs did not have: the aerostat's position
+  (Al Taqaddum), a 3-D model fitted to the cloud deck and the wind (Mt. Etna), the aircraft's track and an STK
+  reconstruction (Puerto Rico), the F/A-18F's speed and the winds aloft over every heading (Go Fast), air-traffic data
+  (Western United States, the Wakes), the recorded wind (the European balloons, the red balloon). The refusals are not
+  errors by the convention. Several displays carry what would have turned them -- Go Fast's ATFLIR prints a slant range
+  (4.4 to 3.3 nmi), Puerto Rico's turret a slant range, an azimuth and the aircraft's position -- but no field of view
+  in degrees, which `report CASE --fov ... --range ...` would also need.
+- *What the refusals say that agrees with AARO.* No non-bird case was called a bird. On 9 of the 12 the beat test had
+  power on the description's object (35 objects) and found no beat of its own; on Mt. Etna, Puerto Rico and Go Fast the
+  tracks were 13 to 40 frames and the test could not decide. Mt. Etna is the case where AARO's partners first read a
+  steady flicker as a bird's and AARO then put it down to turbulence and contrast stretching; the one press followed the
+  object for 13 frames there, too few to test either way. A rate of false birds of 0 in 9 cases is bounded only below
+  34 % at this size.
+- *The two bird cases.* PR-016 and PR-002 are where the convention may count a refusal as an error: AARO's description
+  of PR-016 cites "pulsating infrared return at a frequency consistent with wing beats", which is the beat test's own
+  evidence. The one press followed one small point of each flock (PR-016 after the camera's field widens at 4.5 s;
+  PR-002 after its gain change) and found no beat of its own: 3.77 Hz at 10 %, 3.7 times over the brightness's slow
+  wander where 7.5 is needed; 6.00 Hz at 12 %, 6.1 times where 9.6 is needed. A probe outside the protocol and not
+  scored ran the same one press where each flock is plainest (PR-016's first 4.5 s, before its field widens; PR-002's
+  first 10 s, before its gain change). It did no better: on PR-016 Find's eight rows were all weak and its first a fast
+  streak seen on six frames, followed for 77; on PR-002 a point of the line followed for 223 frames. The beat test
+  refused both, as NO POWER: PR-016's point is "not brighter than the ring about it on every frame", and PR-002's "is
+  lost against what is behind it on 40 of its 266 frames". So whether these clips hold a wingbeat the test can find is
+  still open. The one press does not settle it: in a tight line of points 11 px apart, Find picks up one point at a
+  time and the beat test's background ring takes in the neighbours. The test that would settle it is one bird marked
+  by hand and measured the bird paper's way (`--aperture`, `--avoid` on its neighbours).
+- *Western United States and twinkle.* Airliners up to 300 nmi away in infrared are compact sources, and a compact
+  source twinkles. Object 2's flicker refused as "lost against what is behind it on 19 of its 145 frames", the refusal
+  strong twinkle draws, which is the wrong reason for twinkle. Twinkle, and the blur it drives, is a rival to AARO's
+  "shape changes from sensor vibration and autofocus" that nobody has measured on this clip.
+
+**From resolved to unresolved footage.** The resolved cases are those easy enough to resolve (partial verification bias,
+Begg and Greenes 1983). The odds of being right on unresolved footage are the resolved odds divided by a factor psi,
+exactly; psi cannot be estimated here, and the assumption that it is near 1 is an assumption. Here there is no
+accuracy to carry over: what carries is the coverage, which is no better on footage harder to resolve.
+
+**AARO's answers are an imperfect reference.** Ten of the cases carry likelihood words. By ICD 203's ranges the chance
+that at least one of them is mislabelled is 27-65 %, and AARO pairs "high confidence" with "almost certainly", which ICD
+203 keeps apart. A disagreement here would have been read as a disagreement, not as the tool's error.
+
+**Find, measured by the first runs.** On PR-004, PR-005, PR-006, PR-009 and PR-010 one bright point the camera follows
+came back as five to eight rows, the same object in successive stretches, and the one press's rule (row 1 and every row
+not weak) made each a case of its own: 37 reports for 5 objects. `several`'s same-object rule joins tracks that share
+frames, and these do not.
+
+**Integrity on a known flock, by a slip.** PR-016's run ran `integrity` too (its skip was lost to `sbatch --export`
+splitting the value at its comma). Its "layer order: symbology" check flags the bird it followed as possibly laid over
+the picture: it "crosses lines drawn frame by frame" in 13 frames, and over the object's middle none of their pixels keep
+the line's level (76 DN, the object 255). The bird is one of a row of bright points 11 px apart, each ringed dark by the
+sensor's edge enhancement; the dark rings between points in a row make the dark ridge through the object that the check
+reads as a drawn line. That reading is not yet checked frame by frame, and nothing here changes the check.
+
+## 47. What the conclusion rests on, how sure it is, and the beat against labelled tracks (E7, S17, S20; added 2026-11-07)
+
+The checklist (section 38) answers each test in a word. It does not say which answers the conclusion rests on, how much
+each weighs, or how sure the conclusion is. Jacob's diagnostic-accuracy survey (2026-11-07; its three rebuilds, `verify/`)
+measured the beat test against the labelled infrared set as a diagnostic test, and found the checklist's own words wrong
+in four places. This section is the fixes, then the three additions. Every number here was rebuilt from the controls
+harness's whole table (432 tracks, 365 clips, 0.4.3; session 18's `harness`) before anything was built
+(`reasons/scripts/rebuild.py` of the session's notes).
+
+**The control population** (`controls.py`, `controls_beat.csv`). The harness's table, cut to what the report reads, ships
+with the package (54 kB): each labelled track's clip and class, what it offers (frames, frame rate, contrast), and under
+each rule its call, beat, amplitude, whether the beat comes back, the shake, and `needs` (`flicker.analytic`'s
+`with_floor`). `python3 -m mcdonald.controls $MCDONALD_DATA/controls/svanstrom_tracks.csv` remakes it after the harness
+measures the set again; test_reduction holds it to the data folder's table. `controls.kind` answers the checklist's beat
+row for a track of the set by the report's own rule, `controls.weigh` gives the likelihood ratio of an answer --
+P(answer | bird) / P(answer | not a bird), over tracks -- with a 95 % interval from 2,000 resamples of clips (birds and
+the rest apart, numpy's generator seeded 7, all at once: 20 ms a kind; the table below is the rebuild's own draw, whose
+intervals differ from the package's in their second figure), at the report's BIRD_FLOOR as it stands, under the rule the case was measured by. An answer
+fewer than ten tracks gave carries no ratio (the harness's STRATUM_MIN, a judgement call); one whose interval holds 1
+carries no weight.
+
+| the beat row's answer | stage, 8 % | paper, 8 % | stage, 7 % |
+|---|---|---|---|
+| Yes, a bird named | 35.6 (12.2-inf; 29/125 v 2/307) | 63.9 (16.9-inf; 26 v 1) | 24.6 (9.9-inf; 30 v 3) |
+| Partly, too faint | 0.33 (0-1.09; 2 v 15) | 0.43 (0.08-1.09) | 0.18 (0-0.74) |
+| Partly, one stretch | 0 v 5: no power | 1 v 3: no power | 0 v 5 |
+| No (with power at the floor) | 0.42 (0.31-0.55; 42 v 246) | 0.43 (0.32-0.56) | 0.37 (0.27-0.51) |
+| Can't tell, too noisy for a bird's beat (was No) | 4.48 (2.58-8.18; 31 v 17) | 4.62 (2.63-8.57) | 4.42 (2.71-7.84) |
+| No, a rhythm outside a wingbeat's rate | 6 v 2: no power | 3 v 2 | 6 v 2 |
+| Can't tell, refused | 1.94 (0.81-3.75; 15 v 19) | 2.09 (0.96-3.80) | 1.94 |
+| Can't tell, the shake | 0 v 1: no power | 0 v 1 | 0 v 1 |
+
+**Four fixes to the checklist** (`Case.checklist`, `Case.placed`, `Case.beat_power`; `stages.track_placed`).
+
+1. *The beat row's "No" held two answers.* The flicker stage sets `beats` False whenever nothing passes, whatever the
+   track's power; the report never read `analytic`. A track whose noise needs a 12 % beat to find one three times in four
+   answered "No" as a track that could hear a 2 % one. Now "No" only where `beat_power` (the least `with_floor` over the
+   objects measured, or the white-noise amplitude where there is no background) is at most BIRD_FLOOR -- where a beat
+   strong enough to name a bird would have been found -- and "Can't tell" above it, with the amplitude it would need. The
+   rule is the stage's own power at the floor the report already names a bird from; no threshold was chosen. On the set,
+   the old "No" put 31 bird and 17 other tracks without that power beside 42 and 246 with it; by clip, 22 of 293 "No"
+   clips had no track that could have heard the floor, 45 % of them birds against 22 % of all clips, LR 3.0 (1.35-6.7)
+   -- the diagnostic survey's FX4, rebuilt to the digit. Such a "No" pointed toward a bird; the one left points away
+   (0.42). The amplitude follows the object's own residual after one sinusoid, so a real beat that wanders raises it
+   (x1.5-3 when planted, the survey's claim 4; with every `needs` divided by 1.9 the clip-level ratio is 1.8, 0.34-9.7):
+   the new "Can't tell" is right either way, and it carries no weight in the reasons below.
+   And a refusal (`beats` None: the background beats with it, the codec's line, members in step) with a peak measured on
+   the way answered "No", because the no-power branch came after it: 2 tracks of the set under the stage's rule, 5 under
+   the paper's (none of the reference objects). It is "Can't tell" now, in the stage's words.
+2. *Who chose the object.* `run --track` alone records nothing of who made the track, and the row answered "a person placed
+   the marks on the frames by hand" there -- on 29 of the 31 reference objects, each measured on a paper's track whose own
+   marks files say "agent: from the paper's track". Now the track stage records `placed_by` and `placed_said`: from the
+   marks where there are marks, and for a track file given alone from its own first lines (`stages.track_placed`: a link
+   from hand marks or a marks file's hand marks is a hand's; marks that say they are not, or `share make`'s agent's track,
+   are not; a file that says nothing is not known). The row is Yes, No or "Can't tell" ("the track was read from a file,
+   X, that does not say who or what placed its points") accordingly; a case from before is read from its run command
+   (`--marks` with every mark a hand's is a hand's; `--track` alone is not known).
+3. *What was looked at.* `run --i-looked` asserts a look before this run draws its sheet (the flag's own help: "the track
+   sheet from a previous run"). The verify stage's result records how ("yes (--i-looked)"), and the row now says it: "a person said with
+   --i-looked, before this run drew its track sheet, that they had looked at the sheet: the look was at an earlier run's
+   sheet, not this one"; the window's question and the later confirmation each have their own words.
+4. *Integrity's row* (the survey's Dx7, read in the code and confirmed here). Its checks have never been tried on a real
+   insert -- section 2's validation says so: the corpus holds no known one, and a synthetic disc stands in -- and one false
+   flag is known (AARO's PR-016: a line of birds whose dark rings `_overlay_drawn` reads as a drawn line; session 18's
+   `aaro`, open). A "No" from its passes said more than that. The row's question is now "Is it consistent with the
+   camera's own picture, rather than added afterwards?", answered Consistent, Inconsistent or Can't tell, each decided
+   answer with "no check has been tested on a real insert" (and, where layer order flags, its known false flag).
+
+Also: `run`'s track sheet carries the release's id at its head, not its title (`stages.run_case`): 22 of PURSUE's 144 titles
+describe the object as an observer saw it ("Spherical", "TIC TAC", "fast moving"; the survey's FX7, by hand), and the
+person judging the sheet should not read that first. `mcdonald tracksheet`'s own command keeps the title.
+
+**What the conclusion rests on** (E7; `Case.reasons`). At most four reasons under the conclusion, the heaviest first --
+the rule a US lender follows when it declines (Regulation B's statement of principal reasons; four in the model forms).
+The reason the label stands on comes first: the beat for "Beats like a bird", the speed or what it lacks for the speed
+labels and "No physical conclusion". Then the weighed reasons, by the weight that survives their interval (|ln| of the end
+nearer 1), then the unweighed in the checklist's order. A weight is a likelihood ratio wherever a control population gives
+one -- today the beat alone -- said as "about 25 times as common on birds as on aircraft, drones and helicopters (at least
+9.6 times, at 95 % confidence)" (a bird named under the stage's rule at §43's 7 % floor; 33 under the paper's, at least 12;
+at 0.4.3's 8 % it was 36 and 64); a speed that follows from what was given is a bound ("as sure as those inputs"); the
+look-alikes, integrity and a flash train have no control population and say so, carrying no weight. **The beat counts
+once.** The stage's readings of it -- the whole track, the windows, the continuum, the background, the paper's rule --
+read one curve and pass together: on the 288 answered non-birds, 1 passes all five where independence predicts 0.0034 %,
+with phi 0.7-0.9 between the stage, the paper's rule, comes-back and the continuum (the clinical rebuild, DXC7). Counted as
+separate support they would multiply one finding's weight. A test that could not decide carries no weight even where
+the set's mix gives its answer one (a track too noisy to show a bird's beat was 4.5 times as common on birds, because the
+set's birds are faint: said, and weighed at nothing). A one-stretch beat had a ratio of 0.57 for a bird on 0.3.1 (not
+evidence for one) and on 0.4.3 the category holds 4-5 tracks: no power.
+
+**How sure** (S17; `Case.grade`). Four of GRADE's domains (Guyatt et al. 2008, BMJ 336:924), each computed from the case,
+never given by the analyst, start the conclusion at the top level and take it down one for a serious concern, two for a
+very serious one: *risk of bias* (the track sheet not looked at; the object picked by an agent or the computer, or by
+nobody recorded, which no longer counts once the sheet has been looked at; integrity inconsistent -- one serious, two or
+more very serious: no person's eye recorded at all); *inconsistency* (a named beat the whole track's test does not find,
+only its windows; under half of a flock's measured members beating; integrity's checks both passing and flagging);
+*indirectness* (for a bird named, the clip outside the labelled set's population, `controls.inside`: not 30 frames a
+second, a track under 150 frames -- the set's 17 non-bird tracks there bound a false-alarm rate only under 16 %, DXC5 --
+or a flock, where the set's tracks are single; for a speed label, a field of view that is a guess); *imprecision* (a named
+beat whose amplitude less twice its own error, sigma sqrt(3/n) from the closed form, falls under BIRD_FLOOR; a speed
+whose band, twice its spread along the track, reaches the speed of sound anywhere from 295 m/s at 11 km to 343 at sea
+level). The proposed levels are GRADE's: High, Moderate, Low, Very low -- not A-D, which GEIPAN uses for identified to
+unexplained (F56); the names are the maintainer's to choose. "Under half the members" and "under 150 frames" are judgement
+calls. The grade is said where the label is said: under the conclusion's sentence ("How sure: low. Nobody has said they
+looked at the track sheet and who picked the object is not recorded."), in the window card's More, on each object's line
+of `several`'s list, and as `grade` in `run --json` and `report --json`.
+
+**The beat against labelled tracks** (S20; `figures.beat_controls`, `controls.screen`). Every track of the set the stage
+measured a beat on, its strongest rhythm's rate against its strength on a log scale, birds blue and the rest amber, filled
+where the rhythm was the track's own and open where it is only the strongest peak, the wingbeat band shaded, the floor
+dashed, the object red (`<case>_controls.png`, in the report's figures wherever the flicker stage measured a peak). Under
+it, the words that rest on it: of the labelled tracks with a rhythm of their own at a wingbeat's rate (31 birds, 23
+others under the stage's rule), how many beat at least as strongly; "consistent with the birds" where at least one in
+twenty of theirs does (a judgement call); the others "not screened out" where any of theirs does, and "screened out" only
+where none of the 288 the test could judge does, with the exact one-sided bound that leaves (under 1.04 %). What the plot
+must not be read as: evidence that the tests hear wingbeats. Ranked by this strength a bird outranks another track with
+an AUC of 0.935 (stage; 31 v 23) and 0.960 (paper; 31 v 28) among tracks with a bird or one-stretch call -- the floor's
+own question; 0.816 / 0.824 over all 432 tracks with the raw strongest amplitude wherever one was read; and **0.884 /
+0.894 among tracks with no rhythm of their own at all** (73 v 263). Most of the separation is that the set's birds are
+faint (contrast median 19 grey levels a pixel against 56), so their brightness wanders more, beat or no beat; the
+caption says so.
+
+**Reference objects that move** (the 14 case files read again by this code; not remade). Who chose the object: 29 of the
+31 Yes -> Can't tell (each measured on a paper's track given with `--track`); PR113 and PR43 stay No. The beat: six No ->
+Can't tell, too noisy to show a bird's beat at 8 % and at §43's 7 % -- PR097 objects 4 and 7 (needing 8.4 and 10.8 %), PR099 object 2
+(16.7 %), PR141 objects 1 and 2 (24.3, 17.2 %), PR144 (13.5 %); PR097 object 2 (4.3 %) stays No. Integrity: PR113, PR144 and
+PR149 No -> Consistent. No label, headline, number or bottom line moves. Every object grades Low or Very low: none has had its
+track sheet looked at, and 29 do not record who placed their track (risk of bias, very serious); looking at the sheet raises each by two levels.
+
+## 48. Three ports from finance: the jitter read without a model, which motion models survive, and the traffic light for the suites (E6, E22, E20; added 2026-11-07)
+
+The economics survey (2026-10-28) read a track as a price series sampled fast with noise on every reading. Three of its ports are
+here: a check on the band's nugget that needs no model (E6, its §1.1 and §6.1), the set of motion models a track cannot tell apart
+(E22, §1.7), and the suites' checks on drawn data read by a binomial zone (E20, §5.5).
+
+### 48.1 The jitter read without a model (E6; `kinematics.model_free`)
+
+**What it answers.** The band's nugget is REML's, inside its model of a line, a Matérn-3/2 wander and white jitter (§32). Where the
+model is wrong -- a wingbeat in the track, which the wander cannot follow -- the nugget takes the misfit in as jitter, and the band's
+error and every test held to the nugget (M1's "fits", §33) take it in with it. Finance reads the same noise with no model: bid-ask
+bounce makes successive price changes negatively correlated, and Roll (1984) read the spread from that covariance. On first
+differences a wandering velocity makes the covariance positive (Roll's "wrong sign": 80 of 88 recorded axes), so the reading is moved
+one difference up. White jitter of variance s² gives the second differences Δ²x a lag-1 autocovariance γ₁ = -4 s² and an
+autocorrelation ρ₁ = -2/3 exactly; a once-differentiable wander gives them the second differences of an integrated Brownian motion,
+ρ₁ = +1/4, and little variance at the frame scale (on the K8 track about 1 % of the jitter's). So √(-γ₁/4) is a nugget read without a
+model, and ρ₁ well above what the model draws says the path bends at the frame scale.
+
+**The reading.** On runs of consecutive frames only (a gap breaks a second difference), over the band's own window and its kept
+points (the jumps it names dropped, the middle BAND_NMAX), against the band's wander-only model (before M8's beat): γ₁ and ρ₁ of the
+second differences, read the economics survey's way (`second_differences`, its `model_free`), at least FREE_MIN = 20 side-by-side pairs.
+
+**The flag, from a null.** The survey's line, ρ₁ above -0.40, was set by eye. Here the band's own fitted covariance (the line, the
+wander and the nugget, no beat) is drawn FREE_DRAWS = 1000 times on the track's own times and gaps -- its Cholesky factor times
+standard normals; a second difference takes the line out -- and each draw read the same way. A coordinate's p is the share of draws
+whose ρ₁ reaches the track's, (1 + k) / (1 + 1000); the track is flagged where either coordinate's p is under FREE_ALPHA / 2 = 0.005,
+so a track with no beat is flagged about one time in a hundred whatever its wander and jitter: a parametric bootstrap. The ratio of the
+two nuggets is quoted with the central 99 % the same draws give it (each draw's read nugget over the nugget drawn), and REML's nugget
+"agrees" where the ratio sits inside.
+
+**The null, measured** (REML refitted on every draw, the band's window; 2026-11-07): tracks drawn with no beat --
+
+| drawn | flagged | the ratio outside its quoted 99 % |
+|---|---|---|
+| the K8 track (a 5-px wander over 1 s, 0.5-px jitter), 150 points | 1 of 300 | 1 |
+| the same, 300 points | 3 of 200 | 0 |
+| white jitter alone, 150 points | 4 of 300 | 1 |
+| a fast wander (2 px over 0.2 s), a small nugget (0.1 px), the detector's memory (B2's dots) | 0 of 600 | 0 |
+| a 60-fps flyer-like track | 1 of 200 | 0 |
+| each of the 40 recorded tracks' own fitted covariance on its own times, 25 draws each | 5 of 1,000 (PR135's six: 0 of 150) | 1 |
+| **all** | **14 of 2,600: 0.54 %** (0-1.5 % by family) | 3 (0.1 %) |
+
+So the flag's false alarm is half the 1 % its threshold states, and the words give the measured one (FREE_FALSE): "tracks drawn with
+no beat are flagged 0.5 % of the time, 1 % at most". The ratio's quoted range is wide: REML's nugget and the one read without a model
+read the same jitter, so their ratio scatters less than the read nugget over the true one, which is what the range is drawn as; it is
+quoted as what the model draws, not as a test. **Power** on the K8 track (0.5-px jitter): a 6-Hz beat of 0.8 px is flagged 99 times in
+100, of 0.4 px 27, of 0.2 px 5; of 0.4 px at 10 Hz, 3.
+
+**What it does and does not flag.** A beat that REML's nugget took in is flagged: PR135's six. A beat that REML's wander took -- a short
+range and a small sill that follow the beat -- is not, because the model then draws the same curvature: a drawn 0.8-px 6-Hz beat read
+ρ₁ -0.16 against its model's -0.14, and Galileo flyers 2, 4 and 5 (the survey's -0.40 line would have flagged them) have models that
+draw +0.13, -0.20 and -0.23 themselves. That beat is the backtest's to find (E1's rhythm left, M8's beat held). So the words never say
+"no beat": unflagged, the band's wander and jitter draw what the track does at the frame scale.
+
+**On the recorded tracks** (the survey's 46, read from today's case files and golden tracks, 2026-11-07). The survey's numbers first, its
+own estimator on every point: the ratio's median **0.80** (IQR 0.63-0.92, 77 axes, 95 % within a factor of two), PR144 1.00 / 0.93,
+PR135's members **0.39-0.73**, Roll's form the wrong sign on 80 of 88 axes -- as the survey had them. On the band's window the median
+is 0.80 (IQR 0.61-0.91, 80 axes) and **20 of the 39 tracks read are flagged**: all six PR135 members (p 0.001 on both axes, ρ₁ -0.17 to
+-0.39 where their models draw -0.60 to -0.65), PR097's objects 1, 3, 4, 5 and 8, PR099's three, PR41, PR077's object 1, PR085, PR071
+and flyers 1 and 3. PR144 is not (1.00 / 0.93 inside 0.70-1.29, ρ₁ -0.64 / -0.64 against -0.62 / -0.65), nor PR141's two, PR079,
+PR088's two, FLIR1, the balloon or PR23. Frames that are not consecutive give no reading (PR44, PR149, PR055's sphere, PR051's release).
+
+### 48.2 Which motion models survive, as a computed set (E22; `projective.confidence_set`)
+
+**What it answers.** `projective.fit` and `projective.turn` (§33) ask one model at a time and compare models in pairs, each pair by
+its own rule: constant velocity against constant image speed against a free quadratic, a bend against none. Forecasters ask which of
+several models the data cannot tell apart with one statistic: the model confidence set of Hansen, Lunde & Nason (2011), the models not
+rejected at a level on their out-of-sample losses, with the losses' dependence held by a block bootstrap. It shrinks as the data gain
+power and keeps every model where they have none, so it says NO POWER on its own.
+
+**The models.** Three, each two-dimensional, fitted by least squares: a line at a steady image velocity (four numbers: motion across
+the line of sight at a fixed range); constant velocity in projection, a straight image line whose distance from its vanishing point
+goes as 1/(t_z - t) (five: §33's model); and a steady turn, a circle drawn at a steady image speed (five: a start, a velocity and the
+rate it turns, x = x₀ + S v_x - C v_y, y = y₀ + C v_x + S v_y with S = sin(ωτ)/ω and C = (1 - cos ωτ)/ω). Given its one nonlinear
+number (t_z, ω) each is linear, so that number is the best of a log grid of MODELS_GRID = 120 values a side (a 6 % step), refined
+between its neighbours: t_z after the forecast or before the first point fitted, out to FAR spans; ω up to two turns over the points
+fitted. The projective model holds the line as t_z goes far, the turn as ω goes to nothing; on a straight steady track all three hold
+the truth.
+
+**The losses.** One-step forecasts: at each of up to MODELS_ORIGINS = 150 origins, spread from the first fifth of the track (ten
+points at least) to its end, each model is fitted to the points before and asked for the next one; the loss is the squared distance.
+A misspecified model's forecast misses by its misfit at the end of the window, so the losses carry the comparison; a flexible model's
+estimation noise is charged to it out of sample, which is the set's own penalty for a parameter.
+
+**The set.** Hansen, Lunde & Nason's elimination rule T_max: each model's loss less the mean of those left, studentised by a
+stationary bootstrap of the origins (Politis & Romano 1994; MODELS_BOOT = 2000 resamples), the worst model out while the test
+rejects; a model's MCS p-value is the largest p of the tests up to its leaving, and the set at α = 0.10 the models whose p is at least
+0.10. The losses run together where the track wanders, so the bootstrap's mean block is the track's own memory: MODELS_DECAY = 2.74
+times the range of the wander left about the model that forecasts best (a line, a Matérn-3/2 wander and a nugget fitted to that
+model's residual over the whole track by REML, on every k-th point to 150; the range where its wander gains Δln L ≥ 10, else none),
+2.74 ranges being where a Matérn-3/2's correlation falls to 5 %; at least one origin, at most a third of them.
+
+**The null: the true model's coverage at 90 %** (60 drawn tracks a cell, 150 points at 30 fps, about 300 px long; a line at 60 px/s, a
+straight flight closing or receding with 2.5 s to the camera's plane, a 90° steady turn; 2026-11-07):
+
+| drawn | white jitter (0.3 px) | a 1-px wander over 1 s | K8's 5 px over 1 s | PR144-like, 1.4 px over 1.9 s | bird-like, 2 px over 0.4 s |
+|---|---|---|---|---|---|
+| a line: kept / set size 1, 2, 3 | 60 / 26, 34, 0 | 52 / 8, 37, 15 | 38 / 10, 12, 38 | 44 / 15, 33, 12 | 57 / 2, 10, 48 |
+| closing: kept / alone | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+| receding: kept / alone | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+| a steady turn: kept / alone | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 | 60 / 60 |
+
+Where the track is one of the three under white jitter, and for every closing, receding and turning track under every wander tried,
+the true model is kept every time, and alone where it is not the line. A straight line with a wander on it stays in the set only 63-95 %
+of the time, not 90 %: none of the three is then the path, and a model that bends forecasts a wander better than the line does. So the
+set ranks forecasts, and names a motion only where nothing wanders about the best model. That is the rule the words follow: where the
+wander left about the best model gains Δln L ≥ 10 (`range_s` > 0), the paragraph says which model "predicts it best" and that the track
+"also wanders about it, so this ranks the predictions and does not name the motion"; otherwise the line's leaving names the motion,
+and where the line stays, the models that left "predict it worse" -- each holds the line, so none is ruled out as a motion. A set of all
+three says the track cannot tell them apart.
+
+**Against M1 on the recorded tracks** (the 31 objects of the 14 case files over the stretch their kinematics stage read, and the golden
+tracks; 45 sets, PR113's four points none). M1's projective test describes the trend only on 44 of them and fits PR43, whose set is the
+projective model alone (MCS p 0.005 for the line and the turn): the two agree that it closes. On the 44 the set keeps all three nine
+times (PR088's two objects, the golden PR144, PR071, PR23, FLIR1's two tracks, PR051, Svanström V054) and leaves the line out on the
+other 35 (the projective model alone 12 times, PR135's objects 1-3 among them; the turn alone 8 times; both 15 times). Where M1 chose a
+model for the trend, the set keeps it 16 times of 24. But every one of the 44 wanders about its best model, so on each the set ranks the
+forecasts and names no motion, as the null requires -- the same verdict as M1's "describes its trend", reached another way.
+
+### 48.3 The traffic light for checks on drawn data (E20; `tests/traffic.py`)
+
+**What it answers.** A check that counts an event over random draws -- a band's misses, a test's false alarms, a planted
+signal found -- and holds the count to one threshold flaps: a change that only reorders the draws, another machine's rounding,
+or a stated rate that is right puts the count across the line by chance. The Basel Committee (1996) reads a value-at-risk
+model's exceptions by their binomial distribution at the stated rate: green while that many or fewer come 95 % of the time
+from a model that is right, yellow past that, red past 99.99 % (250 days at 1 %: green 0-4, yellow 5-9, red from 10). The
+suites do the same. A check states its rate and its draws; a count in the green passes, one in the yellow prints a `WARN` line
+and does not fail, and a red fails. A count at or under the expected one is always green: with few draws at a small rate, none
+at all is already likelier than 95 %. A two-sided check (a coverage too wide as well as too narrow) holds the count from both
+sides. The draws must be independent: whole tracks or curves, not the frames of one track, whose errors run together -- so
+K8's coverage of the rate at every frame, 3,840 frame-coordinates from 16 tracks, is counted at each track's middle frame,
+x and y apart, 32 draws at 4.55 %.
+
+**Where it is used.** Every check on drawn data that counts an event against a rate: K8 (coverage, the path speed and the
+fastest, the memory rule, constant and not), E4's clean and gridded tracks, E1's lights, E12's bound, M5's t_z and depth
+bounds, M4's loops, tau's wandering sizes, E6's flag (test_reduction); the continuum null, the steadiness and train tests,
+the frequency's error, the codec's line, the held words of M3, the drift test, sompi on grain (test_measurement); the size
+trend and the rate's steps (test_camera); noise records (test_audio). Each states its rate, from its own measurement where
+one exists and as a flagged judgement where none does. Spreads and medians, counts over the frames of one clip, a module's
+own Monte Carlo p, and maxima over draws are left as they were.
+
 ## 49. The pointer as a stale price, one k from the routes that agree, the zoom as a discontinuity and its ladder pooled (E14-E17; added 2026-11-07)
 
 **What it answers.** Two questions the economics survey of 2026-10-28 (§1.5 and §3.4 there, in the uap repository) put to the
@@ -4508,3 +5532,215 @@ spread 1.9 %; 45 steps in 26 clips) and x5.916 (+-0.51 %; spread 2.2 %; 18 in 10
 (3). A single measured step is good to about 2 %, the x2 rung pooled to 0.3 %. What it does not give is a k on a clip that
 measured none: `carry` makes a prior, and k carried between clips also carries their depressions (c = k cos e) and their
 videos' scalings, which need not be the same, so the ladder is not a report's row.
+
+## 50. The picture's levels: clipped as a flat top, and the headroom the extraction cuts (V1; added 2026-11-07)
+
+**What it answers.** Video stores brightness (Y, luma) in studio range: black at 16, white at 235 (BT.601, BT.709), the
+codes past them headroom ("superblacks", "superwhites"). Every frame here is extracted by ffmpeg as RGB, and its
+conversion stretches 16-235 to 0-255 unless the stream says it is full range: every Y above 235 becomes 255, every Y
+below 16 becomes 0. A core that is not clipped in the file is clipped in the frames the package measures. Until 0.4.4,
+`forensics.spot_fwhm` called a core clipped where it reached grey 250 (`CLIP`), which after the stretch is Y 231, and
+`integrity.t_halo` called one saturated past grey 245. This section reads the levels as a fact of the clip, calls a core
+clipped where it has a flat top, and reads that top on the file's own luma.
+
+**The survey's check, rebuilt** (the visual-arts survey, section 3.1, 2026-10-15/16; rebuilt 2026-11-07 with a script
+of its own). On PR135 (1280x720 yuv420p, tagged `tv`): on neutral pixels the extracted grey is 1.1618 Y - 18.83 (the
+stretch's 255/219 = 1.1644 and -18.63), and Y 235, 236, 240 and 250 all become 255. The six birds' cores (within 4 px of
+`tests/golden/pr135_tracks.csv`) pass 235 on 121-139 of their 153-162 frames, peak at a median Y of 239 and at most
+248-254, and are never flat at 255; in the extracted frames the core is at 255 on 129-145 frames. Clipping Y at 235
+costs flicker's aperture a median 0.14-0.17 % of a bird's flux (at most 0.9 % on a frame) and its relative modulation
+under 0.3 %: the photometry and the beats stand. What the cut changes is the clipped call.
+
+**The levels as a fact of the clip** (`clip.declared_levels`, `forensics.clip_levels`). What the stream declares
+(ffprobe's `color_range`, the matrix, the transfer, the pixel format): studio where it says `tv`, "unsaid" where a YUV
+stream says nothing (ffmpeg then takes it as studio, as on 101 of the 149 PURSUE videos), full where it says `pc` or is
+`yuvj` or `gray` (checked on ffmpeg 8.1: a gray stream's 236 is extracted as 236, a tagged-tv yuv420p stream's as 255).
+What its pixels use, read on the luma plane as the file has it (`extractplanes=y`, nothing converted) on 60 frames over
+the window: the lowest and highest code, the share below 16 and above 235 and at 0 and 255, in the whole frame and in
+the scene with the symbology and blocks left out. And with a track, the object's core (within 4 px): on how many frames
+it is past the nominal range on its own side, its median and its extreme code, and on how many the extraction cuts it.
+Every command's envelope carries the declared part (`clip.encoding.levels`); `integrity`'s record carries the whole, and
+its report says it in a line under the record.
+
+**The picture with its headroom** (`Clip.luma`, `Clip.headroom`, `forensics.picture`). The luma planes are extracted
+beside the frames (`<frames>/luma/`, 8-bit grey PNG) the first time a test of levels asks for one, a second decode of
+the window. `headroom(n)` is the luma in the extracted frames' scale -- Y 16 at 0, 235 at 255, a code 255/219 wide -- so
+that every fixed level in the package means the same on it while what the stretch cut survives, from -18.6 (Y 0) to 278.3
+(Y 255). Where the extraction stretches nothing (a full-range, grey or RGB stream) it is the extracted grey. For a grey
+picture, most sensor video, it equals the extracted grey wherever that is not cut (to the stretch's rounding); for a
+coloured one it weighs the channels as luma does, not equally. Only 8-bit luma is read; a 10-bit stream's headroom is not,
+and the record says so.
+
+**Clipped as a flat top** (`forensics.flat_top`). A core (a spot's 3 x 3, the halo's r <= 0.28 of the object's size) is
+clipped where its top is at the picture's own ceiling -- a code there means "this or more" -- or where it is flat:
+FLAT_K = 5 of its pixels within FLAT_TOL = 1 code of its top, the top FLAT_AMP = 50 codes over the spot's level, at
+whatever level the chain cut it (235 where a camera cut its studio range, a sensor's own ceiling). A dark core, the same
+at the floor. A top of one or two pixels below the ceiling is a peak: a clip that leaves so few at its level has cost the
+width little.
+
+The three numbers are set on a null (`tools/flat_top_null.py`, two seeds): 207,360 Gaussian points (sigma 0.7-3 px, a
+random sub-pixel centre every frame, a level of 30-140 codes with noise of 1, 2 or 4) drawn as 8-bit luma, through
+libx264 at CRF 14, 20, 26 and 32, decoded and read as raw Y. Half are unclipped (peaks under 250); half are cut before
+the encoder at 180, 235 or 255, their peaks 1.05-3 times the ceiling.
+
+| rule (3 x 3 core) | unclipped called clipped | worst cell (width x CRF) | cut at 255 called | cut at 180 or 235 called |
+|---|---|---|---|---|
+| tol 1, k 3, no amplitude | 12 % | 37 % | 91 % | 28-33 % |
+| tol 0, k 4, amplitude 50 | 0.10 % | 0.5 % | 88 % | 2-10 % |
+| tol 1, k 4, amplitude 50 | 0.55 % | 4.7 % | 90 % | 8-31 % |
+| **tol 1, k 5, amplitude 50** | **0.03 % (30 of 103,680)** | **0.3 %** | **89 % (73 % at CRF 32, 98 % at CRF 14)** | **5-21 %** |
+| tol 2, k 5, amplitude 50 | 0.16 % | 1.4 % | 90 % | 9-41 % |
+
+Without the amplitude no rule is clean: a faint wide peak is flat at the pixel scale by itself (of the peaks 8-20 codes
+over their level, 47 % have three of their 3 x 3 pixels within a code of the top; of those 3 px wide, 24-37 %). The rule
+chosen is the one with under 0.1 % false over all and under 0.5 % in every cell that keeps the most power below the top;
+the two limits are a judgement, stated as one. Its weakness is stated with it: a codec ripples a plateau it is given,
+and a core cut below 255 before the encoder is seen flat 5-21 % of the time. A width measured on such a core cannot be
+known to be cut.
+
+**Where it reaches a verdict.** `point_blur` (the blur of a point and whether the object is wider: the speed in body
+lengths, `focus`, `streak`'s blur) calls its spots clipped by the flat top, for the scene's spots and the object alike,
+on the extracted frames by default (`BLUR_HEADROOM`), on the picture with its headroom when asked (`headroom=True`). Its
+result says which (`picture`) and the object's median top in it (`object_top`). `integrity.t_halo` reads its cores on the
+picture with its headroom and calls them saturated by the flat top; its synthetic insert is drawn on the same picture.
+`focus` still leaves pixels past `CLIP` out of an edge's profile, per pixel. Nothing else changes: flicker's photometry,
+the detector, the links and the layers read the extracted frames as before.
+
+**What moves, and why `point_blur` does not read the headroom by default** (2026-11-07). On PR135's six birds
+(`tests/golden/pr135_tracks.csv`, 12 frames each):
+
+| bird | grey 250, extracted (before): blur (spots) / clipped / resolved | flat top, extracted (default): blur / clipped / resolved | flat top, headroom: blur / clipped / resolved |
+|---|---|---|---|
+| A | -- (7) / 11 of 11 / None | 2.40 (12) / 8 of 11 / None | 4.31 (33) / 0 of 11 / False |
+| B | -- (2) / 3 of 6 / None | -- (3) / 3 of 6 / None | 4.49 (38) / 0 of 6 / False |
+| C | -- (5) / 5 of 5 / None | -- (7) / 5 of 5 / None | 4.54 (35) / 0 of 5 / False |
+| D | 2.43 (9) / 9 of 9 / None | 2.52 (13) / 8 of 9 / None | 4.28 (37) / 1 of 9 / False |
+| E | -- (7) / 8 of 8 / None | 2.54 (17) / 8 of 8 / None | 4.18 (37) / 0 of 8 / False |
+| F | -- (7) / 9 of 9 / None | 2.52 (13) / 8 of 9 / None | 4.04 (41) / 0 of 9 / False |
+
+The birds' own widths (4.4-5.6 px) are the same to 0.01 px on both pictures: the cut leaves one or two pixels at the top
+and costs the fit nothing. With the headroom they are not clipped, as the file says -- but nor are the flock's other
+birds, which the blur takes as the scene's points. On frame 1330 (bird A's twelve frames, every spot listed both ways)
+the headroom picture takes 8 spots, 5 of them on the other birds' tracks (within 4 px), 4.1-4.9 px wide, against 1.8-2.7
+px for the rest; the extracted frames take 4, 2 of them birds not cut at 255 on that frame. On frame 1260 neither takes
+a bird. So the headroom turns "not measured" into "not resolved" against a blur that is the flock's own width. On the
+extracted frames the cut kept the other birds out, as clipped, and left the blur to the scene's few true spots. Which of
+a scene's spots are points is the open question here, not the levels, and a verdict should not move on it: `point_blur`
+reads the extracted frames unless asked, and its six calls on PR135 are what they were (None). With the default the flat
+top changes them only in which spots count: the blur is now measured on four of the six (12-17 spots), and the birds
+stay clipped at the extraction's 255.
+
+The halo, on every reference object with an integrity stage: PR135's six read on 148-150 frames (were 0-7) and stay NO
+POWER, "no sharpening ring to speak of" (the ring is not darker than the sky); PR149 39 frames (4 before; 40 needed) and
+PR43 16 (6) stay NO POWER; PR113 (dark) is unchanged; **PR144 goes from NO POWER to INCONCLUSIVE**: its core is past 235 on
+55 of 60 frames in the file but never at the top (median Y 240, at most 252), and on 93 frames it shows a real ring (0.145 of
+the amplitude) that does not deepen with it (r = -0.34). INCONCLUSIVE is not a PASS: no checklist row and no conclusion
+moves. `streak`'s blur on PR43 (method section 30) reads 3.63 px from 40 spots on either picture.
+
+Flicker on the picture with its headroom (a measurement only): every bird of PR135 beats on both, five of the six within
+2 % of their amplitude and 0.03 Hz; D's reported beat moves from its clearest window (7.09 Hz) to the whole track (7.12 Hz,
+which is its whole-track curve on the extracted frames too). The cut is 0.15 % of their light, as the survey said.
+
+## 51. Non-uniform motion dated, and set against the scene (E2, E3, B16; added 2026-11-07)
+
+**What it answers.** The speed band (§32) says whether a track's velocity changes and by how much over the stretch; it does
+not say *when*, nor whether a change is more than the wander every recorded track has. `camera.rate_steps` (§20) cuts a track
+into straight lines with a penalty computed from white jitter, so on a wandering track it finds a step wherever the wander
+bends: 1,267 stretches on the 44 recorded tracks, 12-16 on each of PR135's 150-frame members, about one a wingbeat wiggle (the
+economics survey, uap `analysis/methods/economics_finance_methods_survey.md`, 2026-10-28, §1.3, §2.1, §2.4, §6.3, §6.5). This
+section dates a change the wander cannot explain, with an interval on its date, and asks whether the scene changed with it --
+the camera's, or not -- as an event study sets a stock against its market.
+
+**The scan** (`breaks.scan`, `breaks.of_track`). Each coordinate is the band's own model -- a line, the fitted Matérn wander
+(and the beat beside it, M8, where the band keeps one), the nugget -- with a hinge (t - τ)+ added to the mean: a change of
+velocity at τ. Its GLS Wald statistic under the fitted covariance, x and y summed, is maximised over τ inside the stretch with
+15 % trimmed from each end (Andrews 1993: nothing can be said there, and the ends are said to be NO POWER). The null is drawn,
+not read from a table (Andrews' critical values assume white errors): 400 tracks with the band's covariance and no break,
+whitened (each draw is then standard normal, so it costs one projection), the sup taken the same way on each; p is the share at
+or above the track's own. The size and direction of the change are the hinge's two coefficients at the date. The interval on
+the date is the same bootstrap with the break in: the track's own change at its own date added to every draw (by linearity,
+the numerator moves by δ times the whitened hinges' Gram column), the date found again on each, the middle 95 % (Bai 1997's
+interval in its simulated form). The points are the band's (repeats dropped, glitches and excursions left out); a track
+longer than the band's 450-point window is scanned in the band's windows and each p multiplied by their number (Bonferroni). A
+break is named at p < 0.05 (`ALPHA`; a judgement call on the level, the survey's).
+
+**Its false-alarm rate, measured** (`calib.py` in the session's scratch, Slurm 20156). On tracks drawn with each of the 44 recorded tracks' own fitted
+covariances (the band's numbers, the beat included where it is kept) on their own first 450 kept frames, with no break, each
+put through the whole pipeline -- the band fitted again, then the scan: 16 of 1,100 named, **1.45 %** (95 %: 0.8-2.4 %) at the
+stated 5 % (0.36 % under p 0.01, 4.0 % under 0.10). With a change of four prior velocity sds
+planted at a random date in the middle 60 %: 650 of 660 found, the date inside the interval on 647 of them -- at that size the
+date is found to the frame. On the survey's drawn rows (300 frames, a 5-px Matérn wander of 1 s and a 0.4-px nugget): clean 0 of 40 named,
+30 px/s 20 of 40, 60 px/s 40 of 40 (the survey: 1, 17, 40). The fixed-covariance null is conservative where the wander has
+taken in part of a break (refitting under the alternative is ~300 fits a track: not done).
+
+**On the recorded tracks** (the survey's functions rebuilt on d46d3a8, Slurm 20111/20128): 20 of 44 have a break at p < 0.05
+(the survey 22; two more at 0.052), where `rate_steps` cuts the same tracks into 1,267 stretches. PR144's object 1 at 23.27 s
+(29 px/s, p 0.005), PR099 object 3 at 210.0 s, PR088 object 2 at 237.6 s, PR41 at 84.2 s, the balloon at 88.8 s.
+
+**The scene frame by frame** (`breaks.scene_path`). `layers` writes the scene's shift over k = 5 frames at every frame. The
+per-frame position S solves S[a + k] - S[a] = dx[a] by least squares with a light penalty (0.01) on S's second differences and
+S at the first frame 0, banded -- Denton's (1971) benchmarking turned round, the per-frame series from overlapping sums. A held
+picture comes out as a frame that did not move and the catch-up after it, on the video's clock, where a five-frame average
+never shows it: the hold and its catch-up cancel in every window that holds both, and the two windows that hold one read a few
+pixels off (PR144's hold at frame 732: 0.1 px, then -42 px, against -21 a frame around it, the survey's reading; the average
+had made it a 3-px excursion that the step scan called a break at 24.3 s). The frame-to-frame steps are not exact: a pattern
+of period k, which no k-frame shift can see, is set by the penalty alone, and beside a hold it rings by about 0.9 px a frame
+(a drawn scene at -21 px a frame held once: -21.9, -20.2, -21.0, -21.0, -21.0 repeating). A second's mean rate holds it out
+exactly (-21.000), and that is all the event study reads.
+
+**Against the scene** (`breaks.against_scene`). For a turning camera the market model is exact: a rotation moves every point
+of the picture by the same pixels, so β = 1 and the object's abnormal change is its own less the scene's. The object's change
+is the difference of two straight lines a second long either side of the date, two frames left out; its error is from the
+track's own fitted covariance over both windows (the two lines' weights through it: their errors are not independent where
+the wander is longer than a second). The scene's change is the difference of its mean per-frame rates over the same frames,
+each with a Newey-West error. Two tests at 5 %: is the abnormal change there (both coordinates, χ² on 2), and did the scene
+change the way the object did (its change along the object's, one-sided past 1.96 σ)? The scene changed that way and nothing
+is left over: **the camera's**; something is left over and the scene did not change that way: **not the camera's**; both:
+**partly the camera's**; neither: **undecidable** (a second either side does not hold enough to say). Where `layers` holds
+the scene still on screen even over a second in more than half of its pairs (its own NO POWER, `layers.SCENE_SHARE`), there is
+no market: NO POWER, never a zero. The event date is chosen where the object's break is largest, so the abnormal change's
+test measures attribution given a break, not whether there is one; the scan does that.
+
+On the reference case files (0.4.3's): PR144's break at 23.27 s (95 %: 23.23-23.94 s) -- the object -41.2 ± 17.5 px/s in x,
+the scene -53.9 ± 22.7, the abnormal +12.6 ± 28.7: the scene's change along the object's is 1.3 ± 0.5 of it, so **the
+camera's** (the survey: +12.5 ± 20.4, the camera's slew). Twelve more objects of the case files have a break -- PR135's
+objects 1-4 at 44.51-44.58 s, PR097's 4 and 8, PR077's 1, PR088's 1 and 2, PR099's 3, PR41 and PR44 -- and on every one the
+scene is NO POWER. The scene is NO POWER on every other case file's
+objects except PR149's and PR097's objects 6 and 7 (held still in 0-38 % of pairs), none of which has a break.
+
+**The match rule.** A camera event inside the break's date interval, or within the camera stage's own 3 frames of it (`EVENT_NEAR`:
+a date found to the frame is matched as a rate step is) -- a zoom, a change of field, an event given (`camera`, §20) -- makes the
+break the camera's until shown otherwise; the report names it (`breaks.matched`). Where the interval is two frames or fewer the
+report says the date "to within a frame or two".
+
+**A group** (`breaks.common`, `breaks.dispersion`, `breaks.together`). A break common to several objects of one video (Bai,
+Lumsdaine & Stock 1998): their Wald statistics summed at a shared date on the frame grid they all cover (15 % trimmed), the
+null drawn for each from its own covariance independently (2,000 draws). The objects' page (`several.index`, "Together") tests
+each set of objects followed over the same frames. With the survey's functions (the Matérn alone): PR135's six share one at
+44.556 s (97.3 against a null 95th centile of 34.0, p 0.0005), PR097's objects 1-4 one at 126.19 s (42.9 against 26.4, p 0.0005)
+though none of them was significant alone. With the bands' own covariances (the beat held where the band keeps it), as the
+objects' page reads them: PR135's six at 44.55 s, to the frame (95.5 against 34.7, none of 2,000 draws), PR097's 1-4 at 126.16 s
+(126.12-126.19), its object 4 now significant alone (p 0.022); PR097's 6-7, PR099's 1-2 and PR141's 1-2 share none. Then
+event-induced dispersion (Boehmer, Musumeci & Poulsen 1991), read across members: a camera's slew adds one velocity to every
+member, so their changes at the event are no more spread than on placebo dates (every 0.1 s, at least 1 s away); spread past
+the placebo dates' 95th centile is extra. PR135: a common change of 193.5 px/s, twice the placebo dates' largest (95th centile
+96), its spread at their 17th centile -- what a gimbal slew adds to everything in the picture, or a turn the six made together,
+which the pixels cannot tell apart (the pointer's turn, uap `cases/pr135/pr135_pointer_slew.md`, agrees in sign and date).
+PR097's four: 50.2 px/s, ordinary for them (placebo median 48), spread at the 70th centile (at 126.16 s: 50.9, the 64th). The common test assumes the members'
+noise independent; a shared camera jitter correlates it and makes the joint test too liberal -- plausible on a still-scene
+clip, not on a moving one.
+
+**B16, the released-track null's error** (`camera.wander_errors`). `camera.released` (§20) takes a stretch's rate error from
+its residuals as if white. On tracks drawn with a recorded track's own wander at exactly the camera's rate (the biology survey,
+Part 5 §4, 2026-11-01), the fastest stretch beat the camera's rate 97 % of the time and the whole departure 74 % (29 tracks; rebuilt on 38: 96.8 %
+and 69.1 %), on white jitter 2 % (2.6 %). The departure's own covariance is now fitted as
+the band fits a track's, and every line's slope gets its error under it (c'Kc), the larger of that and the white one kept as
+`err_wander_px_per_s`; `released` reports `z_wander` and `within_wander` beside its verdict, which stays the white one's (the
+choice of verdict is the maintainer's). Measured again with it: (being measured; the session's notes).
+PR051's departure, 157.5 ± 3.7 px/s by `departure` and 153.9 ± 1.0 by the speed band, keeps its error, the white one being the
+larger: its wander's range, 0.10-0.18 s, is far shorter than the 1.8-s departure, so its 43 sigma stands.
+
+**What it is not.** One break per window: a track that changes twice is dated at its larger change (Bai & Perron's several
+breaks are not ported). A velocity change only; a step in position is §32's jumps. The event study's windows are a second;
+a break within a second of the track's end has under 8 points on one side: no power. The scene is `layers`' largest motion group
+(else the streaked or the evenly textured layer): on a clip with two layers the abnormal change is against that one.

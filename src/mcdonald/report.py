@@ -47,12 +47,23 @@ STOPPED_BEFORE = "stopped before "     # a note, then the step that never starte
 # at 60 frames a second resolves. The alternatives are named with it: the flicker stage cannot tell them apart.
 WINGBEAT_HZ = (2.0, 25.0)
 BIRD = "Beats like a bird"             # the conclusion's label for a beat in that band (Jacob, 2026-10-12): the window draws a bird by it
-# ... and a bird is named only from a beat at least this share of the object's brightness. Fixed before the test that
-# judges it (2026-10-24, Jacob: "go ahead"): on the Svanstrom labelled infrared set (2026-10-19) the calls on birds beat at
-# a median 15-18 % and the false calls on aircraft, drones and helicopters at 1.8-2.3 %; 8 %, chosen on the birds and
-# airplanes, kept 28-29 of 30-34 bird calls and left 2 of 307 other tracks called; it is held to a set it was not
-# chosen on in uap analysis/sweeps/svanstrom/README.md ("The aperture study"). A fainter beat is still said, as one.
-BIRD_FLOOR = 0.08
+# ... and a bird is named only from a beat at least this share of the object's brightness: a floor set from a null at a
+# stated rate (2026-11-07; docs/method.md section 43; `tools/sweep/floor.py set`), where 8 % had been chosen by eye on
+# 2026-10-19. The null: the Svanstrom labelled infrared set's 307 known aircraft, drones and helicopters (286 clips), each
+# measured by `flicker` on its label boxes as `run` measures, by both rules, at d46d3a8 (flicker as 0.4.3 released it).
+# The rule, written down before they were measured again: the smallest floor at which no more than BIRD_FLOOR_RATE of
+# them are named a bird, the median over 2,000 resamples of their clips -- the stage's rule 7.0 % (5-95 % 4.7-15.4), the
+# paper's 5.1 % (3.1-7.9) -- the larger, rounded up to 0.5 %. At it the stage's rule names 3 of the 307 (1.0 %; by clip
+# 0.0-2.3 %; the exact one-sided 95 % bound 2.5 %, so "about 1 in 100", never "under"): helicopter 043 at 21 % over a
+# fence line, drone 059 at 15 % at 10.0 Hz (a third of the frame rate), helicopter 024 at 7.8 %; the paper's 2 (0.7 %,
+# bound 2.0 %). Birds named: 30 and 27 of 125. At one object in twelve a bird it prices a false bird at 1.1 (stage) and
+# 1.5 (paper) times a missed one, where the beat's tests alone priced it at 0.2-0.3 (the biology survey's B24). The set
+# does not pin its exact value -- chosen on half the clips, it ranks at or under the median of 41 candidate floors on the
+# other half 45-47 % of the time (`tools/sweep/pbo.py`, E9) -- but a floor beats none out of sample on every half. Tested
+# once, frozen, on the set's visible-band clips, which it was not set on: 2 of 190 non-bird tracks named (1.1 %, bound
+# 3.3 %), not shown above its rate. A fainter beat is still said, as one, with the rate.
+BIRD_FLOOR = 0.07
+BIRD_FLOOR_RATE = 0.01   # ... the share of known aircraft, drones and helicopters the floor lets be named a bird: the words say it
 # A thing of known size in the picture gives the speed across the line of sight at that thing's distance: no faster
 # where the object is no farther away. Under the speed of sound, that bound is the finding (JAIS Technical Note, PR149:
 # "supersonic relative velocities can be excluded"; Jacob, 2026-10-22, exercise 2): the window draws sound's wavefronts by it
@@ -79,6 +90,11 @@ LEDGER_CLOSES = {
     "θ": "the object's direction of motion, or its range at two times (a range rate)",
     "v_own": "the platform's ground speed and track, from a data bar or the flight's log",
 }
+
+def floor_said():
+    """BIRD_FLOOR_RATE in words: "1 in 100"."""
+    return f"1 in {round(1 / BIRD_FLOOR_RATE):,}"
+
 
 def own_beats(ff):
     """{name: beat} of the flicker stage's fields: the beats that are the object's (or members') own -- none
@@ -121,7 +137,11 @@ SPOT_SIZE = "the spot size the track was followed at"
 # test result"): each test as a question in plain words, and its answer in one of five words. "Can't tell" is a verdict
 # (the package's third rule: a test that cannot decide has not passed), never dropped for a "No".
 YES, NO, PARTLY, CANT, NOT_YET = "Yes", "No", "Partly", "Can't tell", "Not yet"
-ANSWERS = (YES, NO, PARTLY, CANT, NOT_YET)
+# ... and the integrity row's two (2026-11-07, the diagnostic survey's Dx7): its checks have never been tried on a real insert
+# (the corpus holds no known one; a synthetic disc stands in, method section 2) and one false flag of theirs is known (a line
+# of birds in AARO's PR-016, dark rings read as a drawn line), so what they find is said as agreement, not as a Yes or No
+CONSISTENT, INCONSISTENT = "Consistent", "Inconsistent"
+ANSWERS = (YES, NO, PARTLY, CANT, NOT_YET, CONSISTENT, INCONSISTENT)
 CHECKS = {
     "video": "Does the video have repeated frames or sudden changes of brightness?",
     "camera": "Did the camera move while it filmed this?",
@@ -134,7 +154,7 @@ CHECKS = {
     "single": "Is it a single object?",
     "with": "Does anything move along with it (a line, a load, a companion)?",
     "through": "Does it move through what is around it, rather than drift with it?",
-    "added": "Does it look like something added to the video afterwards?",
+    "added": "Is it consistent with the camera's own picture, rather than added afterwards?",
     "real": "Can its real speed and size be worked out?",
     "chosen": "Did a person pick out the object by eye?",
     "checked": "Has a person checked that the track stays on the object in every frame?",
@@ -155,6 +175,10 @@ FIGURE_CAPTIONS = (
                     "shaded area is what the video allows."),
     ("_beat", "The object's brightness over time, and how strongly each rhythm is in it. A peak the background beside the "
               "object does not share is the object's own beat."),
+    ("_controls", "Each dot is one labelled track of thermal video: birds in blue, aircraft, drones and helicopters in amber. "
+                  "A filled dot had a rhythm of its own; an open dot shows only its strongest peak. The red dot is this object. "
+                  "Above the dashed line, in the shaded band, a beat names a bird. Birds sit high even with no rhythm of their "
+                  "own, because they are faint: much of the gap between the colours is faintness, not a beat."),
 )
 
 
@@ -860,6 +884,8 @@ class Case:
         reg = self.admissible()
         if reg and not reg.get("empty") and admissible_said(reg):
             said["what the clip allows"] = admissible_said(reg)
+        if kf.get("models"):                         # which motion models survive, as a computed set (E22)
+            said["motion models"] = projective.models_said(kf["models"])
         return said
 
     def k_routes(self):
@@ -1282,8 +1308,9 @@ class Case:
                         "and not elsewhere along its track. That is a rhythm of its own, but too little to name a bird.")
         elif beat and band(beat) and not loud(beat):  # a wingbeat's rate, but no stronger than false calls on aircraft beat
             bits.append(f"Its brightness beats {beat['hz']:.1f} times a second, a rhythm of its own, but by only "
-                        f"{100 * beat['amplitude']:.1f} % of its brightness. False alarms on known aircraft, drones and "
-                        f"helicopters stay under {100 * BIRD_FLOOR:.0f} %, so this is too faint to name a bird.")
+                        f"{100 * beat['amplitude']:.1f} % of its brightness. Known aircraft, drones and helicopters can beat "
+                        f"that strongly too. About {floor_said()} of them reach {100 * BIRD_FLOOR:g} %, so this is too "
+                        "faint to name a bird.")
         elif beat and not beat.get("comes_back", True):  # under a wingbeat's rate, and one stretch all the same (a Galileo airliner's 1.7 Hz)
             bits.append(f"Its brightness beats {beat['hz']:.1f} times a second in one stretch, frames {beat['first']}–{beat['last']}, "
                         "and not elsewhere along its track.")
@@ -1534,6 +1561,54 @@ class Case:
             S.insert(0, "The track still says something without the range, the field of view or the camera's own speed.")
         return S
 
+    # the event study's verdict in the paragraph (method section 51), after the sentence that dates the change
+    BREAK_VERDICT = {"the camera's": "The background's motion changed by as much at that moment, so the change is the camera's.",
+                     "partly the camera's": "The background's motion changed the same way at that moment, but not by the same "
+                                            "amount, so only part of the change is the camera's.",
+                     "not the camera's": "The background kept its motion through that moment, so the change is not the camera's.",
+                     "undecidable": "A second either side of that moment does not show the background's motion clearly enough to "
+                                    "say whether the change was the camera's."}
+
+    def breaks_said(self):
+        """The paragraph's sentences on a sudden change of velocity beyond the track's wander (`breaks`, method section 51):
+        when it happened, with its interval, by how much, how rare it is on tracks with the same wander and no change, and
+        whether the background changed with it (the camera's, not the camera's, partly, or can't tell) -- with any camera
+        event inside the interval named. Nothing where no such change was found."""
+        from .breaks import matched
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        b = kf.get("breaks") or {}
+        if not b.get("found"):
+            return []
+        a, z = b["interval_s"]
+        fa, fz = b.get("frames_interval") or (None, None)
+        when = (f"at {b['t_s']:.1f} s, to within a frame or two" if fa is not None and fz - fa <= 2 else
+                f"at {b['t_s']:.1f} s, somewhere between {a:.1f} and {z:.1f} s")
+        S = [f"Its velocity changed suddenly {when}, by about {b['dv_px_per_s']:.0f} pixels a second.",
+             "Its path weaves slowly all along the track, but " + (
+                 f"none of {b['draws']} tracks drawn with that weaving alone shows so large a change."
+                 if b["p"] * (b["draws"] + 1) < 1.5 else
+                 f"tracks drawn with that weaving alone show so large a change only {100 * b['p']:.1f} % of the time.")]
+        sc = b.get("scene") or {}
+        if sc.get("power"):
+            S.append(self.BREAK_VERDICT[sc["verdict"]])
+        elif sc:
+            S.append(("The picture behind it held still on screen" if "held still on screen" in sc.get("why", "") else
+                      "The background's motion was not measured around that moment")
+                     + ", so nothing here can say whether that change was the camera's.")
+        from .camera import EVENT_NEAR                  # the camera stage's own "at the event": a date sharp to the frame is matched as its steps are
+        ev = matched(b, (self.stages.get("camera", {}).get("fields") or {}).get("events"), near=EVENT_NEAR)
+        if ev:
+            S.append(f"The camera's own event at frame {ev[0]['frame']}, {ev[0]['what']}, falls inside that interval, so the change "
+                     "is the camera's until shown otherwise.")
+        return S
+
+    def models_plain(self):
+        """Which ways of moving the track keeps, as the paragraph's sentences (E22, `projective.models_plain`): the model
+        confidence set of a straight line across the picture, a straight flight toward or away from the camera and a
+        steady turn. Kept apart from `track_said` so that each can be reworded alone."""
+        from .projective import models_plain
+        return models_plain((self.stages.get("kinematics", {}).get("fields") or {}).get("models"))
+
     def bottom_line(self):
         """The reasoning under the conclusion, folded under the checklist: assembled from the stages, and deliberately
         hedged where it must be. Short sentences, one finding each, the trade's words and symbols left to the tables
@@ -1691,6 +1766,8 @@ class Case:
                 L += self._missing_said(missing)
 
         L += self.track_said()
+        L += self.models_plain()
+        L += self.breaks_said()
 
         ff = st("flicker", "fields")
         beats = own_beats(ff)
@@ -1771,6 +1848,8 @@ class Case:
         npw = lambda name: next((w for _, w in (self.stages.get(name, {}).get("no_power") or [])), None)
         rows = []
         add = lambda key, stage, answer, said: rows.append(dict(key=key, test=CHECKS[key], answer=answer, said=said, stage=stage))
+        # the beat row carries its kind too (`controls.KINDS`): what the labelled set weighs it by (`reasons`)
+        beat_row = lambda kind, answer, said: (add("beat", "flicker", answer, said), rows[-1].update(kind=kind))
 
         # the video: what the survey found of its frames
         if "survey" in self.stages:
@@ -1884,30 +1963,41 @@ class Case:
             if len(beats) > 1 and len(winged) > 1:
                 hz = sorted(b["hz"] for b in winged)
                 measured = max(len(ff.get("beat") or {}), len(beats))
-                add("beat", "flicker", YES, f"{len(winged)} of its {measured} members each beat at {hz[0]:.1f}–{hz[-1]:.1f} times a second, "
+                beat_row("named", YES, f"{len(winged)} of its {measured} members each beat at {hz[0]:.1f}–{hz[-1]:.1f} times a second, "
                                             "each its own rhythm and out of step with the others")
                 own = winged
             elif beat and beat.get("shaken"):
-                add("beat", "flicker", CANT, f"it beats at {beat['hz']:.1f} times a second, but the whole picture shakes at that rate too, "
+                beat_row("shaken", CANT, f"it beats at {beat['hz']:.1f} times a second, but the whole picture shakes at that rate too, "
                                              "so the camera may make it")
             elif beat and beat.get("comes_back", True) and in_band(beat) and loud(beat):
-                add("beat", "flicker", YES, f"{beat['hz']:.1f} times a second, the rate of a wingbeat: its own rhythm, not the video's")
+                beat_row("named", YES, f"{beat['hz']:.1f} times a second, the rate of a wingbeat: its own rhythm, not the video's")
                 own = [beat]
             elif beat and in_band(beat) and not beat.get("comes_back", True):
-                add("beat", "flicker", PARTLY, f"{beat['hz']:.1f} times a second in one stretch only, frames {beat['first']}–{beat['last']}, "
+                beat_row("once", PARTLY, f"{beat['hz']:.1f} times a second in one stretch only, frames {beat['first']}–{beat['last']}, "
                                                "and not along the rest of its track")
                 own = [beat]
             elif beat and in_band(beat):
-                add("beat", "flicker", PARTLY, f"{beat['hz']:.1f} times a second, but by only {beat['amplitude']:.0%} of its brightness, under the "
-                                               f"{BIRD_FLOOR:.0%} that false alarms on aircraft stay under")
+                beat_row("faint", PARTLY, f"{beat['hz']:.1f} times a second, but by only {beat['amplitude']:.0%} of its brightness, under the "
+                                          f"{100 * BIRD_FLOOR:g}% that about {floor_said()} known aircraft, drones and helicopters reach")
                 own = [beat]
             elif beat:
-                add("beat", "flicker", NO, f"it beats at {beat['hz']:.1f} times a second, {'slower' if beat['hz'] < WINGBEAT_HZ[0] else 'faster'} "
+                beat_row("band", NO, f"it beats at {beat['hz']:.1f} times a second, {'slower' if beat['hz'] < WINGBEAT_HZ[0] else 'faster'} "
                                            f"than a wingbeat ({WINGBEAT_HZ[0]:g}–{WINGBEAT_HZ[1]:g} a second)")
+            elif ff.get("beats") is None and (npw("flicker") or ff.get("beat")):
+                # the stage refused (its NO POWER: the background beats with it, the codec's line, members in step): a peak it
+                # measured on the way is not a "No" (the package's third rule; before 2026-11-07 it read "No" wherever a peak
+                # had been measured: 2 of the labelled set's 432 tracks under the stage's rule, 5 under the paper's)
+                beat_row("refused", CANT, plainer(npw("flicker")) if npw("flicker") else "the test could not decide on this video")
             elif ff.get("beats") is False or (ff.get("beat") and not beats):
-                add("beat", "flicker", NO, "no rhythm of its own stands out above the background beside it")
+                need = self.beat_power()
+                if need is not None and need > BIRD_FLOOR:   # a "No" only where a bird's beat would have shown (`beat_power`)
+                    beat_row("deaf", CANT, f"no rhythm of its own stands out, but this track is too noisy to show a bird's: a beat "
+                                                 f"would need {need:.0%} of its brightness to be found three times in four, and a bird is "
+                                                 f"named from {100 * BIRD_FLOOR:g}%")
+                else:
+                    beat_row("none", NO, "no rhythm of its own stands out above the background beside it")
             elif npw("flicker"):
-                add("beat", "flicker", CANT, plainer(npw("flicker")))
+                beat_row("refused", CANT, plainer(npw("flicker")))
             if own:
                 flame = any(d.get("source") in FLAMES for b in own for d in b.get("lookalike") or [])
                 rotor = any((b.get("rotor") or {}).get("marked") for b in own)
@@ -1968,12 +2058,14 @@ class Case:
         if iv:
             flagged = [k for k, v in iv.items() if v == "FLAG"]
             passed = [k for k, v in iv.items() if v == "PASS"]
+            untried = "; no check has been tested on a real insert"    # the validation's own limit (method section 2)
             if flagged:
-                add("added", "integrity", YES, f"{len(flagged)} of the {len(iv)} checks say it behaves like something laid over the picture: "
-                                               + ", ".join(flagged))
+                add("added", "integrity", INCONSISTENT, f"{len(flagged)} of the {len(iv)} checks say it behaves like something laid over the "
+                                                        "picture: " + ", ".join(flagged) + untried
+                    + (", and the layer order's has flagged a line of birds" if any(k.startswith("layer order") for k in flagged) else ""))
             elif passed:
-                add("added", "integrity", NO, f"{len(passed)} of the {len(iv)} checks could decide on this video, and "
-                                              f"{'it passes' if len(passed) == 1 else 'all pass'}; the rest could not")
+                add("added", "integrity", CONSISTENT, f"{len(passed)} of the {len(iv)} checks could decide on this video, and "
+                                                      f"{'it passes' if len(passed) == 1 else 'all pass'}; the rest could not" + untried)
             else:
                 add("added", "integrity", CANT, f"none of the {len(iv)} checks could decide on this video")
 
@@ -2021,13 +2113,285 @@ class Case:
                        "an AI agent or the computer placed the marks, not a hand")
                 add("chosen", "track", NO, who + "; every measurement of the object rests on that choice")
             else:
-                add("chosen", "track", YES, "a person placed the marks on the frames by hand")
+                # said only as far as it is known (2026-11-07): marks placed by hand, or a track file that says it was linked
+                # from them, are a person's choice; a track file that says nothing of who made it is not -- before, 29 of the
+                # 31 reference objects, each measured on a paper's track given with --track, answered "a person placed the
+                # marks on the frames by hand", which nothing the run read had said
+                by, made = self.placed()
+                if by == "hand":
+                    add("chosen", "track", YES, made)
+                elif by == "not by hand":
+                    add("chosen", "track", NO, made + "; every measurement of the object rests on that choice")
+                else:
+                    add("chosen", "track", CANT, made)
         vf = st("verify")
         if "verify" in self.stages and "reviewed" in vf:
+            # how it was looked at is in the stage's result, "yes (how)": what was looked at, and when, said (2026-11-07)
+            how = (re.match(r"yes \((.*)\)$", str(st("verify", "result").get("reviewed") or "")) or [None, ""])[1]
             add("checked", "verify", YES if vf["reviewed"] else NOT_YET,
-                "the track sheet was looked at, and the ring is on the object in every frame" if vf["reviewed"] else
-                "until then, every number about the object is not yet sure: look at the track sheet")
+                "until then, every number about the object is not yet sure: look at the track sheet" if not vf["reviewed"] else
+                # what was checked, as it was (2026-11-07): `run --i-looked` is said before this run draws its sheet
+                "a person said with --i-looked, before this run drew its track sheet, that they had looked at the sheet: "
+                "the look was at an earlier run's sheet, not this one" if how == "--i-looked" else
+                "the track sheet was looked at when it was shown, before anything was measured, and the ring is on the object "
+                "in every frame" if how == "asked with the sheet on the screen" else
+                "the track sheet was looked at after the report was written, and the ring is on the object in every frame"
+                if how.startswith("looked at afterwards") else
+                "the track sheet was looked at, and the ring is on the object in every frame")
         return rows
+
+    def placed(self):
+        """(who, the row's words): who or what placed the points the object's track came from, as far as the case records
+        it -- "hand" (marks placed by hand, or a track file that says it was linked from them), "not by hand" (a track file
+        that says its marks were not a hand's, or an agent's), or None where nothing says. Marks that were not a hand's are
+        `identified_by`'s, read before this. A case from before 2026-11-07 records nothing of a track file, and is read
+        from the command that measured it: `run --marks` with every mark a hand's is a person's choice; `run --track` alone
+        is not known."""
+        tf = (self.stages.get("track") or {}).get("fields") or {}
+        by = tf.get("placed_by")
+        name = Path(str(tf.get("source") or "the track file")).name
+        if by is None and "placed_by" not in tf:                 # a case from before: its run command says what it was given
+            run = next((c for c in self.commands if c.startswith("mcdonald run ")), "")
+            by = "hand" if " --marks " in f"{run} " else None
+        if by == "hand":
+            linked = tf.get("placed_said") == "linked"
+            return by, ("a person placed marks on the object by hand, and the computer linked the track between them" if linked else
+                        "a person placed the marks on the frames by hand")
+        if by == "not by hand":
+            why = tf.get("placed_said") or ""
+            return by, (f"the track file says its points were not placed by a hand on the frames ({why})" if why else
+                        "the track file says its points were not placed by a hand on the frames")
+        return None, f"the track was read from a file, {name}, that does not say who or what placed its points"
+
+    def beat_power(self):
+        """The faintest beat the flicker stage could have found on this track, as a share of the object's brightness: the
+        closed form's amplitude for a beat to be found three times in four in the track's own noise, with the background's
+        own flicker (`flicker.analytic`'s `with_floor`; its white-noise term where there is no background), the least over
+        the objects measured. None where the stage recorded none.
+
+        The beat row answers "No" only where this is at most BIRD_FLOOR -- where a beat strong enough to name a bird would
+        have been found -- and "Can't tell" above it (2026-11-07). The rule is the stage's own power at the floor the report
+        already names a bird from; nothing in it was chosen on the outcome. Measured on the labelled infrared set (432
+        tracks; the reasons notes of session 18): the old "No" put 31 bird and 17 other tracks that could not have shown a
+        bird's beat beside 42 and 246 that could; such a "No" was 4.5 times as common on birds (by clip 2.6-8.2; 22 of 293
+        clips whose every track said No, 45 % of them birds against 22 % of all clips: the diagnostic survey's FX4), so it
+        pointed toward a bird, where the "No" left (0.42, 0.31-0.55) points away. The amplitude follows the object's own
+        residual after one sinusoid, so a real beat that wanders raises it (x1.5-3 when planted; the survey's claim 4): a
+        track it calls too noisy may hold a beat the tests did not keep -- "Can't tell" either way."""
+        an = (self.stages.get("flicker", {}).get("fields") or {}).get("analytic") or {}
+        got = [a.get("with_floor") if a.get("with_floor") is not None else a.get("amplitude") for a in an.values() if a]
+        got = [float(v) for v in got if v is not None]
+        return min(got) if got else None
+
+    # ---- what the conclusion rests on, and how sure it is (E7, S17; session 18, 2026-11-07) ------------------------------
+    # The beat row's lead sentence, by its kind (`controls.KINDS`): what the reason says before its weight
+    BEAT_LEAD = {
+        "named": "Its brightness beats at a wingbeat's rate along its track, strongly enough to name a bird.",
+        "faint": "Its brightness beats at a wingbeat's rate, but too faintly to name a bird.",
+        "once": "Its brightness beats at a wingbeat's rate in one stretch only.",
+        "none": "No rhythm of its own stands out, on a track that could have shown a bird's.",
+        "deaf": "No rhythm of its own stands out, but the track is too noisy to show a bird's.",
+        "band": "It has a rhythm of its own, but not at a wingbeat's rate.",
+        "refused": "The test of its beat could not decide on this video.",
+        "shaken": "Its brightness beats, but the whole picture shakes at the same rate.",
+    }
+    ONE_CURVE = "The tests of the beat all read one brightness curve, so they count once here."
+    UNDECIDED = ("deaf", "refused", "shaken")   # a test that could not decide carries no weight, whatever the set's mix gives it
+
+    def reasons(self):
+        """What the conclusion rests on, heaviest first: at most four, in plain words under the conclusion (the ideas bank's
+        E7; the rule a US lender follows when it declines, Regulation B's "principal reasons", at most four in practice).
+        [dict(key, said, weight, lr, lo, hi, premise)]: `weight` is "for a bird" or "against a bird" where the labelled set
+        weighs it (`controls.weigh`: how many times as common on birds as on the rest, with its interval), "bound" where it
+        follows by arithmetic from what was given (a speed from a scale and a distance), and "none" where nothing weighs it
+        -- no control population, too few tracks, or a test that could not decide. The reason the label stands on comes
+        first (`premise`); then the weighed ones, by the weight that survives their interval (|ln| of its end nearer 1);
+        then the rest in the checklist's order. The beat counts once, whatever its tests: they read one curve and pass
+        together (`controls`). Read from the checklist, so a case file from before has reasons too. Empty where the report
+        draws no conclusion."""
+        from . import controls
+        label, _ = self.conclusion()
+        if label.startswith("No conclusion"):
+            return []
+        rows = {r["key"]: r for r in self.checklist()}
+        rule = (self.stages.get("flicker", {}).get("fields") or {}).get("rule") or "stage"
+        out = []
+        speed_label = label in (SUBSONIC, SUPERSONIC, ANGLE_NEEDED, INDETERMINATE, "No physical conclusion", "Conclusion", "Tentative conclusion")
+        b = rows.get("beat")
+        if b and b.get("kind"):
+            w = controls.weigh(b["kind"], rule, BIRD_FLOOR)
+            flock = b["kind"] == "named" and "members" in b["said"]
+            lead = ("Its members each beat at a wingbeat's rate, out of step with one another." if flock else self.BEAT_LEAD[b["kind"]])
+            if b["kind"] in self.UNDECIDED:
+                weight, said = "none", (controls.said(w) if w["weight"] in ("none", "no power") else
+                                        f"On {controls.SET}, such answers were about {controls._times(w['lr'])} times as common on "
+                                        f"{'birds' if w['lr'] > 1 else controls.OTHERS} as on {controls.OTHERS if w['lr'] > 1 else 'birds'}, "
+                                        "from the set's mix of faint objects rather than any beat. A test that could not decide is not "
+                                        "evidence, so it carries no weight here.")
+            else:
+                weight = {"for": "for a bird", "against": "against a bird"}.get(w["weight"], "none")
+                said = w["said"]
+            fin = lambda x: None if x is None or math.isinf(x) or math.isnan(x) else round(x, 3)    # JSON has no infinity
+            out.append(dict(key="beat", premise=label == BIRD, weight=weight, lr=fin(w["lr"]), lo=fin(w["lo"]), hi=fin(w["hi"]),
+                            said=" ".join([lead, said] + (["The labelled tracks are of single birds, so this is one member's weight."]
+                                                          if flock else []) + [self.ONE_CURVE])))
+        r = rows.get("real")
+        if r and speed_label:
+            said = (f"Its speed: {r['said']}. That follows by arithmetic from what was given, so it is as sure as those inputs; "
+                    "no control population weighs it." if r["answer"] in (YES, PARTLY) else
+                    f"No real speed: {r['said']}. Without them its motion is in pixels, and nothing here weighs it.")
+            out.append(dict(key="real", premise=True, weight="bound" if r["answer"] in (YES, PARTLY) else "none",
+                            lr=None, lo=None, hi=None, said=said))
+        if label == BIRD and rows.get("lookalike"):
+            out.append(dict(key="lookalike", premise=False, weight="none", lr=None, lo=None, hi=None,
+                            said=f"Something else could beat like this: {rows['lookalike']['said'].replace(': nothing', '; nothing')}. No known population of tumbling "
+                                 "bodies or blinking lights has been measured, so this carries no weight either way."))
+        a = rows.get("added")
+        if a and a["answer"] in (CONSISTENT, INCONSISTENT):
+            out.append(dict(key="added", premise=False, weight="none", lr=None, lo=None, hi=None,
+                            said=f"{'Consistent' if a['answer'] == CONSISTENT else 'Not consistent'} with the camera's own picture: "
+                                 f"{a['said']}. No known inserts weigh these checks, so this carries no weight."))
+        f = rows.get("flash")
+        if f and f["answer"] == YES:
+            out.append(dict(key="flash", premise=False, weight="none", lr=None, lo=None, hi=None,
+                            said=f"It flashes in a regular train: {f['said']}. No population of lights has been measured yet, so this "
+                                 "carries no weight."))
+
+        def strength(x):
+            end = x["lo"] if x["weight"] == "for a bird" else x["hi"] if x["weight"] == "against a bird" else None
+            if end:                                  # the weight that survives the interval: its end nearer 1
+                return abs(math.log(end))
+            return -1.0
+        out.sort(key=lambda x: (not x["premise"], -strength(x)))        # stable: the rest keep the checklist's order
+        return out[:4]
+
+    # GRADE's four levels (Guyatt et al. 2008; the GRADE working group's "certainty of evidence"), as a proposal: the names are
+    # the maintainer's to choose (the ideas bank's F56: never A-D, which GEIPAN uses for identified-to-unexplained)
+    GRADE_LEVELS = ("High", "Moderate", "Low", "Very low")
+    SOUND_RANGE = (295.0, 343.0)      # the speed of sound from 11 km up (-56 C) to sea level (20 C): the line a label is drawn at
+
+    def grade(self):
+        """How sure the conclusion is, from four of GRADE's domains, each computed by the tool from the case and never
+        given by the analyst (the ideas bank's S17): dict(level, downgrades, domains=[dict(domain, concern -- "none",
+        "serious" or "very serious" --, why=[...])], said). It starts at the top level and goes down one for each serious
+        concern, two for a very serious one. None where the report draws no conclusion.
+
+        - **Risk of bias**: is the track on the object, the object the one a person chose, the picture the camera's? A
+          concern each: nobody has said the track sheet was looked at; the object picked by an agent or the computer, or
+          by nobody recorded (no concern once the sheet has been looked at, since a person then saw the choice); an
+          integrity check not consistent with the camera's picture. Serious for one, very serious for two or more.
+        - **Inconsistency**: readings that should agree, and do not -- a named beat the whole track's test does not find
+          (only windows of it do); a flock where under half the members measured beat; integrity's checks that both pass
+          and flag it.
+        - **Indirectness**: is the evidence about a clip like this one? Where the conclusion is weighed on the labelled set
+          (a bird named), the clip outside that population (`controls.inside`: the frame rate, a track under 150 frames,
+          a flock); where it rests on a field of view, a field of view that is a guess.
+        - **Imprecision**: does the band about what is claimed cross the line the label is drawn at? A named beat whose
+          amplitude, less twice its own error (the closed form's sigma sqrt(3 / n)), falls under BIRD_FLOOR; a speed whose
+          band, twice its own spread along the track, reaches the speed of sound anywhere from 11 km up to sea level.
+
+        The thresholds are the report's own lines (BIRD_FLOOR, the speed of sound) and two standard errors; "under half the
+        members" and "a track under 150 frames" (the labelled set's 17 non-bird tracks there, the diagnostic survey's DXC5)
+        are judgement calls, flagged as such in the session's notes."""
+        from . import controls
+        label, _ = self.conclusion()
+        if label.startswith("No conclusion"):
+            return None
+        rows = {r["key"]: r for r in self.checklist()}
+        ff = (self.stages.get("flicker", {}).get("fields") or {})
+        kf = (self.stages.get("kinematics", {}).get("fields") or {})
+        domains = []
+        # risk of bias
+        why = []
+        looked = (rows.get("checked") or {}).get("answer") == YES
+        if "checked" in rows and not looked:
+            why.append("nobody has said they looked at the track sheet")
+        chosen = (rows.get("chosen") or {}).get("answer")
+        if not looked and chosen == NO:
+            why.append("the object was picked by an agent or the computer, not by a person")
+        elif not looked and chosen == CANT:
+            why.append("who picked the object is not recorded")
+        if (rows.get("added") or {}).get("answer") == INCONSISTENT:
+            why.append("an integrity check says it may have been added to the video")
+        domains.append(dict(domain="risk of bias", why=why))
+        # inconsistency
+        why = []
+        named = {n: x for n, x in bird_beats(ff).items() if not x.get("shaken")}
+        if label == BIRD and named and all(x.get("whole_passes") is False for x in named.values()):
+            why.append("its beat is found in stretches of the track, not over the whole of it")
+        measured = len(ff.get("beat") or {})
+        if label == BIRD and measured > 1 and len(named) < measured / 2:
+            why.append(f"only {len(named)} of the {measured} members measured beat as a wingbeat")
+        iv = ((self.stages.get("integrity", {}).get("result") or {}).get("object_verdicts") or {}).values()
+        if "FLAG" in iv and "PASS" in iv:
+            why.append("integrity's checks disagree: some pass it and some flag it")
+        domains.append(dict(domain="inconsistency", why=why))
+        # indirectness
+        why = []
+        if label == BIRD:
+            fps = (self.clip or {}).get("fps") or kf.get("fps")
+            frames = ((self.stages.get("track") or {}).get("fields") or {}).get("frames")
+            why += controls.inside(fps=fps, frames=frames, flock=len(named) > 1)
+        elif label in (SUBSONIC, SUPERSONIC, ANGLE_NEEDED, INDETERMINATE):
+            if any(r_["symbol"] == "k" and r_["status"] == "assumed" for r_ in self.ledger()):
+                why.append("the field of view it rests on is a guess")
+        domains.append(dict(domain="indirectness", why=why))
+        # imprecision
+        why = []
+        if label == BIRD:
+            an = ff.get("analytic") or {}
+            for n, x in named.items():
+                a = an.get(n) or {}
+                if x.get("amplitude") is not None and a.get("sigma") and a.get("frames"):
+                    se = a["sigma"] * math.sqrt(3.0 / a["frames"])
+                    if x["amplitude"] - 2 * se < BIRD_FLOOR:
+                        why.append(f"its beat, {x['amplitude']:.0%} of its brightness give or take {2 * se:.0%}, may be under the "
+                                   f"{100 * BIRD_FLOOR:g}% a bird is named from")
+                        break
+        elif label in (SUBSONIC, SUPERSONIC):
+            v = next((kf.get(k) for k in ("relative_speed_m_per_s", "scale_bar_m_per_s", "upper_bound_m_per_s", "lower_bound_m_per_s")
+                      if kf.get(k) is not None), None)
+            band = kf.get("band") or {}
+            rel = (band.get("band_err_px_per_s") or 0.0) / kf["v_px_per_s"] if kf.get("v_px_per_s") else 0.0
+            if v is not None and v * (1 - 2 * rel) <= self.SOUND_RANGE[1] and v * (1 + 2 * rel) >= self.SOUND_RANGE[0]:
+                why.append(f"its speed, about {v:.0f} m/s, is within reach of the speed of sound, which is "
+                           f"{self.SOUND_RANGE[0]:.0f} m/s high up and {self.SOUND_RANGE[1]:.0f} m/s at sea level")
+        domains.append(dict(domain="imprecision", why=why))
+        down = 0
+        for d in domains:
+            d["concern"] = "none" if not d["why"] else "very serious" if d["domain"] == "risk of bias" and len(d["why"]) > 1 else "serious"
+            down += {"none": 0, "serious": 1, "very serious": 2}[d["concern"]]
+        level = self.GRADE_LEVELS[min(down, len(self.GRADE_LEVELS) - 1)]
+        said = f"How sure: {level.lower()}." + "".join(f" {self._sentence(d['why'])}" for d in domains if d["why"])
+        return dict(level=level, downgrades=down, domains=domains, said=said)
+
+    @staticmethod
+    def _sentence(parts):
+        """'a, b and c.' as one sentence, its first letter a capital."""
+        s = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+        return s[:1].upper() + s[1:] + "."
+
+    def screened(self):
+        """The object's beat against the labelled tracks, in the words the discriminant plot rests on (`controls.screen`):
+        "consistent with" the birds, the others "not screened out" or "screened out", with the counts. None where the
+        object has no rhythm of its own at a wingbeat's rate."""
+        from . import controls
+        ff = (self.stages.get("flicker", {}).get("fields") or {})
+        beats = [b for b in own_beats(ff).values() if WINGBEAT_HZ[0] <= b["hz"] <= WINGBEAT_HZ[1] and b.get("amplitude") is not None]
+        if not beats:
+            return None
+        b = max(beats, key=lambda x: x["amplitude"])
+        got = controls.screen(b["hz"], b["amplitude"], ff.get("rule") or "stage", BIRD_FLOOR)
+        return got["said"] if got else None
+
+    def _reasons(self):
+        """Under the conclusion's sentence, before the checklist: how sure it is (`grade`), said where the label is said, and
+        what it rests on, the heaviest first (`reasons`)."""
+        g, rs = self.grade(), self.reasons()
+        out = [f"*{g['said']}*", ""] if g else []
+        if rs:
+            out += ["What it rests on, the heaviest first:", ""] + [f"{i}. {r['said']}" for i, r in enumerate(rs, 1)] + [""]
+        return out
 
     def _checklist(self):
         """The checklist as the report's table, under the conclusion's sentence, with the bottom line's paragraph folded
@@ -2061,6 +2425,7 @@ class Case:
             L += [f"> {SHEET_PROVISIONAL}", ""]
         label, head = self.conclusion()
         L += ["## Conclusion", "", f"**{label}.** {head}", ""]
+        L += self._reasons()
         L += self._checklist()
         L += self._summary()
         L += self._ledger()
@@ -2078,6 +2443,8 @@ class Case:
                 said = next((c for end, c in FIGURE_CAPTIONS if Path(f).stem.endswith(end)), None)
                 if said:
                     L += [f"*{said}*", ""]
+                if Path(f).stem.endswith("_controls") and self.screened():
+                    L += [self.screened(), ""]
 
         L += ["## Measurements", "", "<details><summary>Stage by stage</summary>", ""]
         L += ["### the record", "", "- " + self._provenance()]

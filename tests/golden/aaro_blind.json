@@ -1,0 +1,582 @@
+{
+ "about": "AARO's resolved cases run blind (docs/method.md section 46; ROADMAP 0.5.0), 2026-11-07. Each object's label is its case file's conclusion; on_object and why are the judgement, made from Find's strips before AARO's answers were read, of whether the run followed the object the public description is about. tools/aaro_blind.py scores it; tests/test_golden.py --aaro holds it.",
+ "cases": [
+  {
+   "case": "PR-016",
+   "aaro_class": "birds",
+   "confidence": "high",
+   "use": "known",
+   "aaro_answer": "the objects depict birds (Resolved as Birds)",
+   "rows": "1 of 8",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-016_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 8 (all weak): one of the line of bright points the video shows, the description's objects"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-002",
+   "aaro_class": "migratory birds",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a group of migratory birds; morphology and known migration routes; an IC partner concurred",
+   "rows": "1 of 8",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-002_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 8 (all weak): a faint bright point where the line of points flies after the gain change, seen on 219 frames"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-004",
+   "aaro_class": "balloon",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a balloon; morphology and drift at wind speed and direction",
+   "rows": "8 of 8",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-004_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1: the bright point the camera follows, in one stretch of it"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2: the bright point the camera follows, in one stretch of it"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3: the bright point the camera follows, in one stretch of it"
+       },
+       "object-4": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 4: the bright point the camera follows, in one stretch of it"
+       },
+       "object-5": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 5: the bright point the camera follows, in one stretch of it"
+       },
+       "object-6": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 6: the bright point the camera follows, in one stretch of it"
+       },
+       "object-7": {
+        "label": "No physical conclusion",
+        "on_object": false,
+        "why": "row 7: a faint spot just above the bright point, moving with it: a feature beside the object"
+       },
+       "object-8": {
+        "label": "No physical conclusion",
+        "on_object": false,
+        "why": "row 8: a faint spot just above the bright point, moving with it: a feature beside the object"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-005",
+   "aaro_class": "balloon",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a balloon",
+   "rows": "6 of 6",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-005_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1: the bright point the camera follows, in one stretch of it"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2: the bright point the camera follows, in one stretch of it"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3: the bright point the camera follows, in one stretch of it"
+       },
+       "object-4": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 4: the bright point the camera follows, in one stretch of it"
+       },
+       "object-5": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 5: the bright point the camera follows, in one stretch of it"
+       },
+       "object-6": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 6: the bright point the camera follows, in one stretch of it"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-006",
+   "aaro_class": "balloon",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a balloon",
+   "rows": "5 of 5",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-006_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1: the bright point over the clouds, in one stretch of it"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2: the bright point over the clouds, in one stretch of it"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3: the bright point over the clouds, in one stretch of it"
+       },
+       "object-4": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 4: the bright point over the clouds, in one stretch of it"
+       },
+       "object-5": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 5: the bright point over the clouds, in one stretch of it"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-009",
+   "aaro_class": "balloon",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a balloon",
+   "rows": "8 of 8",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-009_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-4": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 4: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-5": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 5: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-6": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 6: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-7": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 7: the one bright point the camera follows, in one stretch of it"
+       },
+       "object-8": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 8: the one bright point the camera follows, in one stretch of it"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-010",
+   "aaro_class": "balloon",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a balloon",
+   "rows": "8 of 8",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-010_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-4": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 4 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-5": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 5 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-6": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 6 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-7": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 7 of 8: the bright elongated object, in one stretch of it"
+       },
+       "object-8": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 8 of 8: the bright elongated object, in one stretch of it"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Middle East Red Balloon",
+   "aaro_class": "foil balloon",
+   "confidence": "high (>=95%)",
+   "use": "known",
+   "aaro_answer": "almost certainly a consumer-grade reflective foil balloon; morphology and correlation with recorded wind",
+   "rows": "1 of 8 (count 1)",
+   "runs": {
+    "first": {
+     "files": {
+      "merb_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 8: the dark side of the round object the camera holds"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Al Taqaddum",
+   "aaro_class": "balloon cluster",
+   "confidence": "high",
+   "use": "known",
+   "aaro_answer": "consistent with a cluster of fully and partially inflated balloons",
+   "rows": "1 of 5 (count 1)",
+   "runs": {
+    "first": {
+     "files": {
+      "altaqaddum_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 5: the dark body with something hanging under it, beside the boresight"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Mt. Etna",
+   "aaro_class": "balloon",
+   "confidence": "moderate (balloon); high (not anomalous)",
+   "use": "known",
+   "aaro_answer": "a balloon about 170 km from the caldera moving with the wind; optical effects of the plume made it appear to transit it",
+   "rows": "1 of 5 (count 1)",
+   "runs": {
+    "first": {
+     "files": {
+      "mtetna_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 5: the compact dark object in the plume, held by the camera while the plume streams past"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Puerto Rico",
+   "aaro_class": "sky lanterns",
+   "confidence": "moderate (lanterns); high (two objects; not anomalous)",
+   "use": "known",
+   "aaro_answer": "a pair of sky lanterns drifting at wind speed; split = view angle; ocean entry = thermal crossover",
+   "rows": "2 of 8 (count 2)",
+   "runs": {
+    "first": {
+     "files": {
+      "puertorico_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 8: one of the two dark spots inside the tracking box"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2 of 8: the other dark spot inside the tracking box"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Go Fast",
+   "aaro_class": "not anomalous (wind-borne)",
+   "confidence": "high",
+   "use": "known",
+   "aaro_answer": "did not move at anomalous speeds; performance consistent with historical winds; identity not stated",
+   "rows": "1 of 4 (count 1)",
+   "runs": {
+    "first": {
+     "files": {
+      "gofast_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 4 (count 1): the small bright streak over the sea that the sensor's track gate closes on at frame 95"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Western United States",
+   "aaro_class": "aircraft",
+   "confidence": "almost certain",
+   "use": "known",
+   "aaro_answer": "commercial aircraft on established air corridors up to 300 nmi away; shape changes from sensor vibration and autofocus",
+   "rows": "3 of 8",
+   "runs": {
+    "first": {
+     "files": {
+      "westernus_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 8: one of the small bright points on the plain sky round the boresight"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2 of 8: one of the small bright points on the plain sky round the boresight"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3 of 8: one of the small bright points on the plain sky round the boresight"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Atmospheric Wakes (South Asian object)",
+   "aaro_class": "aircraft + sensor artefact",
+   "confidence": "high (wake is artefact)",
+   "use": "known",
+   "aaro_answer": "likely a commercial aircraft; the trailing 'wake' is a sensor artefact of video compression",
+   "rows": "1 of 3; 2 of 3",
+   "runs": {
+    "first": {
+     "files": {
+      "wakes-s1_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "sensor 1, row 1 of 3: the small dark dash that crosses the picture behind the MQ-9 being recorded"
+       }
+      },
+      "wakes-s2_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "sensor 2, row 1 of 3: the dark body with a short trail"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "sensor 2, row 2 of 3: the same dark body earlier"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "PR-007",
+   "aaro_class": "not anomalous (aircraft-like)",
+   "confidence": "high",
+   "use": "weak",
+   "aaro_answer": "performance consistent with a prosaic aircraft; type not determined",
+   "rows": "1 of 2",
+   "runs": {
+    "first": {
+     "files": {
+      "pr-007_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 2: the bright spot with a faint trail"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  },
+  {
+   "case": "Middle East Object",
+   "aaro_class": "not anomalous (unidentified)",
+   "confidence": "not stated",
+   "use": "weak",
+   "aaro_answer": "not exhibiting anomalous behaviour; remains unidentified",
+   "rows": "4 of 4",
+   "runs": {
+    "first": {
+     "files": {
+      "meo_first.mcdonald": {
+       "object-1": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 1 of 4: the dark round object with a bright patch at its upper left"
+       },
+       "object-2": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 2 of 4: the dark round object with a bright patch at its upper left"
+       },
+       "object-3": {
+        "label": "No physical conclusion",
+        "on_object": true,
+        "why": "row 3 of 4: the dark round object with a bright patch at its upper left"
+       },
+       "object-4": {
+        "label": "No physical conclusion",
+        "on_object": false,
+        "why": "row 4 of 4: a bright point among the overlay's cyan marks, not the dark object"
+       }
+      }
+     },
+     "verdict": "no power"
+    }
+   }
+  }
+ ],
+ "summary": {
+  "known": 14,
+  "tally": {
+   "agree, informative": 0,
+   "agree, consistent": 0,
+   "disagree": 0,
+   "no power": 14,
+   "Find failed": 0
+  },
+  "first": {
+   "agree, informative": 0,
+   "agree, consistent": 0,
+   "disagree": 0,
+   "no power": 14,
+   "Find failed": 0
+  },
+  "answered": 0,
+  "coverage": [
+   0.0,
+   0.2316357616501165
+  ],
+  "agree": 0,
+  "accuracy": null,
+  "informative": 0,
+  "informative_interval": [
+   0.0,
+   0.2316357616501165
+  ],
+  "interval": [
+   0.0,
+   0.2316357616501165
+  ]
+ }
+}

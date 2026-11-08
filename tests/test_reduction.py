@@ -20,6 +20,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcdonald import comotion, kinematics as kin, report, scale, symbology as sym  # noqa: E402
+import traffic  # noqa: E402 -- the binomial zone for checks on drawn data (E20)
 
 FAIL = []
 
@@ -494,7 +495,7 @@ def test_the_speed_band_on_drawn_tracks():
     print("\nkinematics: the speed band on drawn tracks (K8)")
     rng = np.random.default_rng(11)
     fps, n = 30.0, 120
-    zs, inside, zbar, calls = [], [], [], 0
+    zs, inside, zbar, calls, mid = [], [], [], 0, []
     for _ in range(16):
         trk, truth = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
         band, series = kin.speed_band(trk, fps)
@@ -503,15 +504,19 @@ def test_the_speed_band_on_drawn_tracks():
             z = (np.array(series[k]) - true) / np.array(series["sd_" + k])
             zs.append(z)
             inside.append(np.abs(z) < 2)
+            mid.append(abs(z[len(z) // 2]) >= 2)
         vb = np.hypot(*truth["vbar"])
         zbar.append((band["v_mean_px_per_s"] - vb) / band["v_mean_err_px_per_s"])
         calls += band["constant"]
     z_sd = float(np.concatenate(zs).std())
     cover = float(np.concatenate(inside).mean())
-    check(0.9 <= cover <= 0.99, "the rate's ±2 sd band holds the drawn velocity about 95 % of the time", f"{cover:.3f} over 16 tracks")
+    traffic.rate(check, "the rate's ±2 sd band holds the drawn velocity about 95 % of the time (counted at each track's middle frame, "
+                 "x and y: the frames of one track are not independent draws)", int(sum(mid)), len(mid), 0.0455,
+                 f"{cover:.3f} of every frame over 16 tracks")
     check(0.75 <= z_sd <= 1.35, "and its sd is the right size", f"z sd {z_sd:.2f}")
     check(0.5 <= float(np.std(zbar)) <= 1.7, "the average speed's error is honest", f"z sd {np.std(zbar):.2f} over 16 tracks")
-    check(calls == 0, "a track that wanders is never called constant", f"{calls} of 16 called constant")
+    traffic.rate(check, "a track that wanders is called constant hardly ever (1 % stated: a judgement, the band's power on this "
+                 "wander is near 100 %)", calls, 16, 0.01, f"{calls} of 16 called constant")
 
     # B6: the speed along the path and the fastest, from paths drawn from the posterior, against the drawn truth
     hit_path, hit_fast, ratio_path, ratio_fast, ratio_max = [], [], [], [], []
@@ -526,13 +531,15 @@ def test_the_speed_band_on_drawn_tracks():
         ratio_path.append(band["v_path_px_per_s"] / true_path)
         ratio_fast.append(band["v_fast_px_per_s"] / vt.max())
         ratio_max.append(band["v_max"][1] / vt.max())
-    check(sum(hit_path) >= 20 and 0.97 <= float(np.median(ratio_path)) <= 1.03,
-          "B6: the speed along the path, from 200 drawn paths, reads the drawn path's speed and its 95 % holds it about nine times in "
-          "ten (the covariance is the fitted one, not the truth's: the survey's 90-95 %)",
-          f"held {sum(hit_path)} of 24, median read/true {np.median(ratio_path):.3f}")
-    check(sum(hit_fast) >= 19 and float(np.median(ratio_fast)) > float(np.median(ratio_max)),
+    traffic.rate(check, "B6: the speed along the path, from 200 drawn paths: its 95 % holds the drawn path's speed about nine times in "
+                 "ten (the covariance is the fitted one, not the truth's: the survey's 90-95 %)", 24 - sum(hit_path), 24, 0.10,
+                 f"held {sum(hit_path)} of 24")
+    check(0.97 <= float(np.median(ratio_path)) <= 1.03, "and reads the drawn path's speed", f"median read/true {np.median(ratio_path):.3f}")
+    traffic.rate(check, "the drawn fastest's 95 % holds the truth about nine times in ten, as the path's does", 24 - sum(hit_fast), 24, 0.10,
+                 f"held {sum(hit_fast)} of 24")
+    check(float(np.median(ratio_fast)) > float(np.median(ratio_max)),
           "the drawn fastest reads nearer the truth than the kriged mean's fastest, which reads low (the mean path is smoother than the path)",
-          f"held {sum(hit_fast)} of 24; drawn fastest/true {np.median(ratio_fast):.3f}, kriged max/true {np.median(ratio_max):.3f}")
+          f"drawn fastest/true {np.median(ratio_fast):.3f}, kriged max/true {np.median(ratio_max):.3f}")
     check(band["path_draws"] == kin.PATH_DRAWS and band["v_path_px_per_s"] >= band["v_mean_px_per_s"] - 3 * band["v_path_err_px_per_s"],
           "the path speed is at least the net speed (a path is never shorter than the line from its start to its end)",
           f"path {band['v_path_px_per_s']:.1f}, net {band['v_mean_px_per_s']:.1f} px/s")
@@ -549,9 +556,12 @@ def test_the_speed_band_on_drawn_tracks():
         mem += bool(band["memory"]) and band["memory"]["x"] and band["memory"]["y"]
         const += band["constant"]
         held += abs(band["v_mean_px_per_s"] - math.hypot(30.0, 12.0)) <= 1.96 * band["v_mean_err_px_per_s"]
-    check(mem >= 14 and const >= 14, "a wander with the detector's memory (range about 2 frames) is read as the line's, and the velocity is constant",
-          f"memory on both coordinates {mem} of 16, constant {const} of 16")
-    check(held >= 13, "and the line's velocity is held by the stated error (the GLS slope's, or the ends', the larger)", f"{held} of 16")
+    traffic.rate(check, "a wander with the detector's memory (range about 2 frames) is read as the line's (missed 10 % of the time "
+                 "stated: a judgement)", 16 - mem, 16, 0.10, f"memory on both coordinates {mem} of 16")
+    traffic.rate(check, "and the velocity is constant (11 % of the planted straight dots were not: MEMORY_FRAMES)", 16 - const, 16, 0.11,
+                 f"constant {const} of 16")
+    traffic.rate(check, "and the line's velocity is held by the stated error (the GLS slope's, or the ends', the larger: 95 %)",
+                 16 - held, 16, 0.05, f"{held} of 16")
     check("the detector's own memory" in kin.band_said(band, fps)[1] and "the line's" in band["kernel"],
           "the band's words say whose the wander is", kin.band_said(band, fps)[1][-160:])
     trk, _ = kin.simulate_track(n, fps, v=(120.0, -40.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
@@ -565,8 +575,10 @@ def test_the_speed_band_on_drawn_tracks():
         quiet += band["constant"]
         loud += band["accel_z"] is not None and band["accel_z"] >= kin.BAND_Z
         nug.append(max(band["nugget_px"]))
-    check(quiet == 16, "a line with jitter is constant within its band every time", f"{quiet} of 16")
-    check(loud <= 1, "and its velocity is not said to have changed", f"{loud} of 16 at {kin.BAND_Z:.0f} sigma or more")
+    traffic.rate(check, "a line with jitter is constant within its band (all but 1 % stated: a judgement, Δln L 10 is far out)",
+                 16 - quiet, 16, 0.01, f"{quiet} of 16")
+    traffic.rate(check, "and its velocity is not said to have changed (3 sigma: 0.27 %)", loud, 16, 0.0027,
+                 f"{loud} of 16 at {kin.BAND_Z:.0f} sigma or more")
     check(0.35 <= float(np.median(nug)) <= 0.65, "the nugget is the jitter planted", f"median {np.median(nug):.2f} px for 0.5")
 
     seen, got = 0, []
@@ -575,7 +587,8 @@ def test_the_speed_band_on_drawn_tracks():
         band, _ = kin.speed_band(trk, fps)
         seen += (not band["constant"]) and band["accel_z"] >= kin.BAND_Z
         got.append(band["accel_px_per_s2"])
-    check(seen == 8, "a planted acceleration of 200 px/s² is seen every time", f"{seen} of 8")
+    traffic.rate(check, "a planted acceleration of 200 px/s² is seen (missed 1 % of the time stated: a judgement, it is 35 sigma)",
+                 8 - seen, 8, 0.01, f"{seen} of 8")
     check(abs(float(np.median(got)) - 200.0) < 40.0, "and read near its value", f"median {np.median(got):.0f} px/s² (the wander's own rate adds to it)")
 
     trk = {n: (100.0 + 18.0 * (n - 1), 50.0 + 2.0 * (n - 1)) for n in range(1, 40)}
@@ -609,7 +622,7 @@ def test_jumps_are_named_on_drawn_tracks():
         fr = np.array(sorted(trk), float)
         xy = np.array([trk[f] for f in sorted(trk)])
         named += bool(kin.jumps(fr, xy[:, 0], xy[:, 1], fps)["flags"])
-    check(named <= 2, "a clean wandering track has a jump named about one time in a hundred", f"{named} of 40")
+    traffic.rate(check, "a clean wandering track has a jump named about one time in a hundred", named, 40, kin.JUMP_ALPHA, f"{named} of 40")
     j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
     check(5.0 < j["threshold"] < 6.5 and kin.jumps(fr, xy[:, 0], xy[:, 1], fps)["threshold"] == j["threshold"],
           "the threshold is drawn on the track's own frames, the same every time", f"{j['threshold']:.2f} times the local scale over 300 frames")
@@ -652,8 +665,9 @@ def test_jumps_are_named_on_drawn_tracks():
         xy = np.round(np.array([trk[f] for f in sorted(trk)]), 1)        # a track written on a 0.1-px grid, its jitter under it
         j = kin.jumps(fr, xy[:, 0], xy[:, 1], fps)
         named += bool(j["flags"])
-    check(named <= 1 and j["grid_px"] == 0.1, "a track written on a 0.1-px grid with less jitter than that is not jumpy",
-          f"{named} of 20 named")
+    traffic.rate(check, "a track written on a 0.1-px grid with less jitter than that is not jumpy (one in a hundred, as a clean track)",
+                 named, 20, kin.JUMP_ALPHA, f"{named} of 20 named")
+    check(j["grid_px"] == 0.1, "and the grid is read", f"{j['grid_px']} px")
     check(kin.jumps(np.arange(1, 6.0), np.zeros(5), np.zeros(5), fps) is None, "under 10 points there is no test")
     check(kin.jumps_said({"jumps": {"threshold": 5.6, "alpha": 0.01, "flags": []}}).startswith("none past 5.6 times"),
           "a track with no jump says the test found none")
@@ -681,8 +695,9 @@ def test_the_band_is_held_to_its_own_track():
         trk, _ = kin.simulate_track(150, fps, v=(60.0, -20.0), nugget=0.5, sill=5.0, range_s=1.0, rng=rng)
         b, _ = kin.speed_band(trk, fps)
         lights.append(b["backtest"]["light"])
-    check(lights.count("green") >= 16 and "red" not in lights,
-          "on tracks drawn from its own covariance the band is green about nine times in ten", ", ".join(lights))
+    traffic.rate(check, "on tracks drawn from its own covariance the band is green about nine times in ten", 20 - lights.count("green"),
+                 20, 0.10, ", ".join(lights))
+    traffic.rate(check, "and red next to never (past 99.99 % of a right band's misses)", lights.count("red"), 20, 1.0 - kin.BASEL[1])
     bt = b["backtest"]
     check(bt["n"] == 150 and 0 <= bt["share"] < 0.12 and len(bt["ljung_box_p"]) == 2 and kin.backtest_said(bt).startswith(bt["light"]),
           "its fields: the count of misses, each test's p by coordinate, and a sentence that begins with the light", kin.backtest_said(bt)[:120])
@@ -742,6 +757,52 @@ def test_a_beat_is_held_as_covariance():
     check(gain < kin.BEAT_DLNL, "a series with no beat gains little from one", f"gain {gain:.1f}")
 
 
+def test_the_jitter_read_without_a_model():
+    """E6 (ROADMAP 0.4; docs/method.md section 48): the band's nugget beside the jitter read with no model at all -- Roll's
+    estimator one difference up, sqrt(-gamma_1 / 4) of the second differences, whose lag-1 autocorrelation is -2/3 for
+    white jitter -- held to the band's own covariance drawn on the track's times: tracks drawn from a covariance with no
+    beat are flagged about one time in a hundred (a binomial zone, E20), PR135's members, whose wingbeat REML's nugget takes
+    in as jitter, are flagged at 0.4-0.7 of REML's nugget (the economics survey's 0.39-0.73), and PR144 is not (1.00)."""
+    print("\nkinematics: the jitter read without a model (E6)")
+    import traffic
+    from mcdonald import forensics as vf, kriging as kg
+    rng = np.random.default_rng(21)
+    f = np.arange(1, 4001, dtype=float)
+    s2, rho, pairs = kin.second_differences(f, rng.normal(0, 0.5, 4000))
+    check(abs(math.sqrt(s2) - 0.5) < 0.03 and abs(rho + 2 / 3) < 0.03 and pairs == 3997,
+          "white jitter: the nugget read without a model is the jitter's, rho_1 of the second differences -2/3",
+          f"{math.sqrt(s2):.3f} px for 0.5, rho_1 {rho:+.3f}")
+    gaps = np.r_[np.arange(1, 50), np.arange(60, 90, 2)].astype(float)
+    check(kin.second_differences(gaps[50:], np.zeros(len(gaps) - 50)) is None,
+          "on frames every other one there are no second differences on consecutive frames: no reading")
+    fps, n, flagged = 30.0, 150, 0
+    t = np.arange(n) / fps
+    for _ in range(20):
+        models = {c: kg.Model(t, kg.simulate(t, (25.0, 1.0, 0.16), rng)[0] + 40.0 * t, float(t.mean()), dt=1 / fps) for c in ("x", "y")}
+        mf = kin.model_free(np.arange(1, n + 1, dtype=float), models)
+        flagged += mf["beat"]
+    traffic.rate(check, "tracks drawn with a wander and jitter and no beat are flagged about one time in a hundred",
+                 flagged, 20, kin.FREE_ALPHA)
+    golden = Path(__file__).resolve().parent / "golden"
+    import csv as _csv
+    rows = [r for r in _csv.DictReader(open(golden / "pr135_tracks.csv")) if r["letter"] == "A" and r["x"] and r["y"]]
+    trk = {int(r["frame"]): (float(r["x"]), float(r["y"])) for r in rows}
+    b, _ = kin.speed_band(trk, 29.97)
+    mf = b["model_free"]
+    said = kin.model_free_said(b)
+    check(mf["beat"] and max(mf["x"]["ratio"], mf["y"]["ratio"]) < 0.8 and min(mf["x"]["rho1"], mf["y"]["rho1"]) > -0.45
+          and "a beat in the track" in said,
+          "PR135's bird A: flagged, the jitter read without a model well under REML's nugget, rho_1 far above -2/3",
+          f"ratio {mf['x']['ratio']:.2f}/{mf['y']['ratio']:.2f}, rho_1 {mf['x']['rho1']:+.2f}/{mf['y']['rho1']:+.2f}, p {mf['x']['p']:.3f}")
+    b, _ = kin.speed_band(vf.read_track(golden / "pr144_track.csv"), 30.0)
+    mf = b["model_free"]
+    check(not mf["beat"] and mf["agrees"] and 0.75 < mf["x"]["ratio"] < 1.15 and "REML's nugget agrees" in kin.model_free_said(b),
+          "PR144: not flagged, and REML's nugget agrees with the jitter read without a model",
+          f"ratio {mf['x']['ratio']:.2f}/{mf['y']['ratio']:.2f} inside {mf['x']['ratio_range'][0]:.2f}-{mf['x']['ratio_range'][1]:.2f}")
+    a, _ = kin.speed_band(vf.read_track(golden / "pr144_track.csv"), 30.0)
+    check(a["model_free"] == b["model_free"], "and the same track reads the same twice (its draws are seeded)")
+
+
 def test_constant_is_an_upper_bound():
     """E12 (ROADMAP 0.4; docs/method.md section 32): where the band says the speed is constant it says that no change was
     seen, not that there was none (the pile-up problem), so it gives the largest steady change of speed it could have
@@ -763,9 +824,10 @@ def test_constant_is_an_upper_bound():
         cb = b["change_bound"]
         held += abs(0.2 * (n - 1) / fps) <= cb["dv_max_px_per_s"]
         bounds.append(cb["dv_max_px_per_s"])
-    check(const >= 20 - 2 and held >= const - 2,
-          "a steady change of 0.8 px/s over 4 s under half a pixel of jitter: the band says constant, and its bound holds the change",
-          f"{const} of {20} constant, the bound held {held}; median bound {np.median(bounds):.1f} px/s")
+    traffic.rate(check, "a steady change of 0.8 px/s over 4 s under half a pixel of jitter: the band says constant (seen 5 % of the "
+                 "time stated: a judgement)", 20 - const, 20, 0.05, f"{const} of 20 constant")
+    traffic.rate(check, "and its bound holds the change (95 %)", const - held, const, 0.05,
+                 f"the bound held {held} of {const}; median bound {np.median(bounds):.1f} px/s")
     second = kin.band_said(b, fps)[1]
     check(second.startswith("constant within its band") and "a steady change of its speed of more than" in second
           and "would have shown (95 %)" in second, "and the band's own words say so", second[-110:])
@@ -886,6 +948,7 @@ def _pinhole(X0, V, k, c, t):
 
 
 WANDER_FALSE = 4          # of 40 slowly wandering size series, the most that may pass as looming (these seeds give 3; the sweep 2 in 100)
+WANDER_RATE = 0.02       # that sweep's rate, which the binomial zone holds the 40 to (E20): 2-5 of 40 yellow, 6 red
 
 
 def test_what_survives_the_missing_variables():
@@ -925,9 +988,11 @@ def test_what_survives_the_missing_variables():
         if h.get("t_z_err"):
             n_tz += 1
             held = [held[0] + (abs(h["t_z"] - 2.5) <= h["t_z_err"]), held[1] + (abs(h["t_z"] - 2.5) <= 1.959964 * h["t_z_err"])]
-    check(n_tz >= 27 and 0.5 <= held[0] / n_tz <= 0.9 and held[1] / n_tz >= 0.83,
-          "with jitter that has memory, t_z's error is the track's own covariance's: its band holds the truth about as often "
-          "as it says", f"{held[0]} of {n_tz} within one error, {held[1]} within 1.96")
+    traffic.rate(check, "with jitter that has memory, t_z is given an error nearly every time (5 % stated: a judgement)", 30 - n_tz, 30, 0.05,
+                 f"{n_tz} of 30")
+    traffic.rate(check, "and t_z's error is the track's own covariance's: within one error about as often as it says (71 % on 100 draws, "
+                 "2026-10-31, held both ways)", n_tz - held[0], n_tz, 0.29, f"{held[0]} of {n_tz} within one error", two_sided=True)
+    traffic.rate(check, "and within 1.96 (94 % on 100 draws)", n_tz - held[1], n_tz, 0.06, f"{held[1]} of {n_tz} within 1.96")
     check(abs(f["v_over_R"] - v_over_R) < 0.1 * v_over_R, "its speed in units of its range at the last frame", f"{f['v_over_R']:.3f} for {v_over_R:.3f} /s")
     check(abs(f["psi_deg"] - theta) < 1.0, "and the aspect angle there, from the vanishing point with k", f"{f['psi_deg']:.1f}° for {theta:.1f}°")
     check(f["rms"] < 1.25 * f["rms_quad"] and f["rms"] < 0.5 * f["rms_const"], "it describes the track as a free quadratic does, and constant image speed does not",
@@ -961,8 +1026,9 @@ def test_what_survives_the_missing_variables():
         d = pj.fit({i + 1: tuple(q[i]) for i in range(len(T2))}, fps, boot=0)["depth"]
         n_dep += d is not None
         held += d is not None and d["rate_max_per_s"] >= 100.0 / (5000.0 - 100.0 * T2[-1])
-    check(n_dep >= 15 and held >= 0.85 * n_dep, "no closing seen, bounded: the depth's rate is under the bound the speed change gives, "
-          "nearly every time", f"{held} of {n_dep} for a truth of {100.0 / (5000.0 - 100.0 * T2[-1]):.4f}/s")
+    traffic.rate(check, "no closing seen, bounded (refused 5 % of the time stated: a judgement)", 20 - n_dep, 20, 0.05, f"{n_dep} of 20")
+    traffic.rate(check, "and the depth's rate is under the bound the speed change gives (95 %)", n_dep - held, n_dep, 0.05,
+                 f"{held} of {n_dep} for a truth of {100.0 / (5000.0 - 100.0 * T2[-1]):.4f}/s")
     far = pj.fit({i + 1: tuple(p_) for i, p_ in enumerate(_pinhole(X0, V, k, c, t) + rng.normal(0, 0.5, (len(t), 2)))}, fps, boot=0)
     d = far["depth"]
     check(d and d["rate_max_per_s"] >= 4.0 / 10000.0 and math.isfinite(d["T_closing_min_s"]) and math.isfinite(d["T_receding_min_s"])
@@ -1009,8 +1075,9 @@ def test_what_survives_the_missing_variables():
         d = pj.depth_bound(pj.band_of({i + 1: tuple(q[i]) for i in range(61)}, 30.0))
         n_dep += d is not None
         held += d is not None and d["rate_max_per_s"] >= 1.0 / T3
-    check(n_dep >= 11 and held >= n_dep - 1, "a drawn approach whose speed changes by twice its mean: bounded, and the bound holds the truth",
-          f"{held} of {n_dep}")
+    traffic.rate(check, "a drawn approach whose speed changes by twice its mean: bounded (refused 5 % of the time stated: a judgement)",
+                 12 - n_dep, 12, 0.05, f"{n_dep} of 12")
+    traffic.rate(check, "and the bound holds the truth (95 %)", n_dep - held, n_dep, 0.05, f"{held} of {n_dep}")
     wander = {i + 1: (300 + 40 * math.cos(i / 6.0) + 0.05 * i, 300 + 40 * math.sin(i / 6.0)) for i in range(120)}
     wa = pj.depth_read(pj.band_of(wander, 30.0))
     check(wa[0] is None and wa[1], "a track looping over a short chord gets no bound, and the reason", str(wa[1])[:90])
@@ -1410,9 +1477,9 @@ def test_a_wander_is_not_read_as_a_loop():
         refused.append(tn)
     near = [g for g in refused if g["how"] == "ellipse" or g["swings"]]
     read = [g for g in near if g["how"] == "ellipse"]
-    check(len(near) >= 4 and len(read) <= 1,
-          "wander with no turn in it: an ellipse follows many of them, and at most one is called a loop (held to 5 % on 1000 draws a case)",
-          f"{len(near)} of 20 followed, {len(read)} called a loop")
+    check(len(near) >= 4, "wander with no turn in it: an ellipse follows many of them", f"{len(near)} of 20 followed")
+    traffic.rate(check, "and few are called a loop (5.1 and 6.0 % at worst on 1000 draws a case: 6 % stated)", len(read), 20, 0.06,
+                 f"{len(read)} of 20 called a loop")
     g = next(g for g in near if g["how"] != "ellipse")
     words = pj.said(None, g, None)["turn"]
     check(g["swings"]["reach_widths"] > 1 and "swings about more than a bend does" in words and "no loop is claimed" in words
@@ -1424,10 +1491,75 @@ def test_a_wander_is_not_read_as_a_loop():
         d = 100.0 * np.sin(2 * math.pi * 3 * t / t[-1] + rng.uniform(0, 7))
         p = np.c_[d + 10.0 * (L @ rng.normal(size=n)), 10.0 * (L @ rng.normal(size=n))] + rng.normal(0, 0.5, (n, 2)) + 500
         loops += pj.turn({i + 1: tuple(p[i]) for i in range(n)}, fps, 9.0)["how"] == "ellipse"
-    check(loops <= 1, "a sway along a line with a wander on it is no loop either: its minor axis is not shown (the white error "
-          "let 52 % through)", f"{loops} of 8 called a loop")
+    traffic.rate(check, "a sway along a line with a wander on it is no loop either: its minor axis is not shown (6 % stated, as the "
+                 "wander's; the white error let 52 % through)", loops, 8, 0.06, f"{loops} of 8 called a loop")
     words = pj.swings_said(dict(major_px=100.0, minor_px=9.0, omega_rad_per_s=1.0, arc_deg=500.0, rms_px=5.0, lr=90.0, minor_sigmas=1.0))
     check("back and forth along a line" in words and "a sway" in words, "and said so where it is the minor axis that fails", words[-90:])
+
+
+def _moving(kind, rng, n=150, fps=30.0, jitter=0.3):
+    """A drawn track of one of the three motion models, about 300 px long over n frames, with white jitter."""
+    t = np.arange(n) / fps
+    a = rng.uniform(0, 2 * math.pi)
+    u = np.array([math.cos(a), math.sin(a)])
+    if kind == "line":
+        s = 60.0 * t
+        x, y = 400 + s * u[0], 300 + s * u[1]
+    elif kind == "closing":
+        d = 1.0 / (1.5 * t[-1] - t)
+        s = 300.0 * (d - d[0]) / (d[-1] - d[0])
+        x, y = 400 + s * u[0], 300 + s * u[1]
+    else:
+        w = math.radians(90.0) / t[-1]
+        r = 300.0 / (w * t[-1])
+        x, y = 400 + r * (np.sin(a + w * t) - math.sin(a)), 300 - r * (np.cos(a + w * t) - math.cos(a))
+    x, y = x + jitter * rng.standard_normal(n), y + jitter * rng.standard_normal(n)
+    return {i + 1: (float(x[i]), float(y[i])) for i in range(n)}
+
+
+def test_which_motion_models_survive():
+    """E22 (ROADMAP 0.4 objective 3; docs/method.md section 48): the model confidence set (Hansen, Lunde & Nason 2011)
+    of a line at a steady image velocity, constant velocity in projection and a steady turn, on one-step forecasts with
+    a block bootstrap: the set holds every model where the losses cannot tell them apart and drops one far worse; on a
+    drawn track of each model it keeps the true one, a closing track keeps the projective model alone and a turning one
+    the turn; a short track has no set; and the words say what was compared and what remains."""
+    print("\nprojective: which motion models survive (E22)")
+    from mcdonald import projective as pj
+    rng = np.random.default_rng(23)
+    L = rng.normal(1.0, 0.3, (3, 100))
+    p, kept = pj.mcs(L, 1.0)
+    check(kept == [0, 1, 2] and min(p) >= pj.MODELS_ALPHA, "losses alike: the set keeps all three", f"MCS p {np.round(p, 3).tolist()}")
+    L[2] += 0.5
+    p, kept = pj.mcs(L, 4.0)
+    check(kept == [0, 1] and p[2] < 0.01 and max(p[0], p[1]) == 1.0, "one model's losses far larger: it leaves the set",
+          f"MCS p {np.round(p, 3).tolist()}")
+    got = {}
+    for kind in ("line", "closing", "turn"):
+        m = pj.confidence_set(_moving(kind, rng), 30.0)
+        got[kind] = m
+    check("line" in got["line"]["kept"], "a straight line at a steady image speed: the line is in the set", str(got["line"]["kept"]))
+    check(got["closing"]["kept"] == ["projective"] and got["closing"]["power"],
+          "a straight flight closing on the camera: the projective model alone", f"{got['closing']['kept']}, p {got['closing']['p']}")
+    check(got["turn"]["kept"] == ["turn"], "a steady turn: the turn alone", f"{got['turn']['kept']}, p {got['turn']['p']}")
+    check(pj.confidence_set({i + 1: (float(i), 0.0) for i in range(15)}, 30.0) is None, "under 20 points there is no set")
+    said, plain = pj.models_said(got["turn"]), " ".join(pj.models_plain(got["turn"]))
+    check(said.startswith("the 90 % model confidence set (Hansen, Lunde & Nason 2011)") and "ruled out" in said
+          and "Only a steady turn remains (90 % confidence)." in plain and "The track rules out" in plain,
+          "the words: technical for Measurements, plain for the paragraph", plain[-120:])
+    if "line" in got["line"]["kept"] and len(got["line"]["kept"]) < 3:
+        plain = " ".join(pj.models_plain(got["line"]))
+        check("predict it worse than a steady speed across the picture does" in plain or "predicts it worse" in plain,
+              "where the line stays, the models that left are said to predict worse, not ruled out (each holds the line)",
+              plain[-110:])
+    m = dict(got["turn"], range_s=1.5)
+    plain = " ".join(pj.models_plain(m))
+    check("A steady turn predicts it best (90 % confidence)." in plain and "does not name the motion" in plain
+          and "rules out" not in plain and "not motions" in pj.models_said(m),
+          "where the track wanders about the best model, the words rank the predictions and name no motion (the null's level "
+          "does not hold there)", plain[-120:])
+    m = dict(got["line"], kept=list(pj.MODELS), power=False)
+    check(" ".join(pj.models_plain(m)).endswith("The track cannot tell them apart (90 % confidence).")
+          and "the track cannot tell them apart" in pj.models_said(m), "a set that keeps all three says the track cannot tell them apart")
 
 
 def test_tau_and_the_admissible_region():
@@ -1532,7 +1664,8 @@ def test_tau_of_reads_a_size_that_looms_and_nothing_else():
         for i in range(1, len(t)):
             e[i] = 0.97 * e[i - 1] + g.normal(0, math.sqrt(1 - 0.97 ** 2))
         false += kin.tau_of(t, np.round(9 + e))["route"] == "looming"
-    check(false <= WANDER_FALSE, f"a size that wanders with a second's memory passes at most {WANDER_FALSE} times in 40", f"{false} of 40")
+    traffic.rate(check, f"a size that wanders with a second's memory rarely passes as looming (the sweep's 2 in 100 stated)", false, 40,
+                 WANDER_RATE, f"{false} of 40 (at most {WANDER_FALSE} before E20)")
     point = kin.tau_of(t, np.full(len(t), 2.0), flux=50.0 / (tz - t) ** 2 * (1 + 0.2 * np.sin(t)), level=20.0 * (1 + 0.2 * np.sin(t)))
     mid = tz - t.mean()
     check(point["route"] is None and "blur" in point["why"] and abs(point["light"]["tau"] - mid) < 0.1 * mid,
@@ -1562,6 +1695,9 @@ def test_what_survives_reaches_the_stage_and_the_report():
     check(kf["projective"]["closing"] is True and kf["turn"] is not None and kf["smear"] is not None and kf["width_px"]["how"] == "given",
           "the fields: the projective test, the turn and the smear, from the width given")
     check(all(n in f.result for n in ("turn", "constant velocity", "smear")), "and their sentences in the result")
+    check(kf["models"] and kf["models"]["kept"] and "motion models" in f.result
+          and f.result["motion models"].startswith("the 90 % model confidence set"),
+          "the model confidence set (E22) in the fields and the result", f.result.get("motion models", "")[:90])
     c_ = report.Case("t", "/tmp/t.mp4")
     report.Found("scale", {"k": f"{sc.k:.0f} px/rad"}, fields=dict(k_px_per_rad=float(sc.k), k_from="an ASSUMED field of view of 30 deg",
                                                                  fov_deg=30.0)).into(c_)
@@ -1573,6 +1709,9 @@ def test_what_survives_reaches_the_stage_and_the_report():
     line = c_.bottom_line()
     check("The track still says something without the range, the field of view or the camera's own speed." in line
           and "closing on the camera" in line, "and the bottom line's paragraph", line[line.find("The track still"):][:140])
+    check("Three simple ways of moving were compared" in line and "Each was asked to predict the track's next point" in line
+          and c_.survives().get("motion models") == f.result["motion models"],
+          "and the set in the paragraph's words after it, and among what survives", line[line.find("Three simple"):][:160])
     reg = c_.admissible()
     check(reg and not reg.get("empty") and reg["bounds"] == [("speed cap", "high")] and "size_m" in reg["samples"],
           "the admissible region from the case: the cap alone bounds it, the size from the extent and k")
@@ -2099,17 +2238,22 @@ def test_the_report_shows_a_beat_that_is_the_objects():
     report.Found("flicker", {"finding": "members"}, fields=dict(beats=True, beat=three, finding="members")).into(mixed)
     check(mixed.conclusion()[1].startswith("A flock of birds is the leading explanation. 2 of its 3 members"),
           "of a flock, a member the shake may make is not counted", mixed.conclusion()[1][:90])
-    # the floor (2026-10-24): a beat that comes back at a wingbeat's rate names a bird only at BIRD_FLOOR of the brightness
-    # or more -- false calls on known aircraft, drones and helicopters beat at 1.6-7.8 % (the Svanstrom set); a case from
-    # before, with no amplitude, is judged as it was
+    # the floor (2026-10-24; set from a null 2026-11-07, docs/method.md section 43): a beat that comes back at a wingbeat's
+    # rate names a bird only at BIRD_FLOOR of the brightness or more, the share fewer than BIRD_FLOOR_RATE of the Svanstrom
+    # set's known aircraft, drones and helicopters reach; a case from before, with no amplitude, is judged as it was
     faint = beating(comes_back=True, amplitude=0.05)
     label, head = faint.conclusion()
     check(label != report.BIRD and "bird is the leading" not in head and "beats 7.1 times a second" in head and "by only 5.0 %" in head
-          and "too faint to name a bird" in head,
-          "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why", head[:150])
-    check(beating(comes_back=True, amplitude=0.09).conclusion()[0] == report.BIRD
+          and "too faint to name a bird" in head and "can beat that strongly too" in head
+          and f"About 1 in 100 of them reach {100 * report.BIRD_FLOOR:g} %" in head,
+          "a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why: the rate the "
+          "floor was set at, on known aircraft, drones and helicopters", head[:240])
+    check(beating(comes_back=True, amplitude=report.BIRD_FLOOR + 0.005).conclusion()[0] == report.BIRD
+          and beating(comes_back=True, amplitude=report.BIRD_FLOOR - 0.005).conclusion()[0] != report.BIRD
           and beating(comes_back=True, amplitude=None).conclusion()[0] == report.BIRD,
-          "at 9 % it names a bird, and so does a case from before the floor, with no amplitude")
+          "just over the floor it names a bird, just under it does not, and a case from before the floor, with no amplitude, does")
+    check(0.05 < report.BIRD_FLOOR < 0.2 and report.BIRD_FLOOR_RATE == 0.01 and report.floor_said() == "1 in 100",
+          "the floor and the rate it was set at, said in words", f"{report.BIRD_FLOOR}, {report.BIRD_FLOOR_RATE}")
     soft = {f"member {i}": dict(one, hz=hz, comes_back=True, amplitude=0.04) for i, hz in enumerate((7.8, 7.4, 7.1), 1)}
     quiet = report.Case("t", "/tmp/x.mp4")
     report.Found("flicker", {"finding": "members over the same frames beat at different frequencies"},
@@ -3483,11 +3627,15 @@ def test_checklist():
           "a case with nothing measured has no checklist, and its paragraph stands where it was")
 
     def case(still=1.0, rate=103.0, against=True, beat=None, beats=True, verdicts=None, companion=None, reviewed=False,
-             identified=None, rep=0, **kin):
+             identified=None, rep=0, placed=("hand", None), analytic=None, no_power=(), how=None, **kin):
         c = report.Case("t", "/tmp/x.mp4")
         report.Found("survey", {}, fields=dict(repeated_frames=rep, transients=[])).into(c)
-        report.Found("track", {"frames": 150}, fields=dict(frames=150, first=1, last=150, object_size_px=9.0)).into(c)
-        report.Found("verify", {"reviewed": "yes" if reviewed else "NOT CONFIRMED"}, fields=dict(reviewed=reviewed)).into(c)
+        tf = dict(frames=150, first=1, last=150, object_size_px=9.0, source="/tmp/x_track.csv")
+        if placed is not None:                       # None: a case from before 2026-11-07, which recorded nothing of it
+            tf.update(placed_by=placed[0], placed_said=placed[1])
+        report.Found("track", {"frames": 150}, fields=tf).into(c)
+        report.Found("verify", {"reviewed": (f"yes ({how})" if how else "yes") if reviewed else "NOT CONFIRMED"},
+                     fields=dict(reviewed=reviewed)).into(c)
         per = dict(all=dict(median=rate, p16=rate, p84=rate, windows=5)) if against else {}
         # the step's own no-power above half the pairs, in its words (`layers.measure`; `Case.behind_held_still` keys on them)
         held = [("layers", f"the scene is held still on screen even over 30 frames in {still:.0%} of pairs: a background rate there is an "
@@ -3507,7 +3655,9 @@ def test_checklist():
         report.Found("scale", {}, fields=dict(k_px_per_rad=kin.get("k"), k_from="ASSUMED from a field of view" if kin.get("k") else None)).into(c)
         if beat is not None:
             report.Found("flicker", {}, fields=dict(beats=beats, beat={"object": beat} if beat else {}, blink={"object": dict(train=False, shared=False)},
-                                                    tau={"object": dict(route=None, why="its size held, 5.0 px in radius: no trend in it stands out")})).into(c)
+                                                    tau={"object": dict(route=None, why="its size held, 5.0 px in radius: no trend in it stands out")},
+                                                    **({"analytic": {"object": analytic}} if analytic else {})),
+                         no_power=list(no_power)).into(c)
         if verdicts is not None:
             report.Found("integrity", dict(object_verdicts=verdicts), fields={}).into(c)
         report.Found("tether", dict(finding="x"), fields=dict(finding="x", r_max=40.0, companion=companion,
@@ -3577,10 +3727,26 @@ def test_checklist():
     none = rows(case(beat={}, beats=False))
     check(part["camera"]["answer"] == PARTLY and part["beat"]["answer"] == PARTLY and "in one stretch only, frames 300–359" in part["beat"]["said"]
           and faint["beat"]["answer"] == PARTLY and "by only 3% of its brightness" in faint["beat"]["said"]
+          and faint["beat"]["said"].endswith("% that about 1 in 100 known aircraft, drones and helicopters reach")
           and slow["beat"]["answer"] == NO and "slower than a wingbeat" in slow["beat"]["said"] and "lookalike" not in slow
           and none["beat"]["answer"] == NO and none["beat"]["said"] == "no rhythm of its own stands out above the background beside it",
           "a beat in one stretch or too faint is Partly, one outside a wingbeat's band or none at all is No",
           str([x["beat"]["answer"] for x in (part, faint, slow, none)]))
+    # a "No" only where a bird's beat would have shown (2026-11-07): the track's own power at the floor, `flicker.analytic`'s
+    # with_floor; and a refusal is never a No, even with a peak measured on the way (2 + 5 tracks of the labelled set read No)
+    deaf = rows(case(beat={}, beats=False, analytic=dict(amplitude=0.05, with_floor=0.12)))
+    heard = rows(case(beat={}, beats=False, analytic=dict(amplitude=0.03, with_floor=0.05)))
+    white = rows(case(beat={}, beats=False, analytic=dict(amplitude=0.11, with_floor=None)))
+    refused = rows(case(beat=dict(hz=2.9, amplitude=0.19, comes_back=True, first=1, last=150), beats=None,
+                        no_power=[("beat", "the background beside it beats at the same frequency")]))
+    check(deaf["beat"]["answer"] == CANT and deaf["beat"]["said"] == "no rhythm of its own stands out, but this track is too noisy to show a "
+          f"bird's: a beat would need 12% of its brightness to be found three times in four, and a bird is named from {100 * report.BIRD_FLOOR:g}%"
+          and heard["beat"]["answer"] == NO and white["beat"]["answer"] == CANT
+          and refused["beat"]["answer"] == CANT and refused["beat"]["said"] == "the background beside it beats at the same frequency"
+          and "lookalike" not in refused,
+          "no beat on a track that could not have shown a bird's (its power at the floor) is Can't tell, with the amplitude it would need; "
+          "one that could is No; a refusal with a peak measured is Can't tell, in the stage's words",
+          str([x["beat"]["answer"] for x in (deaf, heard, white, refused)]))
     # a real speed: what the four unknowns allow
     full = rows(case(k=1884.0, range_m=1000.0, omega_rad_per_s=2.27, relative_speed_m_per_s=2300.0))
     far = rows(case(k=1884.0, omega_rad_per_s=2.27))
@@ -3595,11 +3761,78 @@ def test_checklist():
     passed = rows(case(verdicts={"cadence": "NO POWER", "smear": "PASS"}))
     agent = rows(case(identified={1: "agent: the disc that moves", 150: "agent: the disc that moves"}))
     looked = rows(case(reviewed=True))
-    check(flag["added"]["answer"] == YES and flag["added"]["said"].endswith("laid over the picture: cadence")
-          and passed["added"]["answer"] == NO and passed["added"]["said"] == "1 of the 2 checks could decide on this video, and it passes; the rest could not"
-          and agent["chosen"]["answer"] == NO and agent["chosen"]["said"].startswith("an AI agent placed the marks, not a person")
+    # who placed the track, only as far as it is known (2026-11-07): a track file given alone that says nothing of it is Can't
+    # tell -- 29 of the 31 reference objects said "a person placed the marks on the frames by hand" from `run --track`
+    linked, filed, said_not = rows(case(placed=("hand", "linked"))), rows(case(placed=(None, None))), rows(case(placed=("not by hand", "agent: from a paper")))
+    before_track, before_marks = case(placed=None), case(placed=None)
+    before_track.commands, before_marks.commands = ["mcdonald run x.mp4 --track x_track.csv"], ["mcdonald run x.mp4 --marks x_marks.json"]
+    check(got["chosen"]["said"] == "a person placed the marks on the frames by hand" and linked["chosen"]["answer"] == YES
+          and linked["chosen"]["said"] == "a person placed marks on the object by hand, and the computer linked the track between them"
+          and filed["chosen"]["answer"] == CANT and filed["chosen"]["said"] == "the track was read from a file, x_track.csv, that does not say who "
+          "or what placed its points" and said_not["chosen"]["answer"] == NO and "(agent: from a paper)" in said_not["chosen"]["said"]
+          and rows(before_track)["chosen"]["answer"] == CANT and rows(before_marks)["chosen"]["answer"] == YES,
+          "who chose the object: Yes from hand marks (linked or not), No where the track file says not a hand's, Can't tell where nothing "
+          "says -- a case from before read from its run command (--marks a hand's, --track alone not known)",
+          str([x["chosen"]["answer"] for x in (linked, filed, said_not, rows(before_track), rows(before_marks))]))
+    early, asked, after = (rows(case(reviewed=True, how=h))["checked"] for h in ("--i-looked", "asked with the sheet on the screen",
+                                                                                  "looked at afterwards, and said so in the window"))
+    check(early["answer"] == asked["answer"] == after["answer"] == YES and "before this run drew its track sheet" in early["said"]
+          and "an earlier run's sheet" in early["said"] and asked["said"].startswith("the track sheet was looked at when it was shown")
+          and after["said"].startswith("the track sheet was looked at after the report was written"),
+          "the sheet looked at says what was looked at, and when: `run --i-looked` is said before this run draws its sheet", early["said"])
+    drawn = rows(case(verdicts={"layer order: symbology": "FLAG", "smear": "PASS"}))
+    check(flag["added"]["answer"] == report.INCONSISTENT and flag["added"]["said"] == "1 of the 2 checks say it behaves like something laid "
+          "over the picture: cadence; no check has been tested on a real insert"
+          and drawn["added"]["said"].endswith("; no check has been tested on a real insert, and the layer order's has flagged a line of birds")
+          and passed["added"]["answer"] == report.CONSISTENT and passed["added"]["said"] == "1 of the 2 checks could decide on this video, and it "
+          "passes; the rest could not; no check has been tested on a real insert"
+          and flag["added"]["test"] == "Is it consistent with the camera's own picture, rather than added afterwards?",
+          "integrity's row says agreement, not Yes or No (2026-11-07, Dx7): Inconsistent where a check flags it, Consistent where those that "
+          "could decide pass, each with the checks' untested limit and, for layer order, its known false flag", flag["added"]["said"])
+    check(agent["chosen"]["answer"] == NO and agent["chosen"]["said"].startswith("an AI agent placed the marks, not a person")
           and looked["checked"]["answer"] == YES and "| **Yes** | the track sheet was looked at" in case(reviewed=True).markdown(),
-          "a flagged integrity test is Yes and a passed one No; marks an agent placed say so; the sheet looked at turns Not yet to Yes")
+          "marks an agent placed say so; the sheet looked at turns Not yet to Yes")
+    # what the conclusion rests on (E7) and how sure it is (S17), session 18 (2026-11-07)
+    from mcdonald import controls
+    w = controls.weigh("named", "stage", report.BIRD_FLOOR)
+    rs = c.reasons()
+    check([r["key"] for r in rs] == ["beat", "lookalike"] and rs[0]["premise"] and rs[0]["weight"] == "for a bird"
+          and rs[0]["lr"] == round(w["lr"], 3) and rs[0]["said"].startswith(report.Case.BEAT_LEAD["named"])
+          and w["said"] in rs[0]["said"] and rs[0]["said"].endswith(report.Case.ONE_CURVE)
+          and rs[1]["weight"] == "none" and "carries no weight" in rs[1]["said"],
+          "a bird named: the beat first, weighed once on the labelled set (how many times as common on birds), then what else could "
+          "beat so, which nothing weighs", " / ".join(r["said"][:60] for r in rs))
+    heard = case(beat={}, beats=False, analytic=dict(amplitude=0.03, with_floor=0.05))
+    ship_c = case(scale_bar_m_per_s=115.0)
+    flagged = case(beat={}, beats=False, analytic=dict(amplitude=0.03, with_floor=0.05), verdicts={"cadence": "FLAG", "smear": "PASS"})
+    nophys, sub, fl = heard.reasons(), ship_c.reasons(), flagged.reasons()
+    check(nophys[0]["key"] == "real" and nophys[0]["premise"] and nophys[0]["said"].startswith("No real speed: it needs")
+          and nophys[1]["key"] == "beat" and nophys[1]["weight"] == "against a bird" and not nophys[1]["premise"]
+          and sub[0]["key"] == "real" and sub[0]["weight"] == "bound" and "follows by arithmetic" in sub[0]["said"]
+          and [r["key"] for r in fl] == ["real", "beat", "added"] and fl[2]["said"].startswith("Not consistent with the camera's own picture")
+          and len(fl) <= 4 and report.Case("t", "/tmp/x.mp4").reasons() == [],
+          "no bird named: the label's own reason first (no real speed; a speed bounded by arithmetic), then the beat's 'No' weighed "
+          "against a bird, then integrity, which nothing weighs; at most four; none where nothing was concluded",
+          " / ".join(r["key"] + ":" + r["weight"] for r in fl))
+    g = c.grade()
+    unknown, looked_g, sure = case(beat=bird, placed=(None, None)), case(beat=bird, reviewed=True), case(beat=bird, reviewed=True)
+    faint_g = case(beat=dict(bird, amplitude=0.1), reviewed=True, analytic=dict(amplitude=0.02, with_floor=0.03, sigma=0.2, frames=150))
+    short = case(beat=bird, reviewed=True)
+    short.stages["track"]["fields"]["frames"] = 100
+    level = lambda x: x.grade()["level"]
+    check(g["level"] == "Moderate" and [d["concern"] for d in g["domains"]] == ["serious", "none", "none", "none"]
+          and g["said"] == "How sure: moderate. Nobody has said they looked at the track sheet."
+          and level(unknown) == "Low" and "who picked the object is not recorded" in unknown.grade()["said"]
+          and level(sure) == "High" and level(faint_g) == "Moderate" and "may be under the" in faint_g.grade()["said"]
+          and level(short) == "Moderate" and "too few of them" in short.grade()["said"]
+          and report.Case("t", "/tmp/x.mp4").grade() is None and report.Case.GRADE_LEVELS == ("High", "Moderate", "Low", "Very low"),
+          "the grade: down one for each serious concern -- the track not looked at (very serious with who chose the object not "
+          "recorded), a beat whose own error reaches under the floor, a track shorter than the labelled ones -- and high where "
+          "none; none where nothing was concluded", f"{g['level']}, {level(unknown)}, {level(sure)}, {level(faint_g)}, {level(short)}")
+    md = c.markdown()
+    check(md.index(f"**{c.conclusion()[0]}.**") < md.index("*How sure: moderate.") < md.index("What it rests on, the heaviest first:")
+          < md.index("| What was checked |") and "1. " + rs[0]["said"] in md,
+          "the report: the conclusion, how sure it is, what it rests on, then the checklist")
     # coming or going: a tau from its size, a path that fits an approach, a bound, or its size held
     tau = case(beat=bird); tau.stages["flicker"]["fields"]["tau"] = {"object": dict(route="looming", tau_s=2.0, tau_err_s=0.3)}
     approach = rows(case(projective=dict(closing=True, fits=True, T=0.8, misfit=1.0)))
@@ -3613,11 +3846,143 @@ def test_checklist():
           "fits only roughly", str([x["closing"]["answer"] for x in (rows(tau), approach, bound, rows(case(beat=bird)), rows(case()))]))
 
 
+def test_controls_weights_and_plot():
+    """The labelled infrared set as the report's control population (session 18, 2026-11-07): the packaged table
+    (`controls_beat.csv`) against the data folder's whole table where it is there, the beat row's answers weighed on it
+    -- a bird named 35.6 times as common on birds under the stage's rule at 8 %, 63.9 under the paper's, the old "No"'s
+    two halves 0.42 and 4.5 -- the screening words, and the discriminant plot drawn in the house style with nothing over
+    a line (S20)."""
+    print("\nthe control population: the labelled infrared set's weights, the screening words and the plot")
+    import csv as _csv
+    import os
+    import tempfile
+    from mcdonald import controls, figures
+    rows = controls.tracks()
+    check(len(rows) == 432 and sum(r["bird"] for r in rows) == 125 and len({r["clip"] for r in rows}) == 365,
+          "the packaged table: 432 tracks, 125 birds, 365 clips")
+    src = Path(os.environ.get("MCDONALD_DATA", "/models/data/mcdonald")) / "controls" / "svanstrom_tracks.csv"
+    if src.exists():
+        with tempfile.TemporaryDirectory() as td:
+            controls.make(src, Path(td) / "t.csv")
+            same = (Path(td) / "t.csv").read_bytes() == controls.TABLE.read_bytes()
+        check(same, "the packaged table is the data folder's whole table, cut (`python3 -m mcdonald.controls` remakes it)")
+    else:
+        print(f"  SKIP  the data folder's table ({src})")
+    got = {(k, rule): controls.weigh(k, rule, 0.08) for k in controls.KINDS for rule in controls.RULES}
+    r3 = lambda x: round(x, 2)
+    check(r3(got["named", "stage"]["lr"]) == 35.61 and got["named", "stage"]["birds"] == [29, 125] and got["named", "stage"]["others"] == [2, 307]
+          and round(got["named", "paper"]["lr"], 1) == 63.9 and got["named", "stage"]["weight"] == "for"
+          and r3(got["none", "stage"]["lr"]) == 0.42 and got["none", "stage"]["weight"] == "against"
+          and r3(got["deaf", "stage"]["lr"]) == 4.48 and got["refused", "stage"]["weight"] == "none"
+          and got["once", "stage"]["weight"] == "no power" and got["shaken", "stage"]["weight"] == "no power",
+          "at 8 %: a bird named 35.6 (stage) and 63.9 (paper) times as common on birds; a 'No' with power 0.42; a track too noisy "
+          "to show a bird's beat 4.5 (why the row says Can't tell there); a refusal about as common on both; one stretch and the "
+          "shake too few to weigh", str({k: r3(v["lr"]) for k, v in got.items() if k[1] == "stage"}))
+    s1, s2 = controls.screen(7.8, 0.15, "stage", 0.08), controls.screen(7.8, 0.6, "stage", 0.08)
+    check(s1 and s1["others"] == [2, 23] and "not screened out" in s1["said"] and "consistent with the birds" in s1["said"]
+          and s2 and s2["others"][0] == 0 and "None of the 288 others the test could judge beat so strongly" in s2["said"] and "up to 1.0 in 100" in s2["said"]
+          and controls.screen(1.0, 0.3, "stage", 0.08) is None,
+          "the screening words rest on the plot's populations: consistent with the birds, the others not screened out while any "
+          "reach it, screened out with the exact bound where none does; nothing said outside a wingbeat's rate", s1["said"] if s1 else "")
+    figures.CLASHES.clear()
+    with tempfile.TemporaryDirectory() as td:
+        path = figures.beat_controls(f"{td}/t_controls.png", [(7.8, 0.25)], "stage", 0.08)
+        drawn = Path(path).exists() and Path(path).stat().st_size > 20000
+    check(drawn and not figures.CLASHES, "the discriminant plot drawn in the house style, nothing over a line", str(figures.CLASHES[:2]))
+
+
+def test_track_placed():
+    """Who placed a track given alone (`run --track`), from its own first lines (2026-11-07): linked from hand marks, a marks
+    file's hand marks, marks that were not a hand's (an agent's, typed, snapped), `share make`'s agent's track, or nothing
+    said -- the checklist's "chosen" row says only what the file says."""
+    print("\nwho placed a track given alone, from its own first lines")
+    from mcdonald import stages
+    import tempfile
+    heads = {"linked": ("# automatic track on x.mp4, linked from hand marks by mcdonald.autolink\n", ("hand", "linked")),
+             "agent": ("# automatic track on x.mp4, linked from marks by mcdonald.autolink\n# the marks on frames 1, 5 were NOT placed "
+                       "by a hand on the frame -- agent: from the paper's track p.csv\n", ("not by hand", "agent: from the paper's track p.csv")),
+             "marks": ("# hand marks (object) on x.mp4, placed with `mcdonald mark`\n", ("hand", None)),
+             "typed": ("# marks (object) on x.mp4, placed with `mcdonald mark`\n# 2 of 2 are NOT hand positions: see the `how` column.\n",
+                       ("not by hand", "")),
+             "share": ("# A: track from p.csv, written by mcdonald share make\n", ("not by hand", "an agent's track, made into marks by share make")),
+             "plain": ("", (None, None)), "other": ("# the paper's track, frames 3755-3880\n", (None, None))}
+    got = {}
+    with tempfile.TemporaryDirectory() as td:
+        for k, (head, _) in heads.items():
+            f = Path(td) / f"{k}.csv"
+            f.write_text(head + "frame,x_px,y_px\n1,10.0,10.0\n2,11.0,10.0\n", encoding="utf-8")
+            got[k] = stages.track_placed(f)
+        got["missing"] = stages.track_placed(Path(td) / "none.csv")
+    want = {k: w for k, (_, w) in heads.items()}
+    want["missing"] = (None, None)
+    check(got == want, "linked from hand marks or a marks file's hand marks: a hand's; marks not a hand's or share make's agent's track: not; "
+          "a file that says nothing (or is not there): not known", str({k: v for k, v in got.items() if v != want[k]}))
+
+
+def test_house_figure_style():
+    """The house figure style (Jacob, 2026-11-07, after his EBM/THAI paper, with his changes): every axes a full black box
+    with the ticks in on its sides and no grid, the axis labels bold, the titles short and on one line, and no text over a
+    line -- held on the report's figures drawn from made-up data, by what `figures.save` saw of each figure."""
+    print("\nthe house figure style: the box, the ticks, bold labels, short titles, no text over a line")
+    import tempfile
+    from mcdonald import figures, kinematics as kin
+    seen, before = [], len(figures.CLASHES)
+    real = figures.save
+
+    def spy(fig, path, *a, **k):
+        out = real(fig, path, *a, **k)
+        for ax in fig.axes:
+            if not ax.axison or getattr(ax, "_colorbar", None) is not None:
+                continue
+            tp = ax.xaxis.get_tick_params(which="major")
+            seen.append(dict(file=Path(str(path)).name, box=all(sp.get_visible() for sp in ax.spines.values()),
+                             ticks_in=tp.get("direction", "in") == "in",
+                             grid=any(g.get_visible() for g in ax.get_xgridlines() + ax.get_ygridlines()),
+                             bold=all(lab.get_fontweight() in ("bold", 700) for lab in (ax.xaxis.label, ax.yaxis.label)
+                                      if lab.get_text()),
+                             titles=[t.get_text() for t in (ax.title, ax._left_title, ax._right_title) if t.get_text()]))
+        return out
+    figures.save = spy
+    try:
+        rng = np.random.default_rng(3)
+        fps = 30.0
+        t = np.arange(150) / fps
+        track = {i + 1: (100 + 90 * t[i] + 20 * np.sin(2 * t[i]) + rng.normal(0, 0.3), 300 - 40 * t[i] + rng.normal(0, 0.3))
+                 for i in range(len(t))}
+        band, series = kin.speed_band(track, fps)
+        with tempfile.TemporaryDirectory() as td:
+            figures.speed_band(Path(td) / "t_speed.png", series, band, fps)
+            figures.size_speed(103.0, 9.0, 1280, Path(td) / "t_size_speed.png", bird=True)
+            figures.size_speed(4269.0, 21.0, 1920, Path(td) / "t_size_speed_k.png", k=1884.0, fov=54.0, R_max=3000.0)
+            reg = kin.admissible_region(2.27, k=1884.0, p_px=21.0, R_min=100.0, R_max=3000.0, tau_s=2.0)
+            figures.admissible(Path(td) / "t_admissible.png", reg, k=1884.0, p_px=21.0)
+            fig, _ = figures.relspeed_fan(2.27)
+            figures.save(fig, Path(td) / "t_relspeed.png", quiet=True)
+    finally:
+        figures.save = real
+    files = sorted({x["file"] for x in seen})
+    check(len(files) == 5 and all(x["box"] and x["ticks_in"] and not x["grid"] and x["bold"] for x in seen),
+          "each axes of the five is a full box with the ticks in, no grid, its axis labels bold",
+          "; ".join(f"{x['file']}: box {x['box']}, in {x['ticks_in']}, grid {x['grid']}, bold {x['bold']}" for x in seen
+                    if not (x["box"] and x["ticks_in"] and not x["grid"] and x["bold"]))[:200])
+    long_ = [tt for x in seen for tt in x["titles"] if "\n" in tt or len(tt) > 60]
+    check(not long_, "every title is a short name on one line; the finding is the caption's", "; ".join(long_)[:160])
+    clashes = figures.CLASHES[before:]
+    check(not clashes, "and no text crosses a line, overlaps other text or runs off the figure (Jacob: \"make sure text "
+          "does not overlap with lines\")", "; ".join(f"{Path(p_).name}: {w}" for p_, w in clashes[:4]))
+    import inspect
+    letters = [n for n, f_ in inspect.getmembers(figures, inspect.isfunction)
+               if any(f"\"({c})\"" in inspect.getsource(f_) for c in "abcdef")]
+    check(not letters, "and no figure letters its panels (a), (b), (c): Jacob's text names a panel by its place", str(letters))
+
+
 def main():
     print("mcDonald UAP Toolkit — reduction self-check")
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()
+    if traffic.WARNS:
+        print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")
     return 1 if FAIL else 0
 

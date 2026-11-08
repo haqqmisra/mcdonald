@@ -70,4 +70,4 @@ where = ["src"]
 # The PURSUE videos' list (tools/ship_catalog.py), so that record ids work without a mirror,
 # and the icon (tools/make_icons.py).
 [tool.setuptools.package-data]
-mcdonald = ["pursue_videos.csv", "icons/*"]
+mcdonald = ["pursue_videos.csv", "controls_beat.csv", "icons/*"]

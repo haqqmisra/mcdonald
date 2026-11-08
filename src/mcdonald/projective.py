@@ -606,6 +606,280 @@ def turn(track, fps, width_px, t0=None, t1=None, n0=None, n1=None):
     return out
 
 
+# ---- which motion models survive, as a computed set (E22, 2026-11-07) ------------------------------------------------
+# `fit` and `turn` ask one model at a time and compare them in pairs (constant velocity against constant image speed
+# against a free quadratic; a bend against none), each pair with its own rule. Forecasters answer "which of these
+# models cannot be told apart" with one statistic (the economics survey, 2026-10-28, §1.7): Hansen, Lunde & Nason's
+# (2011) model confidence set, the models not rejected at a level on their out-of-sample losses, with the dependence of
+# those losses held by a block bootstrap. It shrinks with the data's power and holds every model when there is none:
+# NO POWER said by the set itself. Three models of the image track, each two-dimensional and fitted by least squares on
+# the points before each forecast origin: a line at a steady image velocity (four numbers); constant velocity in
+# projection, a straight line whose distance from its vanishing point goes as 1/(t_z - t) (five: `_model`); and a
+# steady turn, a circle at a steady image speed (five: a start, a velocity and the rate it turns). Each reduces to the
+# line, the projective one as t_z goes far and the turn as its rate goes to nothing, so on a straight track at a steady
+# speed all three hold the truth, and the set keeps them all; a closing track keeps the projective model alone, a
+# turning one the turn. The loss is the squared distance of the next point from each model's forecast of it; the
+# losses run with the track's wander, so the bootstrap's blocks are as long as the wander's own memory, MODELS_DECAY
+# times the range of the wander left about the model that forecasts best (where a Matérn-3/2's correlation falls to 5 %). The set's level is held on drawn
+# tracks of each model with the recorded tracks' wanders (docs/method.md section 48).
+MODELS = ("line", "projective", "turn")
+MODELS_ALPHA = 0.10      # the set's level: a model leaves it where the test that it is the worst has p under this
+MODELS_MIN = 20          # points the comparison needs (fewer: no set)
+MODELS_FIT = 10          # points the first fit takes at least ...
+MODELS_START = 0.2       # ... or this share of the track, the larger: the first forecast origin
+MODELS_ORIGINS = 150     # forecast origins at most, spread evenly from the first to the last point
+MODELS_BOOT = 2000       # the stationary bootstrap's resamples (Politis & Romano 1994)
+MODELS_SEED = 20261107   # their seed: the same track gives the same set twice
+MODELS_DECAY = 2.74      # the bootstrap's mean block: the residual wander's range times this, in the origins it spans (capped at a third of them)
+MODELS_GRID = 120        # the log grid a side of each model's one nonlinear number (t_z; the turn's rate): a step of 6 %
+MODELS_TURNS = 2.0       # the steady turn's rate at most: this many turns over the points fitted (or W_TURNS a second)
+MODELS_WANDER_KEPT = "63-95 %"   # the null (2026-11-07, 60 drawn tracks a cell): the true model is kept every time where the track is
+                         # one of the three under white jitter (line, closing, receding, turn: 60 of 60 each), and for closing,
+                         # receding and turning tracks under every wander tried; a straight line with a wander on it stays in the set
+                         # 52 (a 1-px wander), 38 (K8's 5 px over 1 s), 44 (PR144-like) and 57 (bird-like) times of 60 -- a model that
+                         # bends forecasts a wander better. So where the residual about the best wanders the words rank forecasts
+
+
+def _turn_design(tau, w):
+    """The steady turn's design at the rates w (an array) on times tau: (rates, 2 n, 4), rows for x then y, columns (x0,
+    y0, vx0, vy0), the velocity turning at w -- x = x0 + S vx0 - C vy0, y = y0 + C vx0 + S vy0, S = sin(w tau) / w,
+    C = (1 - cos(w tau)) / w, their series near w tau = 0 (where the turn is the line)."""
+    w = np.atleast_1d(np.asarray(w, float))[:, None]
+    tau = np.asarray(tau, float)[None, :]
+    a = w * tau
+    small = np.abs(a) < 1e-4
+    wd = np.where(np.abs(w) > 0, w, 1.0)
+    S = np.where(small, tau * (1.0 - a * a / 6.0), np.sin(a) / wd)
+    C = np.where(small, a * tau / 2.0 * (1.0 - a * a / 12.0), (1.0 - np.cos(a)) / wd)
+    one, nil = np.ones_like(S), np.zeros_like(S)
+    return np.concatenate([np.stack([one, nil, S, -C], axis=2), np.stack([nil, one, C, S], axis=2)], axis=1)
+
+
+def _on(g, p, gq):
+    """Each coordinate of p (n x 2) regressed on a line in g (grid x n), every grid row at once: (the residual sum of
+    squares over both coordinates by row, the forecast at gq (grid) by row, grid x 2)."""
+    gm = g.mean(axis=1, keepdims=True)
+    gc = g - gm
+    pc = p - p.mean(axis=0)
+    sgg = np.maximum((gc * gc).sum(axis=1), 1e-300)
+    sgy = gc @ pc                                        # grid x 2
+    rss = float((pc * pc).sum()) - (sgy * sgy).sum(axis=1) / sgg
+    return rss, p.mean(axis=0)[None, :] + (sgy / sgg[:, None]) * (np.asarray(gq, float)[:, None] - gm)
+
+
+def _turn_fit(tau, Y, ws):
+    """The steady turn at each rate of ws on times tau, Y the coordinates x then y: (the residual sum of squares, the
+    coefficients (x0, y0, vx0, vy0)), by rate."""
+    X = _turn_design(tau, ws)
+    A = np.einsum("gni,gnj->gij", X, X)
+    b = np.einsum("gni,n->gi", X, Y)
+    A[:, range(4), range(4)] += 1e-12 * np.trace(A, axis1=1, axis2=2)[:, None]
+    coef = np.linalg.solve(A, b[:, :, None])[:, :, 0]
+    r = Y[None, :] - np.einsum("gni,gi->gn", X, coef)
+    return (r * r).sum(axis=1), coef
+
+
+def _refine(f, grid, i):
+    """The least of the scalar f near grid[i], the best of a grid, between its neighbours (bounded, Brent): (x, f(x))."""
+    lo, hi = sorted((grid[max(i - 1, 0)], grid[min(i + 1, len(grid) - 1)]))
+    best = (float(grid[i]), float(f(grid[i])))
+    if hi > lo:
+        res = optimize.minimize_scalar(f, bounds=(lo, hi), method="bounded", options=dict(xatol=1e-7 * (hi - lo) + 1e-12))
+        if res.fun < best[1]:
+            return float(res.x), float(res.fun)
+    return best
+
+
+def fitted(t, p, fps, at):
+    """Each model fitted by least squares to the points p (n x 2) at times t, and read at the times `at`: {"line",
+    "projective", "turn": (len(at) x 2)}. A model's one nonlinear number (t_z, the turn's rate) is the best of a log grid
+    (MODELS_GRID values a side), refined between its neighbours; the times are taken from the last point fitted. t_z lies
+    after the last of `at` or before the first point fitted (an object receding from a crossing in the past), out to FAR
+    spans; the turn's rate is none to MODELS_TURNS turns over the points fitted (W_TURNS a second at most, or 0.8 of the
+    frame rate's Nyquist), either way round."""
+    t0 = float(t[-1])
+    tau, q = np.asarray(t, float) - t0, np.atleast_1d(np.asarray(at, float)) - t0
+    p = np.asarray(p, float)
+    span = max(float(tau[-1] - tau[0]), 1e-9)
+    out = {}
+    _, f = _on(np.repeat(tau[None, :], len(q), axis=0), p, q)
+    out["line"] = f
+    far = span * np.logspace(-2, math.log10(FAR), MODELS_GRID)
+    after = max(float(q.max()), 0.0)
+    best = None
+    for grid in (after + far, tau[0] - far):
+        rss, _ = _on(1.0 / (grid[:, None] - tau[None, :]), p, np.zeros(len(grid)))
+        got = _refine(lambda z: _on(1.0 / (z - tau[None, :]), p, [0.0])[0][0], grid, int(np.argmin(rss)))
+        best = got if best is None or got[1] < best[1] else best
+    g = 1.0 / (best[0] - tau)
+    _, f = _on(np.repeat(g[None, :], len(q), axis=0), p, 1.0 / (best[0] - q))
+    out["projective"] = f
+    top = min(2.0 * math.pi * MODELS_TURNS / span, 2.0 * math.pi * W_TURNS, 0.8 * math.pi * float(fps))
+    ws = top * np.logspace(-3, 0, MODELS_GRID)
+    ws = np.r_[-ws[::-1], 0.0, ws]
+    Y = np.r_[p[:, 0], p[:, 1]]
+    rss, _ = _turn_fit(tau, Y, ws)
+    w, _ = _refine(lambda v: _turn_fit(tau, Y, [v])[0][0], ws, int(np.argmin(rss)))
+    _, coef = _turn_fit(tau, Y, [w])
+    D = _turn_design(q, [w])[0]
+    out["turn"] = np.c_[D[:len(q)] @ coef[0], D[len(q):] @ coef[0]]
+    return out
+
+
+def forecasts(t, p, tq, fps):
+    """Each model's forecast of the point at time tq from the points p (n x 2) at times t before it (`fitted`): {"line",
+    "projective", "turn": (x, y)}."""
+    return {name: f[0] for name, f in fitted(t, p, fps, [tq]).items()}
+
+
+def _resample(T, block, B, rng):
+    """B stationary-bootstrap index series of length T (Politis & Romano 1994): blocks of geometric length, mean
+    `block`, each starting at random and wrapping round."""
+    idx = np.empty((B, T), int)
+    idx[:, 0] = rng.integers(0, T, B)
+    new = rng.random((B, T)) < 1.0 / max(block, 1.0)
+    start = rng.integers(0, T, (B, T))
+    for j in range(1, T):
+        idx[:, j] = np.where(new[:, j], start[:, j], (idx[:, j - 1] + 1) % T)
+    return idx
+
+
+def mcs(L, block, alpha=MODELS_ALPHA, boot=MODELS_BOOT, seed=MODELS_SEED):
+    """The model confidence set (Hansen, Lunde & Nason 2011) of the models whose losses are the rows of L (models x
+    origins): the elimination rule T_max on each model's loss less the mean of the models left, its variance and null
+    distribution from one stationary bootstrap of the origins (mean block `block`); the worst model leaves while the test
+    rejects, and each model's MCS p-value is the largest p of the tests up to its leaving (1 for the last). Returns
+    (p by model, the set at alpha: the models whose p is at least alpha)."""
+    L = np.asarray(L, float)
+    m, T = L.shape
+    idx = _resample(T, block, boot, np.random.default_rng(seed))
+    alive, p, top = list(range(m)), np.ones(m), 0.0
+    while len(alive) > 1:
+        d = L[alive] - L[alive].mean(axis=0)
+        dbar = d.mean(axis=1)
+        db = d[:, idx].mean(axis=2)                          # (models left, resamples)
+        sd = np.sqrt(np.maximum(((db - dbar[:, None]) ** 2).mean(axis=1), 1e-300))
+        t = dbar / sd
+        stat = (db - dbar[:, None]) / sd[:, None]
+        worst = int(np.argmax(t))
+        top = max(top, float(np.mean(stat.max(axis=0) >= t[worst])))
+        p[alive[worst]] = top
+        alive.pop(worst)
+    return p, [i for i in range(m) if p[i] >= alpha]
+
+
+def residual_range(t, r, fps):
+    """The range (s) of the wander left in a residual r (n x 2) at times t, the larger of x's and y's: a line, a Matérn-3/2
+    wander and a nugget fitted by REML (`kriging.Model`) on every k-th point to TZ_NMAX, the wander's range where it gains
+    BAND_DLNL over white jitter, else 0 (none to speak of: the residual's points are independent)."""
+    from . import kinematics as kin, kriging as kg
+    st = max(1, int(math.ceil(len(t) / TZ_NMAX)))
+    tt, rr = np.asarray(t, float)[::st], np.asarray(r, float)[::st]
+    ell = 0.0
+    for j in (0, 1):
+        try:
+            m = kg.Model(tt, rr[:, j], float(tt.mean()), dt=st / float(fps))
+        except Exception:                        # noqa: BLE001 -- a covariance that will not fit: no wander claimed
+            continue
+        if m.dlnl is not None and m.dlnl >= kin.BAND_DLNL:
+            ell = max(ell, float(m.theta[1]))
+    return ell
+
+
+def confidence_set(track, fps, t0=None, t1=None, n0=None, n1=None, alpha=MODELS_ALPHA):
+    """Which motion models survive (E22): the model confidence set of a line at a steady image velocity, constant velocity
+    in projection and a steady turn, on one-step forecasts of the track's points (`forecasts`) from up to MODELS_ORIGINS
+    origins past the first MODELS_START of it. The losses' dependence is held by a stationary block bootstrap whose mean
+    block is the track's own memory: MODELS_DECAY times the range of the wander left about the model that forecasts best,
+    fitted to the whole track (`residual_range`; one origin where none is left). Exact repeats of the previous frame's
+    point are dropped, as the band drops them.
+
+    Returns None under MODELS_MIN points; else dict(models (MODELS), kept (the set at alpha, by name), p (the MCS
+    p-value by name), alpha, n, origins, block (origins), block_s, range_s (the residual's wander), rms_px (each model's
+    forecast error, root mean square, by name), power (False where the set keeps every model: the track cannot tell them
+    apart))."""
+    frames, t, p = _points(track, fps, t0, t1, n0, n1)
+    if len(t) < MODELS_MIN:
+        return None
+    keep = np.r_[True, ~((np.diff(frames) == 1) & np.all(np.diff(p, axis=0) == 0, axis=1))]
+    t, p = t[keep], p[keep]
+    n = len(t)
+    if n < MODELS_MIN:
+        return None
+    k0 = max(MODELS_FIT, int(math.ceil(MODELS_START * n)))
+    origins = np.unique(np.linspace(k0, n - 1, min(MODELS_ORIGINS, n - k0)).round().astype(int))
+    L = np.empty((len(MODELS), len(origins)))
+    for j, k in enumerate(origins):
+        got = forecasts(t[:k], p[:k], t[k], fps)
+        for i, name in enumerate(MODELS):
+            e = p[k] - got[name]
+            L[i, j] = float(e @ e)
+    best = MODELS[int(np.argmin(L.mean(axis=1)))]
+    ell = residual_range(t, p - fitted(t, p, fps, t)[best], fps)
+    step = float(t[origins[-1]] - t[origins[0]]) / max(len(origins) - 1, 1) if len(origins) > 1 else 0.0
+    block = float(min(max(MODELS_DECAY * ell / step, 1.0), len(origins) / 3.0)) if step > 0 else 1.0
+    pv, kept = mcs(L, block, alpha)
+    return dict(models=list(MODELS), kept=[MODELS[i] for i in kept], p={name: float(pv[i]) for i, name in enumerate(MODELS)},
+                alpha=float(alpha), n=int(n), origins=int(len(origins)), block=block, block_s=block * step, range_s=ell,
+                rms_px={name: float(math.sqrt(L[i].mean())) for i, name in enumerate(MODELS)}, power=len(kept) < len(MODELS))
+
+
+MODEL_WORDS = {"line": "a line at a steady image velocity", "projective": "constant velocity in projection (1/(t_z - t))",
+               "turn": "a steady turn at a steady image speed"}
+MODEL_PLAIN = {"line": "a steady speed across the picture",
+               "projective": "a straight flight toward or away from the camera",
+               "turn": "a steady turn"}
+
+
+def models_said(m):
+    """The model confidence set (`confidence_set`) in a sentence, for the kinematics stage's Measurements. The models
+    nest -- the projective one and the turn each hold the line as a limit -- so where the line stays in the set the
+    models that left it forecast the track worse than the line does, and are not ruled out as motions; where it has left,
+    they are."""
+    if not m:
+        return None
+    kept = ", ".join(MODEL_WORDS[k] for k in m["kept"])
+    out = [k for k in m["models"] if k not in m["kept"]]
+    ps = ", ".join(f"{k} {m['p'][k]:.3g}" for k in m["models"])
+    rms = ", ".join(f"{m['rms_px'][k]:.2f}" for k in m["models"])
+    why = ("" if not out else f"; {' and '.join(MODEL_WORDS[k] for k in out)} " + (
+        "forecast the track worse than the line, which each holds as a limit" if "line" in m["kept"] else "ruled out"))
+    return (f"the {100 * (1 - m['alpha']):.0f} % model confidence set (Hansen, Lunde & Nason 2011) of "
+            + ", ".join(MODEL_WORDS[k] for k in m["models"]) + f", on one-step forecasts from {m['origins']} origins with a "
+            f"stationary block bootstrap of mean block {m['block']:.1f} origins ({m['block_s']:.2f} s" + (
+                f", from the wander left about the best, {m['range_s']:.2f} s)" if m["block"] > 1 else ")")
+            + ": " + (f"{kept}{why}" if m["power"] else f"all three: the track cannot tell them apart")
+            + f" (MCS p {ps}; rms forecast error {rms} px)"
+            + (f"; the residual about the best wanders over {m['range_s']:.2f} s, and on drawn straight tracks with a wander the line "
+               f"stays in the set {MODELS_WANDER_KEPT} of the time, not {100 * (1 - m['alpha']):.0f} %: there the set ranks forecasts, "
+               "not motions" if m.get("range_s") and m["power"] else ""))
+
+
+def models_plain(m):
+    """The model confidence set in the paragraph's words (sciencespeak): what was compared, and which ways of moving the
+    track keeps or rules out, at the set's level. [] where there is none."""
+    if not m:
+        return []
+    names = lambda ks: " and ".join(MODEL_PLAIN[k] for k in ks) if len(ks) < 3 else (
+        f"{MODEL_PLAIN[ks[0]]}, {MODEL_PLAIN[ks[1]]}, and {MODEL_PLAIN[ks[2]]}")
+    level = f"{100 * (1 - m['alpha']):.0f} % confidence"
+    S = [f"Three simple ways of moving were compared: {names(m['models'])}.",
+         "Each was asked to predict the track's next point, again and again along it."]
+    if not m["power"]:
+        S.append(f"The track cannot tell them apart ({level}).")
+        return S
+    out = [k for k in m["models"] if k not in m["kept"]]
+    if m.get("range_s"):                     # the track wanders about the best of them: the null's level does not hold (section 48)
+        S.append(f"{names(m['kept'])[0].upper()}{names(m['kept'])[1:]} {'predicts' if len(m['kept']) == 1 else 'predict'} it best "
+                 f"({level}).")
+        S.append("But the track also wanders about it, so this ranks the predictions and does not name the motion.")
+        return S
+    S.append(f"Only {names(m['kept'])} {'remains' if len(m['kept']) == 1 else 'remain'} ({level}).")
+    S.append(f"{names(out)[0].upper()}{names(out)[1:]} {'predicts' if len(out) == 1 else 'predict'} it worse than a steady "
+             "speed across the picture does." if "line" in m["kept"] else f"The track rules out {names(out)}.")
+    return S
+
+
 def smear(v_px_per_s, fps, width_px):
     """The smear number: the displacement in one frame over the object's width across its travel. None without a width."""
     if not width_px or width_px <= 0 or v_px_per_s is None:

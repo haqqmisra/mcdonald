@@ -212,6 +212,31 @@ def around(frames, clip, seconds=2.0):
     return max(clip.n0, min(frames) - pad), min(clip.n1, max(frames) + pad)
 
 
+def track_placed(track_csv):
+    """(who, what it says) of a track file given alone (`run --track`), from its own first lines: ("hand", "linked") where
+    it says it was linked from hand marks (`autolink.write_track_csv`, a marks file's own "hand marks"); ("not by hand",
+    why) where it says its marks were not a hand's, or an agent's (`share make`'s tracks are an agent's); (None, None)
+    where it says nothing of who placed its points -- the report's checklist then says that (2026-11-07: before, a track
+    given alone was said to be "placed on the frames by hand" whatever made it)."""
+    import re
+    try:
+        with open(track_csv, encoding="utf-8") as f:
+            head = [ln.lstrip('"').strip() for ln in f if ln.lstrip().lstrip('"').startswith("#")]
+    except (OSError, UnicodeDecodeError):
+        return None, None
+    for ln in head:
+        m = re.search(r"NOT (?:placed by a hand on the frame|hand positions)\W*(.*)", ln)
+        if m:
+            why = m.group(1).strip(" -.:")
+            return "not by hand", "" if why.startswith("see the") else why[:120]
+        if "written by mcdonald share make" in ln:
+            return "not by hand", "an agent's track, made into marks by share make"
+    for ln in head:
+        if "linked from hand marks" in ln or re.match(r"#\s*hand marks\b", ln):
+            return "hand", "linked" if "linked" in ln else None
+    return None, None
+
+
 def confirm_sheet(case_json, how, command=None):
     """A case whose track sheet was not confirmed, confirmed afterwards: the case read back from its
     `_case.json` (`report.Case.load`), the verify stage amended -- reviewed, and how -- the need and the
@@ -556,14 +581,18 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
     prefix = str(case_json)[:-len("_case.json")]
 
     fov = get("fov") or field_of(get("fields"), trk)
+    sf = (case.stages.get("scale") or {}).get("fields") or {}
+    pk = sf.get("phone_k")                             # the phone's own record gave k: it gives it again
     f = scale(clip, get("graticule"), fov, get("ref_px"), get("ref_m"), fov_px=get("fov_px"),
-              from_fields=bool(get("fields")), lens_k1=get("lens_k1"), track=trk, pixel_aspect=get("pixel_aspect")).into(case)
+              from_fields=bool(get("fields")), lens_k1=get("lens_k1"), track=trk, pixel_aspect=get("pixel_aspect"),
+              phone=(pk["k_px_per_rad"], pk["how"], pk["share"]) if pk else None, phone_check=sf.get("phone_check")).into(case)
     say(f"  {f.result.get('k', 'k UNKNOWN')}")
     if (case.stages.get("camera") or {}).get("fields", {}).get("stretches") is not None:
         # the camera stage's rates in degrees are the same arithmetic: in the new scale, nothing in pixels changes
         from . import camera
         camera.rescale(case.stages["camera"]["fields"], clip.W, fov, get("fov_px"), get("graticule"), bool(get("fields")),
-                       pixel_aspect=aspect_of(get("pixel_aspect"))[0])
+                       pixel_aspect=aspect_of(get("pixel_aspect"))[0],
+                       k_record=(pk["k_px_per_rad"], pk["how"], pk["share"]) if pk and not get("fields") else None)
     ref = dict(px=get("ref_px"), len_m=get("ref_m"), what="in-frame reference",
                **({"range_ratio": get("range_ratio")} if get("range_ratio") else {})) if get("ref_px") and get("ref_m") else None
     tf = case.stages["track"]["fields"]
@@ -573,7 +602,16 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
         if not blur:
             blur = vf.point_blur(clip, trk, masks if masks is not None else vf.static_masks(clip),
                                  vf.parse_rows(get("mask_rows")), bool(tf.get("object_is_dark")))
-    k = kinematics(trk, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
+    trk_one = trk                                      # on the scale of its first frame, where the phone's record says so
+    pf = ((case.stages.get("ingest") or {}).get("fields") or {}).get("phone") or {}
+    chk = sf.get("phone_check")
+    if pf.get("csv") and not get("fields") and not (chk and chk.get("verdict") == "disagrees"):
+        from . import camera as cam, phone as ph
+        csv_ = next((p for p in (Path(pf["csv"]), Path(case_json).parent / Path(pf["csv"]).name) if p.exists()), None)
+        rsteps = cam.record_steps(ph.read_csv(csv_), trk, chk) if csv_ else []
+        if rsteps:
+            trk_one = cam.to_one_scale(trk, rsteps, clip.W, clip.H)
+    k = kinematics(trk_one, clip.fps, clip.W, case.tag, f.carry, range_m=get("range_m"), size_px=get("size_px"), ref=ref,
                    blur=blur, ground_speed=get("ground_speed"), own_ship=get("own_ship"), line_of_sight=get("line_of_sight"),
                    out=prefix, height=clip.H,
                    extent_px=tf.get("object_size_px"), range_max=get("range_max_m"),
@@ -583,6 +621,8 @@ def add_known(case_json, workdir=None, masks=None, command=None, say=lambda *a: 
     # its notes where the stage's were, the old ones out: the report reads as if it had been told from the start
     at = next((i for i, n in enumerate(case.notes) if n.startswith(KIN_NOTES)), len(case.notes))
     case.notes = [n for n in case.notes if not n.startswith(KIN_NOTES)]
+    if trk_one is not trk:
+        k.notes.append(PHONE_NOTE)
     case.add("kinematics", k.result, no_power=k.no_power, needs=k.needs, fields=k.fields, files=k.files)
     case.notes[at:at] = k.notes
     # the horizon, the haze and the focus, where they are known now: done again on the track (a new k or range changes
@@ -671,7 +711,7 @@ def through_lens(k, k1, width, height, track=None, fov=None, across=None, gratic
 
 
 def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fov_px=None, from_fields=False, lens_k1=None,
-          track=None, pixel_aspect=None):
+          track=None, pixel_aspect=None, phone=None, phone_check=None):
     """What bounds k, the angular scale: a graticule reading (a measurement), a field of
     view (an assumption, and said to be one), or nothing. The AngularScale is in `carry`.
     The field of view spans `fov_px` (the picture's box, where it is inside the frame;
@@ -683,7 +723,10 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fo
     the scale up the picture, in square pixels -- the graticule's, read up the picture, or
     the field of view over the frame's width in square pixels (W / a) -- and the fields
     carry the stretch, the scale across (`k_x_px_per_rad` = a k) and the field of view up
-    the picture too (`fov_v_deg`)."""
+    the picture too (`fov_v_deg`). `phone` is (k px/rad, how, the share it may be off by) from a phone's own record
+    of its lens and zoom (`phone.k_at`, at the track's first frame): taken where no graticule or field of view is
+    given, sourced as the phone's record and not as an assumption (the phone scope's WP1). `phone_check` is the
+    record's check on the pictures (`camera.record_check`), said beside it; where it disagrees the caller gives no k."""
     k = kin.AngularScale.unknown("no graticule, no reference object, no FOV supplied")
     res, fields, needs = {}, dict(k_px_per_rad=None, k_from=None), []
     a, a_from = aspect_of(pixel_aspect)
@@ -709,6 +752,12 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fo
                       fov_from="the display's field at the track's first frame (--fields)" if from_fields else "assumed, as given")
         if a != 1.0:
             fields["fov_v_deg"] = kin.fov_from_k(k.k, clip.H, alpha)
+    elif phone and a == 1.0 and not lens_k1:
+        kk, how, share = phone
+        k = kin.AngularScale(kk, "phone's record", alpha, f"{how.split(': ', 1)[-1]}, to within {share:.0%}")
+        res["k"] = f"{kk:.1f} px/rad ({how}, to within {share:.0%})"
+        fields.update(k_px_per_rad=float(kk), k_from=f"{how}, to within {share:.0%}", k_share=float(share),
+                      fov_deg=math.degrees(2.0 * math.atan(clip.W / 2.0 / kk)), fov_from="the phone's record")
     else:
         needs.append("an angular scale k: a graticule reading, a known-size object in "
                      "frame, or a sourced field of view")
@@ -736,7 +785,13 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fo
         fields["reference"] = dict(px=ref_px, length_m=ref_m)
     if fov_px:                                         # the box the field spans: the ladder's and the figure's too
         fields["fov_px"] = float(fov_px)
-    if not graticule and not fov:
+    if phone:                                          # kept where a field given wins, so that forgetting it brings it back
+        fields["phone_k"] = dict(k_px_per_rad=float(phone[0]), how=phone[1], share=float(phone[2]))
+    if phone_check is not None:
+        fields["phone_check"] = phone_check
+        res["phone's record"] = (f"checked on the object's size: {phone_check['verdict']}, {phone_check['why']}"
+                                 + (": the record is not used for k" if phone_check["verdict"] == "disagrees" else ""))
+    if not graticule and not fov and not k.known:
         ladder = sc.fov_ladder(1.0, fov_px or clip.W, sc.FOV_LADDER)
         res["k if the FOV were"] = ", ".join(f"{r['fov_deg']:g} deg -> {r['k']:.0f}" for r in ladder)
         fields["k_if_the_fov_were"] = {f"{r['fov_deg']:g} deg": float(r["k"]) for r in ladder}
@@ -745,9 +800,12 @@ def scale(clip, graticule=None, fov=None, ref_px=None, ref_m=None, alpha=0.0, fo
                  [("scale", "k is unconstrained, so no pixel rate converts to an angular rate")])
 
 
+# the kinematics stage's note where the phone's own record of its zoom put the track on one scale first
+PHONE_NOTE = ("The track was put on the scale of its first frame by the phone's own record of its zoom before its rate was "
+              "fitted (the record's zoom moves inside it; `mcdonald phone`).")
 # how each of the kinematics stage's notes begins: a case worked out again (`add_known`) takes the old ones out by these
 KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates are fitted against wall-clock time",
-             "Parallax ladder -- ", "The speed in body lengths divides by")
+             "Parallax ladder -- ", "The speed in body lengths divides by", PHONE_NOTE)
 
 
 def platform_of(own_ship=None, layers=None):
@@ -839,7 +897,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                         v_top=kin.fastest_rate(track, fps, fit, band, t0, t1, n0, n1) if range_max is not None else None)
     D, D_from = ((size_px, "given") if size_px else ((blur or {}).get("object_fwhm_px"), "measured: the object's width at half its peak")
                  if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
-    proj = turn = smear = proj_why = None
+    proj = turn = smear = proj_why = models = models_why = None
     if not fit.get("held"):
         centre = (width / 2.0, height / 2.0) if height else None
         through = scale.lens if height else None        # the track as a pinhole would have drawn it; none is the track itself
@@ -860,6 +918,10 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         elif proj and height and proj.get("fits") is False:     # no lens given, and a miss: could one alone be all of it?
             proj = dict(proj, lens_could=lens.could_be(track, fps, width, height, proj, t0, t1, n0, n1))
         smear = projective.smear(fit["v_px"], fps, D) if D else None
+        try:                                    # which motion models survive, as a computed set (E22)
+            models = projective.confidence_set(line, fps, t0, t1, n0, n1)
+        except Exception as e:                  # noqa: BLE001 -- a comparison that will not run is said, not fatal
+            models, models_why = None, f"the comparison failed ({type(e).__name__}: {e})"
     speed = red.speed()
     bl = kin.body_lengths_per_s(fit["v_px"], size_px) if size_px else None
     platform = platform_of(own_ship, layers) if bl else None
@@ -873,7 +935,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   range_ratio=ref.get("range_ratio") if ref else None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
-                  band=band, projective=proj, turn=turn, smear=smear, width_px=dict(px=D, how=D_from) if D else None)
+                  band=band, projective=proj, turn=turn, smear=smear, models=models, width_px=dict(px=D, how=D_from) if D else None)
     if scale.stretched:                                   # the rate in square pixels along the track, and what it was worth (section 40)
         fields.update(pixel_aspect=scale.aspect, square_per_px=red.along, v_square_px_per_s=fit["v_px"] * red.along)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s" + (f" in the file's pixels; {fit['v_px'] * red.along:.1f} square px/s along the track "
@@ -887,6 +949,11 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                               "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")
     files, npw = [], []
     res.update(projective.said(proj, turn, smear))
+    if models:
+        res["motion models"] = projective.models_said(models)
+    elif not fit.get("held"):
+        res["motion models"] = "no set: " + (models_why or f"the model confidence set needs {projective.MODELS_MIN} points, once "
+                                             "repeated frames are dropped, to compare the motion models")
     if proj_why:
         npw.append(("constant velocity", f"the projective fit failed: {proj_why}"))
     if not fit.get("held") and D is None:
@@ -897,8 +964,18 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
             res["jumps"] = kin.jumps_said(band)
         if band.get("backtest"):
             res["band backtest"] = kin.backtest_said(band["backtest"], band.get("beat"))
+        res["jitter without a model"] = kin.model_free_said(band) or (
+            f"not read: it needs {kin.FREE_MIN} pairs of second differences on consecutive frames, and the track has fewer")
         if not band["constant"] and not fit["uniform"]:
             res["uniform_motion"] += f": the speed ran from {band['v_min'][1]:.0f} to {band['v_max'][1]:.0f} px/s (the speed band)"
+        brk = _breaks(track, fps, band, t0, t1, n0, n1, out, layers)          # a change of velocity beyond the wander (section 51)
+        if brk:
+            from . import breaks
+            fields["breaks"] = brk
+            res["velocity break"] = breaks.said(brk)
+            if brk["found"] and not (brk.get("scene") or {}).get("power", True):
+                npw.append(("against the scene", f"whether the change of velocity at {brk['t_s']:.2f} s is the camera's: "
+                                                 + brk["scene"]["why"]))
         if out and series:
             files += _speed_files(out, track, fps, band, series)
     else:
@@ -983,6 +1060,20 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                          "a speed in blur widths and says nothing about the body.")
     return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red, series=series),
                  no_power=npw, files=files)
+
+
+def _breaks(track, fps, band, t0, t1, n0, n1, out, layers):
+    """The velocity break beyond the wander and, where one is found, the event study against the scene (`breaks.of_stage`,
+    method section 51): the scene from `<out>_layers.csv` where the layers step wrote it, read only with that step's fields
+    in hand (they say whether the scene held still on screen). None where it cannot be run; a scan that fails is said, not
+    fatal."""
+    from . import breaks
+    csv_path = f"{out}_layers.csv" if out and layers and Path(f"{out}_layers.csv").exists() else None
+    try:
+        return breaks.of_stage(track, fps, band, t0, t1, n0, n1, scene_csv=csv_path, layers_fields=layers)
+    except Exception as e:                       # noqa: BLE001 -- the band and the line's rate stand without it
+        print(f"  ! the velocity break was not scanned: {type(e).__name__}: {e}")
+        return None
 
 
 def _speed_files(out, track, fps, band, series):
@@ -1076,7 +1167,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              own_ship=None, line_of_sight=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
              visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, lens_k1=None, pixel_aspect=None,
              verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
-             flicker_of=None, siblings=None, segment=None, started=None):
+             flicker_of=None, siblings=None, segment=None, started=None, no_phone=False):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
     `segment` is (first, last) of the frames the person chose to open, where the clip measured
@@ -1114,7 +1205,15 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
 
     With a track the layers stage is the whole measurement (`layers.measure`: every
     frame pair, the object against each layer, about a second a pair); without one it
-    is `layers.glance`, a look at the background over one pair."""
+    is `layers.glance`, a look at the background over one pair.
+
+    A phone's clip (an iPhone's maker or model tag, or a timed-metadata track: `phone.is_phones`) has
+    its own record read at ingest (`phone.measure`, into <prefix>_phone.csv): the zoom on
+    every frame, checked on the object's size (`camera.record_check`), gives the scale stage
+    its k (`phone.k_at`, where no graticule or field of view is given), the kinematics stage
+    a track on one scale, and the camera stage the zoom inside the track. `no_phone`
+    (`--no-phone`) refuses it: the record is not read, and the case says so. Any other
+    clip is not asked, and its case is as it was."""
     chosen = asked_for(only, skip)
 
     class Want:
@@ -1208,7 +1307,23 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         rhythm = ", ".join(f"{h:g}" for h in g["lines_hz"])
         ingest["gop"] = (f"{g['types'][:12]}...: {i_frames}, an anchor every {g['anchor_period']:g}"
                          + (f" (the codec's rhythm: {rhythm} Hz)" if g["lines_hz"] else ""))
-    case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H, known=known),
+    # the phone's own record (`mcdonald phone`, 2026-11-07, the phone scope's WP1): only a phone's clip is asked, so any
+    # other's case is as it was
+    from . import phone as ph
+    record = prov = phone_found = None
+    if ph.is_phones(clip.info):
+        try:
+            phone_found = ph.measure(video, clip.info, prefix, refused=bool(no_phone))
+            record, prov = phone_found.carry
+        except Exception as e:                       # a help to the case, never a reason for it to stop
+            phone_found = Found("phone", no_power=[("phone's record", f"not read: {type(e).__name__}: {e}")],
+                                fields=dict(found=False, refused=bool(no_phone), why=f"{type(e).__name__}: {e}"))
+        files += phone_found.files
+        ingest.update(phone_found.result)
+        say("  " + "\n  ".join(ph.said(phone_found.fields)))
+    case.add("ingest", ingest, fields=dict(ingest, n0=clip.n0, n1=clip.n1, width=clip.W, height=clip.H, known=known,
+                                           **({"phone": phone_found.fields} if phone_found else {})),
+             no_power=phone_found.no_power if phone_found else (),
              command=f"mcdonald run {shlex.quote(video_arg)}" + _flags(track=track, marks=marks) + window
                      + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, diameter=diameter, fov=fov,
                               fov_px=fov_px, fields=fields,
@@ -1221,11 +1336,12 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               pixel_aspect=pixel_aspect,            # as given, with where it was read: the Reproduce line carries it (2026-11-02)
                               avoid=avoid if isinstance(avoid, str) else None,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
-                              i_looked=i_looked is True, **given))
+                              i_looked=i_looked is True, no_phone=bool(no_phone), **given))
 
     masks = masks if masks is not None else vf.static_masks(clip, progress=at("ingest"))
     rows = vf.parse_rows(mask_rows)
     trk = None
+    placed = (None, None)
     if marks:
         from . import autolink
         from .mark import MarkSet
@@ -1249,6 +1365,9 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 dark = link.dark if dark is None else dark     # look at its pixels must look for that, not a default
         ms = MarkSet(tag, video, clip.fps).load(marks)
         case.identified(ms.not_by_hand(), len(ms.marks.get("object", {})))
+        placed = ("not by hand", "the marks") if ms.not_by_hand() else ("hand", "linked")
+    elif track:                                            # a track alone: who made it, as far as its own file says
+        placed = track_placed(track)
     if track:
         trk = vf.read_track(track)
     size, dark = (9.0 if size is None else float(size)), bool(dark)
@@ -1287,7 +1406,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         if trk:
             case.add("track", dict(source=track, frames=len(trk), span=f"{min(trk)}-{max(trk)}"),
                      fields=dict(source=str(track), frames=len(trk), first=min(trk), last=max(trk),
-                                 object_size_px=size, object_is_dark=dark))
+                                 object_size_px=size, object_is_dark=dark, placed_by=placed[0], placed_said=placed[1]))
             say(f"  track: {len(trk)} frames from {track}")
         else:
             case.add("track", no_power=[("track", "no track supplied, so every object "
@@ -1303,7 +1422,9 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             # a window lays the sheet out for its screen; the command line pages it so that each page can be checked
             # on one screen (an agent on IMG_5611, 2026-10-28: "an 11520 x 4254 JPEG can't be checked on one screen")
             layout = sheet or tracksheet.paged(clip.n1 - clip.n0 + 1)
-            f = tracksheet.sheet(clip, [trk], prefix, dark=dark, title=rec["title"] if rec else None, procs=procs,
+            # the release's id at its head, not its title: 22 of PURSUE's 144 titles describe the object as an observer saw
+            # it ("Spherical", "TIC TAC", "fast moving"), and the person judging the sheet should not read that first (2026-11-07)
+            f = tracksheet.sheet(clip, [trk], prefix, dark=dark, title=rec["title"].split(",")[0] if rec else None, procs=procs,
                                  say=say, progress=at("verify"), stop=stop, **layout)
             how = "--i-looked"
             if callable(i_looked):                         # a window shows the sheet and asks; a command line was told
@@ -1344,13 +1465,36 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         except Exception as e:
             failed("layers", e)
 
+    # ---- the phone's record checked on the pictures, and its k (the phone scope's WP4) --------------
+    # Where the record's zoom moves, the object's size must follow it (`camera.record_check`); a record that disagrees
+    # with its pictures is said so and not used -- not for k, not for the zoom inside the track.
+    curve = ph.zoom_curve(record) if record else None
+    checked = k_rec = None
+    trk_one = trk
+    if curve:
+        from . import camera as cam
+        try:
+            if trk:
+                sub = {n: trk[n] for n in cam.record_frames(curve, trk) if clip.n0 <= n <= clip.n1}
+                checked = cam.record_check(curve, cam.shapes(clip, sub, size, dark), clip.H)
+                say(f"  the phone's record against the pictures: {checked['verdict']}, {checked['why']}")
+            if not (checked and checked["verdict"] == "disagrees"):
+                k_rec = ph.k_at(record, prov, clip.W, clip.H, min(trk) if trk else clip.n0)
+                rsteps = cam.record_steps(curve, trk, checked) if trk and not fields else []
+                if rsteps:                           # the kinematics stage's track, on the scale of its first frame
+                    trk_one = cam.to_one_scale(trk, rsteps, clip.W, clip.H)
+        except Exception as e:
+            say(f"  ! the phone's record was not checked: {type(e).__name__}: {e}")
+            curve = checked = k_rec = None
+
     # ---- 5 scale --------------------------------------------------------------------
     k = None
     if "scale" in want:
         say("[scale] what bounds k")
         try:
             f = scale(clip, graticule, fov or field_of(fields, trk), ref_px, ref_m, fov_px=fov_px,
-                      from_fields=bool(fields), lens_k1=lens_k1, track=trk, pixel_aspect=pixel_aspect).into(case)
+                      from_fields=bool(fields), lens_k1=lens_k1, track=trk, pixel_aspect=pixel_aspect,
+                      phone=k_rec, phone_check=checked if curve else None).into(case)
             k = f.carry
             say(f"  {f.result.get('k', 'k UNKNOWN')}")
         except Exception as e:
@@ -1372,12 +1516,14 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 say(f"  a point {blur['blur_fwhm_px'] or float('nan'):.1f} px wide at half its peak "
                     f"({blur['spots']} spots), the object {blur['object_fwhm_px'] or float('nan'):.1f}: "
                     + {True: "resolved", False: "NOT resolved", None: "not measured"}[blur["resolved"]])
-            f = kinematics(trk, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
+            f = kinematics(trk_one, clip.fps, clip.W, tag, k, range_m=range_m, size_px=size_px, ref=ref, blur=blur,
                            ground_speed=ground_speed, own_ship=own_ship, line_of_sight=line_of_sight, out=prefix, height=clip.H,
                            extent_px=(case.stages.get("track", {}).get("fields") or {}).get("object_size_px"),
                            range_max=range_max_m, layers=(case.stages.get("layers") or {}).get("fields"))
             if f.carry:
                 say("  " + f.carry["reduction"].report().replace("\n", "\n  "))
+            if trk_one is not trk:
+                f.notes.append(PHONE_NOTE)
             f.into(case)
             files += f.files
         except Exception as e:
@@ -1404,12 +1550,14 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                     zoom_found = zm.read(zj)
                     say(f"  the zoom states from {zj}")
             f = camera.measure(clip, trk, size=size, dark=dark, fov=fov, fov_px=fov_px, graticule=graticule, out=prefix, tag=tag,
-                               fields=parse_fields(fields), zoom=zoom_found, pixel_aspect=aspect)
+                               fields=parse_fields(fields), zoom=zoom_found, pixel_aspect=aspect, record=curve, checked=checked,
+                               k_record=k_rec)
             say("  " + "\n  ".join(camera.said(f.fields, brief=True)) if f.fields else "  " + f.no_power[0][1])
             f.into(case, command=f"mcdonald camera {shlex.quote(video_arg)}" + _flags(track=track, size=size if size != 9.0 else None,
                                                                                      dark=dark, fov=fov, fov_px=fov_px,
                                                                                      fields=fields, graticule=graticule,
-                                                                                     pixel_aspect=aspect if aspect != 1.0 else None)
+                                                                                     pixel_aspect=aspect if aspect != 1.0 else None,
+                                                                                     phone=bool(curve) and not fields)
                    + window)
             files += f.files
         except Exception as e:
