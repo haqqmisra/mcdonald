@@ -25,6 +25,11 @@ if type module &>/dev/null; then
     module load python ffmpeg || true          # site-specific; merlin has no modules
 fi
 
+# every figure any suite draws, in its process or a subprocess, is held to the house style (Jacob, 2026-11-07): what
+# figures.save cannot clear -- text over a line, over other text, off the figure -- is written here, and fails the job
+export MCDONALD_FIGURE_CLASHES="$SLURM_SUBMIT_DIR/logs/figure_clashes_${SLURM_JOB_ID}.txt"
+rm -f "$MCDONALD_FIGURE_CLASHES"
+
 suites="test_measurement test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_zoom test_horizon test_focus test_haze test_streak test_camera test_gui"
 [ "${1:-}" = "golden" ] && suites="$suites test_golden"
 failed=""
@@ -34,5 +39,10 @@ for s in $suites; do
     echo "   $(grep -c '  PASS' "logs/${s}_${SLURM_JOB_ID}.log") PASS, $(grep -c '  FAIL' "logs/${s}_${SLURM_JOB_ID}.log") FAIL, $(grep -c '  SKIP' "logs/${s}_${SLURM_JOB_ID}.log") SKIP"
     grep '  FAIL' "logs/${s}_${SLURM_JOB_ID}.log" | cut -c1-200
 done
+if [ -s "$MCDONALD_FIGURE_CLASHES" ]; then
+    echo "== figures with text over a line, over other text, or off the figure ($(wc -l < "$MCDONALD_FIGURE_CLASHES")):"
+    sort "$MCDONALD_FIGURE_CLASHES" | uniq -c | sort -rn | head -20
+    failed="$failed figure-clashes"
+fi
 [ -z "$failed" ] || { echo "FAILED:$failed"; exit 1; }
 echo "ALL SUITES PASS"
