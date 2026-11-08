@@ -1097,7 +1097,7 @@ def figure(path, name, patches, results, truth=None):
             bprof.plot(fs["m_grid"], fs["profile"], color=figures.BLUE, lw=2, label="match to waves on deep water")
             bprof.axhline(fs["null"], color=figures.BLUE, ls=":", lw=1.2, label="the same, frames shuffled")
             bprof.axhline(fs["drift_only"], color=figures.BLUE, ls="--", lw=1.0, label="drift alone")
-            bprof.axvspan(*fs["band_m"], color=figures.BLUE, alpha=0.15)
+            bprof.axvspan(*fs["band_m"], color=figures.BLUE, alpha=0.15, label="nearly the best score")
         if fr.get("ok"):
             tot = fr["profile"].min() / max(1e-12, 1 - fr["explained"]) if fr["explained"] < 1 else None
             expl = 1 - fr["profile"] / tot if tot else 1 - fr["profile"] / fr["profile"].max()

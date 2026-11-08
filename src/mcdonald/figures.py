@@ -285,6 +285,9 @@ def clear(fig, reach=24, step=2):
                         break
                 else:
                     left.append((ax, leg, "the legend crosses a line wherever it goes inside the axes"))
+            lb = _box(leg, r, pad=0)
+            if _meet(lb, abox) and not _inside(lb, (abox[0] - 1, abox[1] - 1, abox[2] + 1, abox[3] + 1)):
+                left.append((ax, leg, "the legend runs past the edge of its plot"))     # over the frame and its ticks
             placed.append(_box(leg, r))
         for t in texts:
             tb = _box(t, r)
