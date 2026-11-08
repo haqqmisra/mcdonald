@@ -1,4 +1,4 @@
-# Handoff: ROADMAP 0.4 -- session 17 (2026-11-07) on top: sciencespeak the wording standard, and the report, window, docs and figures written to it; session 16 (the roadmap review) and sessions 15 to 1 below as the record
+# Handoff: ROADMAP 0.4 -- session 17 (2026-11-07) on top: sciencespeak the wording standard, the report, window, docs and figures written to it, and every figure in Jacob's house style; session 16 (the roadmap review) and sessions 15 to 1 below as the record
 
 ## Session 17 (2026-11-07): sciencespeak, the wording standard
 
@@ -65,6 +65,44 @@ while three jobs shared Xvfb); job 20091, an hour before on the same window code
 
 **Open:** the house style for figures (Jacob's guidance); E7 and S17 as before; the window's Keys page reads as one run to
 the checker (a table without full stops), which is fine as it is.
+
+### Later still: every figure in Jacob's house style
+
+Ravi asked "what is 362?" of "Its path bends by about 76 pixels over 362" (484e9bc: the two numbers now each say what they
+are). Jacob pointed at the figures of his 2026 EBM/THAI paper (`~/local/archive/published/2026ebmTHAI`) for the house
+style, then: "I prefer my house style to avoid (a), (b), (c) panel labels. In the text I simply refer to the position of the
+panel (upper left, lower right, etc.) as needed. Also I like the x- and y-axis labels to be bold. Finally, make sure text
+does not overlap with lines." He also agreed to short titles with the finding in the caption, the paper's colours, and the
+beat figure joining the style. The rules are in the memory note `house-figure-style`. Done, **committed locally, not pushed**:
+
+- **The core** (df3fb98, fixed in 40bff82, ce965e4, b28989a): `figures.setup` sets the look; `figures.dress` puts the full
+  box, the ticks in on four sides, bold 11-pt labels and 12-pt titles on any figure; `figures.clear` moves a legend to a
+  clear place inside its axes and a label by at most 24 pixels off lines and other text, and reports what it cannot (text
+  over text outside the axes, a label over a neighbour's drawn numbers, a figure legend or text off the figure);
+  `figures.save` runs both, keeps what is left in `CLASHES`, says it on stderr and appends it to `$MCDONALD_FIGURE_CLASHES`.
+  `tools/suites.sbatch` sets that file and fails the job if anything lands in it.
+- **The report's eight figures** (40bff82, ce965e4): speed, size and speed against distance, what the video allows, the
+  aspect fan, the track over a frame, the beat, the fold, the noise. A nudge cannot fix crowding, so each has its own
+  layout: the fold 8 in wide with short heads and small notes; the beat's legend in two columns; the noise's finding as a
+  right-hand title; the track's times each placed beside its dot on a side the path leaves clear (two of PR135's ten are
+  crowded out where the path doubles back; their dots stay), the enlarged object and the rate in corners clear of the
+  path; the speed figure's step markers only as high as the data; the region figure's speeds named above their curves and
+  slivers under 7 % of the height not drawn.
+- **The eleven stage figures** (an agent's 21cf873, merged as 24c3ee8): layers, camera, integrity, tether, groups, slew,
+  waves, horizon, aspect, stabilize, audio. `figures.legend_above` (new) puts a legend at a clear place inside, else in a
+  band over the data. camera sets its y ticks once its ranges are final: matplotlib's own count follows the panel's height,
+  so the ticks changed between layout passes and pushed a label off the figure.
+- **From looking at each stage figure after the merge** (620857c, a51e90a), what the clash check cannot see: layers' count of
+  groups in whole numbers, and its whole-background line drawn wider and under a background line equal to it (PR135's two
+  were one line, the amber hidden); groups' members named in a key ("member 1", ... as the beat figure, same colours);
+  aspect's brightness and size changes in per cent of the average, with a key; waves' shaded band named ("nearly the best
+  score"). `clear` now also reports an axes legend that runs past its plot (the waves legend did, with a longer name).
+  **Lesson:** the checker finds text over lines; only looking finds a missing key, a missing unit or a hidden line.
+- **Tests:** test_reduction's `test_house_figure_style` holds the report's figures to the box, the ticks, bold labels,
+  short one-line titles, no panel letters and no clash; the size-and-speed pins moved with its legend.
+
+**Open:** the size figure's party-balloon band lies inside the birds band, so their overlap shows green, not either
+band's colour; it is honest, but a reader may look for green in the legend. Jacob has not yet seen the figures.
 
 
 ## Session 16 (2026-11-02, afternoon and evening): the review, and its five changes
