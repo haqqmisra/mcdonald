@@ -359,27 +359,32 @@ def with_the_group(t, track, bg):
 
 
 def figure(tracks, track, path):
-    """Each member followed long enough, as its place relative to the track, frame by frame."""
+    """Each member followed long enough, as its place relative to the track, frame by frame. In the house style
+    (figures.setup)."""
     from . import figures
     plt = figures.setup()
-    fig, (ax, bx) = plt.subplots(1, 2, figsize=(10, 4.6))
+    fig, (ax, bx) = plt.subplots(1, 2, figsize=(10.5, 4.8), constrained_layout=True)
     for i, t in sorted(tracks.items()):
         if len(t) < MIN_FRAMES:
             continue
         ns = [n for n in sorted(t) if n in track]
         dx = [t[n][0] - track[n][0] for n in ns]
         dy = [t[n][1] - track[n][1] for n in ns]
-        ax.plot(dx, dy, ".", ms=2, label=str(i))
-        bx.plot(ns, np.hypot(dx, dy), lw=1)
+        ax.plot(dx, dy, "o", ms=2, label=f"member {i}")      # the names the beat figure and the report use
+        bx.plot(ns, np.hypot(dx, dy), lw=1.6)
     ax.invert_yaxis()
     ax.set_aspect("equal", "datalim")
     ax.set_xlabel("Across, from the track (pixels)")
     ax.set_ylabel("Down, from the track (pixels)")
-    ax.set_title("Where each member sits in the group")
+    ax.set_title("Place of each member")
     bx.set_xlabel("Frame")
     bx.set_ylabel("Distance from the track (pixels)")
-    bx.set_title("A rigid body keeps these; a flock does not")
-    figures.save(fig, path, tight=True)
+    bx.set_title("Distance of each member")
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:                                    # which colour is which member: under both panels, clear of every line
+        fig.legend(handles, labels, loc="outside lower center", ncol=min(len(labels), 6), markerscale=2.5)
+    figures.save(fig, path, dpi=200)
+    plt.close(fig)
 
 
 def said(fields):

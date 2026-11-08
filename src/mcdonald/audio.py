@@ -1329,7 +1329,8 @@ def said(fields):
 
 
 def figure(x, fields, path):
-    """The mean excess spectrum up to just past the highest explained line, the lines marked by family."""
+    """The mean excess spectrum up to just past the highest explained line, the lines marked by family. In the house style
+    (figures.setup); the marks stop short of the top, where the legend sits clear of them."""
     from matplotlib.figure import Figure
     from . import figures as fg
     fg.setup()                                         # the house style; the figure itself is not pyplot's, so that
@@ -1349,38 +1350,35 @@ def figure(x, fields, path):
         acc = ex if acc is None else acc + ex
         n += 1
     sel = (f >= BAND[0]) & (f <= top)
-    fig = Figure(figsize=(fg.FigureSize.NOTE, 3.2))
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    fig = Figure(figsize=(fg.FigureSize.NOTE, 3.6), layout="constrained")
+    FigureCanvasAgg(fig)                               # an Agg canvas of its own: figures.clear measures text with its renderer
     ax = fig.subplots()
-    ax.plot(f[sel], (acc / n)[sel], color=fg.PRIMARY, lw=0.9, zorder=3)
-    kinds = [("series", "a harmonic series", fg.SERIES[0]), ("power", "a supply (mains, 400-Hz bus)", fg.SERIES[1]),
-             ("codec", "the video file's own frames", fg.MUTED), ("frame", "the video's frame rate", fg.SERIES[2])]
+    y = (acc / n)[sel]
+    ax.plot(f[sel], y, color=fg.BLUE, lw=1.6, zorder=3)
+    kinds = [("series", "a harmonic series", fg.AMBER), ("power", "a supply (mains, 400-Hz bus)", fg.PURPLE),
+             ("codec", "the video file's own frames", "0.5"), ("frame", "the video's frame rate", fg.CYAN)]
     def kind(L):
         lab = L.get("is") or ""
         return ("series" if lab.startswith("a harmonic") else "power" if ("power" in lab or "mains" in lab)
                 else "codec" if "frames at" in lab else "frame" if "frame rate" in lab else None)
-    used = set()
-    for L in ls:
-        k = kind(L)
-        if k is None:
-            continue
-        col = dict((a, c) for a, _, c in kinds)[k]
-        ax.axvline(L["hz"], color=col, lw=1.0, ls=(0, (4, 2)), zorder=1)
-        used.add(k)
-    for hz in seconds:
-        ax.axvline(hz, color=fg.SERIES[3], lw=1.2, ls=(0, (1, 1.5)), zorder=2)
+    marks = [(L["hz"], dict((a, c) for a, _, c in kinds)[kind(L)]) for L in ls if kind(L) is not None]
+    used = {kind(L) for L in ls if kind(L) is not None}
     from matplotlib.lines import Line2D
     handles = [Line2D([], [], color=c, lw=1.2, ls=(0, (4, 2)), label=lab) for a, lab, c in kinds if a in used]
     if seconds:
-        handles.append(Line2D([], [], color=fg.SERIES[3], lw=1.2, ls=(0, (1, 1.5)), label="the second tone that names it"))
-    if handles:
-        ax.legend(handles=handles, frameon=True, facecolor=fg.SURFACE, edgecolor="none", framealpha=0.92, fontsize=8,
-                  loc="upper right").set_zorder(5)     # over the dashed lines, which a busy record draws through it
+        handles.append(Line2D([], [], color=fg.RED, lw=1.2, ls=(0, (1, 1.5)), label="the second tone that names it"))
     ax.set_xlim(BAND[0], top)
-    ax.set_xlabel("Frequency (Hz)", fontweight="bold")
-    ax.set_ylabel("Louder than its surroundings (dB)", fontweight="bold")
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    fig.tight_layout()
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Louder than its\nsurroundings (dB)")
+    if handles:                                        # the legend in a band over the spectrum; the marks stop under it
+        fg.legend_above(ax, handles=handles, loc="upper center", ncol=2 if len(handles) > 1 else 1, inside_first=False)
+    lo, hi = ax.get_ylim()
+    mark = min(1.0, (float(np.nanmax(y)) - lo) / (hi - lo) + 0.04)
+    for hz, col in marks:
+        ax.axvline(hz, ymax=mark, color=col, lw=1.0, ls=(0, (4, 2)), zorder=1)
+    for hz in seconds:
+        ax.axvline(hz, ymax=mark, color=fg.RED, lw=1.2, ls=(0, (1, 1.5)), zorder=2)
     fg.save(fig, path)
     return path
 

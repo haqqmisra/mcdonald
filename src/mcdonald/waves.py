@@ -1045,17 +1045,19 @@ def write(path, patches, results):
 
 def figure(path, name, patches, results, truth=None):
     """Per patch: the bins' rates against |K| along the fitted direction with the dispersion curve,
-    and the score profiles over the scale."""
-    from .figures import setup, save
-    plt = setup(9)
+    and the score profiles over the scale. In the house style (figures.setup)."""
+    from . import figures
+    plt = figures.setup()
+    TOP = 1.45                                      # the score panels' top: the scores end at 1, the legend sits over them
     n = len(patches)
-    fig, axes = plt.subplots(n, 2, figsize=(12, 3.6 * n), squeeze=False, constrained_layout=True)
+    fig, axes = plt.subplots(n, 2, figsize=(12, 4.0 * n), squeeze=False, constrained_layout=True)
     for row, pt in enumerate(patches):
         r = results[pt]
         a, bprof = axes[row]
         fs = r.get("shell")
         fr = r.get("rates", {})
         b = r.get("_bins")
+        a.set_title(f"Sea patch at ({pt[0]}, {pt[1]}), {pt[2]} pixels")
         if b is not None and fs and "_pg" in r:
             m, q, U = fs["m"], fs["q"], fs["U"]
             nu, _, share, _ = r["_pg"]
@@ -1080,41 +1082,37 @@ def figure(path, name, patches, results, truth=None):
             K = np.hypot(kk * np.cos(th) / m, kk * np.sin(th) / (m * q))
             Om = np.sqrt(G * K)
             kU = kk * (np.cos(th) * U[0] + np.sin(th) * U[1])
-            a.plot(-Om - kU, kk, color="C2", lw=1.3, label="the fitted scale")
-            a.plot(Om - kU, kk, color="C2", lw=1.3, ls="--")
+            a.plot(-Om - kU, kk, color=figures.CYAN, lw=1.8, label="the fitted scale")
+            a.plot(Om - kU, kk, color=figures.CYAN, lw=1.8, ls="--")
             if truth:
                 Kt = np.hypot(kk * np.cos(th) / truth[0], kk * np.sin(th) / (truth[0] * truth[1]))
-                a.plot(-np.sqrt(G * Kt) - kU, kk, color="w", lw=0.9, ls=":", label="the known scale")
-                a.plot(np.sqrt(G * Kt) - kU, kk, color="w", lw=0.9, ls=":")
+                a.plot(-np.sqrt(G * Kt) - kU, kk, color="w", lw=1.2, ls=":", label="the known scale")
+                a.plot(np.sqrt(G * Kt) - kU, kk, color="w", lw=1.2, ls=":")
             a.set_yscale("log")
             a.set_xlim(-lim, lim)
-            a.set_xlabel("Wave frequency (radians a second)", fontweight="bold")
-            a.set_ylabel("Wavenumber (radians a pixel)", fontweight="bold")
-            a.set_title(f"A {pt[2]}-pixel patch of sea at ({pt[0]}, {pt[1]}), along {fs['theta_deg']:.0f}°: {m:.3f} m a pixel, "
-                        f"foreshortened ×{q:.2f}, drifting ({U[0]:.0f}, {U[1]:.0f}) pixels a second", fontweight="bold", fontsize=9)
-            a.legend(loc="upper right", fontsize=8)
+            a.set_xlabel("Wave frequency (radians a second)")
+            a.set_ylabel("Wavenumber (radians a pixel)")
+            a.legend(loc="upper right")
         if fs:
-            bprof.plot(fs["m_grid"], fs["profile"], color="C0", lw=1.5, label="match to waves on deep water")
-            bprof.axhline(fs["null"], color="C0", ls=":", lw=1, label="the same, frames shuffled")
-            bprof.axhline(fs["drift_only"], color="C0", ls="--", lw=1, label="drift alone")
-            bprof.axvspan(*fs["band_m"], color="C0", alpha=0.12)
+            bprof.plot(fs["m_grid"], fs["profile"], color=figures.BLUE, lw=2, label="match to waves on deep water")
+            bprof.axhline(fs["null"], color=figures.BLUE, ls=":", lw=1.2, label="the same, frames shuffled")
+            bprof.axhline(fs["drift_only"], color=figures.BLUE, ls="--", lw=1.0, label="drift alone")
+            bprof.axvspan(*fs["band_m"], color=figures.BLUE, alpha=0.15, label="nearly the best score")
         if fr.get("ok"):
             tot = fr["profile"].min() / max(1e-12, 1 - fr["explained"]) if fr["explained"] < 1 else None
             expl = 1 - fr["profile"] / tot if tot else 1 - fr["profile"] / fr["profile"].max()
-            bprof.plot(fr["m_grid"], expl, color="C1", lw=1.5, label="share of the motion explained")
+            bprof.plot(fr["m_grid"], expl, color=figures.AMBER, lw=2, label="share of the motion explained")
         if truth:
-            bprof.axvline(truth[0], color="k", lw=1, ls="-.", label="the known scale")
+            bprof.axvline(truth[0], ymax=1.05 / TOP, color="k", lw=1, ls="-.", label="the known scale")
         bprof.set_xscale("log")
-        bprof.set_ylim(0, 1.05)
-        bprof.set_xlabel("Scale (metres a pixel)", fontweight="bold")
-        bprof.set_ylabel("Score", fontweight="bold")
-        bprof.legend(loc="lower left", fontsize=8)
-        if fs and fs["no_power"]:
-            bprof.set_title("can't tell: " + "; ".join(w[0] for w in fs["no_power"]), fontsize=9, color="C3")
-        else:
-            bprof.set_title("it finds a scale", fontsize=9)
-    fig.suptitle(f"{name}: the sea as a ruler", fontweight="bold")
-    save(fig, path, dpi=110)
+        bprof.set_ylim(0, TOP)                      # a band over the scores (which end at 1) for the legend, clear of them
+        bprof.set_yticks(np.arange(0, 1.01, 0.2))
+        bprof.set_xlabel("Scale (metres a pixel)")
+        bprof.set_ylabel("Score")
+        if bprof.get_legend_handles_labels()[0]:
+            bprof.legend(loc="upper center", ncol=2, columnspacing=1.0, handlelength=1.8)
+        bprof.set_title("Score against the scale")
+    figures.save(fig, path, dpi=200)
     plt.close(fig)
     return path
 

@@ -444,52 +444,43 @@ LAYER_WORDS = {"striated layer": "streaked background", "isotropic layer": "even
 
 
 def figure(out, clip, names, w, par, groups, say=print):
+    """The object's speed against each kind of background, a point a second; under it, the one background against the other
+    where both are in the picture, else how many groups the background moves in. In the house style (figures.setup)."""
     import matplotlib
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-    INK, INK2, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
-    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9.5, "axes.edgecolor": GRID,
-                         "axes.labelcolor": INK2, "xtick.color": INK2, "ytick.color": INK2, "text.color": INK,
-                         "figure.facecolor": SURF, "axes.facecolor": SURF, "savefig.facecolor": SURF})
+    from . import figures
+    plt = figures.setup()
     ns = np.arange(clip.n0, clip.n1 + 1)
     ser = lambda d: np.array([np.hypot(*d[n]) if n in d else np.nan for n in ns])
-    fig, (ax, bx) = plt.subplots(2, 1, figsize=(10, 6.2), sharex=True,
-                                 gridspec_kw=dict(height_ratios=[3, 1], hspace=0.18, left=0.08, right=0.8, top=0.88, bottom=0.09))
-    what = ("the object's speed against each kind of background" if w["striated"] or w["isotropic"] or w["all"] else
-            "how fast each kind of background crossed the picture")
+    fig, (ax, bx) = plt.subplots(2, 1, figsize=(10, 6.6), sharex=True, constrained_layout=True,
+                                 gridspec_kw=dict(height_ratios=[3, 1.5]))
     words = {k_: LAYER_WORDS.get(v_, v_) for k_, v_ in names.items()}      # the default names in plain words; a name given stays
-    fig.text(0.08, 0.955, f"{out.name.upper().split('_')[0]}: {what}", fontsize=12.5, weight="bold", va="center")
-    fig.text(0.08, 0.915, "Each point is one second of video. The background is sorted by its texture: streaked, like waves "
-             "and ridges, or even, like clouds and ground.", fontsize=9, color=INK2, va="center")
-    for a_ in (ax, bx):
-        a_.grid(axis="y", color=GRID, lw=0.8)
-        a_.set_axisbelow(True)
-        a_.tick_params(length=0)
-        for s in ("top", "right", "left"):
-            a_.spines[s].set_visible(False)
-    for key, col in (("striated", BLUE), ("isotropic", ORANGE)):
+    ax.set_title("Speed against the background" if w["striated"] or w["isotropic"] or w["all"] else
+                 "Speed of the background")
+    for key, col in (("striated", figures.BLUE), ("isotropic", figures.AMBER)):
         if w[key]:
-            v = ser(w[key])
-            ax.plot(clip.t(ns), v, color=col, lw=2, solid_capstyle="round", label=f"against the {words[key]}")
-            i = np.nonzero(np.isfinite(v))[0][-1]
-            ax.annotate(f"against the\n{words[key]}", (clip.t(ns[i]), v[i]), xytext=(8, 0), textcoords="offset points",
-                        fontsize=8.8, va="center", annotation_clip=False)
-    if not (w["striated"] and w["isotropic"]) and w["all"]:
-        ax.plot(clip.t(ns), ser(w["all"]), color=INK2, lw=1.6, label="against the whole background")
+            ax.plot(clip.t(ns), ser(w[key]), color=col, lw=2, solid_capstyle="round", label=f"against the {words[key]}",
+                    zorder=3)
+    if not (w["striated"] and w["isotropic"]) and w["all"]:         # wider and under the others: where one background is
+        sub = w["striated"] or w["isotropic"]                        # the whole of it (PR135), both lines still show
+        ax.plot(clip.t(ns), ser(w["all"]), color=figures.PURPLE if sub else figures.BLUE, lw=4.5 if sub else 2,
+                alpha=0.55 if sub else 1.0, label="against the whole background", zorder=2)
     ax.set_ylabel("Speed (pixels a second)")
-    ax.legend(loc="upper left", frameon=False, fontsize=8.8, ncol=3, handlelength=1.6, borderaxespad=0.0)
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(loc="best", handlelength=1.6)
     if par:
-        bx.plot(clip.t(ns), ser(par), color=AQUA, lw=2, solid_capstyle="round")
-        bx.set_title(f"The {words['isotropic']} against the {words['striated']} (both in the picture)", loc="left",
-                     fontsize=9.6, weight="bold", pad=5)
+        bx.plot(clip.t(ns), ser(par), color=figures.PURPLE, lw=2, solid_capstyle="round")
+        bx.set_title("One background against the other")
     else:
-        bx.plot(clip.t(ns), [groups.get(n, np.nan) for n in ns], color=INK2, lw=1.2)
-        bx.set_title("How many groups the background moves in", loc="left", fontsize=9.6, weight="bold", pad=5)
+        bx.plot(clip.t(ns), [groups.get(n, np.nan) for n in ns], color=figures.PURPLE, lw=1.8)
+        bx.set_title("Groups the background moves in")
+        from matplotlib.ticker import MaxNLocator
+        bx.yaxis.set_major_locator(MaxNLocator(integer=True))     # a count: whole numbers only
     bx.set_ylim(bottom=0)
-    bx.set_ylabel("Speed (pixels a second)" if par else "Groups")
+    bx.set_ylabel("Speed\n(pixels a second)" if par else "Number of groups")
     bx.set_xlabel("Time in the video (s)")
-    fig.savefig(out, dpi=140)
+    figures.save(fig, out, dpi=200, quiet=True)
+    plt.close(fig)
     say(f"wrote {out}")
 
 

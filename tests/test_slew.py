@@ -529,8 +529,9 @@ def test_windows_are_cut_at_a_zoom_and_compared_within_their_state():
             h = Image.open(png[0]).size[1] if png else 0
         except ImportError:
             h = None
-        check(h is None or abs(h / (110 * 2.9 * 3) - 1) < 0.15, "the figure: the clip, then a row for each state",
-              f"{h} px tall, against {110 * 2.9 * 3:.0f} for three rows")
+        row = 200 * slew.FIG_ROW_IN          # pixels a row: saved at 200 dpi in the house style (2026-11-07)
+        check(h is None or abs(h / (row * 3) - 1) < 0.15, "the figure: the clip, then a row for each state",
+              f"{h} px tall, against {row * 3:.0f} for three rows")
     st = {r["state"]: r for r in f["states"]}
     check(len(f["windows"]) == 2 and [w["state"] for w in f["windows"]] == [0, 1], "one window in each state",
           f"{[(w['window'], w['state']) for w in f['windows']]}")
