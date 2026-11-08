@@ -274,8 +274,14 @@ def clear(fig, reach=24, step=2):
             placed.append(_box(leg, r))
         for t in texts:
             tb = _box(t, r)
-            if not _meet(tb, abox):
-                continue                          # outside the axes, where no line is drawn
+            if not _meet(tb, abox):               # outside the axes, where no line is drawn: but not over another, nor off
+                fb = _box(fig, r, pad=0)
+                if not _inside(tb, (fb[0] - 1, fb[1] - 1, fb[2] + 1, fb[3] + 1)):
+                    left.append((ax, t, f"'{t.get_text()[:40]}' runs off the figure"))
+                elif any(_meet(tb, p) for p in placed):
+                    left.append((ax, t, f"'{t.get_text()[:40]}' overlaps another label beside the plot"))
+                placed.append(tb)
+                continue
             if not _crosses(polys, points, tb) and not any(_meet(tb, p) for p in placed):
                 placed.append(tb)
                 continue
@@ -294,6 +300,9 @@ def clear(fig, reach=24, step=2):
             placed.append(tb)
     # text over text elsewhere in the figure, and text off the figure: for the layout to fix
     fbox = _box(fig, r, pad=0)
+    for leg in fig.legends:
+        if leg.get_visible() and not _inside(_box(leg, r, pad=0), (fbox[0] - 1, fbox[1] - 1, fbox[2] + 1, fbox[3] + 1)):
+            left.append((None, leg, "the legend runs off the figure"))
     labelled = []
     for ax in fig.axes:
         for t in [ax.xaxis.label, ax.yaxis.label, ax.title, getattr(ax, "_left_title", None), getattr(ax, "_right_title", None)]:
@@ -468,40 +477,95 @@ def track_frame(clip, track, rate, against, extent, path, width=FigureSize.NOTE)
     ax = fig.add_axes([0, 0, 1, H / W * width / (width * H / W + top)])
     ax.imshow(img, interpolation="lanczos")
     xs, ys = [track[n][0] for n in ns], [track[n][1] for n in ns]
-    ax.plot(xs, ys, "-", color=SERIES[1], lw=1.6)
+    ax.plot(xs, ys, "-", color=AMBER, lw=1.6)
     span = (ns[-1] - ns[0]) / fps
     step = 0.5 if span >= 1.5 else max(span / 4, 1 / fps)
     t = ns[0] / fps
-    shown = set()
+    dots = []
     while t <= ns[-1] / fps + 1e-9:
         n = min(ns, key=lambda k: abs((k - 1) / fps - t))
-        if n not in shown:
-            shown.add(n)
-            x, y = track[n]
-            ax.plot(x, y, "o", ms=6, mfc=SERIES[1], mec="white", mew=1.0)
-            ax.text(x + 0.012 * W, y - 0.012 * H, f"{(n - 1) / fps:.1f} s" if step >= 0.1 else f"{(n - 1) / fps:.2f} s",
-                    color="white", fontsize=8, weight="bold", path_effects=None)
+        if n not in dots:
+            dots.append(n)
+            ax.plot(*track[n], "o", ms=6, mfc=AMBER, mec="white", mew=1.0)
         t += step
-    if rate is not None:
-        xe, ye = track[ns[-1]]
-        ax.text(min(xe + 0.02 * W, 0.72 * W), min(ye + 0.04 * H, 0.9 * H),
-                f"{rate:.0f} pixels a second ({rate / fps:.1f} a frame)\n{AGAINST.get(against, against)}", color="white", fontsize=9, va="top",
-                bbox=dict(boxstyle="round,pad=0.3", fc="black", ec="none", alpha=0.55))
+    ax.set_xticks([]), ax.set_yticks([])
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    # what is written on the picture goes where the path is not (Jacob, 2026-11-07: no text over lines): the enlarged
+    # object and the rate each to the first corner the path keeps clear of, each time beside its dot on the first side
+    # clear of the path, the dots and the times already placed. A path that doubles back can crowd a time out: its dot stays.
+    if not hasattr(fig.canvas, "get_renderer"):
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        FigureCanvasAgg(fig)
+    fig.draw_without_rendering()
+    r = fig.canvas.get_renderer()
+    polys, points = _lines_px(ax)
+    abox = _box(ax, r, pad=0)
+    placed = []
+
+    def free(box):
+        return _inside(box, abox) and not _crosses(polys, points, box) and not any(_meet(box, b) for b in placed)
+
+    def crowd(box):                                # how much of the path a box would cover, to choose the least bad
+        xy = np.concatenate(polys + points) if polys or points else np.zeros((0, 2))
+        return int(((xy[:, 0] >= box[0]) & (xy[:, 0] <= box[2]) & (xy[:, 1] >= box[1]) & (xy[:, 1] <= box[3])).sum())
     x, y = track[mid]
     half = int(max(12, 1.5 * (extent or 9)))
     cx, cy = int(round(x)), int(round(y))
     crop = img[max(cy - half, 0):cy + half + 1, max(cx - half, 0):cx + half + 1]
     if crop.size:
-        ins = ax.inset_axes([0.79, 0.03, 0.19, 0.19 * W / H])
+        w_in, h_in = 0.19, 0.19 * W / H
+        spots = [[0.79, 0.03, w_in, h_in], [0.79, 0.97 - h_in, w_in, h_in], [0.02, 0.03, w_in, h_in], [0.02, 0.97 - h_in, w_in, h_in]]
+        boxes = [ax.transAxes.transform([(b[0], b[1]), (b[0] + b[2], b[1] + b[3])]).ravel() for b in spots]
+        boxes = [(b[0] - 3, b[1] - 3, b[2] + 3, b[3] + 3) for b in boxes]
+        i = next((i for i, b in enumerate(boxes) if free(b)), min(range(4), key=lambda i: crowd(boxes[i])))
+        ins = ax.inset_axes(spots[i])
         ins.imshow(crop, interpolation="nearest")
         ins.set_xticks([]), ins.set_yticks([])
         for sp in ins.spines.values():
             sp.set_edgecolor("white")
-        ins.text(0.04, 0.04, f"×{ins.get_position().width * fig.get_size_inches()[0] * 100 / crop.shape[1]:.0f}"
+        ins.text(0.04, 0.04, f"×{w_in * width * 100 / crop.shape[1]:.0f}"
                  + (f": about {extent:.0f} pixels across" if extent else ""), transform=ins.transAxes, color="white", fontsize=7.5)
-    ax.set_xticks([]), ax.set_yticks([])
-    for sp in ax.spines.values():
-        sp.set_visible(False)
+        placed.append(boxes[i])
+    if rate is not None:
+        words = f"{rate:.0f} pixels a second ({rate / fps:.1f} a frame)\n{AGAINST.get(against, against)}"
+        tried = []
+        for fx, fy, ha, va in ((0.02, 0.03, "left", "bottom"), (0.02, 0.97, "left", "top"), (0.98, 0.97, "right", "top"),
+                               (0.98, 0.03, "right", "bottom"), (0.5, 0.03, "center", "bottom"), (0.5, 0.97, "center", "top")):
+            tx = ax.text(fx, fy, words, transform=ax.transAxes, ha=ha, va=va, color="white", fontsize=9,
+                         bbox=dict(boxstyle="round,pad=0.3", fc="black", ec="none", alpha=0.55))
+            b = _box(tx, r, pad=3)
+            tried.append((tx, b))
+            if free(b):
+                break
+        else:                                      # every place has the path: the one over the least of it, clear of the inset
+            ok = [q for q in tried if not any(_meet(q[1], b) for b in placed)] or tried
+            tried.sort(key=lambda q: (q not in ok, crowd(q[1])))
+        keep = tried[-1] if free(tried[-1][1]) else tried[0]
+        for tx, _ in tried:
+            if tx is not keep[0]:
+                tx.remove()
+        placed.append(keep[1])
+    from matplotlib import patheffects
+    halo_ = [patheffects.withStroke(linewidth=2.2, foreground="black")]
+    pt = fig.dpi / 72.0
+    sides = [(1, 1), (1, -1), (-1, 1), (-1, -1), (1, 0), (-1, 0), (0, 1), (0, -1)]
+    order = [dots[0], dots[-1]] + dots[1:-1] if len(dots) > 1 else dots       # the first and last times first
+    for n in order:
+        words = f"{(n - 1) / fps:.1f} s" if step >= 0.1 else f"{(n - 1) / fps:.2f} s"
+        for d in (6, 10, 16):
+            for sx, sy in sides:
+                tx = ax.annotate(words, track[n], xytext=(sx * d, sy * d), textcoords="offset points", color="white", fontsize=8,
+                                 weight="bold", ha={1: "left", -1: "right", 0: "center"}[sx],
+                                 va={1: "bottom", -1: "top", 0: "center"}[sy], path_effects=halo_, annotation_clip=False)
+                b = _box(tx, r, pad=2 * pt)
+                if free(b):
+                    placed.append(b)
+                    break
+                tx.remove()
+            else:
+                continue
+            break
     fig.text(0.01, 1 - 0.05 / (width * H / W + top), f"The object's path over frames {ns[0]}–{ns[-1]}",
              fontsize=TITLE_PT, va="top")                     # a short title (the house style); the caption says the rest
     save(fig, path, dpi=200)
@@ -535,6 +599,11 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     per = (lambda kk: extent * R / kk) if extent else (lambda kk: rate * R / kk)
     lines = [(k, f"{fov:.2g}° view" if fov else "this video", True)] if k else \
         [((width_px / 2) / math.tan(math.radians(f) / 2), f"{f:g}° view", False) for f in FOVS]     # none is favoured
+    keys = []
+    if k:                                         # where the one line's scale came from: given, or the angle marks
+        how = ("from the angle marks on the display" if str(k_from).startswith("graticule") else "as given")
+        keys.append(Line2D([], [], color=BLUE, lw=2.2, label=(f"the line for a {fov:.2g}° view, {how}" if fov else
+                                                              f"the line for {k * math.pi / 180:.1f} pixels a degree, {how}")))
     for kk, label, hot in lines:
         y = per(kk)
         ax.plot(R, y, color=BLUE, lw=2.2 if hot else 1.8, zorder=3)
@@ -550,7 +619,6 @@ def size_speed(rate, extent, width_px, path, k=None, k_from=None, R_known=None, 
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v / 1000:g} km" if v >= 1000 else f"{v:g} m"))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}"))
     ax.set_xlabel("Distance to the object")
-    keys = []
     mach = A_SOUND / ratio if extent else A_SOUND                 # Mach 1, in the left axis's units
     ax.axhline(mach, color="black", lw=1.0, ls=":", zorder=1)
     keys.append(Line2D([], [], color="black", lw=1.0, ls=":", label="Mach 1, the speed of sound"))
@@ -616,10 +684,11 @@ def speed_band(path, series, band, fps, pairs=None, width=FigureSize.NOTE):
                                                         else f"average, {vm:.0f} ± {em:.1f} pixels a second"))
     if changed:
         ax.axhline(vp, color=PURPLE, lw=1.2, ls=":", label=f"along its path, {vp:.0f} ± {ep:.1f} pixels a second")
+    data_top = max(float(np.max(v + 2 * s)), float(np.max(pairs[1])) if pairs is not None and len(pairs[0]) else 0.0, vm, vp or 0.0)
     steps = [f for f in ((band.get("jumps") or {}).get("flags") or []) if f["kind"] == "step"]
     for i, f in enumerate(steps):                   # a step the jump test named and the band kept: its rate there is the step's
-        ax.axvline((f["frame"] - 1) / float(fps), color=MUTED, lw=0.8, ls=":", label="a step in the track (kept)" if i == 0 else None)
-    data_top = max(float(np.max(v + 2 * s)), float(np.max(pairs[1])) if pairs is not None and len(pairs[0]) else 0.0, vm, vp or 0.0)
+        ax.vlines((f["frame"] - 1) / float(fps), 0, (data_top or 1.0) * 1.04, color=MUTED, lw=0.8, ls=":",   # up to the data
+                  label="a step in the track (kept)" if i == 0 else None)                                  # only: the legend's room
     ax.set_ylim(0, (data_top or 1.0) * 1.62)       # the legend's room above the data
     ax.set_xlim(t[0], t[-1])
     ax.set_ylabel("Speed (pixels a second)")
@@ -666,9 +735,10 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
     ax.fill_between(edge[:, 0], -edge[:, 1], edge[:, 1], color=BLUE, alpha=0.16, lw=0)
     keys = [Patch(color=BLUE, alpha=0.16, label="what the video allows")]
     R = np.geomspace(max(reg["R_lo"] / 3, 0.5), reg["R_hi"] * 3, 400)
-    for v, name in ((10, "10 m/s"), (30, "30 m/s"), (100, "100 m/s"), (A_SOUND, "Mach 1"), (2 * A_SOUND, "Mach 2"), (v_cap, f"the limit, {v_cap:.0f} m/s")):
-        if v > v_cap + 1e-9:
-            continue
+    speeds = [(v, name) for v, name in ((10, "10 m/s"), (30, "30 m/s"), (100, "100 m/s"), (A_SOUND, "Mach 1"),
+                                         (2 * A_SOUND, "Mach 2"), (v_cap, f"the limit, {v_cap:.0f} m/s"))
+              if 0.07 * v_cap <= v <= v_cap + 1e-9]       # a curve under 7 % of the height is a sliver on the zero line
+    for v, name in speeds:
         rr = R[om * R <= v]
         if len(rr) < 2:
             continue
@@ -676,8 +746,9 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
         mach = name.startswith("Mach")
         ax.plot(rr, rd, "--", color="black" if mach else MUTED, lw=1.0 if mach else 0.8)
         ax.plot(rr, -rd, "--", color="black" if mach else MUTED, lw=1.0 if mach else 0.8)
-        ax.text(rr[-1] * 1.04, 0.04 * v_cap, name, fontsize=TICK_PT - 2, color="black" if mach else SECONDARY,
-                ha="left", va="bottom", rotation=90)        # just past where the curve meets zero, clear of it
+        top = v >= v_cap - 1e-9                        # the limit's line is the plot's top: its name goes under it
+        ax.text(R[0] * 1.06, v * (0.97 if top else 1.0) + (-0.02 if top else 0.02) * v_cap, name, fontsize=TICK_PT - 1,
+                color="black" if mach else SECONDARY, ha="left", va="top" if top else "bottom")
     for (what, side), ls in zip(reg["bounds"], ("-", "--", "-.", ":")):
         x = reg["R_lo"] if side == "low" else reg["R_hi"]
         ax.axvline(x, color=AMBER, lw=1.4, ls=ls)
@@ -692,12 +763,11 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
     ax.set_xlim(R[0], R[-1])
     ax.set_ylim(-1.05 * v_cap, 1.05 * v_cap)
     ax.set_xlabel("Distance to the object (m)")
-    ax.set_ylabel("Change of distance (m/s)")
+    ax.set_ylabel("Change of distance (m/s; − is closing)")
     if k and p_px:
         top = ax.secondary_xaxis("top", functions=(lambda r: p_px * r / k, lambda S: S * k / p_px))
         top.set_xlabel("The object's size at that distance (m)")
     ax.set_title("What the video allows" if not (k and p_px) else "")
-    ax.text(0.01, 0.02, "− is closing", transform=ax.transAxes, fontsize=TICK_PT - 2, color=SECONDARY, va="bottom")
     fig.legend(handles=keys, loc="outside lower center", ncol=2)
     save(fig, path, dpi=200)
     plt.close(fig)
@@ -829,7 +899,7 @@ def beat(path, fps, ns, curves, seg, scale, beats, tracks, bgs, lines=(), trend=
     if lines:
         handles.append(Line2D([], [], color=MUTED, lw=1.0, ls=(0, (1, 1.5))))
         labels.append("Video file's rhythm")
-    fig.legend(handles, labels, loc="outside upper center", ncol=min(len(labels), 4), handlelength=3)
+    fig.legend(handles, labels, loc="outside upper center", ncol=2, handlelength=3)
     save(fig, path, dpi=200, quiet=True)
     plt.close(fig)
     return str(path)
@@ -846,9 +916,12 @@ def fold(path, rows, fps):
     from matplotlib.patches import Circle, Rectangle
     plt = setup()
     rows = list(rows)[:6]
-    fig = plt.figure(figsize=(FigureSize.AIAA_FULL, 0.9 + 1.75 * len(rows)), layout="constrained")
-    gs = fig.add_gridspec(len(rows), 6, width_ratios=[2.1, 1, 1, 1, 1, 1.7])
+    fig = plt.figure(figsize=(8.0, 1.0 + 1.75 * len(rows)), layout="constrained")
+    gs = fig.add_gridspec(len(rows), 6, width_ratios=[1.7, 1, 1, 1, 1, 1.6])
     small = TICK_PT - 2
+
+    def note(a, words):                            # a small plain caption under a picture (an axis label would be bold)
+        a.text(0.5, -0.06, words, transform=a.transAxes, ha="center", va="top", fontsize=small, color=SECONDARY)
     for i, (name, num, pics) in enumerate(rows):
         col = HOUSE[i % len(HOUSE)]
         nb = len(num["bins"])
@@ -867,7 +940,7 @@ def fold(path, rows, fps):
         ax.set_xlabel("Through each beat (cycles)" if i == len(rows) - 1 else "")
         bright, dim, diff, scene = pics[:4]
         cmap = pics[4] if len(pics) > 4 else None
-        heads = ("Bright half", "Dim half", "Difference")
+        heads = ("Bright", "Dim", "Difference")
         if bright is not None:
             lo_, hi_ = float(min(bright.min(), dim.min())), float(max(bright.max(), dim.max()))
             d = max(float(np.abs(diff).max()), 1e-6)
@@ -886,8 +959,7 @@ def fold(path, rows, fps):
                 if i == 0:
                     a.set_title(head, fontsize=small + 1)
                 if j == 2 and num.get("concentration") is not None:
-                    a.set_xlabel(f"{num['in_aperture_share']:.0%} in ring ({num['concentration']:.1f}x)", fontsize=small,
-                                 fontweight="normal")
+                    note(a, f"{num['in_aperture_share']:.0%} in ring")
         a = fig.add_subplot(gs[i, 4])                     # the same by phase (flicker.phase_map, item 8)
         if cmap is not None:
             a.imshow(cmap, cmap="viridis", vmin=0, vmax=1, interpolation="nearest")
@@ -895,7 +967,7 @@ def fold(path, rows, fps):
             rad = S * np.sqrt(num["area_share"] / np.pi) * np.sqrt(np.pi) if num.get("area_share") else 4.0
             a.add_patch(Circle((S, S), rad, fill=False, ec=AMBER, lw=1.0, ls=(0, (2, 1.5))))
             if num.get("phase_inside") is not None and num.get("phase_outside") is not None:
-                a.set_xlabel(f"{num['phase_inside']:.2f} in, {num['phase_outside']:.2f} out", fontsize=small, fontweight="normal")
+                note(a, f"in {num['phase_inside']:.2f}, out {num['phase_outside']:.2f}")
         a.set_xticks([])
         a.set_yticks([])
         if i == 0:
@@ -908,7 +980,7 @@ def fold(path, rows, fps):
                 x0, y0, hw, hh = num["at"]
                 a.add_patch(Rectangle((x0 - hw, y0 - hh), 2 * hw, 2 * hh, fill=False, ec=AMBER, lw=1.0))
             if num.get("scene_rms") is not None:
-                a.set_xlabel(f"rest of picture {num['scene_rms']:.2f} levels", fontsize=small, fontweight="normal")
+                note(a, f"elsewhere {num['scene_rms']:.2f} levels")
         a.set_xticks([])
         a.set_yticks([])
         if i == 0:
@@ -932,8 +1004,8 @@ def noise(path, rows, fps):
     rows = list(rows)[:6]
     fig, axes = plt.subplots(len(rows), 1, figsize=(FigureSize.AIAA_FULL, 1.0 + 1.6 * len(rows)), squeeze=False,
                              layout="constrained")
-    fills = ((FAINT, 1.0, "the background, up to its median"), (DIM, 1.0, "to its 90th centile"),
-             (SECONDARY, 0.35, "to its 99th centile"))
+    fills = ((FAINT, 1.0, "The background, up to its median"), (DIM, 1.0, "Up to its 90th centile"),
+             (SECONDARY, 0.35, "Up to its 99th centile"))
     for i, (name, arr, hz, lines, num) in enumerate(rows):
         ax = axes[i, 0]
         col = HOUSE[i % len(HOUSE)]
@@ -953,13 +1025,14 @@ def noise(path, rows, fps):
         ax.axvline(hz, color=RED, lw=1.2, zorder=3)
         ax.set_yscale("log")
         ax.set_xlim(1.0, 0.5 * fps)
-        ax.set_title(f"{name}, {hz:.2f} Hz" + (f": above {num['centile']:.0f} % of the background's {num['windows']} windows"
-                                               if num and num.get("centile") is not None else ""), loc="left")
+        ax.set_title(f"{name}, {hz:.2f} Hz", loc="left")       # the name on the left, the finding on the right: each short
+        if num and num.get("centile") is not None:
+            ax.set_title(f"above {num['centile']:.0f} % of {num['windows']} background windows", loc="right")
         ax.set_xlabel("Beats a second (Hz)" if i == len(rows) - 1 else "")
     fig.supylabel("Strength in each window (%)", fontweight="bold", fontsize=LABEL_PT)
     keys = [Patch(color=c, alpha=a, label=lab) for c, a, lab in fills] + \
-        [Line2D([], [], color=HOUSE[0], lw=1.5, label="the object"), Line2D([], [], color=RED, lw=1.2, label="its beat"),
-         Line2D([], [], color=MUTED, lw=1.0, ls=(0, (2, 2)), label="the video file's rhythm")]
+        [Line2D([], [], color=HOUSE[0], lw=1.5, label="The object"), Line2D([], [], color=RED, lw=1.2, label="Its beat"),
+         Line2D([], [], color=MUTED, lw=1.0, ls=(0, (2, 2)), label="The video file's rhythm")]
     fig.legend(handles=keys, loc="outside upper center", ncol=3)
     save(fig, path, dpi=200, quiet=True)
     plt.close(fig)
