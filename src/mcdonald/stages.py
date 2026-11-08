@@ -212,6 +212,31 @@ def around(frames, clip, seconds=2.0):
     return max(clip.n0, min(frames) - pad), min(clip.n1, max(frames) + pad)
 
 
+def track_placed(track_csv):
+    """(who, what it says) of a track file given alone (`run --track`), from its own first lines: ("hand", "linked") where
+    it says it was linked from hand marks (`autolink.write_track_csv`, a marks file's own "hand marks"); ("not by hand",
+    why) where it says its marks were not a hand's, or an agent's (`share make`'s tracks are an agent's); (None, None)
+    where it says nothing of who placed its points -- the report's checklist then says that (2026-11-07: before, a track
+    given alone was said to be "placed on the frames by hand" whatever made it)."""
+    import re
+    try:
+        with open(track_csv, encoding="utf-8") as f:
+            head = [ln.lstrip('"').strip() for ln in f if ln.lstrip().lstrip('"').startswith("#")]
+    except (OSError, UnicodeDecodeError):
+        return None, None
+    for ln in head:
+        m = re.search(r"NOT (?:placed by a hand on the frame|hand positions)\W*(.*)", ln)
+        if m:
+            why = m.group(1).strip(" -.:")
+            return "not by hand", "" if why.startswith("see the") else why[:120]
+        if "written by mcdonald share make" in ln:
+            return "not by hand", "an agent's track, made into marks by share make"
+    for ln in head:
+        if "linked from hand marks" in ln or re.match(r"#\s*hand marks\b", ln):
+            return "hand", "linked" if "linked" in ln else None
+    return None, None
+
+
 def confirm_sheet(case_json, how, command=None):
     """A case whose track sheet was not confirmed, confirmed afterwards: the case read back from its
     `_case.json` (`report.Case.load`), the verify stage amended -- reviewed, and how -- the need and the
@@ -1316,6 +1341,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     masks = masks if masks is not None else vf.static_masks(clip, progress=at("ingest"))
     rows = vf.parse_rows(mask_rows)
     trk = None
+    placed = (None, None)
     if marks:
         from . import autolink
         from .mark import MarkSet
@@ -1339,6 +1365,9 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 dark = link.dark if dark is None else dark     # look at its pixels must look for that, not a default
         ms = MarkSet(tag, video, clip.fps).load(marks)
         case.identified(ms.not_by_hand(), len(ms.marks.get("object", {})))
+        placed = ("not by hand", "the marks") if ms.not_by_hand() else ("hand", "linked")
+    elif track:                                            # a track alone: who made it, as far as its own file says
+        placed = track_placed(track)
     if track:
         trk = vf.read_track(track)
     size, dark = (9.0 if size is None else float(size)), bool(dark)
@@ -1377,7 +1406,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         if trk:
             case.add("track", dict(source=track, frames=len(trk), span=f"{min(trk)}-{max(trk)}"),
                      fields=dict(source=str(track), frames=len(trk), first=min(trk), last=max(trk),
-                                 object_size_px=size, object_is_dark=dark))
+                                 object_size_px=size, object_is_dark=dark, placed_by=placed[0], placed_said=placed[1]))
             say(f"  track: {len(trk)} frames from {track}")
         else:
             case.add("track", no_power=[("track", "no track supplied, so every object "
@@ -1393,7 +1422,9 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             # a window lays the sheet out for its screen; the command line pages it so that each page can be checked
             # on one screen (an agent on IMG_5611, 2026-10-28: "an 11520 x 4254 JPEG can't be checked on one screen")
             layout = sheet or tracksheet.paged(clip.n1 - clip.n0 + 1)
-            f = tracksheet.sheet(clip, [trk], prefix, dark=dark, title=rec["title"] if rec else None, procs=procs,
+            # the release's id at its head, not its title: 22 of PURSUE's 144 titles describe the object as an observer saw
+            # it ("Spherical", "TIC TAC", "fast moving"), and the person judging the sheet should not read that first (2026-11-07)
+            f = tracksheet.sheet(clip, [trk], prefix, dark=dark, title=rec["title"].split(",")[0] if rec else None, procs=procs,
                                  say=say, progress=at("verify"), stop=stop, **layout)
             how = "--i-looked"
             if callable(i_looked):                         # a window shows the sheet and asks; a command line was told

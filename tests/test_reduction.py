@@ -3609,11 +3609,15 @@ def test_checklist():
           "a case with nothing measured has no checklist, and its paragraph stands where it was")
 
     def case(still=1.0, rate=103.0, against=True, beat=None, beats=True, verdicts=None, companion=None, reviewed=False,
-             identified=None, rep=0, **kin):
+             identified=None, rep=0, placed=("hand", None), analytic=None, no_power=(), how=None, **kin):
         c = report.Case("t", "/tmp/x.mp4")
         report.Found("survey", {}, fields=dict(repeated_frames=rep, transients=[])).into(c)
-        report.Found("track", {"frames": 150}, fields=dict(frames=150, first=1, last=150, object_size_px=9.0)).into(c)
-        report.Found("verify", {"reviewed": "yes" if reviewed else "NOT CONFIRMED"}, fields=dict(reviewed=reviewed)).into(c)
+        tf = dict(frames=150, first=1, last=150, object_size_px=9.0, source="/tmp/x_track.csv")
+        if placed is not None:                       # None: a case from before 2026-11-07, which recorded nothing of it
+            tf.update(placed_by=placed[0], placed_said=placed[1])
+        report.Found("track", {"frames": 150}, fields=tf).into(c)
+        report.Found("verify", {"reviewed": (f"yes ({how})" if how else "yes") if reviewed else "NOT CONFIRMED"},
+                     fields=dict(reviewed=reviewed)).into(c)
         per = dict(all=dict(median=rate, p16=rate, p84=rate, windows=5)) if against else {}
         # the step's own no-power above half the pairs, in its words (`layers.measure`; `Case.behind_held_still` keys on them)
         held = [("layers", f"the scene is held still on screen even over 30 frames in {still:.0%} of pairs: a background rate there is an "
@@ -3633,7 +3637,9 @@ def test_checklist():
         report.Found("scale", {}, fields=dict(k_px_per_rad=kin.get("k"), k_from="ASSUMED from a field of view" if kin.get("k") else None)).into(c)
         if beat is not None:
             report.Found("flicker", {}, fields=dict(beats=beats, beat={"object": beat} if beat else {}, blink={"object": dict(train=False, shared=False)},
-                                                    tau={"object": dict(route=None, why="its size held, 5.0 px in radius: no trend in it stands out")})).into(c)
+                                                    tau={"object": dict(route=None, why="its size held, 5.0 px in radius: no trend in it stands out")},
+                                                    **({"analytic": {"object": analytic}} if analytic else {})),
+                         no_power=list(no_power)).into(c)
         if verdicts is not None:
             report.Found("integrity", dict(object_verdicts=verdicts), fields={}).into(c)
         report.Found("tether", dict(finding="x"), fields=dict(finding="x", r_max=40.0, companion=companion,
@@ -3708,6 +3714,21 @@ def test_checklist():
           and none["beat"]["answer"] == NO and none["beat"]["said"] == "no rhythm of its own stands out above the background beside it",
           "a beat in one stretch or too faint is Partly, one outside a wingbeat's band or none at all is No",
           str([x["beat"]["answer"] for x in (part, faint, slow, none)]))
+    # a "No" only where a bird's beat would have shown (2026-11-07): the track's own power at the floor, `flicker.analytic`'s
+    # with_floor; and a refusal is never a No, even with a peak measured on the way (2 + 5 tracks of the labelled set read No)
+    deaf = rows(case(beat={}, beats=False, analytic=dict(amplitude=0.05, with_floor=0.12)))
+    heard = rows(case(beat={}, beats=False, analytic=dict(amplitude=0.03, with_floor=0.05)))
+    white = rows(case(beat={}, beats=False, analytic=dict(amplitude=0.11, with_floor=None)))
+    refused = rows(case(beat=dict(hz=2.9, amplitude=0.19, comes_back=True, first=1, last=150), beats=None,
+                        no_power=[("beat", "the background beside it beats at the same frequency")]))
+    check(deaf["beat"]["answer"] == CANT and deaf["beat"]["said"] == "no rhythm of its own stands out, but this track is too noisy to show a "
+          f"bird's: a beat would need 12% of its brightness to be found three times in four, and a bird is named from {100 * report.BIRD_FLOOR:g}%"
+          and heard["beat"]["answer"] == NO and white["beat"]["answer"] == CANT
+          and refused["beat"]["answer"] == CANT and refused["beat"]["said"] == "the background beside it beats at the same frequency"
+          and "lookalike" not in refused,
+          "no beat on a track that could not have shown a bird's (its power at the floor) is Can't tell, with the amplitude it would need; "
+          "one that could is No; a refusal with a peak measured is Can't tell, in the stage's words",
+          str([x["beat"]["answer"] for x in (deaf, heard, white, refused)]))
     # a real speed: what the four unknowns allow
     full = rows(case(k=1884.0, range_m=1000.0, omega_rad_per_s=2.27, relative_speed_m_per_s=2300.0))
     far = rows(case(k=1884.0, omega_rad_per_s=2.27))
@@ -3722,11 +3743,78 @@ def test_checklist():
     passed = rows(case(verdicts={"cadence": "NO POWER", "smear": "PASS"}))
     agent = rows(case(identified={1: "agent: the disc that moves", 150: "agent: the disc that moves"}))
     looked = rows(case(reviewed=True))
-    check(flag["added"]["answer"] == YES and flag["added"]["said"].endswith("laid over the picture: cadence")
-          and passed["added"]["answer"] == NO and passed["added"]["said"] == "1 of the 2 checks could decide on this video, and it passes; the rest could not"
-          and agent["chosen"]["answer"] == NO and agent["chosen"]["said"].startswith("an AI agent placed the marks, not a person")
+    # who placed the track, only as far as it is known (2026-11-07): a track file given alone that says nothing of it is Can't
+    # tell -- 29 of the 31 reference objects said "a person placed the marks on the frames by hand" from `run --track`
+    linked, filed, said_not = rows(case(placed=("hand", "linked"))), rows(case(placed=(None, None))), rows(case(placed=("not by hand", "agent: from a paper")))
+    before_track, before_marks = case(placed=None), case(placed=None)
+    before_track.commands, before_marks.commands = ["mcdonald run x.mp4 --track x_track.csv"], ["mcdonald run x.mp4 --marks x_marks.json"]
+    check(got["chosen"]["said"] == "a person placed the marks on the frames by hand" and linked["chosen"]["answer"] == YES
+          and linked["chosen"]["said"] == "a person placed marks on the object by hand, and the computer linked the track between them"
+          and filed["chosen"]["answer"] == CANT and filed["chosen"]["said"] == "the track was read from a file, x_track.csv, that does not say who "
+          "or what placed its points" and said_not["chosen"]["answer"] == NO and "(agent: from a paper)" in said_not["chosen"]["said"]
+          and rows(before_track)["chosen"]["answer"] == CANT and rows(before_marks)["chosen"]["answer"] == YES,
+          "who chose the object: Yes from hand marks (linked or not), No where the track file says not a hand's, Can't tell where nothing "
+          "says -- a case from before read from its run command (--marks a hand's, --track alone not known)",
+          str([x["chosen"]["answer"] for x in (linked, filed, said_not, rows(before_track), rows(before_marks))]))
+    early, asked, after = (rows(case(reviewed=True, how=h))["checked"] for h in ("--i-looked", "asked with the sheet on the screen",
+                                                                                  "looked at afterwards, and said so in the window"))
+    check(early["answer"] == asked["answer"] == after["answer"] == YES and "before this run drew its track sheet" in early["said"]
+          and "an earlier run's sheet" in early["said"] and asked["said"].startswith("the track sheet was looked at when it was shown")
+          and after["said"].startswith("the track sheet was looked at after the report was written"),
+          "the sheet looked at says what was looked at, and when: `run --i-looked` is said before this run draws its sheet", early["said"])
+    drawn = rows(case(verdicts={"layer order: symbology": "FLAG", "smear": "PASS"}))
+    check(flag["added"]["answer"] == report.INCONSISTENT and flag["added"]["said"] == "1 of the 2 checks say it behaves like something laid "
+          "over the picture: cadence; no check has been tested on a real insert"
+          and drawn["added"]["said"].endswith("; no check has been tested on a real insert, and the layer order's has flagged a line of birds")
+          and passed["added"]["answer"] == report.CONSISTENT and passed["added"]["said"] == "1 of the 2 checks could decide on this video, and it "
+          "passes; the rest could not; no check has been tested on a real insert"
+          and flag["added"]["test"] == "Is it consistent with the camera's own picture, rather than added afterwards?",
+          "integrity's row says agreement, not Yes or No (2026-11-07, Dx7): Inconsistent where a check flags it, Consistent where those that "
+          "could decide pass, each with the checks' untested limit and, for layer order, its known false flag", flag["added"]["said"])
+    check(agent["chosen"]["answer"] == NO and agent["chosen"]["said"].startswith("an AI agent placed the marks, not a person")
           and looked["checked"]["answer"] == YES and "| **Yes** | the track sheet was looked at" in case(reviewed=True).markdown(),
-          "a flagged integrity test is Yes and a passed one No; marks an agent placed say so; the sheet looked at turns Not yet to Yes")
+          "marks an agent placed say so; the sheet looked at turns Not yet to Yes")
+    # what the conclusion rests on (E7) and how sure it is (S17), session 18 (2026-11-07)
+    from mcdonald import controls
+    w = controls.weigh("named", "stage", report.BIRD_FLOOR)
+    rs = c.reasons()
+    check([r["key"] for r in rs] == ["beat", "lookalike"] and rs[0]["premise"] and rs[0]["weight"] == "for a bird"
+          and rs[0]["lr"] == round(w["lr"], 3) and rs[0]["said"].startswith(report.Case.BEAT_LEAD["named"])
+          and w["said"] in rs[0]["said"] and rs[0]["said"].endswith(report.Case.ONE_CURVE)
+          and rs[1]["weight"] == "none" and "carries no weight" in rs[1]["said"],
+          "a bird named: the beat first, weighed once on the labelled set (how many times as common on birds), then what else could "
+          "beat so, which nothing weighs", " / ".join(r["said"][:60] for r in rs))
+    heard = case(beat={}, beats=False, analytic=dict(amplitude=0.03, with_floor=0.05))
+    ship_c = case(scale_bar_m_per_s=115.0)
+    flagged = case(beat={}, beats=False, analytic=dict(amplitude=0.03, with_floor=0.05), verdicts={"cadence": "FLAG", "smear": "PASS"})
+    nophys, sub, fl = heard.reasons(), ship_c.reasons(), flagged.reasons()
+    check(nophys[0]["key"] == "real" and nophys[0]["premise"] and nophys[0]["said"].startswith("No real speed: it needs")
+          and nophys[1]["key"] == "beat" and nophys[1]["weight"] == "against a bird" and not nophys[1]["premise"]
+          and sub[0]["key"] == "real" and sub[0]["weight"] == "bound" and "follows by arithmetic" in sub[0]["said"]
+          and [r["key"] for r in fl] == ["real", "beat", "added"] and fl[2]["said"].startswith("Not consistent with the camera's own picture")
+          and len(fl) <= 4 and report.Case("t", "/tmp/x.mp4").reasons() == [],
+          "no bird named: the label's own reason first (no real speed; a speed bounded by arithmetic), then the beat's 'No' weighed "
+          "against a bird, then integrity, which nothing weighs; at most four; none where nothing was concluded",
+          " / ".join(r["key"] + ":" + r["weight"] for r in fl))
+    g = c.grade()
+    unknown, looked_g, sure = case(beat=bird, placed=(None, None)), case(beat=bird, reviewed=True), case(beat=bird, reviewed=True)
+    faint_g = case(beat=dict(bird, amplitude=0.1), reviewed=True, analytic=dict(amplitude=0.02, with_floor=0.03, sigma=0.2, frames=150))
+    short = case(beat=bird, reviewed=True)
+    short.stages["track"]["fields"]["frames"] = 100
+    level = lambda x: x.grade()["level"]
+    check(g["level"] == "Moderate" and [d["concern"] for d in g["domains"]] == ["serious", "none", "none", "none"]
+          and g["said"] == "How sure: moderate. Nobody has said they looked at the track sheet."
+          and level(unknown) == "Low" and "who picked the object is not recorded" in unknown.grade()["said"]
+          and level(sure) == "High" and level(faint_g) == "Moderate" and "may be under the" in faint_g.grade()["said"]
+          and level(short) == "Moderate" and "too few of them" in short.grade()["said"]
+          and report.Case("t", "/tmp/x.mp4").grade() is None and report.Case.GRADE_LEVELS == ("High", "Moderate", "Low", "Very low"),
+          "the grade: down one for each serious concern -- the track not looked at (very serious with who chose the object not "
+          "recorded), a beat whose own error reaches under the floor, a track shorter than the labelled ones -- and high where "
+          "none; none where nothing was concluded", f"{g['level']}, {level(unknown)}, {level(sure)}, {level(faint_g)}, {level(short)}")
+    md = c.markdown()
+    check(md.index(f"**{c.conclusion()[0]}.**") < md.index("*How sure: moderate.") < md.index("What it rests on, the heaviest first:")
+          < md.index("| What was checked |") and "1. " + rs[0]["said"] in md,
+          "the report: the conclusion, how sure it is, what it rests on, then the checklist")
     # coming or going: a tau from its size, a path that fits an approach, a bound, or its size held
     tau = case(beat=bird); tau.stages["flicker"]["fields"]["tau"] = {"object": dict(route="looming", tau_s=2.0, tau_err_s=0.3)}
     approach = rows(case(projective=dict(closing=True, fits=True, T=0.8, misfit=1.0)))
@@ -3738,6 +3826,79 @@ def test_checklist():
           and rows(case())["closing"]["answer"] == CANT and rows(case())["closing"]["said"].startswith("its path fits a straight line at a steady speed only roughly"),
           "coming or going: Yes from its size or a path that fits an approach, No as a bound, Can't tell where its size held or its path "
           "fits only roughly", str([x["closing"]["answer"] for x in (rows(tau), approach, bound, rows(case(beat=bird)), rows(case()))]))
+
+
+def test_controls_weights_and_plot():
+    """The labelled infrared set as the report's control population (session 18, 2026-11-07): the packaged table
+    (`controls_beat.csv`) against the data folder's whole table where it is there, the beat row's answers weighed on it
+    -- a bird named 35.6 times as common on birds under the stage's rule at 8 %, 63.9 under the paper's, the old "No"'s
+    two halves 0.42 and 4.5 -- the screening words, and the discriminant plot drawn in the house style with nothing over
+    a line (S20)."""
+    print("\nthe control population: the labelled infrared set's weights, the screening words and the plot")
+    import csv as _csv
+    import os
+    import tempfile
+    from mcdonald import controls, figures
+    rows = controls.tracks()
+    check(len(rows) == 432 and sum(r["bird"] for r in rows) == 125 and len({r["clip"] for r in rows}) == 365,
+          "the packaged table: 432 tracks, 125 birds, 365 clips")
+    src = Path(os.environ.get("MCDONALD_DATA", "/models/data/mcdonald")) / "controls" / "svanstrom_tracks.csv"
+    if src.exists():
+        with tempfile.TemporaryDirectory() as td:
+            controls.make(src, Path(td) / "t.csv")
+            same = (Path(td) / "t.csv").read_bytes() == controls.TABLE.read_bytes()
+        check(same, "the packaged table is the data folder's whole table, cut (`python3 -m mcdonald.controls` remakes it)")
+    else:
+        print(f"  SKIP  the data folder's table ({src})")
+    got = {(k, rule): controls.weigh(k, rule, 0.08) for k in controls.KINDS for rule in controls.RULES}
+    r3 = lambda x: round(x, 2)
+    check(r3(got["named", "stage"]["lr"]) == 35.61 and got["named", "stage"]["birds"] == [29, 125] and got["named", "stage"]["others"] == [2, 307]
+          and round(got["named", "paper"]["lr"], 1) == 63.9 and got["named", "stage"]["weight"] == "for"
+          and r3(got["none", "stage"]["lr"]) == 0.42 and got["none", "stage"]["weight"] == "against"
+          and r3(got["deaf", "stage"]["lr"]) == 4.48 and got["refused", "stage"]["weight"] == "none"
+          and got["once", "stage"]["weight"] == "no power" and got["shaken", "stage"]["weight"] == "no power",
+          "at 8 %: a bird named 35.6 (stage) and 63.9 (paper) times as common on birds; a 'No' with power 0.42; a track too noisy "
+          "to show a bird's beat 4.5 (why the row says Can't tell there); a refusal about as common on both; one stretch and the "
+          "shake too few to weigh", str({k: r3(v["lr"]) for k, v in got.items() if k[1] == "stage"}))
+    s1, s2 = controls.screen(7.8, 0.15, "stage", 0.08), controls.screen(7.8, 0.6, "stage", 0.08)
+    check(s1 and s1["others"] == [2, 23] and "not screened out" in s1["said"] and "consistent with the birds" in s1["said"]
+          and s2 and s2["others"][0] == 0 and "None of the 288 others the test could judge beat so strongly" in s2["said"] and "up to 1.0 in 100" in s2["said"]
+          and controls.screen(1.0, 0.3, "stage", 0.08) is None,
+          "the screening words rest on the plot's populations: consistent with the birds, the others not screened out while any "
+          "reach it, screened out with the exact bound where none does; nothing said outside a wingbeat's rate", s1["said"] if s1 else "")
+    figures.CLASHES.clear()
+    with tempfile.TemporaryDirectory() as td:
+        path = figures.beat_controls(f"{td}/t_controls.png", [(7.8, 0.25)], "stage", 0.08)
+        drawn = Path(path).exists() and Path(path).stat().st_size > 20000
+    check(drawn and not figures.CLASHES, "the discriminant plot drawn in the house style, nothing over a line", str(figures.CLASHES[:2]))
+
+
+def test_track_placed():
+    """Who placed a track given alone (`run --track`), from its own first lines (2026-11-07): linked from hand marks, a marks
+    file's hand marks, marks that were not a hand's (an agent's, typed, snapped), `share make`'s agent's track, or nothing
+    said -- the checklist's "chosen" row says only what the file says."""
+    print("\nwho placed a track given alone, from its own first lines")
+    from mcdonald import stages
+    import tempfile
+    heads = {"linked": ("# automatic track on x.mp4, linked from hand marks by mcdonald.autolink\n", ("hand", "linked")),
+             "agent": ("# automatic track on x.mp4, linked from marks by mcdonald.autolink\n# the marks on frames 1, 5 were NOT placed "
+                       "by a hand on the frame -- agent: from the paper's track p.csv\n", ("not by hand", "agent: from the paper's track p.csv")),
+             "marks": ("# hand marks (object) on x.mp4, placed with `mcdonald mark`\n", ("hand", None)),
+             "typed": ("# marks (object) on x.mp4, placed with `mcdonald mark`\n# 2 of 2 are NOT hand positions: see the `how` column.\n",
+                       ("not by hand", "")),
+             "share": ("# A: track from p.csv, written by mcdonald share make\n", ("not by hand", "an agent's track, made into marks by share make")),
+             "plain": ("", (None, None)), "other": ("# the paper's track, frames 3755-3880\n", (None, None))}
+    got = {}
+    with tempfile.TemporaryDirectory() as td:
+        for k, (head, _) in heads.items():
+            f = Path(td) / f"{k}.csv"
+            f.write_text(head + "frame,x_px,y_px\n1,10.0,10.0\n2,11.0,10.0\n", encoding="utf-8")
+            got[k] = stages.track_placed(f)
+        got["missing"] = stages.track_placed(Path(td) / "none.csv")
+    want = {k: w for k, (_, w) in heads.items()}
+    want["missing"] = (None, None)
+    check(got == want, "linked from hand marks or a marks file's hand marks: a hand's; marks not a hand's or share make's agent's track: not; "
+          "a file that says nothing (or is not there): not known", str({k: v for k, v in got.items() if v != want[k]}))
 
 
 def main():

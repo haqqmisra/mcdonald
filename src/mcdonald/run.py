@@ -123,7 +123,8 @@ def main():
         needs = [f"{x} ({n})" for n, st in case.stages.items() for x in st["needs"]]
         emit(envelope("run", inputs_of(args), clip, files,
                       {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
-                       "checklist": case.checklist(), "identified_by": case.identified_by,
+                       "checklist": case.checklist(), "reasons": case.reasons(), "grade": case.grade(),
+                       "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}}, no_power, needs, case.notes))
     return 0

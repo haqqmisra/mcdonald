@@ -272,8 +272,18 @@ or `Supersonic motion` where a case's angle gives the speed itself; `No physical
 picture but cannot become a real speed, `No conclusion`, `No conclusion yet`
 when stopped) and one sentence, then the bottom line's paragraph -- and with
 `--json` prints the case in the envelope: `results.conclusion` (`label`,
-`headline`), `results.bottom_line`, `results.stages` (the lines the report
-prints), `results.fields` (each stage's findings as numbers),
+`headline`), `results.bottom_line`, `results.checklist` (each test as `key`,
+`test`, `answer`, `said`, `stage`; the beat's row also its `kind`),
+`results.reasons` (what the conclusion rests on, at most four, the heaviest
+first: `key`, `said`, `premise`, `weight` -- `for a bird` or `against a bird`
+where the labelled infrared set weighs it, with `lr`, how many times as common
+on birds as on aircraft, drones and helicopters, and its 95 % interval `lo`,
+`hi` (null for no upper end); `bound` where it follows by arithmetic from what
+was given; `none` where nothing weighs it), `results.grade` (how sure:
+`level` -- `High`, `Moderate`, `Low` or `Very low` --, `downgrades`, and
+`domains`, each of risk of bias, inconsistency, indirectness and imprecision
+with its `concern` and `why`; null where nothing was concluded), `results.stages`
+(the lines the report prints), `results.fields` (each stage's findings as numbers),
 `results.identified_by`, and — never dropped — `no_power` (what this clip
 cannot decide, as `[test, why]`) and `needs` (what would close the gap). A test
 that had no power has not passed. `run` makes a track sheet and marks the
@@ -386,7 +396,7 @@ gives, to the digit -- and writes `cases/clip/<tag>_objects.md` and `.json`, the
 `results.objects[]` has each as fields: `object`, `folder`, `marks`, `marked_frames`, `placed_by`,
 `chosen_as` (your `--why`, as the marks record it), `measured`, `frames` (what it was measured
 over), `followed` (`frames`, `first`, `last`, `size_px`, `dark`; null where the link found
-nothing), `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`; and
+nothing), `stopped`, `conclusion`, `grade` (as `run --json`'s), `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`; and
 `results.states` says `done`, `stopped`, `failed` or `waiting` for each. `no_power` and `needs`
 are every case's, each with its object's number in front.
 

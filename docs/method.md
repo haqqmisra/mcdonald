@@ -4052,6 +4052,7 @@ and answered in one of five words:
 | Partly | the test decided part of what was asked: a beat in one stretch only, or too faint to name a bird; a speed bounded but not found |
 | Can't tell | the test could not decide on this video. A verdict, never dropped for a "No" (the package's third rule: a test that cannot decide has not passed) |
 | Not yet | the person's part is still to do: the track sheet not looked at |
+| Consistent / Inconsistent | integrity's row only (2026-11-07, section 47): agreement with the camera's own picture, from checks never tried on a real insert |
 
 The rows, in a fixed order, and what each reads:
 
@@ -4062,16 +4063,16 @@ The rows, in a fixed order, and what each reads:
 | does the object move against the background | `Case.rate` | the rate, against the background or across a picture that held still | under half a pixel a second | Can't tell where the rate is the picture's and the camera moved: the rate against the background was not measured |
 | straight at a steady speed | the speed band's `constant`, the turn's `turned`, the loop | the band held, the path straight | the speed's range along the track and the bend; "(the camera moved, so some of this may be its motion)" where it did | Can't tell under the frames a band needs |
 | coming toward the camera | tau from its size (section 33), the projective fit, the depth bound, the size's trend | its size grows or its path fits an approach, with the time to the camera's distance | the depth bound, under the hypothesis | Can't tell where its size held, could not be read, or its path fits only roughly |
-| beats as a wingbeat would | `flicker`'s beats, by the headline's rule (section 13) | the rate, the object's own; a flock's members each their own | no rhythm of its own; or a beat outside the wingbeat band, said | Can't tell where the picture shakes at that rate; Partly in one stretch, or under BIRD_FLOOR |
+| beats as a wingbeat would | `flicker`'s beats, by the headline's rule (section 13), and its power (`analytic`) | the rate, the object's own; a flock's members each their own | no rhythm of its own on a track that could have shown a bird's (`Case.beat_power` at most BIRD_FLOOR, section 47); or a beat outside the wingbeat band, said | Can't tell where the picture shakes at that rate, where the track is too noisy to show a bird's beat, or where the stage refused, a peak measured or not (section 47); Partly in one stretch, or under BIRD_FLOOR |
 | could something other than a bird beat like this | the look-alikes (section 9) | always, where a beat is the object's own: a tumbling body, a blinking light; a flame's band or a rotor's look where marked | -- | -- |
 | flashes in a train | `flicker`'s blink (section 19) | the flashes a minute and the rule they meet | no train | -- |
 | a single thing | `groups` | one point on most frames | so many things moving together, keeping their places or changing them | -- |
 | anything moving with it | `tether` (section 6) | the companion, its distance in object widths, its swing or its steady angle; a fellow member | nothing within the ring | Can't tell under the frames it needs |
 | moves through what is round it | `comotion` | MOVES THROUGH | CARRIED | INCONCLUSIVE, NO POWER |
-| added to the video afterwards | `integrity`'s object tests (section 2) | checks that flag it, named | the checks that could decide pass, the rest said | Can't tell where none could decide |
+| consistent with the camera's own picture | `integrity`'s object tests (section 2) | Consistent: the checks that could decide pass, the rest said | Inconsistent: checks that flag it, named | Can't tell where none could decide; each decided answer says no check has been tested on a real insert (section 47) |
 | a real speed and size | the four unknowns (ROADMAP 0.4 objective 6) | the speed and size, "a guess" where k is | what it needs: the field of view, the distance | Partly: a bound from a thing of known size or a farthest range, a least speed at a given distance, or a turn rate with no distance |
-| a person picked out the object | `identified_by` | marks placed by hand | an agent's, typed, the computer's suggestion taken, or snapped marks: "every measurement of the object rests on that choice" | -- |
-| a person checked the track | `verify`'s `reviewed` | the sheet looked at | -- | Not yet |
+| a person picked out the object | `identified_by`, the track stage's `placed_by` (section 47) | marks placed by hand, or a track file that says it was linked from them | an agent's, typed, the computer's suggestion taken, or snapped marks, or a track file that says so: "every measurement of the object rests on that choice" | Can't tell where the track file says nothing of who placed it (`run --track`) |
+| a person checked the track | `verify`'s `reviewed`, and how (its result's "yes (how)") | the sheet looked at, and when: shown before anything was measured, after the report, or said with `run --i-looked` before this run drew its sheet (section 47) | -- | Not yet |
 
 A row whose stage did not run has no row: the table says nothing it did not check. The camera's row agrees with the
 first line (2026-11-02): where that line says the object moved "as the camera held it", the row says whether the camera
@@ -4083,8 +4084,8 @@ the same rows above its numbers, the answer in a word and why in the tooltip; `m
 `results.checklist`. The rows are read from the stages' fields, as the conclusion and the bottom line are, so a case file
 from an earlier version gets its checklist when its report is opened or written again. Measured: the rows' own words are
 97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).
-What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56), which are
-still to do.
+What the checklist is not: a grade (S17), reason codes ranked by their weight (E7), or Louange's items (F56); the first
+two are section 47.
 
 ## 39. Two nulls read as the data is, and the rate each really holds (B1, B5; added 2026-11-02)
 
@@ -5123,6 +5124,134 @@ the picture: it "crosses lines drawn frame by frame" in 13 frames, and over the 
 the line's level (76 DN, the object 255). The bird is one of a row of bright points 11 px apart, each ringed dark by the
 sensor's edge enhancement; the dark rings between points in a row make the dark ridge through the object that the check
 reads as a drawn line. That reading is not yet checked frame by frame, and nothing here changes the check.
+
+## 47. What the conclusion rests on, how sure it is, and the beat against labelled tracks (E7, S17, S20; added 2026-11-07)
+
+The checklist (section 38) answers each test in a word. It does not say which answers the conclusion rests on, how much
+each weighs, or how sure the conclusion is. Jacob's diagnostic-accuracy survey (2026-11-07; its three rebuilds, `verify/`)
+measured the beat test against the labelled infrared set as a diagnostic test, and found the checklist's own words wrong
+in four places. This section is the fixes, then the three additions. Every number here was rebuilt from the controls
+harness's whole table (432 tracks, 365 clips, 0.4.3; session 18's `harness`) before anything was built
+(`reasons/scripts/rebuild.py` of the session's notes).
+
+**The control population** (`controls.py`, `controls_beat.csv`). The harness's table, cut to what the report reads, ships
+with the package (54 kB): each labelled track's clip and class, what it offers (frames, frame rate, contrast), and under
+each rule its call, beat, amplitude, whether the beat comes back, the shake, and `needs` (`flicker.analytic`'s
+`with_floor`). `python3 -m mcdonald.controls $MCDONALD_DATA/controls/svanstrom_tracks.csv` remakes it after the harness
+measures the set again; test_reduction holds it to the data folder's table. `controls.kind` answers the checklist's beat
+row for a track of the set by the report's own rule, `controls.weigh` gives the likelihood ratio of an answer --
+P(answer | bird) / P(answer | not a bird), over tracks -- with a 95 % interval from 2,000 resamples of clips (birds and
+the rest apart, numpy's generator seeded 7, all at once: 20 ms a kind; the table below is the rebuild's own draw, whose
+intervals differ from the package's in their second figure), at the report's BIRD_FLOOR as it stands, under the rule the case was measured by. An answer
+fewer than ten tracks gave carries no ratio (the harness's STRATUM_MIN, a judgement call); one whose interval holds 1
+carries no weight.
+
+| the beat row's answer | stage, 8 % | paper, 8 % | stage, 7 % |
+|---|---|---|---|
+| Yes, a bird named | 35.6 (12.2-inf; 29/125 v 2/307) | 63.9 (16.9-inf; 26 v 1) | 24.6 (9.9-inf; 30 v 3) |
+| Partly, too faint | 0.33 (0-1.09; 2 v 15) | 0.43 (0.08-1.09) | 0.18 (0-0.74) |
+| Partly, one stretch | 0 v 5: no power | 1 v 3: no power | 0 v 5 |
+| No (with power at the floor) | 0.42 (0.31-0.55; 42 v 246) | 0.43 (0.32-0.56) | 0.37 (0.27-0.51) |
+| Can't tell, too noisy for a bird's beat (was No) | 4.48 (2.58-8.18; 31 v 17) | 4.62 (2.63-8.57) | 4.42 (2.71-7.84) |
+| No, a rhythm outside a wingbeat's rate | 6 v 2: no power | 3 v 2 | 6 v 2 |
+| Can't tell, refused | 1.94 (0.81-3.75; 15 v 19) | 2.09 (0.96-3.80) | 1.94 |
+| Can't tell, the shake | 0 v 1: no power | 0 v 1 | 0 v 1 |
+
+**Four fixes to the checklist** (`Case.checklist`, `Case.placed`, `Case.beat_power`; `stages.track_placed`).
+
+1. *The beat row's "No" held two answers.* The flicker stage sets `beats` False whenever nothing passes, whatever the
+   track's power; the report never read `analytic`. A track whose noise needs a 12 % beat to find one three times in four
+   answered "No" as a track that could hear a 2 % one. Now "No" only where `beat_power` (the least `with_floor` over the
+   objects measured, or the white-noise amplitude where there is no background) is at most BIRD_FLOOR -- where a beat
+   strong enough to name a bird would have been found -- and "Can't tell" above it, with the amplitude it would need. The
+   rule is the stage's own power at the floor the report already names a bird from; no threshold was chosen. On the set,
+   the old "No" put 31 bird and 17 other tracks without that power beside 42 and 246 with it; by clip, 22 of 293 "No"
+   clips had no track that could have heard the floor, 45 % of them birds against 22 % of all clips, LR 3.0 (1.35-6.7)
+   -- the diagnostic survey's FX4, rebuilt to the digit. Such a "No" pointed toward a bird; the one left points away
+   (0.42). The amplitude follows the object's own residual after one sinusoid, so a real beat that wanders raises it
+   (x1.5-3 when planted, the survey's claim 4; with every `needs` divided by 1.9 the clip-level ratio is 1.8, 0.34-9.7):
+   the new "Can't tell" is right either way, and it carries no weight in the reasons below.
+   And a refusal (`beats` None: the background beats with it, the codec's line, members in step) with a peak measured on
+   the way answered "No", because the no-power branch came after it: 2 tracks of the set under the stage's rule, 5 under
+   the paper's (none of the reference objects). It is "Can't tell" now, in the stage's words.
+2. *Who chose the object.* `run --track` alone records nothing of who made the track, and the row answered "a person placed
+   the marks on the frames by hand" there -- on 29 of the 31 reference objects, each measured on a paper's track whose own
+   marks files say "agent: from the paper's track". Now the track stage records `placed_by` and `placed_said`: from the
+   marks where there are marks, and for a track file given alone from its own first lines (`stages.track_placed`: a link
+   from hand marks or a marks file's hand marks is a hand's; marks that say they are not, or `share make`'s agent's track,
+   are not; a file that says nothing is not known). The row is Yes, No or "Can't tell" ("the track was read from a file,
+   X, that does not say who or what placed its points") accordingly; a case from before is read from its run command
+   (`--marks` with every mark a hand's is a hand's; `--track` alone is not known).
+3. *What was looked at.* `run --i-looked` asserts a look before this run draws its sheet (the flag's own help: "the track
+   sheet from a previous run"). The verify stage's result records how ("yes (--i-looked)"), and the row now says it: "a person said with
+   --i-looked, before this run drew its track sheet, that they had looked at the sheet: the look was at an earlier run's
+   sheet, not this one"; the window's question and the later confirmation each have their own words.
+4. *Integrity's row* (the survey's Dx7, read in the code and confirmed here). Its checks have never been tried on a real
+   insert -- section 2's validation says so: the corpus holds no known one, and a synthetic disc stands in -- and one false
+   flag is known (AARO's PR-016: a line of birds whose dark rings `_overlay_drawn` reads as a drawn line; session 18's
+   `aaro`, open). A "No" from its passes said more than that. The row's question is now "Is it consistent with the
+   camera's own picture, rather than added afterwards?", answered Consistent, Inconsistent or Can't tell, each decided
+   answer with "no check has been tested on a real insert" (and, where layer order flags, its known false flag).
+
+Also: `run`'s track sheet carries the release's id at its head, not its title (`stages.run_case`): 22 of PURSUE's 144 titles
+describe the object as an observer saw it ("Spherical", "TIC TAC", "fast moving"; the survey's FX7, by hand), and the
+person judging the sheet should not read that first. `mcdonald tracksheet`'s own command keeps the title.
+
+**What the conclusion rests on** (E7; `Case.reasons`). At most four reasons under the conclusion, the heaviest first --
+the rule a US lender follows when it declines (Regulation B's statement of principal reasons; four in the model forms).
+The reason the label stands on comes first: the beat for "Beats like a bird", the speed or what it lacks for the speed
+labels and "No physical conclusion". Then the weighed reasons, by the weight that survives their interval (|ln| of the end
+nearer 1), then the unweighed in the checklist's order. A weight is a likelihood ratio wherever a control population gives
+one -- today the beat alone -- said as "about 25 times as common on birds as on aircraft, drones and helicopters (at least
+9.6 times, at 95 % confidence)" (a bird named under the stage's rule at §43's 7 % floor; 33 under the paper's, at least 12;
+at 0.4.3's 8 % it was 36 and 64); a speed that follows from what was given is a bound ("as sure as those inputs"); the
+look-alikes, integrity and a flash train have no control population and say so, carrying no weight. **The beat counts
+once.** The stage's readings of it -- the whole track, the windows, the continuum, the background, the paper's rule --
+read one curve and pass together: on the 288 answered non-birds, 1 passes all five where independence predicts 0.0034 %,
+with phi 0.7-0.9 between the stage, the paper's rule, comes-back and the continuum (the clinical rebuild, DXC7). Counted as
+separate support they would multiply one finding's weight. A test that could not decide carries no weight even where
+the set's mix gives its answer one (a track too noisy to show a bird's beat was 4.5 times as common on birds, because the
+set's birds are faint: said, and weighed at nothing). A one-stretch beat had a ratio of 0.57 for a bird on 0.3.1 (not
+evidence for one) and on 0.4.3 the category holds 4-5 tracks: no power.
+
+**How sure** (S17; `Case.grade`). Four of GRADE's domains (Guyatt et al. 2008, BMJ 336:924), each computed from the case,
+never given by the analyst, start the conclusion at the top level and take it down one for a serious concern, two for a
+very serious one: *risk of bias* (the track sheet not looked at; the object picked by an agent or the computer, or by
+nobody recorded, which no longer counts once the sheet has been looked at; integrity inconsistent -- one serious, two or
+more very serious: no person's eye recorded at all); *inconsistency* (a named beat the whole track's test does not find,
+only its windows; under half of a flock's measured members beating; integrity's checks both passing and flagging);
+*indirectness* (for a bird named, the clip outside the labelled set's population, `controls.inside`: not 30 frames a
+second, a track under 150 frames -- the set's 17 non-bird tracks there bound a false-alarm rate only under 16 %, DXC5 --
+or a flock, where the set's tracks are single; for a speed label, a field of view that is a guess); *imprecision* (a named
+beat whose amplitude less twice its own error, sigma sqrt(3/n) from the closed form, falls under BIRD_FLOOR; a speed
+whose band, twice its spread along the track, reaches the speed of sound anywhere from 295 m/s at 11 km to 343 at sea
+level). The proposed levels are GRADE's: High, Moderate, Low, Very low -- not A-D, which GEIPAN uses for identified to
+unexplained (F56); the names are the maintainer's to choose. "Under half the members" and "under 150 frames" are judgement
+calls. The grade is said where the label is said: under the conclusion's sentence ("How sure: low. Nobody has said they
+looked at the track sheet and who picked the object is not recorded."), in the window card's More, on each object's line
+of `several`'s list, and as `grade` in `run --json` and `report --json`.
+
+**The beat against labelled tracks** (S20; `figures.beat_controls`, `controls.screen`). Every track of the set the stage
+measured a beat on, its strongest rhythm's rate against its strength on a log scale, birds blue and the rest amber, filled
+where the rhythm was the track's own and open where it is only the strongest peak, the wingbeat band shaded, the floor
+dashed, the object red (`<case>_controls.png`, in the report's figures wherever the flicker stage measured a peak). Under
+it, the words that rest on it: of the labelled tracks with a rhythm of their own at a wingbeat's rate (31 birds, 23
+others under the stage's rule), how many beat at least as strongly; "consistent with the birds" where at least one in
+twenty of theirs does (a judgement call); the others "not screened out" where any of theirs does, and "screened out" only
+where none of the 288 the test could judge does, with the exact one-sided bound that leaves (under 1.04 %). What the plot
+must not be read as: evidence that the tests hear wingbeats. Ranked by this strength a bird outranks another track with
+an AUC of 0.935 (stage; 31 v 23) and 0.960 (paper; 31 v 28) among tracks with a bird or one-stretch call -- the floor's
+own question; 0.816 / 0.824 over all 432 tracks with the raw strongest amplitude wherever one was read; and **0.884 /
+0.894 among tracks with no rhythm of their own at all** (73 v 263). Most of the separation is that the set's birds are
+faint (contrast median 19 grey levels a pixel against 56), so their brightness wanders more, beat or no beat; the
+caption says so.
+
+**Reference objects that move** (the 14 case files read again by this code; not remade). Who chose the object: 29 of the
+31 Yes -> Can't tell (each measured on a paper's track given with `--track`); PR113 and PR43 stay No. The beat: six No ->
+Can't tell, too noisy to show a bird's beat at 8 % and at §43's 7 % -- PR097 objects 4 and 7 (needing 8.4 and 10.8 %), PR099 object 2
+(16.7 %), PR141 objects 1 and 2 (24.3, 17.2 %), PR144 (13.5 %); PR097 object 2 (4.3 %) stays No. Integrity: PR113, PR144 and
+PR149 No -> Consistent. No label, headline, number or bottom line moves. Every object grades Low or Very low: none has had its
+track sheet looked at, and 29 do not record who placed their track (risk of bias, very serious); looking at the sheet raises each by two levels.
 
 ## 48. Three ports from finance: the jitter read without a model, which motion models survive, and the traffic light for the suites (E6, E22, E20; added 2026-11-07)
 

@@ -411,7 +411,7 @@ def test_checklist_on_the_case_files():
         print(f"  SKIP  no case files in {folder}")
         SKIP.append("checklist on the case files")
         return
-    seen, bad, tables = {}, [], 0
+    seen, bad, tables, graded = {}, [], 0, {}
     with tempfile.TemporaryDirectory() as td:
         for path in files:
             with zipfile.ZipFile(path) as z:
@@ -422,6 +422,7 @@ def test_checklist_on_the_case_files():
                     c = Case.load(out)
                     rows = c.checklist()
                     seen[f"{path.stem}/{name.split('/')[-2]}"] = {r["key"]: r for r in rows}
+                    graded[f"{path.stem}/{name.split('/')[-2]}"] = (c.conclusion()[0], c.grade(), c.reasons())
                     bad += [f"{path.stem}: {r}" for r in rows if r["answer"] not in ANSWERS or not r["said"] or "|" in r["said"]
                             or r["test"] != CHECKS[r["key"]]]
                     md = c.markdown()
@@ -430,7 +431,8 @@ def test_checklist_on_the_case_files():
           f"{len(seen)} objects in {len(files)} case files: every row answered in one of the five words, with why, and the table under "
           "each conclusion", "; ".join(bad[:3]))
     pr135 = seen.get("pr135/object-1") or {}
-    want = dict(video=NO, camera=CANT, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=YES, checked=NOT_YET)
+    # chosen: Can't tell since 2026-11-07 -- measured on the paper's track given with --track, which says nothing of who placed it
+    want = dict(video=NO, camera=CANT, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=CANT, checked=NOT_YET)
     want["with"] = YES
     check(all(pr135.get(k, {}).get("answer") == a for k, a in want.items()) and pr135.get("beat", {}).get("said", "").startswith("7.8 times a second")
           and pr135.get("moves", {}).get("said") == "about 103 pixels a second across the picture, which held still"
@@ -439,6 +441,32 @@ def test_checklist_on_the_case_files():
           "following the bird over an empty sky gives too; 0.4.1 said No), it moves 103 pixels a second across the picture (0.4.1: that step gives no rate "
           "against the background there), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright feature moves with it, none of "
           "integrity's checks could decide, no real speed, the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+    # the beat row's "No" only where a bird's beat would have shown, and integrity's agreement (2026-11-07, method section 47)
+    beat = {k: v["beat"]["answer"] for k, v in seen.items() if "beat" in v}
+    deaf = sorted(k for k, a in beat.items() if a == CANT and "too noisy to show a bird's" in seen[k]["beat"]["said"])
+    check(deaf == ["pr097/object-4", "pr097/object-7", "pr099/object-2", "pr141/object-1", "pr141/object-2", "pr144/object-1"]
+          and beat.get("pr097/object-2") == NO,
+          "the beat: six objects too noisy to show a bird's beat at the floor are Can't tell (0.4.3 said No), PR097 object 2, which "
+          "could have shown one, stays No", str(deaf))
+    added = {k: v["added"]["answer"] for k, v in seen.items() if "added" in v}
+    check({k for k, a in added.items() if a == "Consistent"} == {"pr113/object-1", "pr144/object-1", "pr149/object-1"}
+          and not [a for a in added.values() if a in (YES, NO)],
+          "integrity: Consistent on PR113, PR144 and PR149 (0.4.3 said No), Can't tell on the rest, never a bare Yes or No", str(added))
+    # how sure (S17) and what it rests on (E7): none of the 31 has had its track sheet looked at, so the risk of bias is very
+    # serious on all, and each concluded object has its reasons, a bird's beat first and weighed for a bird
+    sure = {k: g["level"] for k, (_, g, _) in graded.items() if g}
+    birds = {k: rs for k, (label, _, rs) in graded.items() if label == "Beats like a bird"}
+    check(len(sure) == len(graded) and set(sure.values()) <= {"Low", "Very low"}
+          and all(g["domains"][0]["concern"] == "very serious" for _, g, _ in graded.values() if g)
+          and birds and all(rs and rs[0]["key"] == "beat" and rs[0]["weight"] == "for a bird" and len(rs) <= 4 for rs in birds.values()),
+          f"how sure: every object Low or Very low (none looked at, most of unrecorded origin); the {len(birds)} birds' reasons lead "
+          "with the beat, weighed for a bird", str(sorted(set(sure.values()))))
+    chosen = {k: v["chosen"]["answer"] for k, v in seen.items() if "chosen" in v}
+    check(len(chosen) == len(seen) and chosen.get("pr113/object-1") == NO and chosen.get("pr43/object-1") == NO
+          and all(a == CANT for k, a in chosen.items() if k not in ("pr113/object-1", "pr43/object-1")),
+          "who chose the object, as far as it is known (2026-11-07): No on PR113 and PR43 (an agent's marks), Can't tell on the rest "
+          "(each measured on a paper's track given with --track, which says nothing of who placed it; 0.4.3 said 'a person placed the "
+          "marks on the frames by hand')", str({k: a for k, a in chosen.items() if a != CANT}))
     held = {k: v["camera"]["answer"] for k, v in seen.items() if "camera" in v}
     check(held and NO not in held.values() and held.get("pr144/object-1") == YES and held.get("pr43/object-1") == YES
           and held.get("pr113/object-1") == "Partly" and held.get("pr097/object-6") == "Partly",

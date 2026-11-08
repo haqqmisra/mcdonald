@@ -401,7 +401,7 @@ def row(t, same=None):
     kinds = sorted({ms.kind("object", n) for n in obj})
     chosen = next((h for h in hows if h), None) or "marked by hand"
     d = dict(object=t.k, folder=t.folder.name, marks=len(obj), marked_frames=[min(obj), max(obj)] if obj else None, placed_by=kinds,
-             chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, bottom_line=None,
+             chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, grade=None, bottom_line=None,
              segment=None, segment_said=None, track_sheet_looked_at=None, report=None, track_sheet=None, error=t.error,
              group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None,
              same_as=dict(same) if same else None)
@@ -415,7 +415,7 @@ def row(t, same=None):
         clip = case.clip or {}
         label, head = case.conclusion()
         d.update(measured=True, stopped=case.stopped_in(), followed=_followed(case), bottom_line=case.bottom_line(),
-                 conclusion=dict(label=label, headline=head), segment=case.segment,
+                 conclusion=dict(label=label, headline=head), grade=case.grade(), segment=case.segment,
                  segment_said=case.segment_said(measured=False) or None,
                  frames=[clip.get("n0"), clip.get("n1")] if clip else None,
                  track_sheet_looked_at=((case.stages.get("verify") or {}).get("fields") or {}).get("reviewed"),
@@ -480,6 +480,8 @@ def index(base, objects=None):
             L.append(f"- **stopped** {r['stopped']}: the steps after that did not run")
         if r["conclusion"]:                          # what its report leads with: a bird is named there, not in the bottom line
             L.append(f"- **{r['conclusion']['label']}.** {r['conclusion']['headline']}")
+            if r["grade"]:                           # how sure, beside the label wherever it is said (S17, 2026-11-07)
+                L.append(f"- **how sure:** {r['grade']['said'][len('How sure: '):]}")
         L.append(f"- **bottom line:** {r['bottom_line']}")
         if f:
             L.append("- **track sheet:** " + ("looked at: the track is on the object in every frame" if r["track_sheet_looked_at"] else
