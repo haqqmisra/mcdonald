@@ -987,9 +987,11 @@ def measure(clip, track, size=9.0, dark=False, mask=None, fov=None, fov_px=None,
     if record and not fields:                      # where the record's zoom moves, its start and its end: the camera's events
         for a, b in record_runs(record):
             if b >= min(track) and a <= max(track):
-                events = list(events or ()) + [(a + 1, f"the phone's zoom starts to move ({record[a + 1]:.3g} at frame {a + 1}, "
-                                                       "its record)"),
-                                               (b, f"the phone's zoom settles ({record[b]:.3g} at frame {b}, its record)")]
+                # short, as the figure names each event down from the top beside its line (the line gives the frame;
+                # the stage says the record is the phone's): "the phone's zoom settles (6 at frame 55, its record)"
+                # ran down over the object's points
+                events = list(events or ()) + [(a + 1, f"zoom moves from {record[a + 1]:.3g}x"),
+                                               (b, f"zoom at {record[b]:.3g}x")]
     one = to_one_scale(track, steps, W, H)
     a = float(pixel_aspect or 1.0)
     if a != 1.0:
