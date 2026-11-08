@@ -2939,15 +2939,16 @@ def test_the_report_names_the_segment_and_its_figure_needs_no_k():
           and "Speed across the line of sight (m/s)" in texts["speed"],
           "its axes are named in words, each with its unit in parentheses: no k, no equation, no FOV, no px (sciencespeak, "
           "2026-11-07)", every[:160])
-    check("birds, ~0.2–2 m  (it beats like a bird)" in texts["unknown"] and "birds, ~0.2–2 m" in texts["plain"]
-          and "(it beats like a bird)" not in texts["plain"] and "weather balloon, ~2 m" in texts["plain"]
-          and "fighter jet, ~17 m" in texts["plain"] and "party balloon or small drone, ~0.3–1 m" in texts["plain"]
-          and "balloon cluster, ~2–5 m" in texts["plain"] and "tethered aerostat, ~5–20 m" in texts["plain"],
+    check("birds, 0.2–2 m (it beats like a bird)" in texts["unknown"] and "birds, 0.2–2 m" in texts["plain"]
+          and "(it beats like a bird)" not in texts["plain"] and "weather balloon, 2 m" in texts["plain"]
+          and "fighter jet, 17 m" in texts["plain"] and "party balloon or small drone, 0.3–1 m" in texts["plain"]
+          and "balloon cluster, 2–5 m" in texts["plain"] and "tethered aerostat, 5–20 m" in texts["plain"],
           "the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, the other bands beside "
-          "them, and said as the case's own where its brightness beats like a bird's")
+          "them, and said as the case's own where its brightness beats like a bird's (since 2026-11-07 in the legend under "
+          "the plot, the house style's: no text in it can cross a line)")
     check("0.7° view" in texts["plain"] and "3° view" in texts["plain"] and "10° view" in texts["plain"]
-          and "30° view" in texts["plain"] and "The field of view is not known" in texts["plain"]
-          and "2.5° view" in texts["given"] and "Field of view 2.5°, as given" in texts["given"]
+          and "30° view" in texts["plain"] and texts["plain"].count("° view") == 4
+          and "2.5° view" in texts["given"] and "the line for a 2.5° view, as given" in texts["given"]
           and "3,000 m away (given)" in texts["given"],
           "a line for each of four fields of view where none is known, a targeting pod's 0.7° among them, and the one "
           "given where it is", texts["given"][:120])

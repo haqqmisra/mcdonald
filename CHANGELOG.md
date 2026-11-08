@@ -39,7 +39,9 @@ Every version that went out, newest first. The version is written in one place,
   or a label off the lines (a label by at most 24 pixels, so that it stays by what it names) and reports what it cannot,
   and `figures.save` runs both. The report's figures were redrawn to it (the speed, the size and speed against distance,
   what the video allows, the track, the beat, the fold, the noise), the beat figure leaving the PR135 paper's own look,
-  and the eleven stages' figures with them. The suites fail on any figure with text over a line, over other text or off
+  and the eleven stages' figures with them. The track figure now writes each time beside its dot on a side the path
+  leaves clear, and leaves out a time where the path doubles back so tightly that none is clear (its dot stays); the
+  enlarged object and the rate go to corners the path keeps clear of. The suites fail on any figure with text over a line, over other text or off
   the figure (`MCDONALD_FIGURE_CLASHES`, set by `tools/suites.sbatch`), and test_reduction holds the report's figures to
   the box, the ticks, bold labels and short titles.
 
