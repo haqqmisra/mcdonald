@@ -5,6 +5,30 @@
 **Jacob:** "Let's keep going with the next ROADMAP development goals. I have a lot of credits left that will reset tomorrow
 morning, so feel free to spawn agents and utilize the capacity of this machine. Run jobs through /slurm."
 
+### Released as 0.5.0 on 2026-11-08, and the reference case files remade with it
+
+Jacob: "great, let's push to 0.5.0, and then I will review everything. I am curious if this version will allow any new insight
+into the PURSUE cases." **0.5.0 is out**: release commit 7b98a0e (version and date in the four places, ROADMAP's line), Mac run 106
+and Windows run 107 green on it before main went out, reduction 665 and cli 138 on its tree; main pushed, tag `v0.5.0`, the GitHub
+Release (the CHANGELOG entry as its notes), PyPI's publish run 31 and the site's run 22 green; Zenodo's version DOI
+10.5281/zenodo.24059170 into CITATION.cff (4ed2858, pushed); a fresh venv takes `mcdonald[gui]==0.5.0` from PyPI and runs `setup
+--no-desktop`, the desktop icon still the checkout's.
+
+**The 14 reference case files remade with 0.5.0** (7b98a0e; `/scratch/mcdonald/s18-2026-11-07/cases050/`, the 0.4.3 recipe, array
+21476, 4 min to 84 min each) and **every one reruns to its numbers** (`--strict`, array 21494, all 31 objects); installed in
+`/models/data/mcdonald/cases/` with its README (the 0.4.3 set kept in `/hugespace/local/mcdonald-cases-2026-11-08/old-0.4.3/`);
+golden's case-file checklist check passes on them. Against the 0.4.3 set, read by one script over both (`insight.py`,
+`quoted_numbers.py`, `together.py` there): **no label moves and no quoted number moves** (beat and error, rate, T, speed bound). What
+0.5.0 adds to the PURSUE cases, as told to Jacob: how far each call can be trusted, not a new call -- 26 objects grade Low and 5 Very
+low, all for want of a look at the track sheets (a look raises two levels; the Very low five are the Table 1 birds whose beat holds
+only in stretches or whose track is short: PR077 o2, PR088 o2, PR097 o1, o3, o5); six "No beat" answers were powerless (PR097 o4,
+o7, PR099 o2, PR141 x2, PR144 -> Can't tell); 13 dated changes of velocity (PR144's 23.27 s the camera's; PR135's six together at
+44.55 s by about 194 px/s with no extra spread, the moment its north pointer starts to turn; PR097 o1-4 together at 126.16 s); PR43
+alone keeps one way of moving (straight toward or away from the camera); PR144's halo INCONCLUSIVE (a real ring). A lead for later:
+the jitter read without a model flags frame-scale bending on PR085, PR097 o4 and PR099 o2, whose brightness beats are not named --
+whether that bending runs at the brightness beat's rate is the next test (a changing brightness also moves the centroid, so it is
+not independent of the beat). Scale stays the limit: only PR113 and PR149 have one.
+
 ### Where it stands (read this first)
 
 Every item of ROADMAP 0.5.0's cut (decision 11) is built, and most of the 0.4.x additions the plan named first. Ten
