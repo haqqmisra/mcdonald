@@ -73,7 +73,7 @@ new golden checks were in neither the control nor the regression list; both regr
 passing alone after it), and **cli** failed 2 checks of one call (`mark --set ... --link` on marks across the object and
 its decoy: the command's stdout was not JSON, detail None). It passed in the earlier run on 86248b5 and in four reruns of
 the same tree (one alone, three as jobs with a debug print of the call's output: 138 of 138 each), so it is intermittent,
-about 1 in 6 runs; open (item 9 below). The last commit's controls, reduction and cli: FINAL_PLACEHOLDER.
+about 1 in 6 runs; open (item 9 below). After the fix and the docs, on 437da9a: controls 118, reduction 665 and cli 138, all PASS (jobs 21418-21420).
 
 main 40bff82 alone had failed 2 of reduction's checks on size_speed's words (an export of it, one srun); the
 wording session fixed them in ce965e4, merged into s18 before this run. Figures: s18's runs log every clash (`MCDONALD_FIGURE_CLASHES`); the ones logged
