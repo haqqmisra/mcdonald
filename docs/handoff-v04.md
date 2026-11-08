@@ -1,4 +1,150 @@
-# Handoff: ROADMAP 0.4 -- session 17 (2026-11-07) on top: sciencespeak the wording standard, and the report, window, docs and figures written to it; session 16 (the roadmap review) and sessions 15 to 1 below as the record
+# Handoff: ROADMAP 0.4 and 0.5 -- session 18 (2026-11-07, night) on top: the 0.5.0 cut and the 0.4.x additions built by ten agents on branch s18; session 17 (sciencespeak) and sessions 16 to 1 below as the record
+
+## Session 18 (2026-11-07, afternoon and night): the 0.5.0 cut built, and the 0.4.x additions, by ten agents
+
+**Jacob:** "Let's keep going with the next ROADMAP development goals. I have a lot of credits left that will reset tomorrow
+morning, so feel free to spawn agents and utilize the capacity of this machine. Run jobs through /slurm."
+
+### Where it stands (read this first)
+
+Every item of ROADMAP 0.5.0's cut (decision 11) is built, and most of the 0.4.x additions the plan named first. Ten
+agents worked in worktrees (`/hugespace/models/mcdonald-s18-<name>`, branches `s18-<name>`) under one brief,
+`/scratch/mcdonald/s18-2026-11-07/BRIEF-common.md`; the coordinator merged each into the integration branch **`s18`**
+(`/hugespace/models/mcdonald-s18`) as it reported, and wrote CHANGELOG, IDEAS and ROADMAP there. Each agent's
+`notes.md` under `/scratch/mcdonald/s18-2026-11-07/<name>/` has its full record, numbers, scripts and decisions;
+`COORDINATOR.md` there is the session's log. **Nothing is pushed; the version is still 0.4.3** (the release number for
+this is Jacob's: the cut is 0.5.0's). Jacob's other sessions ran beside it: the wording session (sciencespeak, the house
+figure style; main 484e9bc, df3fb98, 40bff82, merged into s18) and the deep-dive session, whose two surveys of the day --
+the air and the sea (W1-W42) and judging a test (Dx1-Dx40) -- fed findings to the agents as they ran and are now rows in
+IDEAS.md.
+
+| agent | method | what (IDEAS ids) | merged |
+|---|---|---|---|
+| phone | §42 | a phone's own record of its zoom as a route to k, checked on the clip's pictures (WP1, WP4) | cf75e15 |
+| floor | §43 | the bird floor from a null: 7 % at a stated 1 in 100, PBO, a challenger (B24, E9, E19) | 81cfef4 |
+| harness | §44 | the controls harness: the labelled set as tracks, `test_controls`, the ledger of looks (I1, T9, B28, B17) | d4735d5 |
+| streak | §45 | the dash read less its neighbours and fitted whole (F11, F12, F41, F51) | 1ea8835 |
+| aaro | §46 | AARO's resolved cases run blind; case files in `aaro/blind/` | 467d1be |
+| reasons | §47 | the checklist's rows say only what was decided (Dx1, Dx3, Dx7); reason codes, grade, discriminant plot (E7, S17, S20) | 229cbb9 |
+| models | §48 | the jitter without a model, the motion models' confidence set, the suites' traffic light, groups' noise (E6, E22, E20, W1) | b97bb0e, 8144dcc |
+| k | §49 | the pointer as a stale price, one k from routes that agree, the zoom as a discontinuity, the ladder pooled (E14-E17) | 9bc1c43 |
+| levels | §50 | clipped as a flat top; the clip's levels in integrity's record (V1) | 8d60ac2 |
+| breaks | §51 | a change of velocity dated beyond the wander and set against the scene (E2, E3, B16) | a850120 |
+
+The coordinator's own commits on s18: `python3 -m mcdonald` (b055b44, `__main__.py`; three agents tripped on its
+absence), test_gui's PySide6 deadline 540 -> 720 s (a200da3: the window's run took 8:45-8:53 of 9:25 on the morning's tree
+and 9:28 with the session's additions, cut by the deadline while passing), the models agent's group fix committed for it
+(f6f38f9: the test's shuffle moved from 0.25 to 0.75 px a frame after measuring the unbiased noise's power: 0.25 px reads
+rigid 14 / neither 26 / shuffling 0 of 40, 0.5 px shuffling 8, 0.75 px 37), the twinkle limit in §43, and the docs.
+
+### What the numbers say
+
+- **The controls (harness, floor).** The Svanström infrared set's 432 tracks are in the data folder; the 2026-10-19 run is
+  rebuilt to the digit where nothing changed. At the 7 % floor the stage's rule names 30 of 125 birds and 3 of 307 others
+  (1.0 %, bound 2.5 %: DRONE_059 at 10.00 Hz = fps/3 from held pictures the cadence test misses by 0.843 against 0.85,
+  HELICOPTER_024 at 7.8 %, _043 at 21 %), the paper's 27 and 2. No reference call moves at 7 % against 8 %. The amplitude
+  alone does as well as the gate on this set (it lacks the codec rhythms and shared beats the gate is for). The floor's
+  exact value is not pinned (PBO 0.45-0.47), but a floor beats none out of sample.
+- **AARO blind (aaro).** Coverage 0 of 14 (0-23 %): no public description gives a field of view, a range or a reference
+  size, so all 54 objects say "No physical conclusion". No disagreement, no false bird (beat test powered on 9 of 12
+  non-bird cases). On the two flocks (PR-016, PR-002) the beat test found no wingbeat on the one point Find followed, even
+  on the plainest stretch; AARO cites a pulsation on PR-016. Find split one balloon into 5-8 rows on five videos. Every run
+  skipped layers and integrity (decided before the runs), so those checklist rows are absent there. A slip let integrity
+  run on PR-016 once: it flags a bird in a tight row as "possibly added" (dark rings read as a drawn line,
+  `integrity._overlay_drawn`), not fixed.
+- **The checklist (reasons), on the 31 reference objects:** 29 "who chose it" rows Yes -> Can't tell, 6 beat rows No ->
+  Can't tell (PR097 o4, o7; PR099 o2; PR141 o1, o2; PR144), 3 integrity rows No -> Consistent (PR113, PR144, PR149); every
+  object grades Low (25) or Very low (6 birds) until its sheet is looked at. No label, headline or number moves.
+- **Motion (breaks, models, k).** 13 of 31 reference objects gain a dated change of velocity (PR144's at 23.27 s is the
+  camera's; the rest no power behind a still picture; PR135's six together at 44.556 s). The motion-model set names no
+  motion on 44 of 45 recorded tracks (each wanders about its best model; a wandering straight track keeps the line only
+  63-95 % at a stated 90 %); PR43 keeps the straight flight alone. PR051's slew windows are refused by name (the dial runs
+  1.7-2.0 s behind the picture), and PR057a's 24.4-32.4 s; no reference k or speed moves.
+- **Levels.** PR144's halo goes NO POWER -> INCONCLUSIVE on a remake; nothing else moves. **Streak.** PR43's exposure 20.3 ms
+  (was 16.3), the dash centres' T 0.72 ± 0.03 s against the track's 0.76 (the track stays the measurement of record).
+
+### The suites
+
+On s18 at 86acb9d (main ce965e4 merged; snapshot snapD), **all 24 suites, one job each (jobs 21365-21389): 22 ALL PASS on the first run** -- aspect 10, audio 62, breaks 23 (new), camera
+151, drift 126, focus 19, haze 9, horizon 25, measurement 600, phone 44 (new), published 32, reduction 665, share 25, slew 95,
+stabilize 13, streak 20, sweep 20, tether 24, waves 14, zoom 37, gui 769 + 1 SKIP (WxAgg; 8:40 of the new 720 s), and
+**golden with the exercises 238 PASS, 0 FAIL, 0 SKIP** (1:47). Two did not: **controls** failed 1 (the streak's and AARO's
+new golden checks were in neither the control nor the regression list; both regressions, fixed in 7fccaf8, the check
+passing alone after it), and **cli** failed 2 checks of one call (`mark --set ... --link` on marks across the object and
+its decoy: the command's stdout was not JSON, detail None). It passed in the earlier run on 86248b5 and in four reruns of
+the same tree (one alone, three as jobs with a debug print of the call's output: 138 of 138 each), so it is intermittent,
+about 1 in 6 runs; open (item 9 below). The last commit's controls, reduction and cli: FINAL_PLACEHOLDER.
+
+main 40bff82 alone had failed 2 of reduction's checks on size_speed's words (an export of it, one srun); the
+wording session fixed them in ce965e4, merged into s18 before this run. Figures: s18's runs log every clash (`MCDONALD_FIGURE_CLASHES`); the ones logged
+are on the stage figures the wording session's next branch redraws (camera, horizon, admissible, audio).
+
+### For Jacob, in one place
+
+**The session's own (process):** (1) the release number (the 0.5.0 cut is built; 0.5.0 recommended) and the public step;
+(2) confirm the lift of the 2026-10-20 hold for the sampled suite (`test_controls` runs in minutes; the whole set stays a
+Slurm tool); (3) whether `test_controls`, `test_breaks` and `test_phone` join the CI lists; (4) the reference case files'
+remake: the checklist's rows, the new paragraph sentences (dated changes, motion models), the grade and reasons, and PR144's
+halo all change a remade report, none a label or a number -- recommended once, at the release; (5) merge s18 into main (the
+coordinator can, once main's checkout is clean; the wording session's stage-figures branch merges after).
+
+**The agents' (each with its recommendation in its notes.md):**
+- floor: the stated rate 1 in 100; the words "About 1 in 100 of them reach 7 %"; 7 % against the 6.5 % a partial set gave;
+  the Neyman-Pearson umbrella (it shows the rate rather than fails to refute it, but sits over 21 % and names 15 birds);
+  what to make of the challenger.
+- harness: how to stop DRONE_059's kind (a cadence gate, or the held-pictures balance threshold, which needs its own null);
+  the false alarms of record held as they are; the strata's edges and the minimum of 10 tracks; whether the exercise pages
+  say their answers follow the tool; Dx18's validation file for the bird call (its acceptance criteria are Jacob's).
+- aaro: a second, labelled pass with what the displays print (Go Fast's and Puerto Rico's slant ranges) and a field of view
+  from the sensors' published modes; whether the one press joins Find's rows that are one object in stretches; an
+  operator-blind rerun (the inputs were blind, the operator was not); one bird of each flock marked by hand and measured the
+  paper's way.
+- reasons: keep the label and let the grade carry "not yet checked" (recommended) or qualify the label; the track sheet's
+  release id in place of its title; the card's new words; the grade's level names (High/Moderate/Low/Very low proposed);
+  judgement calls (MIN_TRACKS 10, "under 150 frames", the 1-in-20 cut for "consistent with the birds", half a flock, two
+  concerns "very serious").
+- levels: the flat top's selection criterion; PR144's halo to INCONCLUSIVE; `point_blur`'s headroom opt-in until a scene's
+  points are told from tracked objects; the extraction unchanged.
+- phone: SLOPE_TOL 0.25 and K_SHARE 0.10 (judgements from one clip); the 35-mm tag read as the lens at the lowest zoom;
+  using a record the check cannot decide (as built, said unchecked); the new report words.
+- streak: the exposure reported from the fit; PR43's measurement of record (track points, as decided 2026-10-31, or the
+  dash centres); the flux clock (0.39 s) disagreeing with the track's T; FIT_MIN_FRAMES 3, the 4-6-frame neighbours,
+  SCENE_LEFT 1.0.
+- breaks: the words "its path weaves slowly" (and wander -> "the slow weaving of its path" in the glossary's Replace list);
+  ALPHA 0.05 (measured 1.45 %); B16's verdict on the white or the wander error; the extra no-power line.
+- models: the band's backtest zone is one count lenient against Basel's own table (PR099 object 3 yellow -> red under
+  Basel's rule; recommended); the E22 words; the judgement-set rates in E20; groups' RIGID 2.0 and SHUFFLE 3.0 from a null.
+- k: a lag refuses only past the 1-s block or where Dimson disagrees; a stall is said, never refuses; no correction by the
+  lag; a zoom state whose windows disagree gets no c; SLEW_ERR_SCALE 1.5; a graticule with no error tested as exact; RD_H 3;
+  PR057a 24.4-32.4 s refused (method §17 still quotes the old x2.119).
+
+**The surveys' (the deep-dive session put these to Jacob; rows in IDEAS.md):** W4 the lantern sentence in
+`Case.flame_said` ("would keep their places" is false in about 29 % of conditions); W5 the words for twinkle (refused as
+"lost against what is behind it"); W9 decision 5 (a point-source balloon has no range-free drifter signature: close, park or
+wait for 0.5.x controls); Dx2 the bird headline as a likelihood ratio (about 40) rather than "the leading explanation";
+Dx4 "Subsonic motion" with its conditions; Dx22 the sheet's question asked before the label (against "conclusion first").
+
+### Open, in the order I would take them
+
+1. The public step and the remake (above), after Jacob's word on the decisions.
+2. E15 on real clips (the first runs timed out before `zoom` built each stretch's pattern once; rerun with `--rd-stride`).
+3. DRONE_059's cadence (M3's balance on a burst of holds), with its own null.
+4. The flocks' wingbeat: one bird of PR-016 and PR-002 marked by hand, measured with `--aperture` and `--avoid`.
+5. Twinkle through the encoder (W3's 3.3 % is before the codec) and its NO POWER words.
+6. `integrity._overlay_drawn` on a tight row of points (PR-016's false "possibly added").
+7. Dx18's validation file; B17's new held-out set (AARO's cases are a candidate, one line in `looks.tsv` when looked at).
+8. Still 0.4.x: M6, A16, Av10, Av11, D8, K10, the phone scope's WP2 and WP3; 0.5.x as before.
+9. test_cli's `mark --set ... --link` call on marks across the object and its decoy printed no JSON once in six runs
+   (s18D, job 21369); a debug print of its stdout and stderr on failure would catch the cause.
+
+### How it ran (for next time)
+
+The queue was the constraint: ten agents' suites and arrays, the deep-dive session's survey jobs (nice 1000) and the
+wording session's jobs shared 20 CPUs; at 15:00 89 jobs waited. Agents hand back an "interim" report whenever they are
+left waiting on their own jobs; the coordinator resumed each with `SendMessage` when its jobs left the queue
+(`/scratch/mcdonald/s18-2026-11-07/wait_jobs.sh ID...` in the background). Golden on every branch is the dominant cost
+(4 CPUs, 1.5-2.5 h); one golden on the merged tree, plus golden only on branches that can move a reference number, would
+have saved hours. Method sections were reserved by number once collisions began (42 phone ... 51 breaks).
 
 ## Session 17 (2026-11-07): sciencespeak, the wording standard
 
