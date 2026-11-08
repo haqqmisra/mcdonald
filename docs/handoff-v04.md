@@ -75,6 +75,15 @@ its decoy: the command's stdout was not JSON, detail None). It passed in the ear
 the same tree (one alone, three as jobs with a debug print of the call's output: 138 of 138 each), so it is intermittent,
 about 1 in 6 runs; open (item 9 below). After the fix and the docs, on 437da9a: controls 118, reduction 665 and cli 138, all PASS (jobs 21418-21420).
 
+**Then main's stage figures (a51e90a) merged in, and the whole set again on 41e3efe (jobs 21421-21445): all 24 suites ALL
+PASS** -- aspect 10, audio 62, breaks 23, camera 151, cli 138, controls 118, drift 126, focus 19, gui 769 + 1 SKIP (9:14),
+haze 9, horizon 25, measurement 600, phone 44, published 32, reduction 665, share 25, slew 95, stabilize 13, streak 20,
+sweep 20, tether 24, waves 14, zoom 37, and **golden with the exercises 238 PASS, 0 FAIL, 0 SKIP** (2:08). The only figure
+clashes logged were the phone's four zoom-event labels on test_phone's camera figure ("the phone's zoom settles (6 at frame
+55, its record)" ran down over the points): now "zoom moves from 5.8x" / "zoom at 6x" (217edf5), redrawn with none; phone 44,
+camera 151 and reduction 665 PASS on it with no clash (21456-21458). Main's docs commit 6148475 merged too (c3d1f72;
+reduction 665, cli 138). **Merged into main as a fast-forward to this commit's successor; nothing pushed.**
+
 main 40bff82 alone had failed 2 of reduction's checks on size_speed's words (an export of it, one srun); the
 wording session fixed them in ce965e4, merged into s18 before this run. Figures: s18's runs log every clash (`MCDONALD_FIGURE_CLASHES`); the ones logged
 are on the stage figures the wording session's next branch redraws (camera, horizon, admissible, audio).
