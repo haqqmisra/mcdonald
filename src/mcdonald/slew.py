@@ -66,6 +66,7 @@ from pathlib import Path
 
 import numpy as np
 
+from . import scale as sca
 from . import symbology
 
 MIN_LEVER = 1.5       # the pointer's swing beyond a steady rate (rms) must be this many times a reading's scatter
@@ -96,6 +97,11 @@ MIN_RATE_R = 0.5      # a claim's pointer rate and scene rate must correlate thi
 RATE_SMOOTH_S = 0.2   # s: the rates are smoothed over this (a Gaussian's sigma) before they are correlated
 LAGS = 6              # frames: the pointer is tried this far either way against the scene (PR27's slews peak at -2
                       # and -3: the picture reaches the screen a few frames after the pointer drawn over it)
+SLEW_ERR_SCALE = 1.5  # a window's c is tested against the others of its zoom state (`scale.combine`) with its bootstrap's 16-84 %
+                      # half-width times this: on 600 synthetic slew windows with one c the half-width covered the truth 76 % of the
+                      # time but ln(c / c_true) over it had sd 1.36 (MAD 0.72) -- right in the middle, light in the tails -- and at
+                      # a stated 5 % pairs, triples and fours of them were called in disagreement 7, 13 and 16 % of the time as
+                      # stated, 4.3, 6.5 and 5.3 % at x1.5 (x1.3: 5.3, 9.5, 8.0 %); the state's c and its error are as before
 ZOOM_AGREE = 0.05     # the slew's ratio of c across a measured zoom and the imagery's ratio agree within twice their
                       # combined error, or this share, whichever is larger
 
@@ -727,6 +733,229 @@ def rate_lag(t, theta, X, seg, fps, degree=1, lags=LAGS):
     return out
 
 
+# ---- a stale pointer: the pointer's lag as finance measures a stale price's (E14, 2026-11-07) ---------------------
+# A thinly traded stock's last price is old, so its return looks unrelated to the market's today and related tomorrow;
+# a pointer drawn on a grid "sits still and jumps", and one that stalls (PR051's MTS-B dial: still for up to 2 s while
+# the azimuth moves 0.6 deg, then catching up) is a stale price exactly. Three readings of it, each beside the level fit:
+# the lead-lag of Hoffmann, Rosenbaum & Yoshida (2013) on the pointer's own update times (Hayashi & Yoshida 2005: the
+# increments over each interval between updates against the scene's over the same interval, shifted, with no resampling),
+# Dimson's (1979) slope summed over a lead, the present and a lag (unbiased whatever the lag within one block), and the
+# stall itself -- the most turn the pointer owed the scene while it sat still, in steps of its own grid, which a dial on
+# its grid keeps under about one. The lag and the stall are judged against the window's own null: pointers drawn with no
+# lag on the window's own scene path, at the fit's c and hold, on the pointer's grid at a random phase, with its scatter and
+# on its own frames, through the same estimators; and each matters where it lasts longer than the bootstrap's blocks (method 49).
+STALE_ALPHA = 0.05     # the stated rate: a drawn pointer with no lag is called lagged, or stalled, this often or less (a draw at
+                       # least as extreme as the window's own, counted over STALE_DRAWS; method 49 measures the rate a claim is
+                       # refused at on drawn pointers, and on the real ones that agree with their zooms)
+STALE_DRAWS = 100      # drawn pointers a window's null takes (resolution 1 %)
+LAG_MAX_S = 2.0        # s: the lead-lag is looked for this far either way (PR051's dial stalls for up to 2 s)
+DIMSON_BLOCK_S = 0.5   # s: Dimson's blocks, at least; longer where the lead-lag found is longer (one block must cover it)
+UPDATE_SHARE = 0.5     # a reading that moved this share of a grid step from the last update is the pointer's next update
+
+
+def pointer_updates(frames, theta, step):
+    """The pointer's own clock: the readings where it moved UPDATE_SHARE of a grid step or more from its last update
+    (a stale price's trades). Returns (frames, theta) of the updates, the first reading first."""
+    frames, theta = np.asarray(frames), np.asarray(theta, float)
+    ok = np.isfinite(theta)
+    frames, theta = frames[ok], theta[ok]
+    if not len(frames):
+        return frames, theta
+    keep, last = [0], theta[0]
+    for i in range(1, len(theta)):
+        if abs(theta[i] - last) >= UPDATE_SHARE * step:
+            keep.append(i)
+            last = theta[i]
+    return frames[keep], theta[keep]
+
+
+def _scene_on_frames(t, X, seg, fps):
+    """The longest unbroken stretch of the scene's path on every frame of it: (frames, X)."""
+    fr = np.round(t * fps).astype(int) + 1
+    segs, counts = np.unique(seg, return_counts=True)
+    m = seg == segs[np.argmax(counts)]
+    full = np.arange(fr[m].min(), fr[m].max() + 1)
+    return full, np.interp(full, fr[m], X[m])
+
+
+def lead_lag(uf, uth, full, Xf, fps, demean=True, lag_s=LAG_MAX_S, hold_per_frame=0.0):
+    """The Hoffmann-Rosenbaum-Yoshida lead-lag: the contrast U(l) = sum_i dtheta_i dX(I_i - l), the pointer's increment over
+    each interval I_i between two of its updates against the scene's over the same interval l frames earlier (l > 0: the
+    pointer comes after the scene), over |l| up to lag_s; the lag is its argmax. `demean`: both increments less their
+    window's mean rate times the interval's length (a hold is fitted: its share and a steady pan are taken out); without,
+    the pointer's less the hold given (`hold_per_frame`, deg a frame), and a steady pan's lag is timed by the scene's own
+    unevenness. Returns dict(lag_frames, lag_s, r, r0, updates) -- r the
+    contrast as a correlation, at the lag and at zero -- or None with under 5 updates inside the scene's stretch."""
+    k = (uf >= full[0]) & (uf <= full[-1])
+    uf, uth = np.asarray(uf)[k], np.asarray(uth)[k]
+    if len(uf) < 5:
+        return None
+    a0, b0 = uf[:-1].astype(float), uf[1:].astype(float)
+    dth = np.diff(uth)
+    vth = (uth[-1] - uth[0]) / (uf[-1] - uf[0]) if demean and uf[-1] > uf[0] else hold_per_frame
+    vX = (Xf[-1] - Xf[0]) / (full[-1] - full[0]) if demean and full[-1] > full[0] else 0.0
+    d = dth - vth * (b0 - a0)
+    L = int(round(lag_s * fps))
+    best, at0 = None, None
+    for lag in range(-L, L + 1):
+        a, b = a0 - lag, b0 - lag
+        ok = (a >= full[0]) & (b <= full[-1])
+        if ok.sum() < 4:
+            continue
+        dX = np.interp(b[ok], full, Xf) - np.interp(a[ok], full, Xf) - vX * (b[ok] - a[ok])
+        den = math.sqrt(float((d[ok] ** 2).sum() * (dX ** 2).sum()))
+        u = float((d[ok] * dX).sum())
+        r = u / den if den > 0 else 0.0
+        if best is None or r > best[1]:
+            best = (lag, r)
+        if lag == 0:
+            at0 = r
+    if best is None:
+        return None
+    return dict(lag_frames=int(best[0]), lag_s=float(best[0] / fps), r=float(best[1]), r0=at0, updates=int(len(uf)))
+
+
+def stall(uf, uth, full, Xf, c, hold_per_frame, step):
+    """The most turn the pointer owed the scene while it sat still: over each interval between two updates (to the frame
+    before the next), the scene's move over c and the hold's share, in steps of the pointer's grid; a dial on its grid owes
+    at most about one before it moves. Returns dict(steps, seconds -- the interval's length --, at_frame) or None."""
+    k = (uf >= full[0]) & (uf <= full[-1])
+    uf = np.asarray(uf)[k]
+    if len(uf) < 3 or not c or not step:
+        return None
+    a, b = uf[:-1].astype(float), uf[1:].astype(float) - 1
+    owed = np.abs((np.interp(b, full, Xf) - np.interp(a, full, Xf)) / c + hold_per_frame * (b - a)) / step
+    i = int(np.argmax(owed))
+    return dict(steps=float(owed[i]), frames=int(b[i] - a[i] + 1), at_frame=int(a[i]))
+
+
+def dimson(t, theta, X, seg, fps, degree=1, block=None, n_boot=200, seed=0):
+    """Dimson's summed slope: the pointer's turn over a block regressed on the scene's move over the block before it, the
+    block itself and the block after (overlapping blocks, starting at every frame of each unbroken stretch), with a hold
+    where one is fitted; the three slopes summed are the pointer's turn per px of scene whatever its lag within a block
+    (Dimson 1979), and c = 1 / their sum. The level fit's beta survives a lag of a frame or two (the economics survey's
+    §1.5); this is the check that it survived this one. Returns dict(block_frames, c, c_p2_p98, c_p16_p84, lag_share --
+    the lagged block's slope's share of the sum --, rows) or None with too few rows."""
+    D = int(block or max(1, round(DIMSON_BLOCK_S * fps)))
+    fr = np.round(t * fps).astype(int)
+    rows, ys, at = [], [], []
+    for sg in np.unique(seg):
+        m = seg == sg
+        if m.sum() < 4 * D:
+            continue
+        full = np.arange(fr[m].min(), fr[m].max() + 1)
+        th_f, X_f = np.interp(full, fr[m], theta[m]), np.interp(full, fr[m], X[m])
+        dth, dX = th_f[D:] - th_f[:-D], X_f[D:] - X_f[:-D]
+        for i in range(D, len(dth) - D):
+            rows.append((dX[i + D], dX[i], dX[i - D]))           # the block after, the block, the block before
+            ys.append(dth[i])
+            at.append(full[i])
+    if len(ys) < max(MIN_SAMPLES, 3 * D):
+        return None
+    A, y = np.array(rows), np.array(ys)
+    Z = np.c_[A, np.ones(len(y))] if degree >= 1 else A
+
+    def fit(idx):
+        return np.linalg.lstsq(Z[idx], y[idx], rcond=None)[0][:3]
+    b = fit(np.arange(len(y)))
+    rng = np.random.default_rng(seed)
+    blk = max(2 * D, int(round(BLOCK_S * fps)))
+    N = len(y)
+    starts = np.arange(0, max(1, N - blk + 1))
+    bs = []
+    for _ in range(n_boot):
+        idx = np.concatenate([np.arange(s0, min(s0 + blk, N)) for s0 in rng.choice(starts, size=int(np.ceil(N / blk)))])[:N]
+        try:
+            bs.append(fit(idx).sum())
+        except np.linalg.LinAlgError:
+            continue
+    bs = np.array(bs)
+    S = float(b.sum())
+    q = {p_: float(np.percentile(bs, p_)) for p_ in (2.5, 16, 84, 97.5)} if len(bs) >= 20 else None
+    inv = lambda lo, hi: [1 / hi, 1 / lo] if lo > 0 else [1 / hi if hi > 0 else None, None]
+    return dict(block_frames=D, rows=N, beta_sum=S, c_px_per_deg=1 / S if S > 0 else None,
+                c_p2_p98=inv(q[2.5], q[97.5]) if q else None, c_p16_p84=inv(q[16], q[84]) if q else None,
+                beta_p2_p98=[q[2.5], q[97.5]] if q else None, lag_share=float(b[2] / S) if S else None,
+                lead_share=float(b[0] / S) if S else None)
+
+
+def stale_check(t, theta, X, seg, fps, c, hold_per_s, sigma, step, pf, pth, degree=1, draws=STALE_DRAWS, alpha=STALE_ALPHA, seed=0,
+                lever=None):
+    """The window's pointer as a stale price, beside a claim's c (method 49): its lead-lag behind the scene and the most turn
+    it owed while it sat still, each against pointers drawn with no lag on the window's own scene path; and Dimson's summed
+    slope.
+    `theta`: the smoothed series on the chain's frames as the level fit had it (any hold given taken out); `pf`, `pth`: the
+    pointer's own readings as drawn, its hold in them (its clock is the drawn glyph's); `c` the level fit's and `hold_per_s`
+    the platform's share of the turn, given or fitted (deg/s, the pointer's sense); `lever` the pointer's swing beyond the hold
+    (deg rms, `fit_window`'s lever_deg: the stall's share of it is reported). Returns dict(lead_lag, lag_p,
+    lagged, stall, stall_p, stalled, dimson, dimson_holds_c) -- p the share of drawn pointers at least as extreme."""
+    full, Xf = _scene_on_frames(t, X, seg, fps)
+    uf, uth = pointer_updates(pf, pth, step)
+    demean = degree >= 1
+    ll = lead_lag(uf, uth, full, Xf, fps, demean, hold_per_frame=hold_per_s / fps)
+    st = stall(uf, uth, full, Xf, c, hold_per_s / fps, step)
+    out = dict(lead_lag=ll, stall=st, lag_p=None, stall_p=None, lagged=False, lag_material=False, stalled=False, draws=0)
+    rng = np.random.default_rng(seed)
+    pf_in = np.asarray(pf)[(np.asarray(pf) >= full[0]) & (np.asarray(pf) <= full[-1])]
+    if (ll or st) and len(pf_in) >= 5 and c:
+        # the reading's scatter beyond its grid: the stage's sigma less the grid's share, or what successive readings inside the
+        # window show, whichever is larger -- a pointer read continuously with noise (no grid to speak of) updates on its noise,
+        # and a null drawn on a clean grid times a steady pan more sharply than such a pointer can (`tests/test_slew.py`'s
+        # steady pan with the hold given read a lag of -38 frames against a clean null, at a gain of 0.04 over zero lag)
+        dd = np.diff(np.asarray(pth, float)[np.isfinite(pth)])
+        white = 1.4826 * float(np.median(np.abs(dd - np.median(dd)))) / math.sqrt(2) if len(dd) >= 5 else 0.0
+        extra = max(math.sqrt(max(sigma ** 2 - step ** 2 / 12.0, 0.0)), white)
+        hold_t = hold_per_s * (pf_in - full[0]) / fps
+        base = np.interp(pf_in, full, Xf) / c + hold_t
+        lags, owes = [], []
+        for _ in range(draws):
+            ph = rng.uniform(0, step)
+            th_d = np.round((base - ph) / step) * step + ph + (rng.normal(0, extra, len(base)) if extra else 0.0)
+            df, dth = pointer_updates(pf_in, th_d, step)
+            if ll:
+                g = lead_lag(df, dth, full, Xf, fps, demean, hold_per_frame=hold_per_s / fps)
+                if g:
+                    lags.append((abs(g["lag_frames"]), g["r"] - (g["r0"] if g["r0"] is not None else g["r"])))
+            if st:
+                g = stall(df, dth, full, Xf, c, hold_per_s / fps, step)
+                if g:
+                    owes.append(g["steps"])
+        out["draws"] = draws
+        if ll and lags:
+            lags = np.array(lags)
+            gain = ll["r"] - (ll["r0"] if ll["r0"] is not None else ll["r"])
+            # as far from zero, and gaining as much over zero, as the window's own lag: both, or the draw is not as extreme
+            out["lag_p"] = float(np.mean((lags[:, 0] >= abs(ll["lag_frames"])) & (lags[:, 1] >= gain - 1e-12)))
+            out["lagged"] = bool(ll["lag_frames"] != 0 and out["lag_p"] <= alpha)
+            # longer than the bootstrap's blocks: the claim's interval draws 1-s blocks as if the pointer's errors forget
+            # themselves within one, and a pointer that runs further behind than that carries them across blocks
+            out["lag_material"] = bool(out["lagged"] and abs(ll["lag_s"]) > BLOCK_S)
+            out["lag_null_p95_frames"] = float(np.percentile(lags[:, 0], 95))
+        if st and owes:
+            owes = np.array(owes)
+            out["stall_p"] = float(np.mean(owes >= st["steps"]))
+            out["stall_null_p95_steps"] = float(np.percentile(owes, 95))
+            # beyond the null, and for longer than the bootstrap's blocks (BLOCK_S): the claim's interval draws 1-s blocks as if
+            # the pointer's errors forget themselves within one, and a reading stale for longer carries them across blocks.
+            # The real pointers that agree with their zooms (PR27's, PR057a's) owe 1.2-2.5 steps at a fast slew, past what a
+            # pointer drawn on its grid owes, but for 0.13-0.77 s -- a display that refreshes its glyph a few frames late;
+            # PR051's dial owes 1.6 for 1.5 s
+            out["stall_share_of_lever"] = float(st["steps"] * step / lever) if lever else None
+            out["stalled"] = bool(out["stall_p"] <= alpha and st["frames"] / fps > BLOCK_S)
+            # said, and refusing nothing: on slews drawn with no lag the stall came out beyond its null and over a block in 15
+            # of 60 synthetic windows and 11 of 188 drawn on PR27's and PR057a's real scene paths (method 49) -- its null rests
+            # on the window's own fitted c and hold, and a slow hold fitted a little off makes a long still stretch look owed
+    blk = min(max(int(round(DIMSON_BLOCK_S * fps)), abs(ll["lag_frames"]) if ll and out["lagged"] else 0),
+              max(1, len(full) // 6))                    # a block as long as the lag, and rows enough for three slopes and a hold
+    dm = dimson(t, theta, X, seg, fps, degree, block=blk, seed=seed)
+    out["dimson"] = dm
+    out["dimson_holds_c"] = None
+    if dm and dm.get("beta_p2_p98"):
+        lo, hi = dm["beta_p2_p98"]
+        out["dimson_holds_c"] = bool(lo <= 1.0 / c <= hi)
+    return out
+
+
 # ---- the windows ------------------------------------------------------------------------
 def cut(windows, gaps, min_s=MIN_PIECE_S):
     """Windows (t0, t1) with every gap (g0, g1) taken out of them, the pieces under min_s dropped."""
@@ -945,6 +1174,38 @@ def series(north_csv, layers_csv, fps, layer="all", pixel_aspect=1.0, bar=None):
     return out
 
 
+def stale_into(f, s, m, raw, fps, degree, hold_rate=None, seed=0):
+    """`stale_check` on a registered window `f` of `measure` (its samples `m` of the series `s`), and what it decides (method 49):
+    a pointer that runs off the scene by a lag no drawn pointer reaches, for longer than the bootstrap's blocks (BLOCK_S), refuses
+    the claim by name, and so does a real lag where Dimson's summed slope does not hold the level fit's c; a shorter lag is said,
+    not corrected (the real pointers' lead-lags, PR27's and PR057a's, peak broadly over a few frames, and c moved by them would
+    carry that noise where the level fit survived the lag); a stall beyond the grid is said beside the claim and refuses nothing."""
+    pm = (raw["frames"] >= s["frames"][m].min()) & (raw["frames"] <= s["frames"][m].max())
+    hold = hold_rate if hold_rate is not None else (f.get("hold_rate_deg_per_s") or 0.0) if degree >= 1 else 0.0
+    p = s["pointer"]
+    sc = stale_check(s["t"][m], s["theta"][m], s["X"][m], s["seg"][m], fps, f["c_px_per_deg"], hold, p["sigma_deg"], p["step_deg"],
+                     raw["frames"][pm], raw["theta"][pm], degree, seed=seed, lever=f.get("lever_deg"))
+    f["stale"] = sc
+    dm, ll, st = sc["dimson"], sc["lead_lag"], sc["stall"]
+    dsay = (f"Dimson's slope summed over the block before, the block and the block after ({dm['block_frames']} frames) gives c "
+            + (f"{dm['c_px_per_deg']:.0f}" if dm and dm.get("c_px_per_deg") else "no positive value")
+            + (f" (95 % {dm['c_p2_p98'][0]:.0f}-" + (f"{dm['c_p2_p98'][1]:.0f})" if dm["c_p2_p98"][1] else "no top)")
+               if dm and dm.get("c_p2_p98") and dm["c_p2_p98"][0] else "")) if dm else "Dimson's summed slope has too few blocks here"
+    if sc["stalled"]:                                     # said beside the claim; it refuses nothing (method 49)
+        f["stale_note"] = (f"the pointer sat still for {st['frames'] / fps:.2f} s while the scene moved enough to turn it {st['steps']:.1f} of its "
+                           f"{p['step_deg']:.2f}-deg steps at this c, where pointers drawn on its grid with no lag owe "
+                           f"{sc['stall_null_p95_steps']:.1f} or less 19 times in 20 ({sc['stall_p']:.0%} of them reach it)")
+    if sc["lag_material"] or (sc["lagged"] and sc["dimson_holds_c"] is False):
+        f["no_power"].append(f"the pointer runs {ll['lag_frames']:+d} frames ({ll['lag_s']:+.2f} s) off the scene, a stale reading (the "
+                             f"lead-lag at r {ll['r']:.2f}, at 0 {ll['r0']:.2f}; {sc['lag_p']:.0%} of pointers drawn with no lag reach it): "
+                             + (f"longer than the {BLOCK_S:g}-s blocks c's interval is drawn in, so the interval does not hold; "
+                                if sc["lag_material"] else "")
+                             + f"{dsay}" + (f", which does not hold the level fit's {f['c_px_per_deg']:.0f}" if sc["dimson_holds_c"] is False else ""))
+        return
+    if sc["dimson_holds_c"] is False and not f.get("stale_note"):
+        f["stale_note"] = f"{dsay}, which does not hold the level fit's {f['c_px_per_deg']:.0f} (no lag or stall found)"
+
+
 def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression_deg=None, layer="all", out=None,
             name="clip", n_boot=N_BOOT, pixel_aspect=1.0, zoom=None, hold_rate=None, bar=None, blocks=None):
     """The stage: every window's fit, the scale from the windows that claim one, and what is assumed.
@@ -968,6 +1229,7 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
     from . import zoom as zm
     from .report import Found
     s = series(north_csv, layers_csv, fps, layer, pixel_aspect, bar=bar)
+    raw = dict(frames=s["pointer"]["frames"], theta=s["pointer"]["theta"])   # the glyph as drawn: its clock (method 49)
     bar_hold = bar is not None and s.get("hold") is not None
     if hold_rate is not None:                             # the platform's own share, known: out of the pointer
         s["theta"] = s["theta"] - hold_rate * s["t"]
@@ -1032,6 +1294,8 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                 f["no_power"].append(f"the pointer's rate and the scene's correlate at r = {f['rate_r']:.2f} at best "
                                      f"(lags of up to {LAGS} frames; under {MIN_RATE_R:g}): the turn does not follow the "
                                      "scene, and c came from slower changes a drifting hold can mimic")
+            if bar is None:                                   # a pointer drawn on a grid: is it a stale price?
+                stale_into(f, s, m, raw, fps, degree, hold_rate, seed=i)
         fits.append(f)
     claim = [f for f in fits if f["registered"] and not f["no_power"]]
     floors = [f for f in fits if f.get("c_at_least_px_per_deg") and not f["no_power"]]
@@ -1087,9 +1351,22 @@ def measure(north_csv, layers_csv, W, H, fps, windows=None, degree=1, depression
                    c_below_a_floor=None)
         if sc:
             cs = np.array([f["c_px_per_deg"] for f in sc])
-            wts = np.array([1.0 / max((f["c_p16_p84"][1] - f["c_p16_p84"][0]) / 2, 1e-9) ** 2 for f in sc])
-            c = float((wts * cs).sum() / wts.sum())
-            row.update(c_px_per_deg=c, c_err_px_per_deg=float(1 / np.sqrt(wts.sum())),
+            # one c from the windows that agree (E17, method 49): each window's c with its bootstrap's half-width, windows that
+            # overlap in time sharing their frames (only the more precise of two enters), tested before they are combined
+            routes = [sca.route(f"t {f['window'][0]:.1f}-{f['window'][1]:.1f} s", f["c_px_per_deg"],
+                                SLEW_ERR_SCALE * max((f["c_p16_p84"][1] - f["c_p16_p84"][0]) / 2, 1e-9),
+                                shares=[f"frames {min(i, j)}-{max(i, j)}" for j, g in enumerate(sc) if j != i
+                                        and min(f["window"][1], g["window"][1]) > max(f["window"][0], g["window"][0])])
+                      for i, f in enumerate(sc)]
+            comb = sca.combine(routes)
+            row["agreement"] = {key: comb[key] for key in ("verdict", "used", "chi2", "dof", "p", "pairs", "disagree", "left_out")}
+            if comb["verdict"] == "disagree":
+                fields["states"].append(dict(row, c_spread=float(cs.max() / cs.min())))
+                npw.append(("k from a slew", f"the windows of zoom state {st['state']} (t {st['t_s'][0]:.1f}-{st['t_s'][1]:.1f} s) "
+                                             "disagree, so they are not combined: " + sca.combined_said(comb).split(": ", 1)[-1]))
+                continue
+            c = comb["k_px_per_deg"]
+            row.update(c_px_per_deg=c, c_err_px_per_deg=comb["err_px_per_deg"] / SLEW_ERR_SCALE,
                        c_spread=float(cs.max() / cs.min()) if len(cs) > 1 else None, **scale_from(c, Wsq, H, depression_deg))
             if row["c_at_least_px_per_deg"] and c < row["c_at_least_px_per_deg"]:
                 row["c_below_a_floor"] = True
@@ -1390,6 +1667,25 @@ def said(f):
                      f"{w['rate_r_by_lag'].get(0, float('nan')):.3f})"
                      + (f"; c at that lag {w['c_at_lag'][w['best_lag_frames']]:.0f}" if w["c_at_lag"].get(w["best_lag_frames"]) else "")
                      + (f"; a frame either way moves c by up to {sh:.1%}" if sh is not None else ""))
+        sc = w.get("stale")
+        if sc:                                             # the pointer as a stale price (E14, method 49)
+            ll, st, dm = sc.get("lead_lag"), sc.get("stall"), sc.get("dimson")
+            bits = []
+            if ll:
+                bits.append(f"the lead-lag {ll['lag_frames']:+d} frames (r {ll['r']:.2f}; at 0 "
+                            + (f"{ll['r0']:.2f}" if ll.get("r0") is not None else "none") + f"; {ll['updates']} updates)")
+            if st:
+                bits.append(f"the most it owed while still {st['steps']:.1f} steps over {st['frames']} frames"
+                            + (f" (drawn on its grid with no lag, {sc['stall_null_p95_steps']:.1f} 19 times in 20)"
+                               if sc.get("stall_null_p95_steps") is not None else ""))
+            if dm and dm.get("c_px_per_deg"):
+                lo, hi = (dm.get("c_p2_p98") or [None, None])
+                bits.append(f"Dimson's summed slope over {dm['block_frames']}-frame blocks c {dm['c_px_per_deg']:.0f}"
+                            + (f" (95 % {lo:.0f}-" + (f"{hi:.0f})" if hi else "no top)") if lo else ""))
+            if bits:
+                L.append("    stale: " + "; ".join(bits))
+            if w.get("stale_note"):
+                L.append(f"    note: {w['stale_note']}")
         for why in w["no_power"]:
             L.append(f"    no power: {why}")
     if len(f.get("states", [])) > 1:
@@ -1400,6 +1696,8 @@ def said(f):
                 L.append(f"{head}: c {r['c_px_per_deg']:.0f} +/- {r['c_err_px_per_deg']:.0f} px/deg from {r['windows_claiming']} "
                          f"window(s); field at most {r['fov_w_ceiling_deg']:.3f} x {r['fov_h_ceiling_deg']:.3f} deg"
                          + (f"; a floor of {r['c_at_least_px_per_deg']:.0f} too" if r["c_at_least_px_per_deg"] else ""))
+            elif r.get("agreement", {}).get("verdict") == "disagree":
+                L.append(f"{head}: its windows DISAGREE and are not combined (x{r['c_spread']:.2f} apart)")
             elif r["c_at_least_px_per_deg"]:
                 L.append(f"{head}: a floor, c at least {r['c_at_least_px_per_deg']:.0f} px/deg")
             else:

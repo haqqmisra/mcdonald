@@ -222,6 +222,10 @@ mcdonald layers CLIP.mp4 --out CASE
 mcdonald slew CLIP.mp4 --out CASE                    # --window T0:T1 round a slew; --depression D for k itself
 mcdonald slew CLIP.mp4 --hold-rate 0.068 --out CASE  # the platform's share of the pointer's turn known (v_perp / R):
                                                      # a steady pan then gives k too
+                                                     # every claim's pointer is read as a stale price (its lead-lag behind the
+                                                     # scene, the most it owed while it sat still, Dimson's summed slope): one that
+                                                     # runs over a second behind the picture is refused by name; a zoom state's
+                                                     # windows are combined only where they agree (method 49)
 mcdonald slew CLIP.mp4 --platform P.csv --los L.csv --out CASE   # a data bar in place of the pointer: the aircraft's
                                                      # position and the line of sight's ground point at each reading
                                                      # (drift's files); the hold and the depression come with them
@@ -237,6 +241,9 @@ mcdonald slew CLIP.mp4 --scene-blocks --out CASE     # k from the slew with the 
 # blank (an electronic zoom), and by how much (slew and camera use them)
 mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown
 mcdonald zoom CLIP.mp4 --events CASE/clip_events.csv --out CASE     # and the picture's steps `events` found
+mcdonald zoom CLIP.mp4 --rd --out CASE               # each zoom also as a regression discontinuity: the jump from the pairs
+                                                     # 3 frames either side with its interval, and placebo cutoffs inside the
+                                                     # states (how often a step is found where there is none; method 49)
 
 # The sea's horizon as a ruler: a thing seen against the sea is nearer than where its line of sight meets it; a thing
 # above the horizon is at least as high as its line of sight's lowest point (a point on the horizon, the camera's
@@ -769,7 +776,7 @@ and it models a naive overlay rather than a match-moved physical composite.
 - **A phone's own lens and shutter, on a filmed screen.** `stabilize` holds the display with one homography a frame, which is exact for a flat screen seen in perspective; the phone lens's distortion and its rolling shutter (a shear while the hand moves fast) are left in what remains, which it measures and says, and do not come out.
 - **A winged flyer that glides level and straight.** A flat planform shows the same area from every heading, so `aspect` cannot tell it from a sphere; only a turn, which banks the wings, gives it away. Under one full turn the headings are not all seen, and it says so.
 - **A departure from a camera that stopped following.** When a tracker lets go, the object drifts out of the picture at the rate the camera had been turning; `camera --los-rate` sets the object's departure against a readout's rate, and `camera --scene` against the ground's own drift through the picture where the ground is in it (the track taken relative to the scene; PR051), but on an empty sky nothing shows the camera's turn. A readout that holds still to the end of a clip may hold whatever the camera did (`readout` says when).
-- **A field of view from a pointer that does not say what it points at.** `slew` reads k cos(depression) off a slew only if the north pointer is an azimuth dial; a pointer drawing ground north projected into the image is off by a factor up to 1/sin(depression), and one drawn against the platform's heading registers no slew at all. A clip whose pointer registers none of its slews is NO POWER: the field may be that narrow, or the pointer may not follow the turret, and the clip cannot tell which. A pointer drawn on a coarse grid needs a slew that turns it by more than half a step beyond the platform's own share.
+- **A field of view from a pointer that does not say what it points at.** `slew` reads k cos(depression) off a slew only if the north pointer is an azimuth dial; a pointer drawing ground north projected into the image is off by a factor up to 1/sin(depression), and one drawn against the platform's heading registers no slew at all. A clip whose pointer registers none of its slews is NO POWER: the field may be that narrow, or the pointer may not follow the turret, and the clip cannot tell which. A pointer drawn on a coarse grid needs a slew that turns it by more than half a step beyond the platform's own share; a pointer that runs a second or more behind the picture (PR051's dial, two seconds) is a stale reading, and its slope is refused.
 - **A scale from a narrow swell alone.** At one wavelength the waves' dispersion and the sensor's drift are one number, so `waves` gives a scale from a narrow-band swell only with the drift assumed, and claims one only where its band of scales is bounded, the dispersion beats drift alone, and the same frames shuffled in time score well below. Most PURSUE sea is refused, saying why.
 - **A payload too faint for single frames that swings more than its own size.** `tether` finds a line or a payload that moves with the object by stacking the frames on it, with the track run backwards as the control, and reads a line's length off the swing's period; a payload that smears by its own swing in the stack and cannot be seen on single frames evades both, and needs a search over the pendulum's motion that is not written. Under two cycles the period is tentative.
 

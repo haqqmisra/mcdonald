@@ -4380,3 +4380,131 @@ by name (under three), with the exact pointer and with one on a 0.25-deg grid; k
 bootstrap's width. Kept, they would have given 149, 90 and 167 px/deg against a truth of 69, 72 and 35: a block's velocity is
 one side of the reversal and the pointer's rate the mean. So the camera checks the reading's velocity (above) and the rule's refusal of a reversal,
 and cannot exercise the shift test (three blocks of the 21 it needs); no known-pan footage long enough for the rule is at hand.
+
+## 49. The pointer as a stale price, one k from the routes that agree, the zoom as a discontinuity and its ladder pooled (E14-E17; added 2026-11-07)
+
+**What it answers.** Two questions the economics survey of 2026-10-28 (§1.5 and §3.4 there, in the uap repository) put to the
+routes to k. Is the slope `slew` reads off a pointer the pointer's, or its lag's? PR051's MTS-B dial sits still for up to 2 s
+while the azimuth moves 0.6 deg and then catches up (§17), and with the hold given its 7-14 s claimed c = 2843 px/deg for a
+truth of 2230. And where a case has two routes to k -- a graticule and a slew, the windows of one zoom state -- do they agree,
+and what is the one k they make? Finance met the first as the stale price and the second as forecast combination.
+
+**The stale price (E14).** A thinly traded stock's last price is old, so its return looks unrelated to the market's today and
+related tomorrow; betas from short intervals are biased (Scholes & Williams 1977; Epps 1979). A pointer drawn on a grid "sits
+still and jumps", and a dial that stalls is a stale price exactly. Every window `slew` claims from (not a data bar's, not the
+blocks') is read four ways beside its level fit (`slew.stale_check`, `stale_into`):
+
+1. *The pointer's own clock.* Its updates are the readings where it moved half a grid step or more from the last update
+   (`pointer_updates`): the stale price's trades.
+2. *The lead-lag* of Hoffmann, Rosenbaum & Yoshida (2013), built on Hayashi & Yoshida's (2005) sums over overlapping intervals:
+   the pointer's increment over each interval between two updates against the scene's increment over the same interval
+   shifted by l frames, summed, for |l| up to 2 s; the lag is the shift where the contrast peaks (`lead_lag`; l > 0, the
+   pointer after the picture). With a hold fitted both increments lose their window's mean rate first; with a hold given
+   the pointer's loses the hold, and a steady pan is timed by the scene's own unevenness.
+3. *The stall*: over each interval between updates, the turn the pointer owed the scene while it sat still -- the scene's
+   move over c and the hold's share -- in steps of its own grid (`stall`). A dial on its grid moves before it owes much more
+   than a step.
+4. *Dimson's (1979) summed slope*: the pointer's turn over a block regressed on the scene's move over the block before, the
+   block and the block after (overlapping blocks of 0.5 s at least, a hold where one is fitted); the three slopes summed are
+   the pointer's turn per pixel of scene whatever its lag within a block, and its 95 % interval comes from a bootstrap over
+   1-s blocks (`dimson`).
+
+The lag and the stall are judged against the window's own null: pointers drawn with no lag on the window's own scene path at
+the fit's c and hold, on the pointer's grid at a random phase with its scatter, on the frames the pointer was read, 100 of them
+through the same estimators. A lag is real where 5 % or fewer of them reach it, as far from zero and gaining as much over zero
+lag (`STALE_ALPHA`); a stall is beyond its grid where 5 % or fewer owe as much. **A real lag refuses the claim by name where it
+lasts longer than the bootstrap's blocks** (`BLOCK_S`, 1 s): c's interval draws 1-s blocks as if the pointer's errors forget
+themselves within one, and a pointer that runs further behind carries them across blocks, so the interval does not hold. A
+real lag shorter than that refuses only where Dimson's 95 % does not hold the level fit's c; otherwise it is said. A lag is
+never taken out of c: on the real pointers that agree with their zooms the lead-lag peaks broadly over a few frames, and c
+moved by it would carry that noise where the level fit had survived. **A stall beyond its grid is said beside the claim and
+refuses nothing**: its null rests on the window's own fitted c and hold, and on slews drawn with no lag it came out beyond the
+null and over a block in 15 of 60 synthetic windows and 11 of 188 drawn on PR27's and PR057a's real scene paths -- a slow hold
+fitted a little off makes a long still stretch look owed.
+
+**Measured** (`stale_null.py`, 2026-11-07, job 21205; synthetic slews with a hold, a 1-3-deg slew and a 0.2-0.45-deg grid, and
+pointers drawn on the real scene paths of PR27's and PR057a's ten claim windows, at their c and hold). Drawn with no lag, **no
+claim of 248 was refused** (60 synthetic, 188 on real paths), though the lead-lag was called real in 12 synthetic and 11 real
+ones (shorter than a block, Dimson holding c). Drawn 0.2 s late: refused 24 of 239 (0 of 60 synthetic); 0.5 s late: 108 of
+216 (10 of 60 synthetic, where c was off by 11 % at the median); a dial stalling for two steps: 2 of 214; for three steps
+shown 10 frames late: 36 of 202. So the refusal is a strict one: it catches a pointer that runs a block or more behind, and
+half of those half a block behind on real scene paths, and leaves most shorter lags, which move c by 1-3 % (synthetic, 0.2 s),
+to the level fit. (The null then drew the pointer with its grid alone; since then it carries the readings' own scatter too,
+which a pointer read with noise and no grid needs -- the test suite's steady pan read a false -38-frame lag without it -- and
+which can only widen the null.)
+
+**On the clips** (job 21206). PR051's upload, the three windows of session 6 with the hold given: **refused by name**, the
+pointer +118, +100 and +120 frames (1.67-2.00 s) behind the picture (r 0.61 against 0.33 at zero lag over 7-14 s), Dimson's
+slope over 2-s blocks 2010 px/deg (95 % 1580-2860) beside the level fit's 2843 and the truth's 2230; the stall said beside it
+(still 1.53 s, 1.6 steps). PR27's three claims and PR057a's three that passed before pass, their lead-lags -7 to +7 frames;
+PR057a's 24.4-32.4 s (c 303) is **refused**: +21 frames (0.70 s) behind at r 0.38 against 0.27, and Dimson's slope over 21-
+frame blocks has no positive value. Its state then rests on 20.4-28.4 s alone (c 256), and the zoom check across 32.8 s reads
+x2.285 against the imagery's x2.001, inside the 20 % the windows' errors allow (worked by hand from the windows' own numbers). Of the other pointer clips with series: PR43
+has no slew; PR48's 91-99 s is refused (-34 frames, 1.13 s); PR144's and PR148's windows were refused before by other checks
+and now also say their lag (+60 frames) or stall (3.9 s). PR060, PR061 and PR149 have no pointer series.
+
+The null drawn on the grid is clean, and real pointers beat it. PR27's and PR057a's slews, whose c's agree with their zooms
+(§17), owe 1.2-2.5 steps at a fast slew where a pointer drawn on its grid owes at most 1.0-1.6 in 19 draws of 20, and their
+lead-lags of -13 to +21 frames are real against it nearly every time -- a display that draws its glyph a few frames off the
+picture -- but they last 0.13-0.77 s. PR051's dial owes 1.6 steps for 1.5 s and runs 118 frames (2.0 s) behind the picture.
+
+**One k from the routes that agree (E17).** Bates & Granger (1969) combined forecasts with weights inverse to their error
+variances; the forecast combination puzzle (Smith & Wallis 2009) is that weights estimated from the data often do worse than
+equal ones. Here the weights are each route's stated error, and nothing is combined before a test that the routes agree,
+since combining two that disagree hides a mistake in one (`scale.route`, `scale.combine`, `combined_said`). In log k: the
+measurements with a stated error, one of each group that shares an input (the most precise), are set against their weighted
+mean, chi^2 on n - 1 degrees of freedom; they agree where its chance is AGREE_ALPHA (0.05) or more, and the combined k is the
+mean with error 1 / sqrt(sum w). The stated rate holds only where the errors are what they say: on 600 synthetic slew windows
+with one c, each window's 16-84 % half-width covered the truth 76 % of the time, but ln(c / c_true) over it had sd 1.36 (MAD
+0.72) -- right in the middle, light in the tails -- and at a stated 5 % pairs, threes and fours of windows were called in
+disagreement 7, 13 and 16 % of the time. With each window's half-width times 1.5 (`slew.SLEW_ERR_SCALE`) the rates are 4.3, 6.5
+and 5.3 % (x1.3: 5.3, 9.5, 8.0 %), and `slew` tests its windows so; the state's c and its error are as before. The price is power: two
+windows 10 % apart are told apart 43 % of the time at x1.5 (67 % unscaled), 25 % apart 84 % (93 %). Where they disagree nothing is combined and every pair further apart than the two-sided 0.05
+allows is named. A measurement whose error is not stated (a graticule as given today) is tested against each that states one
+with its own error taken as none -- the strictest the test can be -- and never weighed in. A floor (a slew's c = k cos e with
+the depression unknown, or a floor where the pointer did not register the turn) must be cleared: a measured k below it by more
+than the one-sided 0.05 allows is a disagreement. A prior (a field of view assumed, or given stretch by stretch) is set against
+the result and below a floor is said to be contradicted; it never enters the combination.
+
+Where it is used. (1) In `slew`, each zoom state's windows: each claim's c with its bootstrap's 16-84 % half-width, windows
+that overlap in time sharing their frames (only the more precise of two enters); a state whose windows disagree has no c and
+says so by name (before, their inverse-variance mean was taken whatever their spread, and `c_spread` reported it). (2) In the
+report's table of the four unknowns, k's row: where a case has two routes or more (`Case.k_routes`: the scale stage's
+graticule or field of view, the slew recorded with `--case`, a reference of known length at a range given), the row adds what
+the test says. The row's value stays the route the speeds were worked out from: the test says whether the others bear it out.
+Across zoom states the slew's c's are compared through the imagery's zoom as before (§17), not combined: `zoom`'s ratio states
+no error yet (E15 would give it one).
+
+**The zoom as a regression discontinuity (E15; `zoom --rd [H]`).** `forensics.zoom_fit` measures a zoom from one frame either
+side of the burst; `zoom.confirm` already refits a marginal one from pairs further out. A regression discontinuity estimates
+a jump at a known cutoff by local polynomials either side (Imbens & Kalyanaraman 2012; Calonico, Cattaneo & Titiunik 2014),
+and here the cutoff is the burst and the outcome the scale between a frame before it and a frame after it. The pairs (before
+- i, after + j), i and j from 0 to H (3 by default: 16 pairs), are each fitted as the burst's own pair is, with the same fixed
+patterns taken out; ln s_ij = ln S + b i + c j by least squares, the slopes the scene's own drift of scale (a camera closing on
+the ground), and the jump S at i = j = 0 (`rd_fit`). Beside it the same with i^2 and j^2: the interval is that fit's, bias-
+corrected by the higher order as Calonico, Cattaneo & Titiunik's robust interval is, its error from a jackknife that leaves out
+each frame in turn (the pairs share their frames, so they are not independent), at 95 % on t. It calls a step where the
+interval clears x1 and the no-step band (x1.08) too (`rd_step`). **Placebo cutoffs** (`placebo_items`): the same estimator at
+10 cutoffs inside the states, at least 12 + H frames from any burst, each with its own state's fixed pattern either side; the
+share of them that call a step is how often the fit finds a step where there is none, on this clip, and the stage says it.
+Only when asked; a run without `--rd` is as before. H = 3 is a judgement call: within three frames a turret's scale drifts a
+few parts in a thousand, so the local line is nearly flat and the quadratic is the check on it (the quadratic is used where
+each side has four frames or more, so its jackknife can leave one out; with fewer the line alone). Rendered (`tests/
+test_zoom.py`): x2 with the scale drifting 0.1 % a frame, H 2, read as x2.0045 (95 % 1.990-2.019) against 2.0056; two placebo
+cutoffs x0.9987 and x1.0014, no step. **On real clips it is not yet measured**: PR27, PR057a and PR144 were run on 2026-11-07
+(1920 x 1080, H 3 and ten placebos: 176 full-size fits a clip) and none finished in its hour -- each pair rebuilt both stretches'
+fixed patterns from twelve frames, which `zoom.fit_all` now builds once a stretch and lets go after its last fit. The placebo
+rates of real clips, and the burst's interval against PR27's x2.000, PR057a's x2.001 and PR144's x5.884, are open.
+
+**The zoom ladder pooled (E16; `scale.ladder`, `credible`, `carry`).** International price comparison fits log price = country
+effect + product effect over rarely observed pairs (Summers 1973), and finance shrinks a stock's noisy beta towards the cross
+section (Vasicek 1973; Blume 1975), as insurers' credibility does (Buhlmann 1967). A sensor's zoom changes its field by a few
+fixed ratios, so every step measured in any clip is a reading of its rung. `ladder` groups steps by |ln s| (a new rung past a
+gap of 3 %) and pools each rung, its error the standard error of its steps and, where the steps state their own errors
+(`zoom --rd`'s), tau, the spread beyond them; `credible` shrinks one clip's step towards its rung by Z = tau^2 / (tau^2 +
+err^2); `carry` takes a k through pooled rungs, the error each rung's pooled one, not a single step's. Read off the pointer
+sweep's 95 measured steps (pass 5; 42 of the 127 clips, every PURSUE sensor together): **x1.9998 (+-0.28 % in ln; one step's
+spread 1.9 %; 45 steps in 26 clips) and x5.916 (+-0.51 %; spread 2.2 %; 18 in 10)**, then x2.303 (9 in 6), x3.141 (3) and x1.089
+(3). A single measured step is good to about 2 %, the x2 rung pooled to 0.3 %. What it does not give is a k on a clip that
+measured none: `carry` makes a prior, and k carried between clips also carries their depressions (c = k cos e) and their
+videos' scalings, which need not be the same, so the ladder is not a report's row.

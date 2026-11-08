@@ -2682,6 +2682,24 @@ def test_the_four_unknowns_say_where_each_stands():
           and "at least 2.5 km, by sharp as a point" in b["R"]["value"] and b["θ"]["status"] == "missing",
           "slew's standing floor bounds k; the horizon's ceiling and focus's floor bound R, each by its route",
           f"{b['k']['value']}; {b['R']['value']}")
+    # E17: a graticule and a slew with its depression, set against each other and combined only where they agree
+    for name, kslew, want in (("agree", 35.9, "agree"), ("disagree", 45.0, "DISAGREE")):
+        two = report.Case("t", "/tmp/x.mp4")
+        stages.scale(Clip(), graticule=35.4).into(two)
+        ce = math.cos(math.radians(10.0))
+        report.Found("slew", {}, fields=dict(c_px_per_deg=kslew * ce, k_px_per_deg=kslew, depression_deg=10.0, c_state=0,
+                                             states=[dict(state=0, c_px_per_deg=kslew * ce, c_err_px_per_deg=0.8 * ce)])).into(two)
+        kr = led(two)["k"]
+        check(kr["value"] == "35.4 px/deg" and kr["status"] == "constrained" and "2 routes" in kr["by"] and want in kr["by"]
+              and "graticule" in kr["by"] and "not stated" in kr["by"],
+              f"a graticule and a slew that {name}: the row says so (the graticule's error is not stated: tested as none, not weighed)",
+              kr["by"])
+    guess2 = report.Case("t", "/tmp/x.mp4")
+    stages.scale(Clip(), fov=40.0).into(guess2)
+    report.Found("slew", {}, fields=dict(c_px_per_deg=80.0, c_state=0, states=[dict(state=0, c_px_per_deg=80.0, c_err_px_per_deg=3.0)])).into(guess2)
+    kr = led(guess2)["k"]
+    check(kr["status"] == "assumed" and "contradicted" in kr["by"],
+          "a field of view assumed where the slew's c says k is at least twice its k: the assumption is contradicted", kr["by"])
     loose = report.Case("t", "/tmp/x.mp4")
     report.Found("slew", {}, fields=dict(c_px_per_deg=None, c_at_least_px_per_deg=1087.0, floor_stands=False)).into(loose)
     check(led(loose)["k"]["status"] == "missing", "a floor that does not stand (no window of the clip registered a slew) is no bound")

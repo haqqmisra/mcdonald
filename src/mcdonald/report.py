@@ -862,6 +862,40 @@ class Case:
             said["what the clip allows"] = admissible_said(reg)
         return said
 
+    def k_routes(self):
+        """The routes to k this case has, as `scale.route`s (E17, method 49): the graticule (a measurement; its error is not
+        stated, so it cannot be tested), the field of view assumed or given stretch by stretch (a prior: compared, never
+        combined), the camera's slew (its best state's c with the error of its windows: a measurement of k with the
+        depression given or read off a data bar, else a floor, k >= c), a floor where the pointer did not register the
+        turn, and a reference of known length at a range given (k = l R / L; no error stated). Then `scale.combine`."""
+        from . import scale as sca
+        st = lambda name: self.stages.get(name, {}).get("fields") or {}
+        sf, sl, kf = st("scale"), st("slew"), st("kinematics")
+        out = []
+        k, k_from = sf.get("k_px_per_rad"), sf.get("k_from") or ""
+        if k:
+            deg = k * math.pi / 180
+            if "ASSUMED" in k_from:
+                out.append(sca.route("the field of view " + ("given stretch by stretch" if "fields given" in k_from else "assumed"),
+                                     deg, kind="prior"))
+            else:
+                out.append(sca.route("the graticule" if k_from.startswith("graticule") else "the scale given", deg))
+        best = next((r for r in sl.get("states") or [] if r.get("state") == sl.get("c_state") and r.get("c_px_per_deg")), None)
+        c = sl.get("c_px_per_deg")
+        if c:
+            err = (best or {}).get("c_err_px_per_deg")
+            if sl.get("k_px_per_deg") and sl.get("depression_deg") is not None:
+                ce = math.cos(math.radians(sl["depression_deg"]))
+                out.append(sca.route("the camera's slew", sl["k_px_per_deg"], err / ce if err else None, shares=("the depression",)))
+            else:
+                out.append(sca.route("the camera's slew (k cos(depression), so k is at least it)", c, err, kind="floor"))
+        elif sl.get("c_at_least_px_per_deg") and sl.get("floor_stands"):
+            out.append(sca.route("the camera's slew, where the pointer did not register the turn", sl["c_at_least_px_per_deg"], kind="floor"))
+        ref, R = sf.get("reference") or {}, kf.get("range_m")
+        if ref.get("px") and ref.get("length_m") and R and not kf.get("range_ratio"):
+            out.append(sca.route("the reference of known length at the range given", ref["px"] * R / ref["length_m"] * math.pi / 180))
+        return out, sca.combine(out)
+
     def ledger(self):
         """The four unknowns of the velocity equation -- k, R, theta and v_own -- each a dict(symbol, name, status,
         value, by, closes). `status` is "constrained" (measured, or given from a source), "assumed" (a field of view
@@ -894,6 +928,11 @@ class Case:
                                                        "gives the speed across the line of sight without it (k cancels)")
         else:
             row("k", "angular scale", "missing", None, "no graticule, field of view or slew")
+        routes, comb = self.k_routes()
+        if len(routes) >= 2:                               # E17: the routes set against each other, combined only where they agree
+            from .scale import combined_said
+            rows[-1]["by"] = f"{rows[-1]['by']}; {len(routes)} routes: " + combined_said(comb)
+            rows[-1]["routes"] = comb
         R, R_by, R_assumed = self.ranged()
         ref, ratio = sf.get("reference") or {}, kf.get("range_ratio")
         if R is not None:

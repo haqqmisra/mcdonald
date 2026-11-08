@@ -189,3 +189,247 @@ def fov_ladder(v_px, width_px, fov_candidates=FOV_LADDER, ranges_m=(3000, 5000, 
         out.append(dict(fov_deg=f, k=k, omega=om,
                         speeds={R: om * R for R in ranges_m}))
     return out
+
+
+# ---- one k from the routes that agree (E17; the economics survey's §3.4, 2026-11-07) -----------------------------
+# Bates & Granger (1969) combined forecasts with weights inverse to their error variances; the forecast combination puzzle
+# (Smith & Wallis 2009) is that weights estimated from the data often do worse than equal ones, because they carry error
+# too. Here the weights are each route's own stated error, not fitted, and nothing is combined before a test that the
+# routes agree: combining two routes that disagree hides a mistake in one of them.
+AGREE_ALPHA = 0.05     # the agreement test's level: the chance that routes measuring one k, each within its stated error,
+                       # are called in disagreement. It is the chi-square's own rate where each route's error is what it says
+                       # (Gaussian in log k); method 49 measures it on drawn slews, whose bootstrap errors are the ones the stage
+                       # states, and the words give the measured rate where the two differ
+KINDS = ("measurement", "floor", "prior")
+
+
+def route(name, k_px_per_deg, err_px_per_deg=None, kind="measurement", shares=(), detail=""):
+    """One route to k, in px per degree (square pixels, up the picture where they are not square): a `measurement` (a
+    graticule, a slew with its depression, a reference of known size at a range given, a data bar's field of view) with
+    its 1-sigma error where the route states one; a `floor` (a slew's c = k cos(depression) with the depression unknown,
+    or a floor where the pointer did not register the turn: k is at least it); or a `prior` (an assumed field of view:
+    compared with what is measured, never combined). `shares`: the inputs it rests on that another route may rest on too
+    (a zoom ratio, a depression): routes that share one are not independent, and only the more precise enters the test."""
+    if kind not in KINDS:
+        raise ValueError(f"a route is one of {KINDS}, not {kind}")
+    return dict(name=name, k_px_per_deg=float(k_px_per_deg), err_px_per_deg=None if err_px_per_deg is None else float(err_px_per_deg),
+                kind=kind, shares=tuple(shares), detail=detail)
+
+
+def _sig(r):
+    """A route's error in log k."""
+    return r["err_px_per_deg"] / r["k_px_per_deg"] if r.get("err_px_per_deg") else None
+
+
+def combine(routes, alpha=AGREE_ALPHA):
+    """The routes a case has to k, tested for agreement and combined where they agree (method 49).
+
+    In log k, where a route's error is a share of it: the measurements with a stated error, one of each group that shares
+    an input (the most precise), are set against their weighted mean, chi^2 = sum((ln k_i - mean) / sigma_i)^2 on n - 1
+    degrees of freedom; they agree where its chance is alpha or more, and the combined k is the mean with error
+    1 / sqrt(sum(1 / sigma_i^2)). Where they do not agree, nothing is combined, and every pair further apart than the
+    two-sided alpha allows is named. A floor is cleared where k is not below it by more than the one-sided alpha allows
+    (each measurement where they disagree, the combined k where they agree); a floor not cleared is a disagreement too. A
+    prior is set against the result and said; it never enters it. A measurement with no stated error cannot be tested:
+    it stands alone where it is the only one, and is left out of a test with others, which says so.
+
+    Returns dict(verdict -- "none", "one route", "agree" or "disagree" --, k_px_per_deg and err_px_per_deg (None where
+    they disagree or nothing is measured), used, chi2, dof, p, pairs [dict(a, b, z)], disagree [names], floors
+    [dict(name, k, z, clears)], priors [dict(name, k, z)], left_out [(name, why)])."""
+    from scipy.stats import chi2 as chi2_dist, norm
+    meas = [r for r in routes if r["kind"] == "measurement"]
+    out = dict(verdict="none", k_px_per_deg=None, err_px_per_deg=None, used=[], chi2=None, dof=0, p=None, pairs=[],
+               disagree=[], floors=[], priors=[], left_out=[], alpha=alpha)
+    with_err = [r for r in meas if _sig(r)]
+    for r in meas:
+        if not _sig(r) and len(meas) > 1:
+            out["left_out"].append((r["name"], "its error is not stated: tested against the others with none (the strictest the test "
+                                               "can be), not weighed into the combination"))
+    with_err.sort(key=_sig)
+    used, taken = [], set()
+    for r in with_err:                                   # the most precise of each group that shares an input
+        if taken & set(r["shares"]):
+            out["left_out"].append((r["name"], "it shares an input (" + ", ".join(sorted(taken & set(r["shares"])))
+                                    + ") with a more precise route, so the two are not independent: checked against it, not added"))
+            continue
+        taken |= set(r["shares"])
+        used.append(r)
+    zc2, zc1 = float(norm.ppf(1 - alpha / 2)), float(norm.ppf(1 - alpha))
+    for i, a in enumerate(with_err):                     # every pair, shared or not, for the words
+        for b in with_err[i + 1:]:
+            z = abs(math.log(a["k_px_per_deg"] / b["k_px_per_deg"])) / math.hypot(_sig(a), _sig(b))
+            out["pairs"].append(dict(a=a["name"], b=b["name"], z=float(z), apart=bool(z > zc2)))
+    bare = [r for r in meas if not _sig(r)]
+    for a in bare:                                       # an error not stated: taken as none against each that states one
+        for b in with_err:
+            z = abs(math.log(a["k_px_per_deg"] / b["k_px_per_deg"])) / _sig(b)
+            out["pairs"].append(dict(a=a["name"], b=b["name"], z=float(z), apart=bool(z > zc2)))
+    if len(used) >= 2:
+        x = np.log([r["k_px_per_deg"] for r in used])
+        w = 1.0 / np.array([_sig(r) for r in used]) ** 2
+        mean = float((w * x).sum() / w.sum())
+        chi2 = float((w * (x - mean) ** 2).sum())
+        p = float(chi2_dist.sf(chi2, len(used) - 1))
+        out.update(used=[r["name"] for r in used], chi2=chi2, dof=len(used) - 1, p=p)
+        if p >= alpha:
+            k = math.exp(mean)
+            out.update(verdict="agree", k_px_per_deg=k, err_px_per_deg=k / math.sqrt(w.sum()))
+        else:
+            out["verdict"] = "disagree"
+            out["disagree"] = sorted({n for q in out["pairs"] if q["apart"] for n in (q["a"], q["b"])}) or [r["name"] for r in used]
+    elif used or meas:
+        one = used[0] if used else meas[0]
+        out.update(verdict="one route", used=[one["name"]], k_px_per_deg=one["k_px_per_deg"], err_px_per_deg=one["err_px_per_deg"])
+    if bare and with_err and out["verdict"] != "disagree":   # the routes with no stated error must agree with the rest too
+        apart = [q for q in out["pairs"] if q["apart"] and (q["a"] in {r["name"] for r in bare})]
+        if apart:
+            out.update(verdict="disagree", k_px_per_deg=None, err_px_per_deg=None,
+                       disagree=sorted({n for q in apart for n in (q["a"], q["b"])}))
+        elif out["verdict"] == "one route":
+            out.update(verdict="agree", used=out["used"])
+    if out["verdict"] == "agree":
+        against = [dict(name="the combined k", k_px_per_deg=out["k_px_per_deg"], err_px_per_deg=out["err_px_per_deg"])]
+    elif out["verdict"] == "one route":
+        against = [r for r in meas if r["name"] == out["used"][0]]
+    else:
+        against = [r for r in with_err if r["name"] in out["disagree"]]
+    for f in (r for r in routes if r["kind"] == "floor"):
+        worst = None
+        for m in against:
+            s = math.hypot(_sig(m) or 0.0, _sig(f) or 0.0)
+            gap = math.log(f["k_px_per_deg"] / m["k_px_per_deg"])
+            z = gap / s if s > 0 else (math.inf if gap > 0 else -math.inf)
+            if worst is None or z > worst[0]:
+                worst = (z, m["name"])
+        clears = worst is None or worst[0] <= zc1
+        out["floors"].append(dict(name=f["name"], k_px_per_deg=f["k_px_per_deg"], z=None if worst is None else float(worst[0]),
+                                  against=None if worst is None else worst[1], clears=bool(clears)))
+        if not clears:
+            out["disagree"] = sorted((set(out["disagree"]) | {f["name"], worst[1]} | (set(out["used"]) if worst[1] == "the combined k"
+                                                                                       else set())) - {"the combined k"})
+            out.update(verdict="disagree", k_px_per_deg=None, err_px_per_deg=None)
+    for pr in (r for r in routes if r["kind"] == "prior"):
+        z = None
+        if out["k_px_per_deg"] and _sig(dict(out, kind="measurement")) is not None:
+            z = math.log(pr["k_px_per_deg"] / out["k_px_per_deg"]) / _sig(dict(out))
+        under = [f["name"] for f in (r for r in routes if r["kind"] == "floor")      # an assumption below a floor is contradicted
+                 if math.log(f["k_px_per_deg"] / pr["k_px_per_deg"]) / (_sig(f) or 1e-12) > zc1]
+        out["priors"].append(dict(name=pr["name"], k_px_per_deg=pr["k_px_per_deg"], z=None if z is None else float(z),
+                                  under_floor=under))
+    return out
+
+
+def norm_z(alpha):
+    """The two-sided normal deviate at alpha."""
+    from scipy.stats import norm
+    return float(norm.ppf(1 - alpha / 2))
+
+
+def combined_said(c):
+    """The combination in one or two sentences, for the report and the stage's lines."""
+    fmt = lambda v: f"{v:.0f}" if v >= 100 else f"{v:.3g}"
+    if c["verdict"] == "none":
+        s = "no route measures k"
+        for pr in c["priors"]:
+            if pr.get("under_floor"):
+                s += f"; {pr['name']} gives {fmt(pr['k_px_per_deg'])} px/deg, below {' and '.join(pr['under_floor'])}: the assumption is contradicted"
+        for f in c["floors"]:
+            s += f"; {f['name']}: at least {fmt(f['k_px_per_deg'])} px/deg"
+        return s
+    if c["verdict"] == "one route":
+        s = f"one route measures k: {c['used'][0]}, {fmt(c['k_px_per_deg'])} px/deg" + (
+            f" +/- {fmt(c['err_px_per_deg'])}" if c["err_px_per_deg"] else "")
+    elif c["verdict"] == "agree" and c["chi2"] is None:
+        near = "; ".join(f"{q['a']} and {q['b']} are {q['z']:.1f} of the error apart" for q in c["pairs"])
+        s = (f"the routes agree ({near}; {norm_z(c['alpha']):.2f} allowed): k = {fmt(c['k_px_per_deg'])} +/- "
+             f"{fmt(c['err_px_per_deg'])} px/deg from {c['used'][0]}")
+    elif c["verdict"] == "agree":
+        s = (f"{len(c['used'])} routes agree ({', '.join(c['used'])}; chi^2 {c['chi2']:.2f} on {c['dof']}, chance "
+             f"{c['p']:.2f}, {c['alpha']:g} needed): k = {fmt(c['k_px_per_deg'])} +/- {fmt(c['err_px_per_deg'])} px/deg combined")
+    else:
+        apart = [q for q in c["pairs"] if q["apart"]]
+        s = ("the routes DISAGREE, so they are not combined: " + "; ".join(f"{q['a']} and {q['b']} are {q['z']:.1f} of their "
+                                                                           "combined errors apart" for q in apart)
+             if apart else f"the routes DISAGREE (chi^2 {c['chi2']:.2f} on {c['dof']}, chance {c['p']:.3f}), so they are not combined"
+             if c["chi2"] is not None else "the routes DISAGREE, so they are not combined")
+    for f in c["floors"]:
+        if not f["clears"]:
+            s += f"; {f['name']} ({fmt(f['k_px_per_deg'])} px/deg at least) is above {f['against']} by {f['z']:.1f} of their errors"
+    for pr in c["priors"]:
+        if pr["z"] is not None:
+            s += f"; {pr['name']} gives {fmt(pr['k_px_per_deg'])} px/deg, {pr['z']:+.1f} of the measured k's error from it (a prior, not combined)"
+        if pr.get("under_floor"):
+            s += f"; {pr['name']} gives {fmt(pr['k_px_per_deg'])} px/deg, below {' and '.join(pr['under_floor'])}: the assumption is contradicted"
+    for name, why in c["left_out"]:
+        s += f"; {name}: {why}" if why.startswith("its error") else f"; {name} left out: {why}"
+    return s
+
+
+# ---- the zoom ladder pooled across a sensor's clips (E16; the economics survey's §3.3, 2026-11-07) ----------------------
+# International price comparison fits log price = country effect + product effect across rarely observed pairs (Summers'
+# country-product-dummy regression), and finance shrinks each stock's noisy beta towards the cross-section (Vasicek 1973;
+# Blume 1975), as insurers do with credibility (Buhlmann 1967). A sensor's zoom changes its field by a few fixed ratios (the
+# MQ-9 MTS-B's x2.00 and x5.9, the pointer sweep of 2026-10-20): each step measured in any clip is a reading of its rung, so
+# the rung's ratio is known far better than any one step, and a k carried through it gains the rung's error, not a single
+# step's -- a chain whose error does not grow with each link. What it does not give is a k on a clip that measured none: only
+# a prior, from the sensor's other clips, and said as one.
+RUNG_GAP = 0.03        # |ln s| apart by more than this starts a new rung: the sweep's 95 steps fall in rungs 0.5-2 % wide (in ln)
+                       # with gaps of 5 % and more between them (x2.000 and x2.303; x5.916 and x7.509)
+
+
+def ladder(steps, gap=RUNG_GAP):
+    """A sensor's zoom ladder from its measured steps, pooled: `steps` [(clip, s)] or [(clip, s, err_log)] (a step in or out,
+    s or 1/s alike; err_log a step's own error in ln s where its fit states one, `zoom --rd`'s). The steps fall into rungs by
+    |ln s| (a new rung where two sorted neighbours are more than `gap` apart); each rung's ratio is the mean of its |ln s|
+    (inverse-variance where every step states an error), its error the standard error, its spread the steps' standard
+    deviation, and tau^2 -- the spread beyond the steps' own errors, the between-clip variance credibility needs -- where they
+    state them. Returns [dict(ratio, ln_ratio, ln_err, ln_sd, tau, n, clips, members)] from the smallest rung up."""
+    rows = sorted((abs(math.log(st[1])), st[0], (st[2] if len(st) > 2 else None)) for st in steps if st[1] and st[1] > 0)
+    rungs, cur = [], []
+    for r in rows:
+        if cur and r[0] - cur[-1][0] > gap:
+            rungs.append(cur)
+            cur = []
+        cur.append(r)
+    if cur:
+        rungs.append(cur)
+    out = []
+    for g in rungs:
+        v = np.array([x[0] for x in g])
+        e = [x[2] for x in g]
+        n = len(v)
+        sd = float(v.std(ddof=1)) if n > 1 else None
+        if all(x for x in e):
+            w = 1 / np.array(e) ** 2
+            m, se = float((w * v).sum() / w.sum()), float(1 / math.sqrt(w.sum()))
+            tau2 = max(sd ** 2 - float(np.mean(np.array(e) ** 2)), 0.0) if sd is not None else None
+        else:
+            m, se, tau2 = float(v.mean()), (sd / math.sqrt(n) if sd is not None else None), None
+        out.append(dict(ratio=math.exp(m), ln_ratio=m, ln_err=se, ln_sd=sd, tau=None if tau2 is None else math.sqrt(tau2), n=n,
+                        clips=len({x[1] for x in g}), members=[(x[1], math.exp(x[0])) for x in g]))
+    return out
+
+
+def credible(s, err_log, rung):
+    """A clip's own measured step shrunk towards its rung by credibility: Z = tau^2 / (tau^2 + err^2), the step's weight, and
+    the rest the rung's (Buhlmann 1967). With no tau (the steps state no errors, or the rung's spread is all their error) the
+    rung's ratio stands. Returns dict(ratio, ln_err, Z)."""
+    x = math.log(s) if s >= 1 else -math.log(s)
+    tau = rung.get("tau")
+    if not tau or not err_log:
+        z = 0.0
+    else:
+        z = tau ** 2 / (tau ** 2 + err_log ** 2)
+    m = z * x + (1 - z) * rung["ln_ratio"]
+    err = math.sqrt((z * err_log) ** 2 + ((1 - z) * (rung["ln_err"] or 0.0)) ** 2) if err_log else rung["ln_err"]
+    return dict(ratio=math.exp(m) if s >= 1 else math.exp(-m), ln_err=err, Z=z)
+
+
+def carry(k_px_per_deg, k_err, rungs_up, rungs_down=()):
+    """k measured in one state carried to another through the sensor's pooled rungs (`ladder`'s rows): times each rung zoomed
+    in, over each zoomed out. Its error in ln k adds each rung's pooled error, not a single step's. Returns (k, err) -- a
+    PRIOR on the other state where it is used on a clip that measured nothing itself, and to be said as one."""
+    ln = math.log(k_px_per_deg) + sum(r["ln_ratio"] for r in rungs_up) - sum(r["ln_ratio"] for r in rungs_down)
+    var = (k_err / k_px_per_deg) ** 2 + sum((r["ln_err"] or 0.0) ** 2 for r in list(rungs_up) + list(rungs_down))
+    k = math.exp(ln)
+    return k, k * math.sqrt(var)

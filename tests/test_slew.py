@@ -542,9 +542,11 @@ def test_windows_are_cut_at_a_zoom_and_compared_within_their_state():
     check(chk.get("agree") is True and abs(chk["c_ratio"] / 2 - 1) < 0.04, "the ratio of c across the step is the imagery's x2",
           f"{chk}")
     check(f["c_spread"] is None, "no state holds two fields", f"{f['c_spread']}")
-    print(f"        (taken as one field, --no-zoom: c {one['c_px_per_deg']:.0f}, the windows apart x{one['c_spread']:.2f})")
-    check(one["c_spread"] and one["c_spread"] > 1.8, "taken as one field, the two claims disagree by the zoom",
-          f"x{one['c_spread']}")
+    row = one["states"][0]
+    print(f"        (taken as one field, --no-zoom: the windows apart x{row['c_spread']:.2f}, {row['agreement']['verdict']})")
+    check(row["c_spread"] and row["c_spread"] > 1.8 and row["agreement"]["verdict"] == "disagree" and one["c_px_per_deg"] is None,
+          "taken as one field, the two claims disagree by the zoom, and are not combined (E17)",
+          f"x{row['c_spread']}, {row['agreement']['verdict']}, c {one['c_px_per_deg']}")
 
 
 def test_a_zoom_the_slew_does_not_bear_out_is_said():
@@ -618,6 +620,137 @@ def test_the_rates_find_a_lagging_pointer_and_a_turn_that_does_not_follow():
     r = slew.rate_lag(t, slow, X2, seg, FPS)
     check(r["rate_r"] < slew.MIN_RATE_R, "a turn that curves slowly under a scene that wiggles: r under the bar",
           f"r {r['rate_r']:.2f}")
+
+
+def _stale_window(lag=0, stall=None, delay=0, seed=11, step=0.3, extra_deg=2.0, seconds=12.0, slew_s=2.5, hold=0.2):
+    """One synthetic window through `fit_window`, `rate_lag` and `stale_into` as `measure` runs them: a slew of `extra_deg`
+    over `slew_s` under a hold, the pointer drawn on a `step` grid `lag` frames late, or as a dial that stalls -- it moves
+    only once it owes `stall` steps, then shows the angle `delay` frames late (PR051's MTS-B dial)."""
+    rng = np.random.default_rng(seed)
+    k = 5
+    n = np.arange(1, int(seconds * FPS) + 1)
+    t = (n - 1) / FPS
+    extra = extra_deg * np.clip((t - 4.5) / slew_s, 0, 1)
+    c = 1500.0
+    X = c * extra + np.cumsum(rng.normal(0, 0.2, len(t)))
+    Y = 0.1 * c * extra
+    true = 250.0 + hold * t + extra
+    th = np.r_[np.full(lag, true[0]), true[:len(true) - lag]] if lag else true.copy()
+    if stall:
+        cur, shown = th[0], np.empty_like(th)
+        for i in range(len(th)):
+            if abs(th[i] - cur) >= stall * step:
+                cur = th[max(0, i - delay)]
+            shown[i] = cur
+        th = shown
+    ph = rng.uniform(0, step)
+    thq = np.round((th - ph) / step) * step + ph
+    fr, Xs, Ys, S, _ = slew.scene_path(n[:-k], X[k:] - X[:-k], Y[k:] - Y[:-k], k)
+    ths = slew.smooth_like_scene(n, thq, k, fr)
+    sig, st = slew.pointer_scatter(thq, 295.0)
+    m = np.isfinite(ths) & np.isfinite(Xs)
+    tt = (fr - 1) / FPS
+    f = slew.fit_window(tt[m], ths[m], Xs[m], Ys[m], S[m], sig, 1, FPS, 150, seed=seed, step_deg=st)
+    if f.get("registered"):
+        f.update(slew.rate_lag(tt[m], ths[m], Xs[m], S[m], FPS, 1))
+        s = dict(frames=fr, t=tt, theta=ths, X=Xs, seg=S, pointer=dict(sigma_deg=sig, step_deg=st))
+        slew.stale_into(f, s, np.where(m)[0], dict(frames=n, theta=thq), FPS, 1, seed=seed)
+    return f, c
+
+
+def test_a_pointer_on_its_grid_is_not_a_stale_price():
+    print("\nslew: a pointer on a 0.3-deg grid with no lag, read as a stale price (E14)")
+    f, c = _stale_window()
+    sc = f.get("stale") or {}
+    check(sc.get("stall") is not None and not sc["stalled"], "it owes no more than its grid while it sits still",
+          f"{sc.get('stall')}, p {sc.get('stall_p')}")
+    check(sc.get("dimson") and sc["dimson_holds_c"] is True, "Dimson's slope summed over a lead and a lag holds the level fit's c",
+          f"{sc.get('dimson') and sc['dimson']['c_px_per_deg']} against {f.get('c_px_per_deg')}")
+    check(not f["no_power"] and abs(f["c_px_per_deg"] / c - 1) < 0.05, "the claim stands, within 5 %",
+          f"{f.get('c_px_per_deg')}; {f['no_power']}")
+
+
+def test_a_dial_that_stalls_is_said():
+    print("\nslew: a dial that sits still until it owes three steps, then shows the angle 10 frames late (PR051's, E14)")
+    f, c = _stale_window(stall=3, delay=10, extra_deg=1.2, slew_s=4.0)
+    sc = f.get("stale") or {}
+    check(bool(sc) and sc["stall"] and sc["stall"]["frames"] / FPS > 1.0 and sc["stall_p"] is not None and sc["stall_p"] <= 0.05,
+          "the stall is found: still for over a second, owing more than pointers drawn on its grid", f"{sc.get('stall')}, p {sc.get('stall_p')}")
+    check(sc.get("stalled") and "sat still" in (f.get("stale_note") or "") and not any("sat still" in w for w in f["no_power"]),
+          "it is said beside the claim, and refuses nothing by itself", f"{f.get('stale_note')}")
+
+
+def test_a_pointer_more_than_a_block_late_is_a_stale_reading():
+    print("\nslew: a pointer drawn 40 frames (1.3 s) after the picture, longer than the bootstrap's 1-s blocks (E14)")
+    rng = np.random.default_rng(5)
+    n = np.arange(1, 601)
+    X = np.cumsum(rng.normal(0, 3.0, len(n)))
+    true = X / 500.0
+    late = np.r_[np.full(40, true[0]), true[:-40]]
+    step = 0.05
+    th = np.round(late / step) * step
+    sc = slew.stale_check((n - 1) / FPS, th, X, np.zeros(len(n), int), FPS, 500.0, 0.0, step / np.sqrt(12), step, n, th, 1)
+    ll = sc["lead_lag"] or {}
+    check(abs((ll.get("lag_frames") or 0) - 40) <= 3 and sc["lagged"] and sc["lag_material"],
+          "the lead-lag finds it within 3 frames, past every pointer drawn with no lag, and past a block: a refusal",
+          f"{ll}, p {sc['lag_p']}")
+
+
+def test_the_lead_lag_finds_a_pointer_drawn_late():
+    print("\nslew: a pointer drawn 12 frames (0.4 s) after the picture: the Hoffmann-Rosenbaum-Yoshida lead-lag (E14)")
+    rng = np.random.default_rng(5)
+    n = np.arange(1, 601)
+    X = np.cumsum(rng.normal(0, 3.0, len(n)))                        # a scene that jitters, so its rate has something to time
+    true = X / 500.0
+    late = np.r_[np.full(12, true[0]), true[:-12]]
+    step = 0.05
+    uf, uth = slew.pointer_updates(n, np.round(late / step) * step, step)
+    ll = slew.lead_lag(uf, uth, n, X, FPS)
+    check(ll and abs(ll["lag_frames"] - 12) <= 2 and ll["r"] > ll["r0"], "the lag comes back as +12 frames (the pointer after "
+          "the picture), within 2", f"{ll}")
+
+
+def test_routes_that_agree_are_combined_and_routes_that_disagree_are_not():
+    from mcdonald import scale
+    print("\nscale: one k from the routes that agree (E17)")
+    c = scale.combine([scale.route("the graticule", 36.25, 0.3), scale.route("the slew", 37.0, 1.5),
+                       scale.route("an assumed 54 deg", 35.4, kind="prior")])
+    check(c["verdict"] == "agree" and abs(c["k_px_per_deg"] - 36.28) < 0.02 and c["err_px_per_deg"] < 0.3,
+          "two that agree: one k, inverse-variance in log k, its error under the better one's",
+          f"{c['k_px_per_deg']:.3f} +/- {c['err_px_per_deg']:.3f}; {scale.combined_said(c)[:120]}")
+    check(c["priors"] and c["priors"][0]["z"] is not None and "not combined" in scale.combined_said(c),
+          "the assumed field of view is set against it, never combined")
+    d = scale.combine([scale.route("the graticule", 36.25, 0.3), scale.route("the slew", 45.0, 1.5)])
+    check(d["verdict"] == "disagree" and d["k_px_per_deg"] is None and set(d["disagree"]) == {"the graticule", "the slew"}
+          and "DISAGREE" in scale.combined_said(d), "two that disagree: named, and nothing combined", scale.combined_said(d)[:120])
+    e = scale.combine([scale.route("the graticule", 36.25, 0.3), scale.route("the slew's c", 40.0, 1.0, kind="floor")])
+    check(e["verdict"] == "disagree" and not e["floors"][0]["clears"], "a measured k under a floor's error is a disagreement",
+          scale.combined_said(e)[:120])
+    g = scale.combine([scale.route("state 0", 500, 10, shares=("frames",)), scale.route("state 0 again", 505, 12, shares=("frames",))])
+    check(g["verdict"] == "one route" and g["left_out"], "routes that share an input are not counted twice", scale.combined_said(g)[:120])
+    h = scale.combine([scale.route("assumed", 35.4, kind="prior"), scale.route("the slew's c", 60, 3, kind="floor")])
+    check(h["priors"][0]["under_floor"] and "contradicted" in scale.combined_said(h),
+          "an assumed field of view below the slew's floor is contradicted", scale.combined_said(h)[:120])
+
+
+def test_the_zoom_ladder_pooled_across_clips():
+    from mcdonald import scale
+    print("\nscale: a sensor's zoom ladder pooled across its clips, and a k carried through it (E16)")
+    rng = np.random.default_rng(4)
+    steps = [(f"c{i}", 2.0 * np.exp(rng.normal(0, 0.02)) ** (1 if i % 2 else -1)) for i in range(40)]
+    steps += [(f"d{i}", 5.9 * np.exp(rng.normal(0, 0.02))) for i in range(16)]
+    L = scale.ladder(steps)
+    check(len(L) == 2 and abs(L[0]["ratio"] / 2 - 1) < 0.01 and abs(L[1]["ratio"] / 5.9 - 1) < 0.015 and L[0]["n"] == 40,
+          "two rungs, x2 from steps in and out alike, and x5.9", f"{[(round(r['ratio'], 4), r['n']) for r in L]}")
+    check(abs(L[0]["ln_err"] - 0.02 / np.sqrt(40)) < 0.002 and abs(L[0]["ln_sd"] - 0.02) < 0.006,
+          "the rung's error is the steps' spread over the root of their number", f"{L[0]['ln_err']:.4f}, sd {L[0]['ln_sd']:.4f}")
+    k, e = scale.carry(276.0, 10.0, [L[0]])
+    check(abs(k / (276 * L[0]["ratio"]) - 1) < 1e-9 and abs(e / k - np.hypot(10 / 276, L[0]["ln_err"])) < 1e-9,
+          "k carried up a rung: times the pooled ratio, its error the rung's pooled one added", f"{k:.0f} +/- {e:.0f}")
+    with_err = scale.ladder([(f"c{i}", 2.0 * np.exp(rng.normal(0, 0.03)), 0.01) for i in range(30)])
+    cr = scale.credible(2.1, 0.01, with_err[0])
+    check(with_err[0]["tau"] and 0.7 < cr["Z"] < 1.0 and 2.0 < cr["ratio"] < 2.1,
+          "a step stating its error is shrunk towards its rung by its credibility", f"tau {with_err[0]['tau']:.3f}, Z {cr['Z']:.2f}, x{cr['ratio']:.3f}")
 
 
 def main():
