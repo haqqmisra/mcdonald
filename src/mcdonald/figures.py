@@ -1050,3 +1050,48 @@ def noise(path, rows, fps):
     save(fig, path, dpi=200, quiet=True)
     plt.close(fig)
     return str(path)
+
+
+def legend_above(ax, *twins, pad=0.05, inside_first=True, **kw):
+    """A legend that crosses no line: with `inside_first`, at the first of the nine places inside the axes that is clear of
+    the lines and markers of `ax` and of each twin drawn over it (and of its texts); else, or where none is, in a band over
+    the data, the y range of `ax` and of each twin stretched by the legend's own height so that no line reaches it (a fit
+    running corner to corner, two curves crossing, a twin's line through the other's). Pass inside_first=False where lines
+    are drawn after it (they cannot be checked). `kw` goes to `ax.legend` (the band's loc defaults to "upper left").
+    Returns the legend. (Added 2026-11-07 for the stage figures: slew, stabilize, camera, integrity, audio.)"""
+    fig = ax.figure
+    if not hasattr(fig.canvas, "get_renderer"):       # a bare Figure() (audio's): give it Agg's canvas
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        FigureCanvasAgg(fig)
+    band_loc = kw.pop("loc", "upper left")
+    if inside_first:
+        leg = ax.legend(loc="upper right", **kw)
+        fig.draw_without_rendering()       # the layout without the pixels, as clear() does
+        r = fig.canvas.get_renderer()
+        polys, points = [], []
+        for a in (ax,) + twins:
+            pl, pt = _lines_px(a)
+            polys += pl
+            points += pt
+        abox = _box(ax, r, pad=0)
+        texts = [_box(t, r) for t in ax.texts if t.get_visible() and t.get_text().strip()]
+        for loc in ("upper right", "upper left", "lower left", "lower right", "center right", "center left",
+                    "upper center", "lower center", "center"):
+            leg.set_loc(loc)
+            lb = _box(leg, r)
+            if _inside(lb, abox) and not _crosses(polys, points, lb) and not any(_meet(lb, t) for t in texts):
+                return leg
+        leg.remove()
+    leg = ax.legend(loc=band_loc, **kw)
+    fig.draw_without_rendering()       # the layout without the pixels, as clear() does
+    r = fig.canvas.get_renderer()
+    h = leg.get_window_extent(r).height / ax.get_window_extent(r).height
+    share = max(0.3, 1.0 - h - pad)                  # the data's share of the height
+    for a in (ax,) + twins:
+        lo, hi = a.get_ylim()
+        if a.get_yscale() == "log":
+            lo, hi = math.log10(lo), math.log10(hi)
+            a.set_ylim(10 ** lo, 10 ** (lo + (hi - lo) / share))
+        else:
+            a.set_ylim(lo, lo + (hi - lo) / share)
+    return leg

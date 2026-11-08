@@ -831,67 +831,72 @@ def object_tests(o, reps, dbl, bg, runs, masks, rows, pat, power, max_shift):
 
 
 def figure(out, clip, series, reps, runs, power, trk, real, fake):
+    """The frames' contrast with the repeats and sudden changes; where the sensor's fixed pattern shows, with the track; and
+    the smear and shake checks, the object in blue against a made-up disc pasted over the same frames (amber), which the
+    checks should catch. In the house style (figures.setup)."""
     import matplotlib
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    BLUE, ORANGE, INK, INK2, GRID, SURF = "#2a78d6", "#eb6834", "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
-    plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9, "axes.edgecolor": GRID, "axes.labelcolor": INK2,
-                         "xtick.color": INK2, "ytick.color": INK2, "text.color": INK, "figure.facecolor": SURF,
-                         "axes.facecolor": SURF, "savefig.facecolor": SURF})
-    fig, ax = plt.subplots(2, 2, figsize=(12, 7.6), gridspec_kw=dict(left=0.06, right=0.94, top=0.88, bottom=0.08, hspace=0.42, wspace=0.22))
-    fig.text(0.06, 0.955, f"{out.name.split('_')[0].upper()}: is this a camera's own picture, and was the object added?", fontsize=13, weight="bold")
-    fig.text(0.06, 0.92, "Blue: the object. Orange: a made-up disc pasted over the same frames, which these checks should catch.",
-             fontsize=9.2, color=INK2)
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from . import figures
+    plt = figures.setup()
+    BLUE, AMBER, RED = figures.BLUE, figures.AMBER, figures.RED
+    fig, ax = plt.subplots(2, 2, figsize=(12, 8.4), constrained_layout=True)
 
-    def dress(a, title, xl, yl):
-        a.set_title(title, loc="left", fontsize=9.8, weight="bold", pad=6)
-        a.set_xlabel(xl); a.set_ylabel(yl)
-        a.grid(color=GRID, lw=0.8); a.set_axisbelow(True); a.tick_params(length=0)
-        for s in ("top", "right"):
-            a.spines[s].set_visible(False)
+    def named(a, title, xl, yl):
+        a.set_title(title)
+        a.set_xlabel(xl)
+        a.set_ylabel(yl)
 
     a = ax[0, 0]
     t = clip.t(series[:, 0])
-    a.plot(t, series[:, 2], color=INK2, lw=1.2)
+    a.plot(t, series[:, 2], color=BLUE, lw=1.8)
     for lo, hi in runs:
-        a.axvspan(clip.t(lo) - 0.02, clip.t(hi) + 0.02, color=ORANGE, alpha=0.18, lw=0)
+        a.axvspan(clip.t(lo) - 0.02, clip.t(hi) + 0.02, color=AMBER, alpha=0.25, lw=0)
+    handles = [Line2D([], [], color=BLUE, lw=1.8, label="contrast")]
     if reps:
-        a.plot(clip.t(np.array(reps)), np.full(len(reps), series[:, 2].max() * 1.04), "|", color=BLUE, ms=7, mew=1.2)
-    dress(a, f"Contrast; {len(reps)} repeated frames (ticks), {len(runs)} sudden changes (shaded)", "Time (s)",
-          "Contrast (grey levels)")
+        a.plot(clip.t(np.array(reps)), np.full(len(reps), series[:, 2].max() * 1.04), "|", color=RED, ms=7, mew=1.4)
+        handles.append(Line2D([], [], color=RED, marker="|", ls="none", ms=7, mew=1.4, label="a repeated frame"))
+    if runs:
+        handles.append(Patch(color=AMBER, alpha=0.25, lw=0, label="a sudden change"))
+    if len(handles) > 1:
+        figures.legend_above(a, handles=handles, ncol=len(handles))
+    named(a, "Contrast of each frame", "Time (s)", "Contrast (grey levels)")
 
     a = ax[0, 1]
     if power is not None:
         im = a.imshow(np.sqrt(np.clip(np.nan_to_num(power), 0, None)), cmap="Blues", vmin=0, vmax=1.2, interpolation="nearest")
         if trk:
             p = np.array([trk[n] for n in sorted(trk)])
-            a.plot(p[:, 0], p[:, 1], color=ORANGE, lw=1.2)
+            a.plot(p[:, 0], p[:, 1], color=AMBER, lw=1.8, label="the track")
+            a.legend(loc="best")
         a.set_xticks([]); a.set_yticks([])
         cb = fig.colorbar(im, ax=a, fraction=0.03, pad=0.02)
-        cb.set_label("Fixed pattern (grey levels)", color=INK2)
-        cb.outline.set_visible(False)
+        cb.set_label("Fixed pattern (grey levels)", fontweight="bold")
     else:
-        a.text(0.5, 0.5, "not measurable:\nthe picture never sweeps across the sensor", ha="center", va="center", color=INK2, transform=a.transAxes)
+        a.text(0.5, 0.5, "not measurable:\nthe picture never sweeps across the sensor", ha="center", va="center",
+               transform=a.transAxes)
         a.set_xticks([]); a.set_yticks([])
-    a.set_title("Where the sensor's fixed pattern shows (track in orange)", loc="left", fontsize=9.8, weight="bold", pad=6)
+    a.set_title("The sensor's fixed pattern")
 
     for a, key, title, xl, yl in ((ax[1, 0], "smear", "Smear during the exposure", "Speed across the picture (pixels a frame)",
-                                   "Length along its motion, less its width (pixels)"),
-                                  (ax[1, 1], "shake", "Camera shake: shared with the background, or not", "The background's acceleration (pixels a frame²)",
-                                   "The object's acceleration (pixels a frame²)")):
-        for ex, col, lab in ((fake, ORANGE, "the made-up disc"), (real, BLUE, "the object")):
+                                   "Length along its motion,\nless its width (pixels)"),
+                                  (ax[1, 1], "shake", "Camera shake", "The background's acceleration (pixels a frame²)",
+                                   "The object's acceleration\n(pixels a frame²)")):
+        if key == "shake":
+            lim = 2.0
+            a.plot([-lim, lim], [-lim, lim], color="0.35", lw=1.0, ls="--", zorder=1)
+            a.set_xlim(-lim, lim); a.set_ylim(-lim, lim)
+        for ex, col, lab in ((fake, AMBER, "the made-up disc"), (real, BLUE, "the object")):
             d = ex.get(key) if ex else None
             if d is not None and len(d):
                 xs, ys = (d[:, 1], d[:, 2] - d[:, 3]) if key == "smear" else (d[:, 2], d[:, 1])
-                a.scatter(xs, ys, s=16, color=col, edgecolor=SURF, linewidth=0.6, label=lab)
-        if key == "shake":
-            lim = 2.0
-            a.plot([-lim, lim], [-lim, lim], color=INK2, lw=1.0)
-            a.set_xlim(-lim, lim); a.set_ylim(-lim, lim)
-        dress(a, title, xl, yl)
+                a.plot(xs, ys, "o", ms=4.5, color=col, mec="white", mew=0.6, label=lab, zorder=3)
+        named(a, title, xl, yl)
         if a.get_legend_handles_labels()[0]:
-            a.legend(frameon=False, fontsize=8.6, loc="lower right")
-    fig.savefig(out, dpi=130)
+            figures.legend_above(a, ncol=2)
+    figures.save(fig, out, dpi=200, quiet=True)
+    plt.close(fig)
 
 
 def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shift=45.0, selftest=True, out=None,

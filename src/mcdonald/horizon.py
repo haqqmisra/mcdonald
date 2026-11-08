@@ -319,23 +319,22 @@ def write(out, name, rows, fields):
 
 
 def figure(path, name, rows, fields):
-    from .figures import PRIMARY, setup, save
-    plt = setup(9)
-    fig, (a, b) = plt.subplots(1, 2, figsize=(12, 3.6), constrained_layout=True)
+    """The object's distance below the horizon, and the horizon's tilt, frame by frame. In the house style
+    (figures.setup)."""
+    from . import figures
+    plt = figures.setup()
+    fig, (a, b) = plt.subplots(1, 2, figsize=(12, 4.0), constrained_layout=True)
     fr = [r["frame"] for r in rows]
-    a.plot(fr, [r["across_px"] for r in rows], ".", ms=3, color="C0")
-    a.axhline(0, color=PRIMARY, lw=0.8)
-    a.set_xlabel("Frame", fontweight="bold")
-    a.set_ylabel("Below the horizon (pixels)", fontweight="bold")
-    b.plot(fr, [r["tilt_deg"] for r in rows], ".", ms=3, color="C1")
-    b.set_xlabel("Frame", fontweight="bold")
-    b.set_ylabel("Tilt of the horizon (degrees)", fontweight="bold")
-    bd = fields.get("bounds") or {}
-    title = (f"the object is at most {bd['range_max_m'] / 1000:.2f} km away" if bd.get("range_max_m") and math.isfinite(bd["range_max_m"])
-             else f"the camera is at least {bd['height_min_m']:.0f} m up" if bd.get("height_min_m") is not None
-             and math.isfinite(bd["height_min_m"]) else "no limit on the distance")
-    fig.suptitle(f"{name}: the sea's horizon -- {title}", fontweight="bold")
-    save(fig, path, dpi=110)
+    a.axhline(0, color="0.35", lw=1.0, ls="--")
+    a.plot(fr, [r["across_px"] for r in rows], "o", ms=2.5, color=figures.BLUE)
+    a.set_xlabel("Frame")
+    a.set_ylabel("Below the horizon (pixels)")
+    a.set_title("The object against the horizon")
+    b.plot(fr, [r["tilt_deg"] for r in rows], "o", ms=2.5, color=figures.AMBER)
+    b.set_xlabel("Frame")
+    b.set_ylabel("Tilt of the horizon (degrees)")
+    b.set_title("Tilt of the horizon")
+    figures.save(fig, path, dpi=200)
     plt.close(fig)
     return path
 

@@ -899,52 +899,56 @@ def measure(clip, model="homography", ref=None, procs=None, progress=None, out=N
 
 
 def figure(path, clip, frames, t, mot, rho, ok, reps, f, amp, med, valid, mark_hz, tag):
+    """The hand's motion, its distance and roll, each frame's match to the display's drawing, the shake by frequency,
+    the drawing itself and the path of the display's centre. In the house style (figures.setup)."""
     import matplotlib
     matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(2, 3, figsize=(15, 8.2), constrained_layout=True)
+    from . import figures
+    plt = figures.setup()
+    BLUE, AMBER, RED = figures.BLUE, figures.AMBER, figures.RED
+    fig, ax = plt.subplots(2, 3, figsize=(15, 8.6), constrained_layout=True)
     tt = np.array([t[n] for n in frames])
     good = np.array([ok[n] for n in frames])
     x = np.array([mot[n]["x"] for n in frames])
     y = np.array([mot[n]["y"] for n in frames])
     a = ax[0, 0]
-    a.plot(tt, x - x[good].mean(), lw=0.9, label="across")
-    a.plot(tt, y - y[good].mean(), lw=0.9, label="down")
-    a.set(xlabel="Time (s)", ylabel="Centre of the display in the video (pixels)", title="The hand's motion")
-    a.legend(frameon=False)
+    a.plot(tt, x - x[good].mean(), lw=1.8, color=BLUE, label="across")
+    a.plot(tt, y - y[good].mean(), lw=1.8, color=AMBER, label="down")
+    a.set(xlabel="Time (s)", ylabel="Centre of the display\nin the video (pixels)", title="The hand's motion")
+    a.legend(loc="best")
     a = ax[0, 1]
-    a.plot(tt, [mot[n]["scale"] for n in frames], lw=0.9, color="C2")
-    a.set(xlabel="Time (s)", ylabel="Scale (video pixels to a display pixel)", title="Distance to the screen")
+    a.plot(tt, [mot[n]["scale"] for n in frames], lw=1.8, color=BLUE)
+    a.set(xlabel="Time (s)", ylabel="Scale (video pixels\nto a display pixel)", title="Distance to the screen")
     b = a.twinx()
-    b.plot(tt, [mot[n]["roll_deg"] for n in frames], lw=0.9, color="C3")
-    b.set_ylabel("Roll (degrees)", color="C3")
+    b.plot(tt, [mot[n]["roll_deg"] for n in frames], lw=1.8, color=AMBER)
+    b.set_ylabel("Roll (degrees)")
+    figures.legend_above(a, b, handles=a.lines + b.lines, labels=["scale (left)", "roll (right)"], ncol=2)
     a = ax[0, 2]
     r = np.array([rho[n] for n in frames])
-    a.plot(tt, r, lw=0.8, color="0.3")
-    a.scatter(tt[~good], r[~good], s=10, color="C3", label="lost", zorder=3)
+    a.axhline(RHO_LOST, color="0.35", lw=1.0, ls="--")
+    a.plot(tt, r, lw=1.8, color=BLUE)
+    a.plot(tt[~good], r[~good], "o", ms=3.5, color=RED, ls="none", label="lost", zorder=3)
     rep = np.array([n in reps for n in frames])
-    a.scatter(tt[rep], np.full(rep.sum(), 0.02), s=4, color="C1", marker="|", label="repeated frame")
-    a.axhline(RHO_LOST, color="C3", lw=0.6, ls="--")
-    a.set(xlabel="Time (s)", ylabel="Match (0 to 1)", ylim=(0, 1), title="How well each frame matches the display's drawing")
-    a.legend(frameon=False, loc="lower right")
+    a.plot(tt[rep], np.full(rep.sum(), 0.02), "|", ms=6, mew=1.4, color=AMBER, ls="none", label="repeated frame")
+    a.set(xlabel="Time (s)", ylabel="Match (0 to 1)", ylim=(0, 1), title="Match to the display's drawing")
+    a.legend(loc="lower right")
     a = ax[1, 0]
     if len(f):
-        a.plot(f, amp, lw=0.9, color="0.2")
-        a.axvspan(8, 12, color="C1", alpha=0.15, label="a hand's tremor, 8–12 Hz")
+        a.plot(f, amp, lw=1.8, color=BLUE)
+        a.axvspan(8, 12, color=AMBER, alpha=0.2, label="a hand's tremor, 8–12 Hz")
         for k, h in enumerate(mark_hz or ()):
-            a.axvline(h, color="C4", lw=1, ls="--", label="marked" if k == 0 else None)
-        a.legend(frameon=False)
+            a.axvline(h, color=figures.CYAN, lw=1.2, ls="--", label="marked" if k == 0 else None)
+        a.legend(loc="best")
     a.set(xlabel="Frequency (Hz)", ylabel="Size of the shake (pixels)", title="The hand's shake, by frequency")
     a = ax[1, 1]
     a.imshow(np.where(valid, med, np.nan), cmap="gray_r", interpolation="nearest")
     a.set(title="The display's drawing", xticks=[], yticks=[])
     a = ax[1, 2]
-    a.plot(x[good], y[good], lw=0.5, color="C0")
+    a.plot(x[good], y[good], lw=1.5, color=BLUE)
     a.invert_yaxis()
     a.set_aspect("equal")
-    a.set(xlabel="Across (pixels)", ylabel="Down (pixels)", title="Path of the display's centre in the video")
-    fig.suptitle(f"{tag}: the display held still (mcdonald stabilize)")
-    fig.savefig(path, dpi=110)
+    a.set(xlabel="Across (pixels)", ylabel="Down (pixels)", title="Path of the display's centre")
+    figures.save(fig, path, dpi=200, quiet=True)
     plt.close(fig)
     return path
 
