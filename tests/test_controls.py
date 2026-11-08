@@ -366,6 +366,9 @@ GOLDEN_KINDS = {
     "test_atflir_navy": ("control", "the readouts' ticks read by hand"),
     "test_svanstrom_helicopter_lights": ("control", "the set's helicopter labels; the lights seen by eye"),
     "test_held_pictures_known_cadences": ("control", "cadences known from the recordings"),
+    "test_pr43_dash_fitted_whole": ("regression", "PR43's dash fitted whole (method 45), as the tool read it on 2026-11-07"),
+    "test_aaro_blind": ("regression", "the one press's labels on AARO's cases as recorded on 2026-11-07; AARO's answers, from "
+                        "outside, are scored beside them (method 46), not held"),
     "test_exercises": ("regression", "each page's answer is what the tool said when the page was written (below)"),
 }
 

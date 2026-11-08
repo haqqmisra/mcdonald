@@ -61,7 +61,7 @@ Every version that went out, newest first. The version is written in one place,
   PR071, the two strobe helicopters, a bird the test does not hear, a refusal -- each with the exact bound its outcome
   gives, and holds the false alarms of record as they are: DRONE_059 (a 10.00-Hz beat at a third of the frame rate, from
   held pictures the cadence test misses by 0.843 against 0.85) and HELICOPTER_024 (7.8 %) and _043 (21 %). Which golden
-  checks are controls and which regressions is listed (B28: 20 and 16), the held-out third's ledger of looks is
+  checks are controls and which regressions is listed (B28: 20 and 18), the held-out third's ledger of looks is
   `tools/sweep/looks.tsv` (B17; its agreement 6.8 % against 6.3 %, -8.0 to +10.6 points, `tools/sweep/agreement.py`), and
   the exotica list says what the harness lacks. The set's labels were made differently by class (birds' and airplanes'
   boxes run on straight lines between key frames on 86-95 % of frames, drones' and helicopters' on 5 %).

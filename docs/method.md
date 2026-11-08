@@ -4825,12 +4825,13 @@ non-bird tracks named, under 2.5 % (stage; one-sided 95 %), 2 of 307, under 2.0 
 each control and holds the rates of record (RECORD) to the table, a regression on the table with the rate from the set.
 
 **Controls and regressions (B28).** A control has its answer from outside the tool: a label, a data bar, a laser, a header,
-a filmed launch, a documented hand measurement. A regression holds the tool to what it said before. Of `test_golden`'s 36
+a filmed launch, a documented hand measurement. A regression holds the tool to what it said before. Of `test_golden`'s 38
 checks, 20 are controls (PR113's two documented clicks, the WA9ONY-5 balloon, the audio cases, PR051's and Puerto Rico's
 data bars, the Yemen laser, FLIR1's header and readouts, the ATFLIR displays, the strobe helicopters, the known cadences)
-and 16 regressions (PR144's window and whole clip, PR43's link and band, the checklist on the case files, the birds' bands,
+and 18 regressions (PR144's window and whole clip, PR43's link and band, the checklist on the case files, the birds' bands,
 the projective test, the Galileo flyers and PR135's flock -- known birds by the beat the gates were tuned on --, PR23,
-PR071, PR055, PR051's released-track null, FLIR1's glyphs, and the exercises). All four exercise answers follow the tool:
+PR071, PR055, PR051's released-track null, FLIR1's glyphs, PR43's dash fitted whole (§45), the AARO
+scorecard (§46: the labels are the tool's; AARO's answers are scored beside them), and the exercises). All four exercise answers follow the tool:
 PR149's ship and PR113's field of view are from outside, the answers are the tool's. `test_controls` fails on a golden check
 or an exercise page that is in neither list.
 
