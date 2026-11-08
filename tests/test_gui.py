@@ -4591,7 +4591,10 @@ def test_the_window_under_every_backend_that_opens():
         backends = WANTED or [b for b in WINDOWS if b != "MacOSX" or sys.platform == "darwin"]
         with ThreadPoolExecutor(len(backends)) as pool:       # the children are the work, not these threads
             # the Qt window's child also measures three cases and runs `mcdonald run` beside them
-            results = list(pool.map(lambda b: _run_child(b, host, finish_within=540 if b == "PySide6" else 90), backends))
+            # PySide6 drives the whole window: 540 s held it until 2026-11-07, when its runs on merlin (4 CPUs, other jobs
+            # beside it) took 8:45-8:53 of the 9:25 allowed on the morning's tree and 9:28 with session 18's additions --
+            # cut short by the deadline, not hung. 720 s keeps a margin; a real hang still ends it, and PATIENCE scales it.
+            results = list(pool.map(lambda b: _run_child(b, host, finish_within=720 if b == "PySide6" else 90), backends))
     finally:
         if xvfb:
             xvfb[0].terminate()
