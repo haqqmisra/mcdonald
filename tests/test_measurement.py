@@ -1156,6 +1156,53 @@ class _Flock:
         return self.cache[n]
 
 
+def test_a_members_noise_does_not_hang_on_the_groups_speed():
+    """A member's position noise is read from its second differences (2026-11-07, after the air-and-sea survey's W-TU11):
+    the rms about a 7-frame running median it replaced read 0.5 px of jitter as 0.17-0.28 px on a group drifting 1-2.4 px a
+    frame, so a rigid formation crossing the picture read "neither" or, with more jitter, "shuffling". Drawn here: four
+    members 60-90 px apart, 0.75 px of jitter, 300 frames -- at rest, drifting (2, -1.4) px a frame, and turning with their
+    heading on a circle of 40 px -- and the same drifting group with each member's place a random walk of 0.75 px a frame."""
+    print("\ngroups: a member's noise at any speed")
+    from mcdonald import groups
+    rng = np.random.default_rng(31)
+    n, jit = 300, 0.75
+    t = np.arange(n, dtype=float)
+    off = np.array([[-40.0, -20.0], [35.0, -25.0], [-30.0, 30.0], [45.0, 25.0]])
+
+    def drawn(kind):
+        if kind == "at rest":
+            c, h = np.c_[np.full(n, 500.0), np.full(n, 400.0)], np.zeros(n)
+        elif kind == "turning":
+            w = math.hypot(2.0, 1.4) / 40.0
+            c, h = np.c_[500 + 40 * np.sin(w * t), 400 - 40 * np.cos(w * t)], w * t
+        else:
+            c, h = np.c_[500 + 2.0 * t, 400 - 1.4 * t], np.zeros(n)
+        out = {}
+        for i, o in enumerate(off):
+            r = np.c_[o[0] * np.cos(h) - o[1] * np.sin(h), o[0] * np.sin(h) + o[1] * np.cos(h)]
+            if kind == "shuffling":
+                r = r + np.cumsum(rng.normal(0, 0.75, (n, 2)), axis=0)   # a walk the noise can see (below)
+            p = c + r + rng.normal(0, jit, (n, 2))
+            out[i + 1] = {k + 1: (float(p[k, 0]), float(p[k, 1])) for k in range(n)}
+        return out
+    for kind in ("at rest", "drifting", "turning"):
+        g = drawn(kind)
+        noise = [groups._noise(m) for m in g.values()]
+        old = [groups._noise_median(m) for m in g.values()]
+        r = groups.rigidity(g)
+        check(all(abs(x - jit) < 0.1 for x in noise) and r["rigid"] is True,
+              f"a rigid group {kind}: each member's noise is its jitter, and the group reads rigid",
+              f"noise {np.round(noise, 2).tolist()} px for {jit} (the running median's {np.round(old, 2).tolist()}); {r['finding'][:70]}")
+    # the shuffle must be strong enough for the unbiased noise to see: on 40 draws each (2026-11-07), a walk of 0.25 px a
+    # frame read rigid 14 and "neither" 26 times, 0.5 px "shuffling" 8 times, 0.75 px "shuffling" 37 times. The running
+    # median called the weak walks "shuffling" only because it read the drifting members' noise low.
+    r = groups.rigidity(drawn("shuffling"))
+    check(r["rigid"] is False, "members whose places wander, drifting: shuffling", r["finding"][:90])
+    sparse = {k: (float(k), 0.1 * (k % 3)) for k in range(1, 60, 2)}
+    check(groups._noise(sparse) == groups._noise_median(sparse) is not None,
+          "a member seen only every other frame has no second differences: the running median's reading stands in")
+
+
 def test_a_group_is_told_to_be_one_and_whether_its_members_keep_their_places():
     """PR135's "6X SMALL SPHERICAL OBJECTS" were linked as one track, and `propose` listed them
     as one thing; the agent wrote its own member tracker to ask what tells a flock from a
