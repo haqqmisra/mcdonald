@@ -4622,6 +4622,17 @@ disc by the paper's rule) was not measured again by the stage's rule in the sess
 paper's rule keeps it a bird at either floor. (The two rules differ, as before this change, on PR088 object 1, which the
 paper's names and the stage's does not, and PR097 object 7, the reverse.)
 
+**What no floor near it stops** (the air-and-sea survey of 2026-11-07, its W3, rebuilt through `flicker`'s own judging;
+stated here as an open limit, not built). Atmospheric twinkle -- log-normal scintillation with a Kolmogorov corner -- planted
+in the light curves of 18 real non-flapping tracks of the labelled set was named a bird in 18 of 540 draws (3.3 %, 2.1-5.2 %),
+every one at 2.1-4.4 Hz and at a strength sigma_I of 0.25 or more, with beats of 8.8-30 % that a floor near 7-8 % does not
+reach; the unplanted templates gave none, planted wingbeats came back 33 of 36. The continuum null (§39) refuses 17 of the 18
+(at a cost of 5 of the set's 31 named birds and none of the reference beats), and the steadiness test reads twinkle as a
+clock. The rate is before the encoder: the twinkle was planted in curves, not in frames through the clip's codec. Strong
+twinkle is mostly refused as NO POWER with "lost against what is behind it", which is the wrong reason for it (Jacob's
+words to set: the survey's W5). Only a compact source twinkles (about sqrt(lambda L) or smaller: 0.14-0.45 m in the long-wave
+infrared at 2-20 km), so the aircraft controls are nulls for it, and a hot engine seen in the mid-wave infrared is not.
+
 ## 44. The controls harness: one of everything, and the rates it stands for (I1, T9, B28, B17; added 2026-11-07)
 
 **What it answers.** A control says what the stage did on one thing. What that says of the stage's rates depends on how many
