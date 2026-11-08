@@ -305,18 +305,36 @@ def fit_all(video, todo, masks=None, clip=None, progress=None):
     last_use = {n: max(v) for n, v in need.items()}
     store, done = {}, set()
     results = [None] * len(todo)
+    patterns = {}                                      # a stretch's fixed pattern, made once for every fit that takes it out
+    # (`--rd` fits 16 pairs a burst and 16 a placebo against the same two stretches: made afresh each time, PR144's run of
+    # 2026-11-07 had not finished in an hour)
 
-    def fit_one(i):
-        p = todo[i]
-        fixed = []
-        for ns in (p["fixed_before"], p["fixed_after"]):
+    def pattern(ns):
+        key = tuple(ns or [])
+        if key not in patterns:
             sc, ms = [], []
-            for n in ns or []:
+            for n in key:
                 g, col = store[n]
                 m = vf.zoom_mask(g, col)
                 sc.append(vf.zoom_scene(g, m))
                 ms.append(m)
-            fixed.append(vf.zoom_fixed(sc, ms))
+            patterns[key] = vf.zoom_fixed(sc, ms)
+        return patterns[key]
+
+    users = {}                                         # each pattern's fits still to come: it is let go after the last
+    for i, p in enumerate(todo):
+        if p["before"] is not None and p["after"] is not None:
+            for ns in (p["fixed_before"], p["fixed_after"]):
+                users.setdefault(tuple(ns or []), set()).add(i)
+
+    def fit_one(i):
+        p = todo[i]
+        fixed = [pattern(ns) for ns in (p["fixed_before"], p["fixed_after"])]
+        for ns in (p["fixed_before"], p["fixed_after"]):
+            key = tuple(ns or [])
+            users.get(key, set()).discard(i)
+            if not users.get(key):
+                patterns.pop(key, None)
         r = vf.zoom_fit_frames(store[p["before"]], store[p["after"]], *fixed, masks=masks)
         results[i] = r
         done.add(i)
@@ -411,6 +429,163 @@ def overlay_masks(video, W, H, n_last, clip=None, n_sample=40):
     return vf.static_masks(_Sample(frames, 1, n_last, W, H), n_sample=n_sample)
 
 
+# ---- the zoom as a regression discontinuity (E15, 2026-11-07) ---------------------------------------------------------
+# A regression discontinuity estimates a jump at a known cutoff by local polynomials either side (Imbens & Kalyanaraman 2012
+# for how much data either side; Calonico, Cattaneo & Titiunik 2014 for an interval that holds after the choice). Here the
+# cutoff is the burst and the outcome the scale between a frame before it and a frame after it: the pairs (before - i,
+# after + j) for i, j in 0..h, each fitted as the burst's own pair is, give log s_ij = log S + b i + c j + ..., the slopes the
+# scene's own drift of scale (a camera closing on the ground), and the jump log S at i = j = 0. The same estimator at cutoffs
+# inside a state, where nothing happened, says how often it finds a step where there is none: its placebo rate.
+RD_H = 3                # frames either side of the cutoff (the bandwidth): 16 pairs. Within 3 frames a turret's scale drifts by
+                        # a few parts in a thousand, so the local fit is nearly flat; the quadratic beside it is the check
+RD_ALPHA = 0.05         # the interval's level
+RD_PLACEBOS = 10        # cutoffs inside the states, where nothing happened, a clip's placebo rate is measured on
+
+
+def rd_fit(pairs, alpha=RD_ALPHA):
+    """The jump from the pairs' scales: `pairs` [(i, j, s)] -- i frames before the cutoff's last good frame, j after its first
+    settled one, s the fitted scale (only the pairs that fitted a number). Local linear in i and j by least squares, and
+    local quadratic beside it; the jump's interval is the quadratic's -- bias-corrected by the higher order and its error
+    taken from it, Calonico, Cattaneo & Titiunik's robust interval -- with the error from a jackknife that leaves out each
+    frame in turn (every pair through it: the pairs share their frames, so they are not independent). Returns
+    dict(S, S_quadratic, interval, pairs, frames_before, frames_after) or None where too few pairs fitted."""
+    from scipy.stats import norm, t as t_dist
+    P = np.array([(i, j, math.log(s)) for i, j, s in pairs if s and s > 0], float).reshape(-1, 3)
+    if len(P) < 6 or len(set(P[:, 0])) < 3 or len(set(P[:, 1])) < 3:
+        return None
+
+    def fit(rows, quad):
+        i, j, y = rows[:, 0], rows[:, 1], rows[:, 2]
+        cols = [np.ones(len(rows)), i, j] + ([i ** 2, j ** 2] if quad else [])
+        A = np.column_stack(cols)
+        if np.linalg.matrix_rank(A) < A.shape[1]:
+            return None
+        return float(np.linalg.lstsq(A, y, rcond=None)[0][0])
+
+    lin, quad = fit(P, False), fit(P, True)
+    if lin is None:
+        return None
+    # the quadratic only where each side keeps three frames with one left out (four or more), so its jackknife can be drawn
+    use_q = quad is not None and len(set(P[:, 0])) >= 4 and len(set(P[:, 1])) >= 4
+    est = quad if use_q else lin
+    jack = []
+    for side in (0, 1):                                   # leave out each frame before, then each frame after
+        for v in sorted(set(P[:, side])):
+            a = fit(P[P[:, side] != v], use_q)
+            if a is not None:
+                jack.append(a)
+    n = len(jack)
+    if n < 3:
+        return None
+    jack = np.array(jack)
+    se = math.sqrt((n - 1) / n * float(((jack - jack.mean()) ** 2).sum()))
+    z = float(t_dist.ppf(1 - alpha / 2, max(n - 1, 1)))
+    return dict(S=math.exp(lin), S_quadratic=math.exp(est), interval=[math.exp(est - z * se), math.exp(est + z * se)],
+                log_se=se, pairs=int(len(P)), frames_before=int(len(set(P[:, 0]))), frames_after=int(len(set(P[:, 1]))))
+
+
+def rd_step(r):
+    """Does an RD estimate call a step: its interval clear of x1, and clear of the "no step" band (ZOOM_SAME) too."""
+    if not r:
+        return None
+    lo, hi = r["interval"]
+    return bool(lo > vf.ZOOM_SAME or hi < 1 / vf.ZOOM_SAME)
+
+
+def rd_todo(item, h=RD_H, lo=1, hi=None, stride=1):
+    """The pairs either side of one planned cutoff (`plan`'s or a placebo's item), within the frames lo..hi: [(i, j, todo)]."""
+    out = []
+    for i in range(h + 1):
+        for j in range(h + 1):
+            b, a = item["before"] - i * stride, item["after"] + j * stride
+            if b >= lo and (hi is None or a <= hi):
+                out.append((i, j, dict(item, before=b, after=a)))
+    return out
+
+
+def placebo_items(states, rows, n_last, fps, k=RD_PLACEBOS, h=RD_H, stride=1):
+    """Cutoffs inside the states, where nothing happened: up to k, spread over the states long enough to hold one with
+    PAD + h frames clear of every burst, each with FIXED_N frames of its own state either side for the fixed pattern."""
+    spans = []
+    for st in states:
+        a, b = st["frames"][0] + PAD + h * stride, st["frames"][1] - PAD - h * stride - 1
+        if b > a:
+            spans.append((a, b))
+    total = sum(b - a for a, b in spans)
+    if not total:
+        return []
+    out = []
+    for q in (np.arange(k) + 0.5) / k * total:
+        for a, b in spans:
+            if q <= b - a:
+                c = int(round(a + q))
+                lo = max(c - int(FIXED_S * fps / 2), a - h * stride)
+                hi = min(c + 1 + int(FIXED_S * fps / 2), b + h * stride + 1)
+                fb = sorted(set(np.linspace(lo, c, FIXED_N).round().astype(int).tolist()))
+                fa = sorted(set(np.linspace(c + 1, hi, FIXED_N).round().astype(int).tolist()))
+                out.append(dict(frames=[c, c + 1], kind="placebo", before=c, after=c + 1, fixed_before=fb, fixed_after=fa))
+                break
+            q -= b - a
+    return out
+
+
+def rd(video, todo, rows, states, n_last, fps, masks=None, clip=None, h=RD_H, k=RD_PLACEBOS, stride=1, progress=None):
+    """The regression discontinuity at every burst `measure` fitted a scale at (a step, or a marginal or unknown one with a
+    number), and at k placebo cutoffs inside the states. Returns dict(bursts -- per burst its `rd_fit` and whether it calls a
+    step --, placebos -- each placebo's --, placebo_rate -- the share of placebos that call a step --, h, stride)."""
+    jobs, owner = [], []
+    for bi, (p, r) in enumerate(zip(todo, rows)):
+        if p["before"] is None or p["after"] is None:
+            continue
+        lo = todo[bi - 1]["frames"][1] + 1 if bi else 1
+        hi = todo[bi + 1]["frames"][0] - 1 if bi + 1 < len(todo) else n_last
+        for i, j, t in rd_todo(p, h, lo, hi, stride):
+            jobs.append(t)
+            owner.append(("burst", bi, i, j))
+    pl = placebo_items(states, rows, n_last, fps, k, h, stride)
+    for pi, p in enumerate(pl):
+        for i, j, t in rd_todo(p, h, 1, n_last, stride):
+            jobs.append(t)
+            owner.append(("placebo", pi, i, j))
+    fits = fit_all(video, jobs, masks, clip, progress) if jobs else []
+    got = {}
+    for (kind, idx, i, j), x in zip(owner, fits):
+        if x is not None and x.get("s") and not x.get("at_edge") and x["zncc"] >= vf.ZOOM_MIN_ZNCC:
+            got.setdefault((kind, idx), []).append((i, j, float(x["s"])))
+    bursts = []
+    for bi, r in enumerate(rows):
+        f = rd_fit(got.get(("burst", bi), []))
+        bursts.append(dict(frames=r["frames"], verdict=r["verdict"], s=r.get("s") or r.get("fitted_s"), rd=f, rd_step=rd_step(f)))
+    placebos = []
+    for pi, p in enumerate(pl):
+        f = rd_fit(got.get(("placebo", pi), []))
+        placebos.append(dict(frames=p["frames"], rd=f, rd_step=rd_step(f)))
+    judged = [q for q in placebos if q["rd_step"] is not None]
+    return dict(bursts=bursts, placebos=placebos, h=h, stride=stride, placebos_judged=len(judged),
+                placebo_steps=sum(q["rd_step"] for q in judged),
+                placebo_rate=(sum(q["rd_step"] for q in judged) / len(judged)) if judged else None)
+
+
+def rd_said(d):
+    L = [f"the zoom as a regression discontinuity: pairs {d['h']} frames either side" + (f" every {d['stride']}" if d["stride"] > 1 else "")]
+    for b in d["bursts"]:
+        r = b["rd"]
+        head = f"  burst at frames {b['frames'][0]}-{b['frames'][1]} ({b['verdict']}"
+        head += f", x{b['s']:.3f})" if b.get("s") else ")"
+        if not r:
+            L.append(head + ": too few pairs fitted a scale")
+            continue
+        L.append(head + f": x{r['S']:.4f} from {r['pairs']} pairs, {100 * (1 - RD_ALPHA):.0f} % x{r['interval'][0]:.4f}-"
+                 f"x{r['interval'][1]:.4f} (the quadratic's x{r['S_quadratic']:.4f}); "
+                 + ("a step" if b["rd_step"] else "not a step at that level"))
+    if d["placebo_rate"] is not None:
+        L.append(f"  placebo cutoffs inside the states: {d['placebo_steps']} of {d['placebos_judged']} call a step where nothing "
+                 f"happened (the rate a step is found where there is none, on this clip)")
+    else:
+        L.append("  placebo cutoffs: none could be fitted (states too short, or the scene gives no scale)")
+    return L
+
+
 # ---- the states -------------------------------------------------------------------------
 def boundaries(todo, results, fps):
     """One row a burst: where it is, the frames fitted, and the verdict -- "step" with s, "no step", or "unknown"
@@ -466,7 +641,8 @@ def state_at(states, t):
     return None
 
 
-def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, progress=None, extra=()):
+def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, progress=None, extra=(), rd_h=None, rd_k=RD_PLACEBOS,
+            rd_stride=1):
     """The stage: the scan (unless `series` is given), the bursts, their fits, and the states. `clip`: a Clip whose
     saved frames are read where it has them all. `extra`: frames where the picture is known to step (`mcdonald
     events`' picture steps), fitted beside the scan's own.
@@ -484,7 +660,8 @@ def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, prog
     results = fit_all(video, todo, masks, clip, progress)
     results = confirm(video, todo, results, masks, clip, n_last, progress)
     every = boundaries(todo, results, fps)
-    rows = [r for r in every if r["kind"] == "blank" or r["verdict"] == "step"]
+    keep = [r["kind"] == "blank" or r["verdict"] == "step" for r in every]
+    rows = [r for r, k in zip(every, keep) if k]
     pictures = [r for r in every if r["kind"] == "picture"]
     states = states_of(rows, n_last, fps)
     n_step = sum(r["verdict"] == "step" for r in rows)
@@ -504,6 +681,12 @@ def measure(video, W, H, fps, series=None, masks=None, clip=None, out=None, prog
     if n_unk:
         npw.append(("zoom", f"{n_unk} of {len(rows)} bursts have no trusted fit: the scale either side of them is not "
                             "known to be the same, nor known to differ"))
+    if rd_h:                                             # E15, only when asked (--rd): the pairs either side and the placebos
+        fields["rd"] = rd(video, [p for p, k in zip(todo, keep) if k], rows, states, n_last, fps, masks, clip, rd_h, rd_k, rd_stride,
+                          progress)
+        if fields["rd"]["placebo_rate"] is not None:
+            result["regression discontinuity"] = (f"{fields['rd']['placebo_steps']} of {fields['rd']['placebos_judged']} placebo cutoffs "
+                                                  "call a step where nothing happened")
     files = []
     if out:
         files.append(write(f"{out}_zoom.json", fields))
@@ -571,6 +754,12 @@ def main():
                                       "they are all saved, else from the video")
     ap.add_argument("--events", metavar="CSV", help="a `mcdonald events` _events.csv: its steps of the whole picture "
                     "are fitted too, beside those this pass finds itself")
+    ap.add_argument("--rd", nargs="?", type=int, const=RD_H, metavar="H",
+                    help="each zoom also as a regression discontinuity: the pairs H frames either side of the burst (default "
+                         f"{RD_H}), a jump with its interval, and {RD_PLACEBOS} placebo cutoffs inside the states, which say how "
+                         "often the fit finds a step where there is none (method 49; minutes more)")
+    ap.add_argument("--rd-stride", type=int, default=1, metavar="N", help="with --rd, the pairs every N frames (2 on a clip whose "
+                    "every frame is doubled)")
     ap.add_argument("--out", metavar="DIR", help="case directory for results (default: ./<tag>, or $MCDONALD_CASES/<tag>)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
@@ -584,8 +773,10 @@ def main():
         extra = picture_events(args.events) if args.events else ()
         if args.events:
             print(f"{len(extra)} step(s) of the picture from {args.events}")
-        found = measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out, extra=extra)
+        found = measure(video, clip.W, clip.H, clip.fps, clip=clip, out=out, extra=extra, rd_h=args.rd, rd_stride=args.rd_stride)
         print("\n".join(said(found.fields)))
+        if found.fields.get("rd"):
+            print("\n".join(rd_said(found.fields["rd"])))
         for w in found.no_power:
             print(f"no power: {w[1]}")
         for f in found.files:

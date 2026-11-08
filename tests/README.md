@@ -78,6 +78,13 @@ whole case, given afterwards and forgotten; `test_cli`, `test_gui`): k1's normal
 undistort exact inverses, what is refused, an approach that passes through a pinhole at the wrong time, a crossing that
 fails and fits drawn back, the scale along the track against the angle swept, a lens-shaped miss said and a real curve not.
 
+**Checks on drawn data read by a traffic light** (`traffic.py`, E20, 2026-11-07; docs/method.md section 48). A check that
+counts an event over random draws -- a band's misses, a test's false alarms, a planted signal found -- states its rate and
+its draws, and the count is read against its binomial distribution as the Basel Committee reads a bank's exceptions: green
+passes, yellow prints a `WARN` line and does not fail, red fails (green while that many or fewer come 95 % of the time at
+the stated rate, red past 99.99 %). The suites print how many warned at the end. A WARN is a count that is unlikely, not
+impossible: look at it, and look again if it stays.
+
 ## `test_audio.py` — does the sound track still say what it records?
 
 Portable, under a minute. `mcdonald audio` reads a sound track the way an accident investigator reads a cockpit
@@ -308,7 +315,15 @@ that is not there is looked for where the active catalog keeps it (the folder
 python3 tests/test_golden.py             # ~5 min: a 200-frame window of PR144
 python3 tests/test_golden.py --full      # tens of minutes: the whole clip, and the exercises
 python3 tests/test_golden.py --exercises # the default run and the exercises (PR44, PR149, PR113: ~40 min more)
+python3 tests/test_golden.py --aaro      # seconds: the AARO scorecard alone (it runs with the rest too)
 ```
+
+`--aaro` holds AARO's resolved cases run blind (docs/method.md section 46; ROADMAP 0.5.0) as a regression
+with nothing measured again: each case file in the data folder's `aaro/blind/` is read back (`Case.load`), and
+every object's conclusion label, every run's verdict and the agreement of record with its exact interval must be
+those of `golden/aaro_blind.json`, the scorecard of record (`tools/aaro_blind.py` prints it). A change to the
+report's conclusion that moves one of them fails here; the scorecard, the method's table and the data folder's
+README then move with it. It skips, saying so, where the case files are not there.
 
 `--exercises` runs each page of `docs/exercises` as a tester would on the command
 line: the page's `look` and `run` lines as written (with `--json`), and between
@@ -489,6 +504,34 @@ proposals made objects (one seen in two windows is one, a dark and a bright one 
 strict list (windows that come back apart at one frequency, or a whole track over its drift at
 5 %); and the held-out third, drawn again from its seed and left out of the summary until the
 gates are frozen.
+
+## `test_controls.py` — does the flicker stage still hear the controls as it did? (2026-11-07)
+
+The controls harness (ROADMAP.md 0.5.0; docs/method.md section 44). One of everything, judged from
+saved curves in a minute or two and with no video: what `flicker.judge` was given when each control
+was measured from its video (the curves of the object, its background apertures and its lights, its
+size and track, the planted dots of the encoding control), kept in the reference-data folder's
+`controls/curves/` and judged again under both beat rules. `golden/controls.csv` says what each one
+is and what it must give: birds keep their beats (the Galileo flyers, PR135's flock, a distant, a
+medium and a close bird of the labelled infrared set), non-birds get none (a drone, an airplane and a
+helicopter of the set, a distant one of each; the WA9ONY-5 balloon, PR23, PR055, PR071), the strobe
+helicopters keep their trains, the two false alarms of record stay as they are, NO POWER stays NO
+POWER. Every replay must also give the outcome its video gave, the hertz to a thousandth.
+
+Beside each control, the exact bound its outcome gives (B28): a silent negative control bounds the
+false-alarm rate only under 97.5 %, four under 60 %. So the sample is a regression, and the rates come
+from the whole set: `controls/svanstrom_tracks.csv`, every one of the 432 labelled tracks
+(`tools/controls/`), whose rates are held to RECORD with their exact and by-clip intervals -- each
+false-alarm rate with its exact upper bound, the coverage (the share answered) by class beside it,
+and the rates by stratum of what a clip offers (length, size, contrast, distance, frame rate) -- and
+each sampled track must give its own row of it. It also says which of `test_golden`'s checks and which
+exercise answers are controls (an answer from outside the tool) and which are regressions; prints
+the exotica list (T9: what is held, what is missing); and holds the ledger of looks at the held-out
+third (`tools/sweep/looks.tsv`, B17) and the agreement stated as a difference with a by-video interval.
+Without the reference-data folder it skips the curves and still checks the rest.
+
+After a change to the photometry (what the curves are, not what is judged from them) the saved curves
+are stale: `tools/controls/README.md` says how to make them again.
 
 ## `test_gui.py` — do the marking windows do what their keys say?
 

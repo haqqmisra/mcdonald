@@ -24,10 +24,20 @@ Two levels:
              consensus were tested, and the registration not at all.
   --full     the documented whole-clip commands against the published values
              in docs/method.md -- tens of minutes -- and the exercises.
+  --aaro     the AARO scorecard alone (method section 46): AARO's resolved cases run blind,
+             each case file's labels and verdicts read back against tests/golden/aaro_blind.json
+             -- seconds, nothing measured; it runs with the rest by default.
   --exercises  each exercise in docs/exercises, run as its page writes it, against
              the answer the page gives (PR44, PR149, PR113 and PR135: about 75 minutes on
              four CPUs); a page's number after it (--exercises 03) runs that page alone,
              and nothing else.
+
+Not every check here is a control. A control has its answer from outside the tool -- a label, a
+data bar, a laser, a header, a filmed launch, a documented hand measurement; a regression holds the
+tool to what it said before, and finds a change, not an error (the biology survey's B28). Which is
+which, for every check here and every exercise page, is tests/test_controls.py's GOLDEN_KINDS, and
+that suite fails on a check that is in neither list. The rates a control stands for come from the
+labelled infrared set's whole-set run, which tests/test_controls.py holds (docs/method.md section 44).
 """
 import json
 import math
@@ -200,6 +210,51 @@ def test_pr43_streak_by_motion():
               f"({v[0]:+.1f}, {v[1]:+.1f}) = {np.hypot(*v):.1f} px/frame")
 
 
+def test_pr43_dash_fitted_whole():
+    """PR43's dash read better (F11, F12, F41, F51; the single-camera survey of 2026-11-01, rebuilt 2026-11-07; docs/method.md
+    section 45), on the track its reference case file holds (frames 50-74): each frame read less the median of its neighbours
+    4-6 frames away (its ground held still), the dash fitted whole. The fit holds on most frames and its width is the dash's
+    own, under the 3.6 px the scene's points give; its centres jitter about the projective
+    model no more than the track's points, and the projective test's T on them stays near the track's 0.76 s; the dash's
+    flux, read as a second clock if it were a steady point, is said beside it -- and on PR43 it runs short of the track's."""
+    print("\nPR43 -- the dash on the frames less their neighbours, fitted whole")
+    import csv
+    import io
+    import zipfile
+    video, why = have_clip("PR43")
+    path = reference_data.root() / "cases" / "pr43.mcdonald"
+    if not video or not path.exists():
+        print(f"  SKIP  {why or path}")
+        SKIP.append("PR43 dash")
+        return
+    from mcdonald import forensics as vf, streak
+    with zipfile.ZipFile(path) as z:
+        name = next(n for n in z.namelist() if n.endswith("pr43_autotrack.csv"))
+        rows = list(csv.DictReader(l for l in io.StringIO(z.read(name).decode("utf-8")) if not l.startswith("#")))
+    track = {int(float(r["frame"])): (float(r["x_px"]), float(r["y_px"])) for r in rows if r["x_px"] not in ("", "nan")}
+    clip = vf.Clip(video, None, 44, 80)
+    masks = vf.static_masks(clip)
+    blur, _ = streak.scene_blur(clip, track, masks)
+    f = streak.measure(clip, track, blur, masks=masks)
+    F, ft = f.fields, f.fields["fit"]
+    check(len(F["scene_out_frames"]) >= 20 and len(ft["frames"]) >= PR43_HELD and ft["width_px"] < blur - 0.5,
+          "PR43: the scene taken out on (nearly) every frame, the fit holding on most, its width the dash's own and under the scene's points' blur",
+          f"{len(F['scene_out_frames'])} of 24; held on {len(ft['frames'])} ({streak.frames_said(ft['frames'])}); {ft['width_px']:.2f} px against {blur:.2f}")
+    pj = F["projective"]
+    check(pj["centres"]["jitter_px"] <= 1.05 * pj["track"]["jitter_px"] and pj["centres"]["fits"] and abs(pj["centres"]["T"] - pj["track"]["T"]) < 0.1,
+          "PR43: its centres jitter about as much as the track's points, no more (2.8 px against 2.9: frame 58's fit runs 20 px along the motion, "
+          "its centre 10 px off the path), and T on them stays near the track's",
+          f"centres T {pj['centres']['T']:.2f} s at {pj['centres']['jitter_px']:.2f} px; track T {pj['track']['T']:.2f} s at {pj['track']['jitter_px']:.2f} px")
+    fc = ft.get("flux_clock") or {}
+    check(fc.get("T") is not None and fc.get("band") and fc["band"][1] < pj["track"]["T"] and "its flux, a second clock" in f.result,
+          "PR43: its flux, read as a clock, gives a T short of the track's, its 84th percentile under it (0.39 s against 0.76): a steady "
+          "point closing at a steady speed is not shown by the two together",
+          f"flux T {fc.get('T') and round(fc['T'], 2)} s (16-84 % {fc.get('band')}) against the track's {pj['track']['T']:.2f}")
+
+
+PR43_HELD = 20          # of PR43's 24 frames the fit must hold on (23 on 2026-11-07, frame 52 over the step; the survey's DN cut kept 20)
+
+
 GALILEO = reference_data.galileo()      # the flyer clips; their tracks and galileo_clips.csv are in tests/golden/
 GOLDEN = HERE / "golden"
 
@@ -356,7 +411,7 @@ def test_checklist_on_the_case_files():
         print(f"  SKIP  no case files in {folder}")
         SKIP.append("checklist on the case files")
         return
-    seen, bad, tables = {}, [], 0
+    seen, bad, tables, graded = {}, [], 0, {}
     with tempfile.TemporaryDirectory() as td:
         for path in files:
             with zipfile.ZipFile(path) as z:
@@ -367,6 +422,7 @@ def test_checklist_on_the_case_files():
                     c = Case.load(out)
                     rows = c.checklist()
                     seen[f"{path.stem}/{name.split('/')[-2]}"] = {r["key"]: r for r in rows}
+                    graded[f"{path.stem}/{name.split('/')[-2]}"] = (c.conclusion()[0], c.grade(), c.reasons())
                     bad += [f"{path.stem}: {r}" for r in rows if r["answer"] not in ANSWERS or not r["said"] or "|" in r["said"]
                             or r["test"] != CHECKS[r["key"]]]
                     md = c.markdown()
@@ -375,7 +431,8 @@ def test_checklist_on_the_case_files():
           f"{len(seen)} objects in {len(files)} case files: every row answered in one of the five words, with why, and the table under "
           "each conclusion", "; ".join(bad[:3]))
     pr135 = seen.get("pr135/object-1") or {}
-    want = dict(video=NO, camera=CANT, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=YES, checked=NOT_YET)
+    # chosen: Can't tell since 2026-11-07 -- measured on the paper's track given with --track, which says nothing of who placed it
+    want = dict(video=NO, camera=CANT, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=CANT, checked=NOT_YET)
     want["with"] = YES
     check(all(pr135.get(k, {}).get("answer") == a for k, a in want.items()) and pr135.get("beat", {}).get("said", "").startswith("7.8 times a second")
           and pr135.get("moves", {}).get("said") == "about 103 pixels a second across the picture, which held still"
@@ -384,6 +441,32 @@ def test_checklist_on_the_case_files():
           "following the bird over an empty sky gives too; 0.4.1 said No), it moves 103 pixels a second across the picture (0.4.1: that step gives no rate "
           "against the background there), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright feature moves with it, none of "
           "integrity's checks could decide, no real speed, the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+    # the beat row's "No" only where a bird's beat would have shown, and integrity's agreement (2026-11-07, method section 47)
+    beat = {k: v["beat"]["answer"] for k, v in seen.items() if "beat" in v}
+    deaf = sorted(k for k, a in beat.items() if a == CANT and "too noisy to show a bird's" in seen[k]["beat"]["said"])
+    check(deaf == ["pr097/object-4", "pr097/object-7", "pr099/object-2", "pr141/object-1", "pr141/object-2", "pr144/object-1"]
+          and beat.get("pr097/object-2") == NO,
+          "the beat: six objects too noisy to show a bird's beat at the floor are Can't tell (0.4.3 said No), PR097 object 2, which "
+          "could have shown one, stays No", str(deaf))
+    added = {k: v["added"]["answer"] for k, v in seen.items() if "added" in v}
+    check({k for k, a in added.items() if a == "Consistent"} == {"pr113/object-1", "pr144/object-1", "pr149/object-1"}
+          and not [a for a in added.values() if a in (YES, NO)],
+          "integrity: Consistent on PR113, PR144 and PR149 (0.4.3 said No), Can't tell on the rest, never a bare Yes or No", str(added))
+    # how sure (S17) and what it rests on (E7): none of the 31 has had its track sheet looked at, so the risk of bias is very
+    # serious on all, and each concluded object has its reasons, a bird's beat first and weighed for a bird
+    sure = {k: g["level"] for k, (_, g, _) in graded.items() if g}
+    birds = {k: rs for k, (label, _, rs) in graded.items() if label == "Beats like a bird"}
+    check(len(sure) == len(graded) and set(sure.values()) <= {"Low", "Very low"}
+          and all(g["domains"][0]["concern"] == "very serious" for _, g, _ in graded.values() if g)
+          and birds and all(rs and rs[0]["key"] == "beat" and rs[0]["weight"] == "for a bird" and len(rs) <= 4 for rs in birds.values()),
+          f"how sure: every object Low or Very low (none looked at, most of unrecorded origin); the {len(birds)} birds' reasons lead "
+          "with the beat, weighed for a bird", str(sorted(set(sure.values()))))
+    chosen = {k: v["chosen"]["answer"] for k, v in seen.items() if "chosen" in v}
+    check(len(chosen) == len(seen) and chosen.get("pr113/object-1") == NO and chosen.get("pr43/object-1") == NO
+          and all(a == CANT for k, a in chosen.items() if k not in ("pr113/object-1", "pr43/object-1")),
+          "who chose the object, as far as it is known (2026-11-07): No on PR113 and PR43 (an agent's marks), Can't tell on the rest "
+          "(each measured on a paper's track given with --track, which says nothing of who placed it; 0.4.3 said 'a person placed the "
+          "marks on the frames by hand')", str({k: a for k, a in chosen.items() if a != CANT}))
     held = {k: v["camera"]["answer"] for k, v in seen.items() if "camera" in v}
     check(held and NO not in held.values() and held.get("pr144/object-1") == YES and held.get("pr43/object-1") == YES
           and held.get("pr113/object-1") == "Partly" and held.get("pr097/object-6") == "Partly",
@@ -394,6 +477,51 @@ def test_checklist_on_the_case_files():
           and moved.get("real", {}).get("answer") == "Partly" and "115 m/s" in moved.get("real", {}).get("said", ""),
           "PR149: the camera moved, so its rate against the background is Can't tell; the ship of known size gives a Partly",
           str({k: r["answer"] for k, r in moved.items()}))
+
+
+def test_aaro_blind():
+    """AARO's resolved cases run blind (ROADMAP 0.5.0; method section 46), held as a regression with nothing measured
+    again: each blind case file's reports read back (`Case.load`), every object's conclusion label the one the
+    scorecard of record (tests/golden/aaro_blind.json) says, each run's verdict by the rule fixed before the runs
+    (tools/aaro_blind.py `verdict`), and the agreement of record with its exact interval. A change to the report's
+    conclusion that moves one of these labels fails here, and the scorecard and the method's table move with it."""
+    print("\nAARO's resolved cases, run blind: the scorecard read back from the case files")
+    sys.path.insert(0, str(HERE.parent / "tools"))
+    import aaro_blind
+    folder = reference_data.root() / "aaro" / "blind"
+    if not aaro_blind.RECORD.exists():
+        print(f"  SKIP  no scorecard of record ({aaro_blind.RECORD.name})")
+        SKIP.append("AARO blind")
+        return
+    record = json.loads(aaro_blind.RECORD.read_text(encoding="utf-8"))
+    need = sorted({f for c in record["cases"] for r in c["runs"].values() for f in r["files"]})
+    if not folder.exists() or any(not (folder / f).exists() for f in need):
+        print(f"  SKIP  the blind case files are not in {folder}")
+        SKIP.append("AARO blind")
+        return
+    rows, summary = aaro_blind.scorecard(folder, record)
+    moved, n = [], 0
+    for case, row in zip(record["cases"], rows):
+        for run, r in case["runs"].items():
+            got = row["runs"][run]
+            for file, objects in r["files"].items():
+                for k, o in objects.items():
+                    n += 1
+                    now = got["got"].get(f"{file}:{k}", (None,))[0]
+                    if now != o["label"]:
+                        moved.append(f"{case['case']} {run} {file} {k}: {now!r}, recorded {o['label']!r}")
+            if got["verdict"] != r["verdict"]:
+                moved.append(f"{case['case']} {run}: {got['verdict']}, recorded {r['verdict']}")
+    check(not moved, f"{n} objects in {len(need)} case files: every conclusion's label and every run's verdict as recorded",
+          "; ".join(moved[:4]))
+    want = record["summary"]
+    close = lambda a, b: (a is None and b is None) or (a is not None and b is not None and all(abs(x - y) < 5e-4 for x, y in zip(a, b)))
+    pc = lambda iv: f"{100 * iv[0]:.0f}-{100 * iv[1]:.0f} %" if iv else "none"
+    check(summary["known"] == 14 and all(summary[k] == want[k] for k in ("tally", "answered", "agree", "informative"))
+          and all(close(summary[k], want[k]) for k in ("coverage", "accuracy", "interval", "informative_interval")),
+          f"the scorecard of record over the 14 known answers: " + ", ".join(f"{v} {k}" for v, k in summary["tally"].items())
+          + f"; coverage {summary['answered']} of 14 ({pc(summary['coverage'])}), accuracy on those {pc(summary['accuracy'])}, "
+          f"informative agreement {summary['informative']} of 14 ({pc(summary['informative_interval'])})", f"recorded {want}")
 
 
 def test_pr135_flock():
@@ -1722,11 +1850,18 @@ def main():
         test_exercises(pages)
         print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}" if FAIL else f"\nALL PASS (exercise page{'s' if len(pages) > 1 else ''} {', '.join(pages)} alone)")
         return 1 if FAIL else 0
+    if "--aaro" in sys.argv:                      # the AARO scorecard alone (2026-11-07): seconds, nothing measured
+        test_aaro_blind()
+        print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}" if FAIL else "\nALL PASS (the AARO scorecard alone)"
+              + (f" (skipped: {', '.join(SKIP)})" if SKIP else ""))
+        return 1 if FAIL else 0
     test_pr113_two_clicks()
     test_pr144_window()
     test_pr43_streak_by_motion()
     test_pr43_speed_band()
+    test_pr43_dash_fitted_whole()
     test_checklist_on_the_case_files()
+    test_aaro_blind()
     test_the_birds_bands_held_to_their_tracks()
     test_projective_held_to_the_jitter()
     test_flyer5_wingbeat()

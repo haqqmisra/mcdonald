@@ -817,7 +817,60 @@ def report_figures(case, clip, track, prefix):
             print(f"  ! the admissible region was not drawn: {type(e).__name__}: {e}")
     if ((case.stages.get("flicker") or {}).get("fields") or {}).get("beats") is True and Path(f"{prefix}_beat.png").exists():
         out.append(f"{prefix}_beat.png")
+    ff = (case.stages.get("flicker") or {}).get("fields") or {}
+    here = [(b["hz"], b["amplitude"]) for b in (ff.get("beat") or {}).values() if b.get("hz") and b.get("amplitude") is not None]
+    if here:                                              # the beat against the labelled tracks (S20, 2026-11-07)
+        try:
+            from .report import BIRD_FLOOR
+            out.append(beat_controls(f"{prefix}_controls.png", here, ff.get("rule") or "stage", BIRD_FLOOR))
+        except Exception as e:                            # noqa: BLE001 -- a figure that cannot be drawn is said, the rest stand
+            print(f"  ! the beat against the labelled tracks was not drawn: {type(e).__name__}: {e}")
     return out
+
+
+# ---- the beat against the controls (S20) -------------------------------------------------------
+def beat_controls(path, here, rule, floor, width=FigureSize.NOTE):
+    """The discriminant plot (the ideas bank's S20): every labelled track of thermal video the flicker stage measured a beat
+    on (`controls.population`, 400 of 432), its strongest rhythm's rate across and its strength up (a share of its
+    brightness, on a log scale), birds blue and the rest amber -- filled where the rhythm was the track's own, open where
+    it is only the strongest peak of a track with none -- the band of a wingbeat's rate shaded, the floor a bird is named
+    from dashed, and this object's beat (`here`, [(Hz, share)], each member of a group) red. What it shows, beside the
+    report's screening words (`controls.screen`): where the object's beat falls among birds and among the rest. What it
+    must not be read to show: that the beat tests see wingbeats -- the birds' open dots sit as high as their filled ones,
+    because the set's birds are faint and a faint object's brightness wanders more (ranked by this height, a bird
+    outranks another track 0.82 of the time over all of them, and 0.88 among tracks with no rhythm of their own at all:
+    the diagnostic survey's clinical rebuild). The points are scatter (`clear` keeps text off lines, not off dots), the
+    legend below the axes."""
+    from . import controls
+    plt = setup()
+    pop = controls.population(rule, floor)
+    top = max([15.0] + [h * 1.1 for h, _ in here])
+    fig, ax = plt.subplots(figsize=(width, width * 0.62))
+    fig.subplots_adjust(left=0.11, right=0.97, top=0.92, bottom=0.30)
+    ax.axvspan(controls.WINGBEAT_HZ[0], min(controls.WINGBEAT_HZ[1], top), color=DIM, zorder=0, lw=0,
+               label="a wingbeat's rate")
+    for bird, colour, who in ((False, AMBER, "aircraft, drones and helicopters"), (True, BLUE, "birds")):
+        own = [(h, a) for b, h, a, k in pop if b == bird and k in controls.OWN]
+        rest = [(h, a) for b, h, a, k in pop if b == bird and k not in controls.OWN]
+        if rest:
+            ax.scatter(*zip(*rest), s=14, facecolors="none", edgecolors=colour, linewidths=0.7, zorder=2,
+                       label=f"{who}: strongest peak, no rhythm of its own")
+        if own:
+            ax.scatter(*zip(*own), s=18, color=colour, edgecolors="none", zorder=3, label=f"{who}: a rhythm of its own")
+    ax.axhline(floor, color=PRIMARY, lw=1.0, ls=(0, (4, 3)), zorder=4, label=f"a bird is named above {100 * floor:g} %")
+    ax.scatter([h for h, _ in here], [max(a, 2e-3) for _, a in here], s=70, color=RED, edgecolors="black", linewidths=0.8,
+               zorder=5, label="this object")
+    ax.set_yscale("log")
+    ax.set_xlim(0, top)
+    ax.set_ylim(2e-3, 1.5)
+    ax.set_xlabel("Rate of its strongest rhythm (beats a second)")
+    ax.set_ylabel("Strength (share of brightness)")
+    ax.set_title("This object's beat among labelled tracks")
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=2, bbox_to_anchor=(0.5, 0.0))
+    save(fig, path, dpi=150, quiet=True)
+    plt.close(fig)
+    return path
 
 
 # ---- the beat -----------------------------------------------------------------------------

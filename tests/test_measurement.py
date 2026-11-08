@@ -20,6 +20,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from mcdonald import catalog, clip as clipmod, forensics as vf  # noqa: E402
+import traffic  # noqa: E402 -- the binomial zone for checks on drawn data (E20)
 
 RNG = np.random.default_rng(20260919)
 FAIL = []
@@ -1115,6 +1116,87 @@ def test_a_point_is_told_from_a_body_by_the_blur_of_the_clip():
           f"{e['spots']} spots")
 
 
+def test_clipped_is_a_flat_top_not_a_grey_level():
+    """V1 (the visual-arts survey, section 3.1; method section 50): a core is clipped where its top is at the picture's
+    ceiling or flat -- five of its 3 x 3 pixels within a code of its top, the top 50 codes over its level -- not where
+    it passes grey 250. A peak of 252 is a peak; a plateau at 240, at a sensor's ceiling, is a clip; a faint wide top,
+    flat at the pixel scale by itself, is not called one; a dark core at the floor is."""
+    print("\nclipped: a flat top, not a grey level")
+    yy, xx = np.mgrid[-1:2, -1:2]
+    peak = 60 + 197 * np.exp(-((xx - 0.2) ** 2 + (yy + 0.1) ** 2) / 2.0)
+    check(not vf.flat_top(np.round(peak), level=60.0), "a peak of 252 with no flat top is not clipped (grey 250 called it)",
+          f"top {np.round(peak).max():.0f}")
+    plateau = np.minimum(60 + 400 * np.exp(-(xx ** 2 + yy ** 2) / 4.0), 240.0)
+    check(vf.flat_top(np.round(plateau), level=60.0), "a plateau at 240, a sensor's own ceiling, is clipped (250 did not call it)")
+    check(vf.flat_top(np.minimum(peak + 10, 255.0)), "a core at the picture's ceiling is clipped, flat or not")
+    faint = 100 + 20 * np.exp(-(xx ** 2 + yy ** 2) / 18.0)
+    check(not vf.flat_top(np.round(faint), level=100.0), "a faint wide top, flat at the pixel scale by itself, is not called clipped")
+    check(vf.flat_top(np.full((3, 3), 0.0), dark=True) and not vf.flat_top(np.round(255 - peak), dark=True, level=195.0),
+          "dark: a core at the floor is clipped, a dip of the same shape as the peak is not")
+    lv = clipmod.headroom_levels({"stretched": True})
+    check(abs(lv.ceiling - 278.3) < 0.1 and abs(lv.floor + 18.6) < 0.1 and not vf.flat_top(np.round(peak) + 10, lv, level=70.0),
+          "in the picture with headroom the ceiling is Y 255 (278.3), and 262 is a peak there",
+          f"{lv.floor:.1f} to {lv.ceiling:.1f}")
+
+
+def test_the_headroom_the_extraction_cuts_is_read_from_the_file():
+    """A studio-range clip (yuv420p, tagged tv, lossless) with a point whose core peaks at Y 245, ten codes into the
+    superwhites, over scene points at Y 100-150: the extraction stretches it to 255 and cuts it flat there, so on the
+    extracted frames it is clipped and its width is not measured; read from the file's own luma (`Clip.headroom`) it
+    peaks near 266.6 with no flat top, is not clipped, and is told from a body. The levels record says the stream's range,
+    the share of pixels past 235, and that the extraction cuts the object's core on every frame. `point_blur` reads the
+    extracted frames unless asked (BLUR_HEADROOM; method section 50: on PR135 the headroom lets the flock's other birds
+    in as the scene's points)."""
+    print("\nlevels: the headroom the extraction cuts, read from the file")
+    import subprocess
+    W, H, N = 320, 240, 24
+    rng = np.random.default_rng(42)
+    at = rng.integers(30, [W - 30, H - 30], (24, 2))
+    ys, xs = np.mgrid[0:H, 0:W]
+    frames = []
+    for n in range(N):
+        y = 60 + rng.normal(0, 1.0, (H, W))
+        for x0, y0 in at:
+            y += 70 * np.exp(-((xs - x0 - 0.5 * n) ** 2 + (ys - y0) ** 2) / 2.0)
+        y += 185 * np.exp(-((xs - 80 - 3 * n) ** 2 + (ys - 120) ** 2) / 2.0)
+        frames.append(np.clip(np.round(y), 0, 255).astype(np.uint8))
+    uv = np.full((H // 2, W // 2), 128, np.uint8).tobytes()
+    with tempfile.TemporaryDirectory() as td:
+        video = Path(td) / "studio.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", f"{W}x{H}", "-r", "30",
+                        "-i", "-", "-c:v", "ffv1", "-pix_fmt", "yuv420p", "-color_range", "tv", str(video)],
+                       input=b"".join(f.tobytes() + uv + uv for f in frames), check=True)
+        clip = clipmod.Clip(video, Path(td) / "frames")
+        d = clip.declared
+        check(d["range"] == "studio" and d["stretched"] and d["luma"], "the stream's range is read: studio, stretched", f"{d}")
+        n = 10
+        ox = 80 + 3 * (n - 1)
+        core = (slice(119, 122), slice(ox - 1, ox + 2))
+        g, y, h = clip.grey(n)[core], clip.luma(n)[core], clip.headroom(n)[core]
+        check(g.max() == 255 and y.max() >= 244 and abs(h.max() - (y.max() - 16) * 255 / 219) < 0.01,
+              "the extracted grey is cut at 255; the luma keeps its 245 (to the noise); the headroom picture reads it past 255",
+              f"grey {g.max():.0f}, Y {y.max():.0f}, headroom {h.max():.1f}")
+        masks = dict(blocks=np.zeros((H, W), bool), graphics=np.zeros((H, W), bool), colour=True)
+        track = {k: (80.0 + 3 * (k - 1), 120.0) for k in range(1, N + 1)}
+        cut = vf.point_blur(clip, track, masks)
+        kept = vf.point_blur(clip, track, masks, headroom=True)
+        check(cut["object_clipped"] > cut["object_fits"] // 2 and cut["resolved"] is None and cut["picture"] == "extracted",
+              "on the extracted frames (point_blur's default) the object is clipped, and its width is not measured", f"{cut}")
+        check(kept["object_clipped"] == 0 and kept["resolved"] is False and kept["picture"] == "headroom",
+              "with the headroom it is not clipped, and is told from a body: a point", f"{kept}")
+        lv = vf.clip_levels(clip, track, False, masks)
+        o = lv["object"]
+        check(lv["highest"] >= 244 and lv["above"] > 0 and o["past_nominal"] == o["frames"] and o["extraction_cuts"] == o["frames"],
+              "the levels record: luma up to 245, a share above 235, the object's core past 235 and cut on every frame",
+              vf.levels_said(lv))
+        gray = Path(td) / "gray.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r", "30",
+                        "-i", "-", "-c:v", "ffv1", "-pix_fmt", "gray", str(gray)], input=b"".join(f.tobytes() for f in frames[:3]), check=True)
+        g2 = clipmod.Clip(gray, Path(td) / "gray_frames")
+        check(g2.declared["range"] == "full" and not g2.declared["stretched"] and np.array_equal(g2.headroom(2), g2.grey(2)),
+              "a grey stream is full range: nothing is stretched, and the headroom picture is the extracted grey")
+
+
 class _Flock:
     """Six points (Gaussians, sigma 1 px) about a centre moving (4, 1) px a frame, drawn between
     pixels, with 0.3 px of jitter: `kind` "rigid" keeps their places (the whole growing 0.1 % a
@@ -1153,6 +1235,53 @@ class _Flock:
                 g[y:y + 2, x:x + 2] += 150
             self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
         return self.cache[n]
+
+
+def test_a_members_noise_does_not_hang_on_the_groups_speed():
+    """A member's position noise is read from its second differences (2026-11-07, after the air-and-sea survey's W-TU11):
+    the rms about a 7-frame running median it replaced read 0.5 px of jitter as 0.17-0.28 px on a group drifting 1-2.4 px a
+    frame, so a rigid formation crossing the picture read "neither" or, with more jitter, "shuffling". Drawn here: four
+    members 60-90 px apart, 0.75 px of jitter, 300 frames -- at rest, drifting (2, -1.4) px a frame, and turning with their
+    heading on a circle of 40 px -- and the same drifting group with each member's place a random walk of 0.75 px a frame."""
+    print("\ngroups: a member's noise at any speed")
+    from mcdonald import groups
+    rng = np.random.default_rng(31)
+    n, jit = 300, 0.75
+    t = np.arange(n, dtype=float)
+    off = np.array([[-40.0, -20.0], [35.0, -25.0], [-30.0, 30.0], [45.0, 25.0]])
+
+    def drawn(kind):
+        if kind == "at rest":
+            c, h = np.c_[np.full(n, 500.0), np.full(n, 400.0)], np.zeros(n)
+        elif kind == "turning":
+            w = math.hypot(2.0, 1.4) / 40.0
+            c, h = np.c_[500 + 40 * np.sin(w * t), 400 - 40 * np.cos(w * t)], w * t
+        else:
+            c, h = np.c_[500 + 2.0 * t, 400 - 1.4 * t], np.zeros(n)
+        out = {}
+        for i, o in enumerate(off):
+            r = np.c_[o[0] * np.cos(h) - o[1] * np.sin(h), o[0] * np.sin(h) + o[1] * np.cos(h)]
+            if kind == "shuffling":
+                r = r + np.cumsum(rng.normal(0, 0.75, (n, 2)), axis=0)   # a walk the noise can see (below)
+            p = c + r + rng.normal(0, jit, (n, 2))
+            out[i + 1] = {k + 1: (float(p[k, 0]), float(p[k, 1])) for k in range(n)}
+        return out
+    for kind in ("at rest", "drifting", "turning"):
+        g = drawn(kind)
+        noise = [groups._noise(m) for m in g.values()]
+        old = [groups._noise_median(m) for m in g.values()]
+        r = groups.rigidity(g)
+        check(all(abs(x - jit) < 0.1 for x in noise) and r["rigid"] is True,
+              f"a rigid group {kind}: each member's noise is its jitter, and the group reads rigid",
+              f"noise {np.round(noise, 2).tolist()} px for {jit} (the running median's {np.round(old, 2).tolist()}); {r['finding'][:70]}")
+    # the shuffle must be strong enough for the unbiased noise to see: on 40 draws each (2026-11-07), a walk of 0.25 px a
+    # frame read rigid 14 and "neither" 26 times, 0.5 px "shuffling" 8 times, 0.75 px "shuffling" 37 times. The running
+    # median called the weak walks "shuffling" only because it read the drifting members' noise low.
+    r = groups.rigidity(drawn("shuffling"))
+    check(r["rigid"] is False, "members whose places wander, drifting: shuffling", r["finding"][:90])
+    sparse = {k: (float(k), 0.1 * (k % 3)) for k in range(1, 60, 2)}
+    check(groups._noise(sparse) == groups._noise_median(sparse) is not None,
+          "a member seen only every other frame has no second differences: the running median's reading stands in")
 
 
 def test_a_group_is_told_to_be_one_and_whether_its_members_keep_their_places():
@@ -1587,7 +1716,8 @@ def test_the_continuum_null_finds_a_line_and_lets_red_noise_be():
     check(abs(line["hz"] - 6.0) < 0.15 and line["p"] < 0.01 and line["ratio"] > line["needed99"],
           "a 6-Hz line at 3 % in red noise of 5 %: found, standing over the 99 % level", f"{line['hz']:.2f} Hz {line['ratio']:.1f} vs {line['needed99']:.1f}, p {line['p']:.3f}")
     alarms = [s for s in range(40) if flicker.continuum(red(100 + s), fps, top=12.0, runs=500)["p"] < flicker.CONTINUUM_P]
-    check(len(alarms) <= 3, "red noise with no line, through the running mean: about one curve in a hundred under 0.01 (at most 3 of 40 here)", f"{len(alarms)} of 40: {alarms}")
+    traffic.rate(check, "red noise with no line, through the running mean: about one curve in a hundred under 0.01", len(alarms), 40,
+                 flicker.CONTINUUM_P, f"{len(alarms)} of 40: {alarms} (at most 3 before E20)")
     one = _Beating([(8.0, 0.2, 0)])
     track = {k: one.at(0, k) for k in range(1, 151)}
     f = flicker.measure(one, {"object": track}, say=lambda *a: None).fields
@@ -2172,10 +2302,11 @@ def test_steadiness_tells_a_clock_from_a_beat_that_wanders():
         return amp * np.cos(2 * np.pi * np.cumsum(f_of_t(t)) / fps + rng.uniform(0, 2 * np.pi)) + noise * rng.standard_normal(n)
     steady = [flicker.steadiness(curve(lambda t: 7.6 + 0 * t), fps, 7.6, runs=100, seed=k) for k in range(12)]
     wander = [flicker.steadiness(curve(lambda t: np.where(t < t[-1] / 2, 7.4, 7.8)), fps, 7.6, runs=100, seed=k) for k in range(8)]
-    check(sum(s["wanders"] for s in steady) <= 1 and all(s["power"] for s in steady),
-          "of 12 planted steady beats, at most 1 is called wandering", str([round(s["p"], 2) for s in steady]))
-    check(sum(s["wanders"] for s in wander) >= 7,
-          "of 8 beats that step 7.4 -> 7.8 Hz between the halves, 7 or more are", str([round(s["p"], 3) for s in wander]))
+    traffic.rate(check, "planted steady beats are called wandering about one time in a hundred (STEADY_P)",
+                 sum(s["wanders"] for s in steady), 12, flicker.STEADY_P, str([round(s["p"], 2) for s in steady]))
+    check(all(s["power"] for s in steady), "and every one had the power to say")
+    traffic.rate(check, "beats that step 7.4 -> 7.8 Hz between the halves are called wandering (missed 5 % of the time stated: a "
+                 "judgement)", 8 - sum(s["wanders"] for s in wander), 8, 0.05, str([round(s["p"], 3) for s in wander]))
     short = flicker.steadiness(curve(lambda t: 7.6 + 0 * t)[:100], fps, 7.6)
     check(short["power"] is False and short["p"] is None and "too short" in (short["why"] or ""),
           "100 frames are too short for two halves of 60: not read", str(short["why"]))
@@ -2228,8 +2359,8 @@ def test_a_light_that_flashes_in_a_train():
         for c in rng.uniform(0.5, t[-1] - 0.6, 8):
             f[(t >= c) & (t < c + 0.2)] += 25
         rand.append(flicker.blinks(f, fps, runs=500, seed=k))
-    check(sum(r["train"] for r in rand) <= 1, "eight flashes at random times, twelve times over: at most one is called a train",
-          str([r.get("p") for r in rand]))
+    traffic.rate(check, "eight flashes at random times, twelve times over: called a train about one time in a hundred (p 0.01)",
+                 sum(r["train"] for r in rand), 12, 0.01, str([r.get("p") for r in rand]))
     sine = flicker.blinks(100 + 25 * np.sin(2 * np.pi * 7.0 * t) + rng.normal(0, 1, n), fps, runs=100)
     check(sine["flashes"] == 0 and not sine["train"], "a 7-Hz sinusoid as strong has no flashes", str(sine["flashes"]))
     flat = 100 + rng.normal(0, 0.5, n)
@@ -2408,9 +2539,10 @@ def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
         err.append(p["hz_err"])
     hz, err = np.array(hz), np.array(err)
     inside = float(np.mean(np.abs(hz - 7.1) <= 3 * err))
-    check(inside >= 0.95 and 0.5 <= np.median(err) / hz.std() <= 2.0 and np.median(err) < 0.25 * fps / len(t),
-          "a beat planted in grain over 4.5 s: within three of its errors of the truth, the error the scatter's size and a "
-          "small part of the resolution", f"within 3 errors {inside:.0%}; error {np.median(err):.4f} Hz, scatter {hz.std():.4f}, "
+    traffic.rate(check, "a beat planted in grain over 4.5 s: within three of its errors of the truth (outside 0.27 % of the time, "
+                 "a normal's)", int(np.sum(np.abs(hz - 7.1) > 3 * err)), 60, 0.0027, f"within 3 errors {inside:.0%}")
+    check(0.5 <= np.median(err) / hz.std() <= 2.0 and np.median(err) < 0.25 * fps / len(t),
+          "and the error is the scatter's size and a small part of the resolution", f"within 3 errors {inside:.0%}; error {np.median(err):.4f} Hz, scatter {hz.std():.4f}, "
           f"resolution {fps / len(t):.3f}")
     e = flicker.hz_error(flicker.deviation(f, fps), fps, p["hz"])
     check(e["hz_err"] >= e["bound"] and e["hz_err"] >= e["grid"] and e["hz_err"] == max(e["boot"], e["bound"], e["grid"]),
@@ -2425,9 +2557,11 @@ def test_a_frequency_is_known_to_its_error_and_the_codecs_mark_is_held_to_it():
         p = flicker.peak(f, fps, [line])
         beside += p["at_the_codec_line_hz"] is None
         old += flicker.at_line(p["hz"], None, [line], p["resolution_hz"]) is not None
-    check(on == 30, "a rhythm on the codec's line is marked at it, every time", f"{on} of 30")
-    check(beside >= 28 and old == 30, "a strong beat 0.25 Hz beside it in a 2-s window is not -- which the mark at the "
-          "resolution was, every time", f"clear of the line {beside} of 30; by the resolution marked {old} of 30")
+    traffic.rate(check, "a rhythm on the codec's line is marked at it (missed 1 % of the time stated: a judgement)", 30 - on, 30, 0.01,
+                 f"{on} of 30")
+    traffic.rate(check, "a strong beat 0.25 Hz beside it in a 2-s window is not (5 % stated: a judgement; 2 of 30 passed before E20)",
+                 30 - beside, 30, 0.05, f"clear of the line {beside} of 30")
+    check(old == 30, "which the mark at the resolution was, every time (a rule, not a rate)", f"by the resolution marked {old} of 30")
     bg = [rng.normal(0, 10, len(t)) for _ in range(4)]          # background apertures, in the object's brightness
     f = 1000 * (1 + 0.2 * np.sin(2 * np.pi * (line + 0.25) * t)) + rng.normal(0, 20, len(t))
     w = flicker.window_test(f, bg, fps, [line], 0.8 * fps / 2)
@@ -2786,9 +2920,14 @@ def test_the_line_keeps_its_false_alarms():
         v[at[at < n]] = 0
         return v
 
-    for n, most in ((60, 0.056), (120, 0.012), (300, 0.0)):
+    for n, most, rate in ((60, 0.056, 0.0475), (120, 0.012, 0.007), (300, 0.0, 0.0)):
         got = float(np.mean([flicker.least_balance(held_in_runs(n)) >= flicker.BALANCED for _ in range(2000)]))
-        check(got <= most, f"words held in runs, {n} frames: at most {most:.1%} past the line", f"{got:.2%} of 2,000")
+        k = int(round(got * 2000))
+        if most > 0:                                 # the rate measured on 40,000 words (the docstring), its zone over these 2,000
+            traffic.rate(check, f"words held in runs, {n} frames: about {rate:.2%} past the line, as on 40,000 words", k, 2000, rate,
+                         f"{got:.2%} of 2,000 (at most {most:.1%} before E20)")
+        else:
+            check(k == 0, f"words held in runs, {n} frames: none past the line", f"{got:.2%} of 2,000")
     past = [w for w in ((rng.random(60) < 0.1).astype(int) for _ in range(2000)) if 0.1 <= w.mean() and flicker.least_balance(w) >= flicker.BALANCED]
     called = sum(flicker.cadence(w, 30.0)["cadence"] for w in past)
     check(len(past) >= 5 and called == 0, "random words of share 0.1, 60 frames: some pass the line alone, none the second gate as well",
@@ -2881,7 +3020,8 @@ def test_a_brightness_that_only_wanders_is_not_a_beat():
     rng = np.random.default_rng(12)                       # the test's own promise: one in a hundred
     walks = [100 + np.cumsum(rng.normal(0, 1, 120)) + rng.normal(0, 1, 120) for _ in range(40)]
     passed = sum(flicker.drift(w, 30.0)["passes"] for w in walks)
-    check(passed <= 2, "40 random walks with grain: no more than 2 pass the drift test, held to 1 in 100", f"{passed} passed")
+    traffic.rate(check, "40 random walks with grain: the drift test passes about 1 in 100", passed, 40, 0.01,
+                 f"{passed} passed (at most 2 before E20)")
 
 
 def test_a_beat_is_not_its_own_double_nor_the_edge_of_the_band():
@@ -4851,7 +4991,8 @@ def test_sompi_reads_a_line_from_a_few_cycles_and_a_short_record_is_read_anyway(
           and so["over"] >= 1.0, "a 3-Hz line decaying with Q 20, in grain, over 40 frames: read, with its decay",
           f"{so['hz']:.2f} Hz, Q {so['q']:.0f}, {so['amplitude']:.2f} over {so['over']:.1f}x the grain, still at {so['stability']:.0%} of the orders" if so["hz"] else "no line")
     none = sum(flicker.sompi(rng.normal(0, 1, 40), 30.0, top=12)["hz"] is None for _ in range(20))
-    check(none >= 18, "grain alone: no root holds still and stands over the grain", f"no line in {none} of 20")
+    traffic.rate(check, "grain alone: no root holds still and stands over the grain (5 % stated: a judgement)", 20 - none, 20, 0.05,
+                 f"no line in {none} of 20")
     sh = _Brief([(8.0, 0.2, 0)])
     found = flicker.measure(sh, {"member 0": {n: sh.at(0, n) for n in range(1, 41)}}, say=say)
     sr = (found.fields.get("short_record") or {}).get("member 0") or {}
@@ -5086,6 +5227,8 @@ def main():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             fn()
+    if traffic.WARNS:
+        print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")
     return 1 if FAIL else 0
 

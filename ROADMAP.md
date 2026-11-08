@@ -254,6 +254,13 @@ refusal that read where the fit landed, its crash on 6 or 7 readings and a model
 camera row, which answered No from the share the first line calls not measured. **0.4.3 is the scene under the sensor's pattern** (B3,
 B4, branch `scene`, the maintainer's four decisions of 2026-11-02), after which the reference case files are remade once. The additions
 (E2, E3, E6, E14-E17, E20, E22, M6, A16, Av10, Av11, D8, K10, the phone scope's WP1 and WP4 first) are 0.4.x, as cases need them.
+**Built on 2026-11-07 (session 18, on branch `s18`; method sections 42, 45, 48, 49, 51):** the phone scope's WP1 and WP4 (a
+phone's own record of its zoom as a route to k, checked on the clip's own pictures); E2, E3 and B16 (a change of velocity
+dated beyond the track's wander and set against the scene); E6, E22 and E20 (the jitter read without a model, the motion
+models that survive as a computed set, and a traffic light for the suites' checks on drawn data); E14-E17 (the pointer as a
+stale price, one k from the routes that agree, the zoom as a regression discontinuity, the zoom ladder pooled); and the
+single-camera survey's F11 and F12/F41/F51 (the dash read less its neighbours and fitted whole). E15 on real clips is open.
+Still 0.4.x: M6, A16, Av10, Av11, D8, K10, the phone scope's WP2 and WP3.
 
 **Objectives.**
 
@@ -416,6 +423,17 @@ plot they rest on (S20); and levels (V1), the one port that changes a verdict th
 0.5.x**, as footage and hand marks allow: drones, helicopters, aircraft, balloons, flames, gliding and flap-gliding birds, insects, and
 the sensor's own artefacts. The harness in 0.5.0 lifts the hold of 2026-10-20 ("waits for the new workstation") for a sampled suite on the
 present machine, not the whole set: the maintainer's to confirm.
+
+**Built on 2026-11-07 (session 18, on branch `s18`; method sections 43, 44, 46, 47, 50), every item of the cut:** the
+controls harness (`tests/test_controls.py`, 27 controls from saved curves, each with its exact bound; the labelled set's 432
+tracks in the data folder and the whole set as a Slurm tool; the ledger of looks), run on this machine as the cut proposed --
+the hold's lift for the sampled suite still the maintainer's to confirm; the bird floor set from a null at a stated 1 in 100
+(7 %, tested once on the visible-band clips), its probability of overfitting and its challenger; AARO's fourteen resolved
+cases run blind (coverage 0 of 14: no public description gives a scale; no disagreement, no false bird); the reason codes,
+the grade and the discriminant plot beside the checklist, with the checklist's rows saying only what their tests decided
+(the diagnostic-accuracy survey of 2026-11-07); and levels (clipped as a flat top, the clip's levels in integrity's record).
+The release number for it is the maintainer's. Two surveys of 2026-11-07 -- the air and the sea (W1-W42) and judging a test
+(Dx1-Dx40) -- are in IDEAS.md, their rows that change reports marked; six are the maintainer's decisions (the handoff lists them).
 
 **Classes, signatures and tests.**
 
@@ -858,7 +876,7 @@ Still open:
 
 ## The ideas bank
 
-In [IDEAS.md](IDEAS.md) since 2026-11-02 (decision 11): 315 rows at the split -- 62 shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused; by release, 21 in 0.3, 32 in 0.4, 2 in 0.5, 22 in 0.6, 26 in 0.7, 63 in 0.8, 7 in 0.9, 1 in 1.0, 12 in 0.4.2, 2 in 0.4.3, 55 in 0.4.x, 12 in 0.5.0, 59 in 0.5.x, 1 in later; the twelve of 0.4.2 shipped that evening. Each row
+In [IDEAS.md](IDEAS.md) since 2026-11-02 (decision 11), with the two surveys of 2026-11-07 (W, Dx: 82 rows) added: 315 rows at the split -- 62 shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused; by release, 21 in 0.3, 32 in 0.4, 2 in 0.5, 22 in 0.6, 26 in 0.7, 63 in 0.8, 7 in 0.9, 1 in 1.0, 12 in 0.4.2, 2 in 0.4.3, 55 in 0.4.x, 12 in 0.5.0, 59 in 0.5.x, 1 in later; the twelve of 0.4.2 shipped that evening. Each row
 names the survey it came from and its rank there, the module it lands in and what became of it; a `kind` column
 separates the report-changers that go first in a patch release from the theme work of a minor version, and both
 from findings measured and kept. The surveys themselves are working notes kept with the PURSUE analyses, outside

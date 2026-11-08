@@ -35,3 +35,15 @@ had measured a blend. Those looks, and the tracks they produced, are in the refe
 |---|---|
 | `videos.tsv` | The sweep's 126 videos: the PURSUE videos with an object to look at, by the release's file name, and whether the whole-video pass followed objects in each. |
 | `holdout.py`, `holdout.tsv` | The held-out third (the ideas bank's D5): 42 videos drawn on 2026-10-17, before the gate work, by a hash anyone can repeat. They are not looked at until the gates are frozen on the controls and the rest; then the gates run on them once. `python3 tools/sweep/holdout.py` draws again and checks the table; `--list` prints the ids for a script to skip. `summary.py` leaves them out, and counts them, until it is told `--held-out`. |
+
+## The bird floor and how overfit a gate is
+
+ROADMAP.md 0.5.0 (the ideas bank's B24, E9 and E19; `docs/method.md` section 43). Both read a per-track table of a
+labelled set -- `clip`, `object`, `cls` (BIRD or not), and for each beat rule `{rule}_call`, `{rule}_amplitude`,
+`{rule}_hz` and `{rule}_shaken_px` -- the table the controls harness writes for the Svanström set, or any set measured the
+same way. Python's standard library only; run them again after any change to `flicker` or the conclusion's rule.
+
+| file | what it does |
+|---|---|
+| `floor.py` | `set`: `report.BIRD_FLOOR` from the null -- the smallest floor at which no more than 1 % of the non-bird tracks are named a bird, as a median over resamples of their clips, the larger beat rule's, rounded up to 0.5 % -- with the rates at it (by-clip and exact intervals) and the cost it implies (B24). `test`: a frozen floor once on a set it was not set on, against a one-sided binomial test of its stated rate. `challenger`: the floor against the simplest rule that could do its job, the amplitude alone (E19). `strata`: a frozen floor's miss and false-alarm rates by what a clip offers -- track length, size, the track's power -- beside the pooled rate, as a description, never an input to the floor. |
+| `pbo.py` | The probability of backtest overfitting by combinatorially symmetric cross-validation (E9): the clips in 16 blocks, every half of them, the candidate chosen on one half ranked on the other. `floor`: BIRD_FLOOR's candidates, 0-20 % by 0.5 %, chosen by the best U = TPR - 11 FPR or (`--alpha`) by `floor.py`'s own rule. `configs`: any gate's candidates from a long table (`config`, `clip`, `cls`, `named`), such as the capped disc's sizes (`flicker.POINT_DISC`). |

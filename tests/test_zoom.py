@@ -305,6 +305,35 @@ def test_a_zoom_with_no_blank_is_fitted_and_a_gain_step_is_not_a_boundary():
     check("no blank" in said and "not a zoom" in said, "the report says which steps had no blank, and which were no zoom")
 
 
+def test_the_zoom_as_a_regression_discontinuity():
+    print("\nzoom: the jump at a burst from the pairs either side, and placebo cutoffs where nothing happened (E15)")
+    rng = np.random.default_rng(3)
+    pairs = [(i, j, 2.0 * np.exp(0.002 * i + 0.003 * j + rng.normal(0, 0.002))) for i in range(4) for j in range(4)]
+    r = zoom.rd_fit(pairs)
+    check(r and abs(r["S"] / 2 - 1) < 0.005 and r["interval"][0] <= 2.0 <= r["interval"][1] and zoom.rd_step(r),
+          "a step of x2 with the scene's scale drifting either side: x2.00 within 0.5 %, its interval holding it",
+          r and f"x{r['S']:.4f}, {r['interval'][0]:.4f}-{r['interval'][1]:.4f}")
+    flat = zoom.rd_fit([(i, j, np.exp(rng.normal(0, 0.004))) for i in range(4) for j in range(4)])
+    check(flat and zoom.rd_step(flat) is False, "no step: the interval inside the no-step band", flat and f"{flat['interval']}")
+    check(zoom.rd_fit(pairs[:4]) is None, "too few pairs: no estimate")
+
+    def frame_of(n):
+        m = 1.0 if n <= 70 else 2.0
+        return render(m * (1 + 0.001 * n), 700 + 2.0 * n, 900 - 0.6 * n, fixed=0.5, seed=n)
+
+    todo = [dict(frames=[71, 72], kind="blank", before=70, after=73, fixed_before=list(range(40, 71, 3)),
+                 fixed_after=list(range(73, 104, 3)))]
+    rows = [dict(frames=[71, 72], verdict="step", s=2.0)]
+    states = zoom.states_of(rows, 140, FPS)
+    d = zoom.rd("rendered", todo, rows, states, 140, FPS, clip=Rendered(frame_of), h=2, k=2)
+    b = d["bursts"][0]["rd"]
+    check(b and abs(b["S"] / (2 * 1.073 / 1.070) - 1) < 0.02 and d["bursts"][0]["rd_step"],
+          "rendered: the burst's jump from 9 pairs either side, within 2 %", b and f"x{b['S']:.4f} {b['interval']}")
+    check(d["placebos_judged"] >= 1 and d["placebo_steps"] == 0, "rendered: the placebo cutoffs inside the states find no step",
+          f"{d['placebo_steps']} of {d['placebos_judged']}: {[q['rd'] and round(q['rd']['S'], 4) for q in d['placebos']]}")
+    check(any("placebo" in x for x in zoom.rd_said(d)), "and the stage says the placebo rate")
+
+
 def main():
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

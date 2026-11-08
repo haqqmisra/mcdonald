@@ -293,7 +293,8 @@ def drive_the_report(video, td, case):
           "the stages' results are fields, with what had no power beside them", ", ".join(d["results"]["stages"]))
 
     print("\nreport: the case read back from its file, and the track sheet looked at afterwards")
-    unchecked = lambda text: "\n".join(x for x in text.splitlines() if not x.startswith("| Has a person checked"))   # the checklist's last row changes
+    unchecked = lambda text: "\n".join(x for x in text.splitlines() if not x.startswith(("| Has a person checked", "*How sure:")))   # the checklist's
+    # last row changes, and how sure the conclusion is (S17): the look takes away its risk of bias
     before = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
     check("provisional" in md, "run without --i-looked calls the object measurements provisional")
     rc, out, err = mcdonald("report", case / "planted_case.json", "--i-looked", "--json")
@@ -305,6 +306,9 @@ def drive_the_report(video, td, case):
           and after["stages"]["kinematics"]["fields"] == before["stages"]["kinematics"]["fields"]
           and unchecked(md2[:md2.index("## Missing quantities")]) == unchecked(md[:md.index("## Missing quantities")]).replace(f"> {SHEET}\n\n", "")
           and "| **Not yet** | until then" in md and "| **Yes** | the track sheet was looked at" in md2
+          and "Nobody has said they looked at the track sheet" in md and "Nobody has said they looked" not in md2
+          and r["results"]["grade"]["downgrades"] < d["results"]["grade"]["downgrades"]
+          and [x["key"] for x in r["results"]["reasons"]] == [x["key"] for x in d["results"]["reasons"]]
           and [x for x in md[md.index("## Missing quantities"):md.index("## Measurements")].splitlines()
                if x not in md2[md2.index("## Missing quantities"):md2.index("## Measurements")].splitlines()]
           == [f"- **{SHEET_NEEDED}** (verify)"]

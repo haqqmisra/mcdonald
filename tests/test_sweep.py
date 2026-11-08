@@ -111,9 +111,65 @@ def test_summary():
         check(left == 0 and (gone, "o00") in {(r["id"], r["obj"]) for r in rows if r["strict"]}, "told the gates are frozen, it is counted in")
 
 
+def test_floor():
+    print("\nthe bird floor from a null, its challenger, and the probability it is overfit (floor.py, pbo.py)")
+    import random
+    import floor
+    import pbo
+    check(floor.smallest_floor([0.2, 0.15, 0.07, 0.05, 0.02, None], 300, 0.01) == 0.051
+          and floor.smallest_floor([0.2, 0.15], 300, 0.01) == 0.0,
+          "the smallest floor that names no more than 1 % of 300: just over the fourth strongest (3 may pass); none needed for two")
+    row = lambda clip, cls, call, amp, shaken="": {"clip": clip, "cls": cls, "stage_call": call, "stage_amplitude": amp,
+                                                   "stage_hz": 7.0, "stage_shaken_px": shaken}
+    check(floor.named(row("a", "BIRD", "bird", "0.09"), "stage", 0.08) and not floor.named(row("a", "BIRD", "bird", "0.07"), "stage", 0.08)
+          and not floor.named(row("a", "BIRD", "bird", "0.5", "0.6"), "stage", 0.08)
+          and floor.named(row("a", "BIRD", "bird", ""), "stage", 0.5) and not floor.named(row("a", "BIRD", "once", "0.5"), "stage", 0.0),
+          "named: a beat that comes back at the floor or over, not where the camera's shake sits at it; a case with no amplitude as before")
+    lo, hi = floor.exact(0, 307)
+    lo2, hi2 = floor.exact(2, 307)
+    check(lo == 0 and abs(hi - 0.01194) < 2e-4 and abs(lo2 - 0.00079) < 1e-4 and abs(hi2 - 0.02334) < 3e-4,
+          "Clopper-Pearson: 0 of 307 under 1.2 %; 2 of 307 within 0.08-2.3 %", f"{hi:.5f} {lo2:.5f} {hi2:.5f}")
+    check(floor.binom_upper(307, 0.01) == 6, "at a rate of 1 % on 307 tracks, a one-sided test at 5 % allows up to 6")
+    check(abs(floor.upper(0, 286) - 0.0104) < 2e-4 and abs(floor.upper(2, 307) - 0.0205) < 5e-4,
+          "the one-sided 95 % bound: none in 286 is 1.04 %, so about 300 tracks cannot show under 1 %; 2 in 307 is about 2 %",
+          f"{floor.upper(0, 286):.4f}, {floor.upper(2, 307):.4f}")
+    _, _, stage = floor.operating_point(0.24, 0.039)
+    _, _, floored = floor.operating_point(0.23, 0.0065)
+    check(abs(stage - 0.33) < 0.02 and abs(floored - 1.5) < 0.05,
+          "the operating point (B24): the stage's rule prices a false bird at a third of a missed one, the 8 % floor at 1.5",
+          f"{stage:.3f}, {floored:.3f}")
+    rng = random.Random(7)
+    rows = [row(f"n{i}", "DRONE", "bird" if i < 12 else "none", f"{0.002 * (i + 1):.3f}") for i in range(300)]
+    rows += [row(f"b{i}", "BIRD", "bird" if i < 30 else "none", f"{rng.uniform(0.05, 0.3):.3f}") for i in range(100)]
+    f, per = floor.set_floor(rows, boot=200, say=lambda *a: None)
+    k = sum(floor.named(r, "stage", f) for r in rows if not floor.bird(r))
+    check(per["stage"]["plain"] == 0.019 and 0.015 <= per["stage"]["median"] <= 0.023 and f in (0.02, 0.025) and k <= 3,
+          "set from the null: twelve false calls at 0.2-2.4 % of 300, so the floor lands over the fourth strongest and names at most 3",
+          f"{f}, {per['stage']}, {k}")
+    check(floor.stratum({"labelled": "120"}, "labelled", (150, 300, float("inf")), "stage") == "0-150"
+          and floor.stratum({"labelled": "400"}, "labelled", (150, 300, float("inf")), "stage") == "300 or more"
+          and floor.stratum({"w_med": ""}, "w_med", (5, 10, float("inf")), "stage") == "(not measured)"
+          and floor.stratum({"distance": "CLOSE"}, "distance", None, "stage") == "CLOSE",
+          "the strata a frozen floor's rates are described by: track length, size, the set's own bins")
+    rows = []
+    for c in range(64):
+        cls = "BIRD" if c % 2 else "DRONE"
+        for t in range(3):
+            rows += [dict(config="perfect", clip=f"c{c}", cls=cls, named=int(cls == "BIRD"))]
+            rows += [dict(config=f"coin {j}", clip=f"c{c}", cls=cls, named=int(rng.random() < 0.5)) for j in range(9)]
+    configs, table = pbo.table_long(rows, 8)
+    p, logits, chosen, _ = pbo.cscv(pbo.counts(table, 8), 8)
+    check(p == 0 and all(configs[j] == "perfect" for j in chosen),
+          "CSCV: a rule right on every clip is chosen on every half and never overfit", f"{p}")
+    configs, table = pbo.table_long([r for r in rows if r["config"] != "perfect"], 8)
+    p, _, _, _ = pbo.cscv(pbo.counts(table, 8), 8)
+    check(0.25 < p < 0.85, "CSCV: among coins, the best in sample is no better than the median out of sample about half the time",
+          f"{p:.2f}")
+
+
 def main():
     print("mcDonald UAP Toolkit -- the beat sweep's tools")
-    for fn in (test_windows, test_collect, test_summary):
+    for fn in (test_windows, test_collect, test_summary, test_floor):
         fn()
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")
     return 1 if FAIL else 0

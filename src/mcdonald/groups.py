@@ -34,7 +34,7 @@ Method (`members`, then `rigidity`):
    more, the separation, frame by frame, and how much it wanders about a straight line
    in time (which a slow zoom or a change of aspect gives a rigid group). That is held
    against what the members' own position noise alone would give (each member's jitter
-   about a 7-frame running median): a rigid group's pairs wander by about that; a group
+   from its second differences, `_noise`): a rigid group's pairs wander by about that; a group
    whose members change places, by many times it. `rigid` is true when every such pair
    wanders by at most RIGID times the noise, false when the median pair wanders by more
    than SHUFFLE times it and by more than a pixel, and None between, or with fewer than
@@ -201,14 +201,46 @@ def members(clip, track, masks, rows=None, radius=RADIUS, size=SIZE, dark=False,
     return tracks, spots, len(fixed), bg
 
 
-def _noise(t):
-    """A member's position noise: the rms, per axis, of its jitter about a 7-frame running median."""
+NOISE_PAIRS = 10     # pairs of side-by-side second differences on consecutive frames a member's noise needs
+
+
+def _noise_median(t):
+    """The rms, per axis, of a member's jitter about a 7-frame running median: low on a moving member (see `_noise`)."""
     ns = sorted(t)
     xy = np.array([t[n][:2] for n in ns])
     if len(xy) < 7:
         return None
     med = np.array([np.median(xy[max(0, k - 3):k + 4], axis=0) for k in range(len(xy))])
     return float(np.sqrt(((xy - med) ** 2).mean()))
+
+
+def _noise(t):
+    """A member's position noise, per axis (the two pooled), read from its second differences on consecutive frames
+    (E6's reading, `kinematics.second_differences`, here as sqrt((gamma_0 - gamma_1) / 10)): white jitter of variance s^2
+    gives the second differences gamma_0 = 6 s^2 and gamma_1 = -4 s^2, so (gamma_0 - gamma_1) / 10 is s^2 whatever the
+    member's speed, and a slow part of them -- a group turning on screen -- adds alike to both and cancels. It replaced
+    (2026-11-07) the rms about a 7-frame running median, which read a member's jitter by the group's speed and the track's
+    length: 0.5 px read 0.48 at rest and 0.17-0.28 at 1.2-2.4 px a frame (the median of a ramp is its middle sample, and the
+    windows cut short at the ends leave sqrt(7 v^2 / 2 N)), so a rigid formation drifting across the picture read "neither"
+    and, at 0.75-1 px of jitter, "shuffling" (the air-and-sea survey's W-TU11). Under NOISE_PAIRS pairs (a member seen on
+    frames too far apart) the running median's reading stands in (`_noise_median`), as it did before."""
+    ns = sorted(t)
+    f = np.array(ns, float)
+    xy = np.array([t[n][:2] for n in ns], float)
+    if len(f) < 4:
+        return None
+    g = np.diff(f)
+    d1 = np.diff(xy, axis=0)
+    d2 = d1[1:] - d1[:-1]
+    ok1 = (g[:-1] == 1) & (g[1:] == 1)                  # a second difference over three consecutive frames
+    ok2 = ok1[:-1] & ok1[1:]                            # and the one after it too
+    if int(ok2.sum()) < NOISE_PAIRS:
+        return _noise_median(t)
+    p, q = d2[:-1][ok2], d2[1:][ok2]
+    mu = (p.sum(axis=0) + q.sum(axis=0)) / (2.0 * len(p))
+    g1 = float(((p - mu) * (q - mu)).mean())            # the two axes pooled
+    g0 = float(d2[ok1].var(axis=0).mean())
+    return float(np.sqrt(max((g0 - g1) / 10.0, 0.0)))
 
 
 def rigidity(tracks):

@@ -40,7 +40,7 @@ from . import known_qt, stages
 from .kinematics import band_said, path_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
 from .projective import trend_px
-from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, NO, PARTLY, SUBSONIC, SUPERSONIC, YES, Case, _far
+from .report import ANGLE_NEEDED, BIRD, CONSISTENT, INCONSISTENT, INDETERMINATE, NO, PARTLY, SUBSONIC, SUPERSONIC, YES, Case, _far
 
 # the label of a conclusion: its glyph and colour, as a badge ("bird" and the dials are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
@@ -410,7 +410,7 @@ class ReportCard(QtWidgets.QFrame):
             test = muted(row["test"])
             answer = QtWidgets.QLabel(row["answer"])
             answer.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTop)
-            answer.setStyleSheet("font-weight: bold;" if row["answer"] in (YES, NO, PARTLY) else f"color: {MUTED};")   # what could not be decided, quietly
+            answer.setStyleSheet("font-weight: bold;" if row["answer"] in (YES, NO, PARTLY, CONSISTENT, INCONSISTENT) else f"color: {MUTED};")   # what could not be decided, quietly
             for w in (test, answer):
                 w.setToolTip(row["said"])
             self.checks_grid.addWidget(test, r, 0)
@@ -432,13 +432,22 @@ class ReportCard(QtWidgets.QFrame):
         self.facts.setVisible(bool(rows))
         # the reasoning alone: it says what a real speed still needs in plain words, and the four unknowns' rows say how to find
         # each (the stages' own list of needs, in their symbols, is the full report's "Missing quantities"; sciencespeak, 2026-11-07)
-        self.more_text.setText(case.bottom_line())
+        self.more_text.setText(self.more_said(case))
         said = self.asking(case)
         self.ask.setVisible(said is not None)
         if said is not None and self.known.isHidden():    # not while the form is open: what it says is the person's
             self.ask_text.setText(said[0])
             self.ask_button.setText(said[1])
             self.ask_button.setStyleSheet(PRIMARY if said[2] else QUIET)
+
+    @staticmethod
+    def more_said(case):
+        """More's text: how sure the conclusion is and what it rests on, the heaviest first (`Case.grade`, `Case.reasons`;
+        session 18, the words await Jacob's), then the bottom line's paragraph."""
+        g, rs = case.grade(), case.reasons()
+        parts = ([g["said"]] if g else []) + ([f"What it rests on, the heaviest first:\n" + "\n".join(f"{i}. {r['said']}" for i, r in enumerate(rs, 1))]
+                                               if rs else [])
+        return "\n\n".join(parts + [case.bottom_line()])
 
     # -- what else is known of the video ------------------------------------------------------------
     @staticmethod

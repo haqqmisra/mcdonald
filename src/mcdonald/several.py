@@ -401,7 +401,7 @@ def row(t, same=None):
     kinds = sorted({ms.kind("object", n) for n in obj})
     chosen = next((h for h in hows if h), None) or "marked by hand"
     d = dict(object=t.k, folder=t.folder.name, marks=len(obj), marked_frames=[min(obj), max(obj)] if obj else None, placed_by=kinds,
-             chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, bottom_line=None,
+             chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, grade=None, bottom_line=None,
              segment=None, segment_said=None, track_sheet_looked_at=None, report=None, track_sheet=None, error=t.error,
              group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None,
              same_as=dict(same) if same else None)
@@ -415,7 +415,7 @@ def row(t, same=None):
         clip = case.clip or {}
         label, head = case.conclusion()
         d.update(measured=True, stopped=case.stopped_in(), followed=_followed(case), bottom_line=case.bottom_line(),
-                 conclusion=dict(label=label, headline=head), segment=case.segment,
+                 conclusion=dict(label=label, headline=head), grade=case.grade(), segment=case.segment,
                  segment_said=case.segment_said(measured=False) or None,
                  frames=[clip.get("n0"), clip.get("n1")] if clip else None,
                  track_sheet_looked_at=((case.stages.get("verify") or {}).get("fields") or {}).get("reviewed"),
@@ -480,12 +480,19 @@ def index(base, objects=None):
             L.append(f"- **stopped** {r['stopped']}: the steps after that did not run")
         if r["conclusion"]:                          # what its report leads with: a bird is named there, not in the bottom line
             L.append(f"- **{r['conclusion']['label']}.** {r['conclusion']['headline']}")
+            if r["grade"]:                           # how sure, beside the label wherever it is said (S17, 2026-11-07)
+                L.append(f"- **how sure:** {r['grade']['said'][len('How sure: '):]}")
         L.append(f"- **bottom line:** {r['bottom_line']}")
         if f:
             L.append("- **track sheet:** " + ("looked at: the track is on the object in every frame" if r["track_sheet_looked_at"] else
                                               "not looked at yet, so the numbers for the object are provisional"
                                               + (f" ([the sheet]({r['track_sheet']}))" if r["track_sheet"] else "")))
         L += [f"- [the report]({r['report']}), in `{r['folder']}/`", ""]
+    together = _together(found, twice)
+    if together:
+        L += ["## Together", ""]
+        for _, said in together:
+            L += [" ".join(said), ""]
     waiting = [r for r in rows if r["followed"] and not r["track_sheet_looked_at"]]
     if waiting:
         L += ["Nobody was asked about a track sheet while these were measured. Open each one, and if the ring is on the object in "
@@ -494,8 +501,41 @@ def index(base, objects=None):
     page = base / f"{tag}{LIST}.md"
     page.write_text("\n".join(L), encoding="utf-8")
     (base / f"{tag}{LIST}.json").write_text(json.dumps(dict(tag=tag, written=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                                                           asked=asked, tally=count, objects=rows), indent=1), encoding="utf-8")
+                                                           asked=asked, tally=count, objects=rows,
+                                                           together=[t for t, _ in together]), indent=1), encoding="utf-8")
     return page, rows
+
+
+def _together(found, twice=None):
+    """The objects followed over the same frames, tested for a change of velocity common to them and for the spread at it
+    (`breaks.together`, method section 51), each set with its sentences: [(fields, [sentences])]. Read from each object's
+    case -- its track and its speed band -- and nothing measured again; an object counted once already as another
+    (`same_things`) or a group whose members are objects of their own is left out. [] under two such objects."""
+    from . import breaks
+    objs, alone, fps = [], {}, None
+    for t in found:
+        js = t.case_json
+        if (twice and t.k in twice) or children(found, t.k) or js is None or not js.exists():
+            continue
+        try:
+            case = Case.load(js)
+            kf = (case.stages.get("kinematics") or {}).get("fields") or {}
+            src = stages._track_of(case, js)
+            if src is None or not kf.get("band") or not (case.clip or {}).get("fps"):
+                continue
+            fps = fps or float(case.clip["fps"])
+            objs.append((t.k, vf.read_track(str(src)), kf["band"]))
+            alone[t.k] = None if kf.get("breaks") is None else bool(kf["breaks"].get("found"))
+        except (OSError, ValueError, KeyError):
+            continue
+    if len(objs) < 2:
+        return []
+    try:
+        sets = breaks.together(objs, fps)
+    except Exception as e:                       # noqa: BLE001 -- the list is written all the same
+        print(f"  ! the objects were not tested together: {type(e).__name__}: {e}")
+        return []
+    return [(s, breaks.together_said(s, [alone.get(k) for k in s["objects"]])) for s in sets]
 
 
 def listed(case_json):

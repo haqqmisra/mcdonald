@@ -137,6 +137,7 @@ def main():
         emit(envelope("report", {"case": str(path), "i_looked": args.i_looked, "known": known}, None,
                       [md, str(path)] + ([str(pdf)] if pdf else []),
                       {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
+                       "checklist": case.checklist(), "reasons": case.reasons(), "grade": case.grade(),
                        "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}},

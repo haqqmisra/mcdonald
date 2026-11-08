@@ -81,6 +81,9 @@ def main():
                          "hot, in the darkest pixels")
     for k in KNOWN:                                   # what a person may know: the window's Measure form is made of the same rows
         ap.add_argument(k.flag, dest=k.name, type=k.kind, help=k.help)
+    ap.add_argument("--no-phone", action="store_true",
+                    help="do not read a phone's own record of its clip (an iPhone's LivePhotoInfo track: `mcdonald phone`): "
+                         "no k and no zoom from it, and the case says it was refused")
     ap.add_argument("--procs", type=int, default=None, help=PROCS_HELP)
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--json", action="store_true",
@@ -120,7 +123,8 @@ def main():
         needs = [f"{x} ({n})" for n, st in case.stages.items() for x in st["needs"]]
         emit(envelope("run", inputs_of(args), clip, files,
                       {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
-                       "checklist": case.checklist(), "identified_by": case.identified_by,
+                       "checklist": case.checklist(), "reasons": case.reasons(), "grade": case.grade(),
+                       "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}}, no_power, needs, case.notes))
     return 0
