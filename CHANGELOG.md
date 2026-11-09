@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (0.5.1)
+## 0.5.1 (2026-11-09)
 
 Two things the JAIS Technical Note's reproducibility package found (2026-11-09; Jacob: the paper will be mcdonald's
 first citation, "worth a little more development").
