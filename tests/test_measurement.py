@@ -775,6 +775,43 @@ def test_the_mark_gate_grows_with_the_spot_size():
     check(autolink.mark_gate(9, tol=10.0) == 10.0 and abs(autolink.mark_gate(71, tol=10.0) - 14.2) < 1e-9, "a wider tol given still wins where it is wider")
 
 
+def test_a_pass_from_two_marks_holds_its_line_over_a_gap():
+    """PR149 from two marks (2026-11-09): the contact crosses the ship unseen for 20-odd frames, link_track's gate grows
+    12 px a frame meanwhile, and the hull's edge 141 px off was the nearest spot when it opened that far; going back,
+    a crane 166 px off, then ridden, one step from the prediction on every frame. Drawn here on candidates alone: an
+    object at 20 px a frame, unseen on 23 frames, past a row of brighter spots that drift 1 px a frame 95-160 px
+    above its path, among specks. From two end marks the link holds its gap and arrives on the far mark; link_track alone,
+    the linker before, takes the row."""
+    print("\nautolink: a pass from two marks holds its line over a gap")
+    from mcdonald import autolink, forensics as vf
+    rng = np.random.default_rng(7)
+    true = {n: (1600.0 - 20.0 * (n - 10), 900.0 - 3.0 * (n - 10)) for n in range(10, 91)}
+    cands = {}
+    for n in range(1, 121):
+        cs = []
+        if n in true and not 40 <= n <= 62:
+            x, y = true[n]
+            cs.append((x + rng.normal(0, 0.5), y + rng.normal(0, 0.5), 50.0 + rng.normal(0, 3)))
+        for k in range(74):                                                          # the structure: a row drifting 1 px a frame
+            cs.append((300.0 + 15.0 * k + 1.0 * n, 650.0 + 0.2 * rng.normal(), 60.0 + rng.normal(0, 2)))
+        for _ in range(20):                                                          # specks, weak
+            cs.append((rng.uniform(0, 1920), rng.uniform(0, 1080), rng.uniform(5, 20)))
+        cands[n] = sorted(cs, key=lambda c: -c[2])
+    floor = autolink.LIKE * 50.0                                                     # what link_from_marks keeps: spots like the object
+    cands = {n: [c for c in cs if c[2] >= floor] for n, cs in cands.items()}
+    marks = {10: true[10], 90: true[90]}
+    track, source, arrivals, head, tail = autolink.assemble(cands, marks, 1, 120, 40, places=autolink.Places.of(cands, 1, 120))
+    off = {n: float(np.hypot(xy[0] - true[n][0], xy[1] - true[n][1])) for n, xy in track.items() if n in true}
+    check(track and max(off.values()) < 3.0 and not any(40 <= n <= 62 for n in track) and arrivals.get(90) is not None and arrivals[90] < 1.0,
+          "from two end marks the link stays on the object, leaves the unseen frames a gap, and arrives on the far mark",
+          f"{len(track)} frames, worst {max(off.values(), default=0):.1f} px off, in the gap {[n for n in track if 40 <= n <= 62]}, arrival {arrivals.get(90)}")
+    before = vf.link_track(cands, 10, 90, (10, *true[10]), (-20.0, -3.0), max_gap=40, gate=autolink.gate_for((-20.0, -3.0)))
+    took = [n for n, xy in before.items() if abs(xy[1] - 650.0) < 5]
+    check(len(took) >= 5, "the linker before took the row of brighter spots once its gate had grown to them", f"{len(took)} frames on the row")
+    L = autolink.Link("done", "", track=track, source=source, marks=marks, size=15.0, residuals=autolink._residuals(track, marks), arrivals=arrivals, n_lo=1, n_hi=120)
+    check(any("takes no spot more than" in c for c in L.concerns()), "and the concerns say what the link did about the gap", "; ".join(L.concerns())[:200])
+
+
 def test_a_streak_is_followed_by_its_motion():
     """PR43 (Jacob, 2026-09-27): a thing drawn out into a dash by its own speed, which Find sees and no spot size
     holds. When the sweep finds no size, the link follows the marks' motion: each frame less the median of its
@@ -3308,12 +3345,12 @@ def test_a_link_that_loses_the_object_does_not_take_the_next_thing_it_sees():
     check(autolink.gate_for(V)[1] < 1.0 and autolink.gate_for((142.0, 0.0)) == autolink.GATE,
           "the gate grows with the object's own speed, and never past link_track's own (PR113 is linked as before)",
           f"{autolink.gate_for(V)[1]:.2f} px a frame at 2.5 px a frame; {autolink.gate_for((142.0, 0.0))[1]:g} at 142")
-    saved = autolink.SHARE, autolink.END_GAP
+    saved = autolink.SHARE, autolink.END_GAP, autolink.HOLD_MAX
     try:                                                    # the fix taken out: the test has to fail without it
-        autolink.SHARE, autolink.END_GAP = float("inf"), 40
+        autolink.SHARE, autolink.END_GAP, autolink.HOLD_MAX = float("inf"), 40, float("inf")
         old = list(autolink.link_from_marks(clip, marks, masks=masks, size=15.0, dark=True, procs=0))[-1]
     finally:
-        autolink.SHARE, autolink.END_GAP = saved
+        autolink.SHARE, autolink.END_GAP, autolink.HOLD_MAX = saved
     took = [n for n, (x, y) in old.track.items() if any(np.hypot(x - a, y - b) < 12 for a, b, _ in others.get(n, []))]
     check(bool(took), "which the gate it had before does not: it goes on along the cloud",
           f"on the cloud on {len(took)} frames, {min(took) if took else '-'}–{max(took) if took else '-'}")
@@ -3335,12 +3372,12 @@ def test_a_link_that_loses_the_object_does_not_take_the_next_thing_it_sees():
     check(L2.arrivals.get(21) is not None and L2.arrivals[21] < 2.0,
           "and where it comes out again on its path, the link from one side still reaches the mark on the other",
           f"{L2.arrivals[21]:.1f} px" if L2.arrivals.get(21) is not None else "it does not")
-    try:
-        autolink.SHARE = float("inf")
+    try:                                                    # both fixes out: the gate's growth, and (2026-11-09) its cap
+        autolink.SHARE, autolink.HOLD_MAX = float("inf"), float("inf")
         old2 = list(autolink.link_from_marks(clip2, {n: clip2.truth(n) for n in (3, 8, 21, 24)}, masks=masks2, size=15.0,
                                              dark=True, procs=0))[-1]
     finally:
-        autolink.SHARE = saved[0]
+        autolink.SHARE, autolink.HOLD_MAX = saved[0], saved[2]
     took = [n for n, (x, y) in old2.track.items() if any(np.hypot(x - a, y - b) < 12 for a, b, _ in ship.get(n, []))]
     check(bool(took), "which, again, the gate it had before does not", f"on what is beside the path on frames {took}")
 

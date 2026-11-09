@@ -54,6 +54,21 @@ says it was lost there. If the object comes back, a mark on it is a new seed.
 Between two marks a stretch the detector cannot see stays a gap (PR149, where
 the contact crosses a ship), and the summary says which mark the link from the
 one before does not reach.
+
+A pass that knows the velocity holds its line over that gap (`_link_held`,
+2026-11-09). `link_track` was made for a tracker that learns the velocity as
+it goes: it widens its gate for every frame the object is not seen on, and
+after a long gap it takes the velocity of whatever it finds. From two marks
+alone on PR149 (frames 17 and 96) that took the hull's lower edge 141 px
+from where the object should have been, 19 frames after losing it, and going
+back from 96 took a crane 166 px off after 23 frames -- and then rode it,
+because a spot that stays put on the screen is one step from the prediction
+on every frame once it has been taken. So over a gap the prediction runs at
+the marks' own velocity, the gate never opens past HOLD_MAX, and the
+velocity after a gap is the marks' again, not the jump's. Step to step it is
+link_track as before. From the same two marks the link now holds its gap
+across the hull and arrives 0.1 px from the mark on 96; from eleven marks
+nothing changes.
 """
 import os
 from dataclasses import dataclass, field
@@ -89,6 +104,14 @@ SHARE = 0.3
 # spot 58 px from where its four-frame transit would have been, three frames after it ended; at 2
 # every other recorded clip links the same frames as at 8 (tools/find_rank.py --replay).
 END_GAP = 2
+# How far from where the object should be a pass that knows the velocity will look, however long the object
+# has gone unseen: link_track's gate grows 12 px a frame (SHARE of the speed for a link from marks) with no end,
+# and on PR149 reached the hull's edge 141 px off after 19 frames and a crane 166 px off after 23. Held against
+# the dumped candidates of PR149 (2026-11-09): at 100 the two-mark link still took the hull (25 of 49 frames on
+# the object, 47 px rms); at 60 and at 40 it held its gap and came back on the object (40 frames, 10 px rms, 0.1
+# px from the far mark); the eleven-mark link and PR113 are the same at every value. 60: the farthest a spot was
+# ever found from its prediction on a recorded track is 32 px (GATE's note), and the hull was at 141.
+HOLD_MAX = 60.0
 # A link from marks is given every spot the detector finds (forensics.source_candidates, n_max=None),
 # not the frame's 25 strongest -- on PR148 the object is 69th to 460th of 900-2,258 specks of sea,
 # and on PR149 and PR055 it drops off the 25 while it crosses a ship or fades -- and takes only
@@ -175,7 +198,8 @@ class Link:
             out += self.crossings()
         gaps = [n for n in range(min(self.track), max(self.track) + 1) if n not in self.track]
         if gaps:
-            out.append(f"{len(gaps)} frames between {min(self.track)} and {max(self.track)} have no link")
+            out.append(f"{len(gaps)} frames between {min(self.track)} and {max(self.track)} have no link: the object was not "
+                       f"seen there, and the link takes no spot more than {HOLD_MAX:g} px from where the object should be")
         if self.stopped:
             out.append("it was stopped before it had finished")
         return out
@@ -669,18 +693,52 @@ def _off_spots(cs, spots, keep_xy, tol=STAYS_PUT_BIN):
     return [q for q in cs if np.hypot(q[0] - keep_xy[0], q[1] - keep_xy[1]) <= tol or not on(q)]
 
 
+def _link_held(cands, n0, n1, seed, velocity, max_gap=40, gate=GATE, hold_max=None):
+    """`forensics.link_track` for a pass whose velocity the marks give. Frame to frame it is that linker: the
+    nearest spot to the prediction, inside the gate, and the velocity half-updated by the step. Over a gap --
+    the object not seen on the frame before -- the prediction runs from the last spot at the marks' velocity,
+    the gate never opens past `hold_max` px, and once the object is found again the velocity is the marks'
+    once more, not the jump's. See the module's last paragraph for the clip that needed it."""
+    hold_max = HOLD_MAX if hold_max is None else hold_max             # read when called: a test turns it off
+    trk, last = {}, tuple(seed)
+    v0 = np.asarray(velocity, float)
+    vel = v0.copy()
+    for n in range(n0, n1 + 1):
+        if n < seed[0]:
+            continue
+        cs = cands.get(n, [])
+        if not cs:
+            continue
+        if n - last[0] > max_gap:
+            break
+        gap = max(n - last[0], 1)
+        pred = np.array(last[1:3]) + (vel if gap == 1 else v0) * (n - last[0])
+        d = [np.hypot(c[0] - pred[0], c[1] - pred[1]) for c in cs]
+        c = cs[int(np.argmin(d))]
+        if min(d) > min(gate[0] + gate[1] * gap, hold_max):
+            continue
+        if n > last[0]:
+            vel = 0.5 * vel + 0.5 * (np.array(c[:2]) - np.array(last[1:3])) if gap == 1 else v0.copy()
+        trk[n] = (c[0], c[1])
+        last = (n, c[0], c[1])
+    return trk
+
+
 def _pass(cands, a, b, xy, v, max_gap, spots=()):
     """`link_track` from a mark on frame a toward frame b, whichever way in time
     that is, cut where it first loses the object for max_gap frames. Backward is
     the same linker on the frames in reverse, with the velocity reversed. The spots
     that stay put on the screen with no mark on them (`spots`, `assemble`'s) are not
-    candidates."""
+    candidates. With a velocity from the marks the pass holds its line over a gap
+    (`_link_held`); from one mark it has none, and is link_track's."""
     step = 1 if b >= a else -1
     have = {step * n: (_off_spots(cands[n], spots, xy) if spots else cands[n])
             for n in range(min(a, b), max(a, b) + 1) if n in cands}
-    vx, vy = (0.0, 0.0) if v is None else v
-    trk = vf.link_track(have, step * a, step * b, (step * a, *xy), (step * vx, step * vy), max_gap=max_gap,
-                        gate=gate_for(v))
+    if v is None:
+        trk = vf.link_track(have, step * a, step * b, (step * a, *xy), (0.0, 0.0), max_gap=max_gap, gate=gate_for(v))
+    else:
+        trk = _link_held(have, step * a, step * b, (step * a, *xy), (step * v[0], step * v[1]), max_gap=max_gap,
+                         gate=gate_for(v))
     out, last = {}, step * a
     for n in sorted(trk):
         if n - last > max_gap:                       # what follows is link_track starting again on something else

@@ -187,6 +187,29 @@ def main():
         other["stages"]["track"]["fields"]["source"] = "elsewhere/object-1/y_autotrack.csv"
         B.write_text(json.dumps(other), encoding="utf-8")
         check(any(d[0] == "stages.track.fields.source" for d in rerun.compare_cases(A, B)), "a path to a different file is one too")
+        # the review state: a person said they looked at the track sheet (stages.confirm_sheet). A run made again cannot
+        # say that (2026-11-09: the Technical Note's two files gave back every number and "did not rerun" on it)
+        from mcdonald.stages import SHEET_NEEDED, SHEET_PROVISIONAL
+        looked = json.loads(json.dumps(base))
+        looked["stages"]["verify"] = dict(result={"sheet": "1 page", "reviewed": "yes (looked at afterwards, and said so with --i-looked)"},
+                                          no_power=[], needs=[], fields={"frames": 20, "reviewed": True}, files=["s.jpg"])
+        fresh = json.loads(json.dumps(looked))
+        fresh["stages"]["verify"]["result"]["reviewed"] = "NOT CONFIRMED"
+        fresh["stages"]["verify"]["fields"]["reviewed"] = False
+        fresh["stages"]["verify"]["needs"] = [SHEET_NEEDED]
+        fresh["notes"] = [SHEET_PROVISIONAL]
+        A.write_text(json.dumps(looked), encoding="utf-8")
+        B.write_text(json.dumps(fresh), encoding="utf-8")
+        review = []
+        check(rerun.compare_cases(A, B, review=review) == [] and len(review) == 2
+              and review[1] == ("stages.verify.result.reviewed", "yes (looked at afterwards, and said so with --i-looked)", "NOT CONFIRMED"),
+              "a report whose track sheet was confirmed, measured again: no difference in its numbers; the review state is reported apart",
+              f"{rerun.compare_cases(A, B)} {review}"[:200])
+        fresh["stages"]["kinematics"]["fields"]["v_px_per_s"] = 101.0
+        B.write_text(json.dumps(fresh), encoding="utf-8")
+        where = [d[0] for d in rerun.compare_cases(A, B)]
+        check("stages.kinematics.fields.v_px_per_s" in where and not any(w.startswith("stages.verify") or w.startswith("notes") for w in where),
+              "and a number that moved beside it is still a difference, named, with nothing of the review state beside it", str(where))
         empty = json.loads(json.dumps(base))
         empty["stages"]["track"]["result"] = {}
         C = td / "c_case.json"
@@ -215,11 +238,20 @@ def main():
                                  "--skip", "integrity,symbology", "--json", cwd=td)
         check(rc == 0, "a case measured on the drawn clip, to share", (err or "")[-200:])
         sent = td / "measured.mcdonald"
+        from mcdonald.stages import confirm_sheet
+        confirmed = True
+        try:
+            confirm_sheet(made / "object-1" / f"{tag}_case.json", "looked at afterwards, and said so with --i-looked")
+        except ValueError:                                                   # measured without a track sheet: nothing to confirm
+            confirmed = False
         share.make(sent, video, folder=made, note="rerun me", by="Jacob", when="2026-10-17T12:00:00+00:00")
         rc, outp, err = mcdonald("share", "rerun", sent, "--cases", td / "rerun", "--video-dir", video.parent, "--json", cwd=td)
         d = as_json(outp)
         check(rc == 0 and d and d[0].get("reruns") is True and d[0]["objects"]["object-1"]["differences"] == [],
               "it reruns to its numbers, and says so with exit 0", (err or "")[-300:])
+        state = (d[0]["objects"]["object-1"].get("review_state") or []) if d and "objects" in d[0] else []
+        check((bool(state) and "review state is not compared" in (err or "")) if confirmed else state == [],
+              "the sender's look at the track sheet is reported apart, and does not count against the file", (err or "")[-300:])
         moved = td / "moved.mcdonald"
         with zipfile.ZipFile(sent) as zin, zipfile.ZipFile(moved, "w") as zout:
             for item in zin.infolist():

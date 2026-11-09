@@ -9,7 +9,11 @@ or $MCDONALD_DATA, or by its catalog name), every object in it is measured again
 skipped stages, into a fresh folder -- and the new report is held against the one in the file: every stage's fields,
 results, what had no power and what is needed, number for number (strings that are paths are compared by their file
 name; a float may differ by one part in a billion, the floating-point noise of another machine, no more). The file
-reruns to its numbers when nothing differs. With `strict`, an object whose report tracked nothing counts as not
+reruns to its numbers when nothing differs. One thing is left out of that: the review state, whether a person said
+they looked at the track sheet (`stages.confirm_sheet`, `--i-looked`). A run made again cannot say that, so the two
+reports always differ there when the file's was confirmed; it is reported beside the comparison, and decides nothing
+(2026-11-09: the Technical Note's two case files gave back every number and still "did not rerun"). With `strict`, an
+object whose report tracked nothing counts as not
 rerunning: it does rerun -- to an empty result -- and a reference case that measures nothing is a mistake (the first
 PR43 file, 2026-10-16: marks four frames off the streak, nothing linked, and the plain check passed it).
 
@@ -62,9 +66,30 @@ def _same(a, b, path, diffs):
         diffs.append((path, a, b))
 
 
-def compare_cases(old_json, new_json):
-    """The differences between two case files' measurements: [(where, old, new)]."""
+def review_state(case):
+    """Take the review state out of a case's dict and return it: whether a person said they looked at the track sheet
+    (`stages.verify`'s `reviewed`, in its fields and its result), the need that stands until they do and the note that
+    made the object's numbers provisional. A measurement made again cannot give these back, so they are compared
+    apart from the numbers (`compare_cases`). {} where the case has no track sheet."""
+    from .stages import SHEET_NEEDED, SHEET_PROVISIONAL, SHEET_PROVISIONAL_BEFORE
+    v = (case.get("stages") or {}).get("verify")
+    if not isinstance(v, dict) or "reviewed" not in (v.get("fields") or {}):
+        return {}
+    state = {"reviewed": v["fields"].pop("reviewed"), "said": (v.get("result") or {}).pop("reviewed", None)}
+    v["needs"] = [x for x in v.get("needs") or [] if x != SHEET_NEEDED]
+    case["notes"] = [x for x in case.get("notes") or [] if x not in (SHEET_PROVISIONAL, SHEET_PROVISIONAL_BEFORE)]
+    return state
+
+
+def compare_cases(old_json, new_json, review=None):
+    """The differences between two case files' measurements: [(where, old, new)]. The review state (`review_state`) is
+    not among them; where `review` is a list, its differences are added to that instead."""
     old, new = json.loads(Path(old_json).read_text(encoding="utf-8")), json.loads(Path(new_json).read_text(encoding="utf-8"))
+    ro, rn = review_state(old), review_state(new)
+    if review is not None and ro != rn:
+        for k in ("reviewed", "said"):
+            if ro.get(k) != rn.get(k):
+                review.append((f"stages.verify.{k if k == 'reviewed' else 'result.reviewed'}", ro.get(k), rn.get(k)))
     diffs = []
     for k in sorted((set(old) | set(new)) - VOLATILE):
         _same(old.get(k), new.get(k), k, diffs)
@@ -214,8 +239,14 @@ def rerun_folder(folder, video, procs=None, say=print, strict=False, progress=No
         new_dir = folder.parent / (folder.name + "-rerun") / obj.name
         new_dir.mkdir(parents=True, exist_ok=True)
         new = rerun_object(obj, video, new_dir, procs=procs, say=say)
-        diffs = compare_cases(old, new)
-        result["objects"][obj.name] = dict(differences=diffs, seconds=round(time.time() - t1))
+        review = []
+        diffs = compare_cases(old, new, review=review)
+        result["objects"][obj.name] = dict(differences=diffs, seconds=round(time.time() - t1), review_state=review)
+        if review:
+            said = next((b for w, a, b in review if w.endswith("result.reviewed")), None) or "that nobody has looked at it yet"
+            was = next((a for w, a, b in review if w.endswith("result.reviewed")), None) or "that it was"
+            say(f"  {obj.name}: the review state is not compared. The file says its track sheet was looked at ({was}). "
+                f"A run made again cannot say that, and says {said}.")
         if diffs:
             result["reruns"] = False
             say(f"  {obj.name}: {len(diffs)} difference{'s' if len(diffs) != 1 else ''} ({time.time() - t1:.0f} s):")

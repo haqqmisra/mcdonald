@@ -3,6 +3,31 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (0.5.1)
+
+Two things the JAIS Technical Note's reproducibility package found (2026-11-09; Jacob: the paper will be mcdonald's
+first citation, "worth a little more development").
+
+- **A pass from the marks holds its line over a gap** (`autolink._link_held`, `HOLD_MAX`). From two marks alone on
+  PR149, frames 17 and 96, the link lost the contact for 20-odd frames where it crosses the ship, and `link_track`,
+  made for a tracker that learns the velocity as it goes, opened its gate 12 px a frame meanwhile: forward it took the
+  hull's lower edge 141 px from where the object should have been, and backward a crane 166 px off, then rode the crane
+  to the first mark, because a spot that stays put on the screen is one step from the prediction on every frame once it
+  has been taken (21 of 65 linked frames on the object, a curved track at 437-376 px/s). Now a pass whose velocity the
+  marks give predicts at that velocity over a gap, never looks more than 60 px from where the object should be however
+  long it has gone unseen, and takes the marks' velocity again after the gap, not the jump's; frame to frame it is
+  link_track as before. From the same two marks the link holds its gap and arrives 0.1 px from the mark on 96: 40
+  frames, 604 px/s, straight to 10 px rms, the paper's track. From eleven marks, and on PR113, nothing changes. The
+  concerns say it: "the object was not seen there, and the link takes no spot more than 60 px from where the object
+  should be". Drawn in test_measurement: an object unseen for 23 frames past a row of brighter spots, which the linker
+  before took on 36 frames.
+- **`share rerun` compares measurements, not the review state** (`rerun.review_state`). The two archived case files gave
+  back every number and still "did not rerun": the file says a person looked at the track sheet (`--i-looked`), a run
+  made again cannot, and the comparison counted that and the note it removes as four differences. The review state is now
+  taken out of both reports before they are compared and said beside the result ("the review state is not compared. The
+  file says its track sheet was looked at ... A run made again cannot say that"), in `review_state` of each object's
+  result with `--json`; any other difference still fails the file. test_share holds both.
+
 ## 0.5.0 (2026-11-08)
 
 The controls: ROADMAP 0.5.0's cut (the controls harness, the bird floor set from a null, AARO's resolved cases run
