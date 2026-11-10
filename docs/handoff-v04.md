@@ -1,4 +1,4 @@
-# Handoff: ROADMAP 0.4 and 0.5 -- session 20 (2026-11-10) on top: 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, waiting for the maintainer's word to release; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 and 0.5 -- session 20 (2026-11-10) on top: 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made on the maintainer's word, the Mac and Windows runs, the tag and the push still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
 
 ## Session 20 (2026-11-10): 0.5.2 built -- `tether`'s four defects, its gate set against a null
 
@@ -7,11 +7,13 @@ Run jobs through /slurm."
 
 ### Where it stands (read this first)
 
-**0.5.2 is built and committed on `main`, not pushed, and the version is still 0.5.1**: the CHANGELOG's entry is headed
-"Unreleased (0.5.2)", as 0.5.1's was before its release commit. What is Jacob's: the word to release; the version commit
-(`src/mcdonald/__init__.py`, the READMEs' status lines, `CITATION.cff`, the CHANGELOG's heading and its date, the push day);
-the Mac and Windows runs on that commit; the tag and the push; then the reference case files remade for the record
-(one command, below) and the site.
+**0.5.2 is built and on `main` with its version commit, dated 2026-11-10, and is not pushed.** Jacob, the same day, on
+the report of the build: "Go ahead with the 0.5.2 version commit, dated today". The version commit is the last commit of
+the session, on top of the build (1566e6d) and of this section's own update: `src/mcdonald/__init__.py`, the READMEs'
+status lines, `CITATION.cff` and the CHANGELOG's heading, as 0.5.1's was (CITATION's version DOI stays 0.5.1's until
+Zenodo has minted 0.5.2's, after the release). What is still Jacob's: the Mac and Windows runs on that commit (a push to
+`macos-ci` and `windows-ci`); the tag and the push; then the reference case files remade for the record (one command,
+below), the Zenodo DOI and the site.
 
 Built in a worktree (`/hugespace/models/mcdonald-052`, branch `tether-052`, merged into `main` and removed), every run through
 Slurm. The working folder is `/scratch/mcdonald/tether-052/` (scripts in `dev/`, the null's runs in `out/`, the cases'
@@ -84,7 +86,8 @@ compared with the released ones in the reference-data folder, which were not tou
 - Three of the remade files were run again strictly (`share rerun --strict`: PR113, PR141, PR149) and rerun to their
   numbers; the other eleven were not (the remake for the record reruns all fourteen).
 
-**For the record, after the version commit:** `sbatch --array=0-13%4 remake.sbatch` there with `SNAP` at a snapshot of
+**For the record, now that the version commit is made** (not run: it replaces released files, and waits for Jacob's
+word with the push): `sbatch --array=0-13%4 remake.sbatch` there with `SNAP` at a snapshot of
 the release commit and a `NOTE` naming it (the script's default note says "trial"), then `rerun.sbatch` (`share rerun
 --strict`) on all fourteen, `tether_diff.py`, and the files copied over the reference-data folder's `cases/` with its
 README and `SHA256SUMS`. About two and a half hours of queue for the remake, as much again for the rerun (PR088's
@@ -92,8 +95,8 @@ second object, 3,558 frames, is the long one).
 
 ### Not done, and what the null and the cases showed that 0.5.2 does not fix
 
-1. **The version commit, the Mac and Windows runs, the tag, the push** (Jacob's). No push was made, to `main` or to the
-   CI branches.
+1. **The Mac and Windows runs, the tag, the push** (Jacob's; the version commit is made). No push was made, to `main`
+   or to the CI branches.
 2. **Three far "companions" are left on AARO's tracks**, where 0.5.1 had eleven, and the tests here cannot refuse them:
    a feature on the horizon that keeps the distant object's pace while the nearer scene, which the background's shift is
    read off, does not (PR-010, rows 4 and 8); and features on the picture's straight borders, which the object moves
