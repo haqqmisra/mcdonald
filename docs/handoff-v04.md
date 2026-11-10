@@ -1,4 +1,163 @@
-# Handoff: ROADMAP 0.4 and 0.5 -- session 18 (2026-11-07, night) on top: the 0.5.0 cut and the 0.4.x additions built by ten agents on branch s18; session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 and 0.5 -- session 19 (2026-11-09/10, night) on top: what comes after 0.5.1, measured on PURSUE (things that hang under an object, a second drift screen, gliding birds), nothing built; session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 19 (2026-11-09/10, night): what comes after 0.5.1 -- PURSUE cases for the drift paper, gliding birds, other tests for balloons
+
+**Jacob:** "Version 0.5.1 will ship in the JAIS technical note revisions. What's next for development? I still have to
+finish the wind-drift paper, but I'd really like some PURSUE cases to include in that paper. And I am sure there are some
+gliding birds in the PURSUE videos. And maybe there are even other tests for balloons? (As always, run any jobs through
+/slurm)"
+
+### Where it stands (read this first)
+
+**Nothing in the package was changed, and nothing is committed but this section.** The night was measurement: three
+strands, each with its controls first, to say what 0.5.x should build. The coordinator took the balloons; two agents took
+the drift screen and the gliding birds under one brief (`/scratch/mcdonald/next-2026-11-09/BRIEF-common.md`). Each
+strand's `notes.md` there is its record (numbers, scripts, every Slurm job); the notes and the small outputs were copied
+to the PURSUE analyses the same night (a case note for PR105, a methods note on the hanging test, the second drift
+screen, the gliding sweep), uncommitted there. The frame caches of the gliding strand (18 GB under `glide/home` and
+`glide/search`) are safe to delete.
+
+| strand | question | answer in a line |
+|---|---|---|
+| balloons (coordinator) | is there a test for a balloon that a point cannot give? | yes, where something hangs under it: AARO's known balloon PR-004 shows a second point on a near-vertical line on all eight of its tracks, and three PURSUE objects do the same (PR105, PR28, PR29); `tether` as released misses two of the three and claims pendulums from noise |
+| drift (agent) | which PURSUE clips give `mcdonald drift` an outcome? | one new one, PR051, and only from the data bar of the unredacted upload: T1 passes, T2 ends at "cannot say"; 21 reference objects are "not drifting" by a held beat; nothing else has the inputs |
+| glide (agent) | are there gliding birds in PURSUE, and what should a test measure? | none stands tonight: PR058's candidate is withdrawn (its hairpin was the screen's, the sea streams at 16-24 px a frame behind it); the labelled set now gives nine gliders by eye and three readings with measured false-alarm rates |
+
+### Things that hang (the balloon strand; `pr105/notes.md`, `balloons/notes.md`)
+
+- **PR105** (East China Sea, 2025). Three unresolved points keep a near-vertical line for two minutes: the lower one
+  26.2 px under the upper (sd 2.1), a middle one at 0.62 of the way, 0.6 px off the line. The line's length doubles
+  with the zoom `mcdonald zoom` measures (x2.002 at 94.60 s: 49.0 px after, 26.2 before). Shown not to be an optical
+  ghost (the lower point outshines the upper on 118 of 424 frames; their brightnesses correlate 0.19), not the encoder
+  (seen on 40 % of I, 32 % of P, 33 % of B pictures; the scene moves sideways, the line is vertical), not the
+  background (it brightens and fades by itself in 22 stretches of 0.2-5.4 s, no period), not the picture's roll or
+  zoom (the scene rolls under 1.1 deg and scales under 2.5 % in any 10 s; the line swings +-6 deg and its length
+  runs 22-30 px). All three points show the same crescent at once, so the "shape" is the point-spread pattern and
+  the 6-7 px extent is no size. **No swing period can be claimed**: the angle's strongest period is 11.05 s at
+  p = 0.38 against a slow wander of the same variance and correlation (an Ornstein-Uhlenbeck series drawn at the
+  same times), so there is no line length and no scale. The 12.3-s "pendulum" noted on 2026-10-14 was the
+  aperture's size, which grows whenever the lower points brighten.
+- **The positive control: AARO's PR-004** ("almost certainly a balloon; morphology and drift at wind speed and
+  direction"). On all eight tracks the blind run recorded there, `tether` finds a bright companion 28.6-32.8 px
+  away, 12-14 deg off the vertical, on 81-100 % of single frames, jitter 0.7-1.6 px, nothing on the reversed
+  track. Over the clip's 32 s the line holds 13.0 deg (sd 5.5) and its length 30.2 px (sd 6.1 %); the picture
+  neither rolls nor zooms (301 patches agree to 0.03 px).
+- **The null.** PR135's six birds as 15 pairs: no pair's line within 6 deg of the vertical, each line turning a
+  median 41 deg in 5 s, its length changing by a median 50 %. Of 42 tracks of things not known to be balloons
+  (AARO's aircraft and birds, the 31 reference objects), none has a near, steady companion within 20 deg of the
+  vertical (exact 95 % interval 0-8.4 %). That count rests on four gate numbers chosen after seeing the tables, and
+  one of them is already wrong: the one filmed swinging payload, WA9ONY-5's, is seen on 17 % of single frames and
+  fails "on half the frames". The gate has to come from a null with WA9ONY-5 and PR-004 inside it.
+- **PR28 and PR29.** AARO describes both as "an inverted teardrop with a vertically linear trailing mass suspended
+  below", and their mission reports say "a non-maneuvering probe at the bottom" (Greece, January 2024) and a
+  "cylindrical pole/bar attached on the bottom" (United Arab Emirates, June 2024). The pixels show a bright head with
+  a stem straight under it. PR28: a line of 6 rows or more under the head on 410 of 1,025 frames with none in null
+  boxes either side, 0.1 deg from the vertical (sd 3.8), no swing period (p = 0.42). PR29: on 27 of the 93 frames
+  linked. PR47's three objects are three out-of-focus points in a level row that keeps its shape for two minutes:
+  a rigid row, not a hanging line.
+- **What `tether` gets wrong in 0.5.1** (each found by these runs; none fixed):
+  1. It claims pendulums from noise, and two are in the released reference reports: PR077 object 1 ("like a
+     pendulum 9.71 m long (tentative: under two cycles)", from a companion followed 13 to 400 px away through 320
+     deg) and PR135 object 2 ("2.52 m", its angle running over 150 deg in 5 s; p = 0.66 against the wander null).
+     PR149's record holds `swings: true`, `line_length_m: 0.159` beside "nothing tied to the object". On PR-004 it
+     claims 2.0 m from two 6-7-s windows; over all 32 s, p = 0.50. On PR29 it claims "0.65 +- 0.01 m" from a
+     feature 277 px away seen on 8 % of frames.
+  2. Its follower leaves the companion: on PR105 it is 14 to 1,290 px from the object, and the stage then reports
+     "steady to +-18.8 deg".
+  3. It reports companions that are scene or symbology: 11 of 45 AARO tracks get one 112-760 px away.
+  4. It misses a line that starts at the object: "nothing tied to the object" on PR28, where the stem is on single
+     frames throughout (the inner radius of 1.2 object sizes, and the stroke mask, stand in the way).
+  The wander null keeps the one true swing (WA9ONY-5: 2.78 s holds 91 % of the variance, p = 0.002) and drops
+  the false ones.
+
+### The second drift screen (the agent's reading; `drift/notes.md`; the stage's own words and commands in `drift/pr051/final/`)
+
+- The three known answers and PR055 rebuild to method §34's numbers with 0.5.1.
+- **PR051, from the data bar of the unredacted upload** (the aircraft's own track and TGT A's grid as the rays,
+  23 readings on the second leg timed to the frame, the display's own GDR recomputed from them to 10 m). T1 passes
+  in every variant ("it holds its height: +0.08 +- 2.77 m/s" as the stage comes; +0.29 +- 0.05 with both legs as one
+  path). T2 is "cannot say" as the stage comes ("the lines of sight do not fix its velocity ... two errors 67.4"); it
+  **fails** with the rays' own rms as their error and the heading box taken as the direction of flight ("even the
+  nearest wind at its height leaves it 21 m/s through the air ...: it flies"), and is "cannot say" (4.0-5.6 m/s through the air) once the aircraft is taken
+  to fly 14.2 deg right of the box, the offset at which the two legs share one wind (to 3.8 m, against 52 m without).
+  The 14 deg is unexplained, so the fail should not be quoted. The path: 7-9 m/s toward 103-114 deg, about 4.3 km
+  above the sea, 11-12 km from the aircraft; the object about a metre at most, colder than the ground.
+  **The agent's fit contradicts the PR051 case note and `test_pr051_released_track_against_the_scene`**, which
+  say the scene held still while the gate held the object; the agent reads that stillness as the codec and the
+  sensor's pattern. Not checked by the coordinator: Jacob's to look at before anything rests on it.
+- T3 over the 31 reference objects: 21 fail on a held beat ("not drifting"), 7 pass, 3 no power.
+- PR054's tail lies opposite the object's motion on 83-96 % of frames, but nothing in it can be followed as a piece
+  and there is no depression: T4a does not run. No release document gives a range to an object; the 17 videos the
+  first screen lacked are sound only (11), drawn recreations (2) or hand-held night video (4).
+- For the stage, not changed: `aircraft_wind` should fit a heading offset; T2 on a single wind has a 0.25 m/s
+  spread and no shear allowance; the own-track errors are the a priori `--los-sigma` wherever the rays fit better
+  (PR051: reduced chi-square 0.002); `test_tracer` says "cannot say" for want of a depression before it looks at a
+  speed that would fail at any depression; `test_beat` quotes 3 x the background's floor on case-file envelopes,
+  lower than the track's own on 18 of 28 objects.
+
+### Gliding birds (the agent's reading; `glide/notes.md`, prototype `glide/track_readings.py`)
+
+- **A by-eye positive control at last.** Of the labelled set's 15 close and medium no-beat bird tracks, 7 are clear
+  gliders (IR_BIRD_033 object 0 the best: wings out, turning 132 deg in 6 s; the coordinator looked at that one and
+  agrees), 2 probable, 2 a burst then a glide, 4 not callable. Perhaps three or four birds. Jacob's eye is wanted.
+- **Readings with measured rates** (thresholds from odd-numbered clips' no-beat non-birds, tested on even ones):
+  slow brightness in 3-s windows and the long axis's turn rate, each over its 90th percentile, with ellipticity of
+  0.45 or more: 5 of 249 no-beat non-birds (2.0 %; all drones), 5 of 9 gliders, 2 of 28 AARO balloon tracks, 0 of
+  5 aircraft. The third gate was added after seeing the balloons. Flapping birds meet the rule as often as gliders,
+  so the words it supports are "banks and turns like a bird, with no wingbeat", never "glides like a bird". A long
+  axis that turns under 2.5 deg/s for 10 s reads "holds its attitude, as an aircraft does" (airplanes 84 %, no-beat
+  birds 4 %).
+- **Held pictures are a trap here too**: the ring round the object is identical on over a fifth of frame pairs for
+  28 of 125 bird tracks; the bout test's one clean case (IR_BIRD_053) is the encoder holding the picture.
+- **PR058's candidate is withdrawn.** The sea streams behind the followed object at 16-24 px a frame by four
+  readings (`layers` 19.2, `scene` 16 of 16 blocks, the agent's own correlation, 29 turbine-tower passages); against
+  the sea its path is a straight line; with the hubs at 80-120 m the scene passes at 130-320 m/s, 5 to 30 times a
+  gull's speed. The 2026-10-14 registration had locked to the sensor's pattern at zero shift.
+- **Leads left:** PR085's object (frames 2983-3548): a 7.35-Hz line at 4-7 % in 56 of 74 windows, and the track
+  bending at the same rate; a flapping-bird lead the gate declines. PR098's line of points (frames 16674-17143):
+  the spacing cycles at 4.45 s over 3.5 cycles, p = 0.007 against red noise, and another line of points in the same
+  clip shows none.
+- For the package, not changed: `run`'s PR058 report says the scene "held still" beside a rate that is against a
+  moving scene, while `scene` read 16 of 16 blocks moving (half the pairs had locked at zero); `symbology --method
+  hue` solves no frame of a plainly visible magenta "N".
+
+### For Jacob, in one place
+
+1. **0.5.2 as a correctness patch for `tether`** (recommended first): no pendulum without a companion that stays
+   where the stack put it and a period that beats the wander null; no companion far out on the scene; a line that
+   starts at the object found. Two released reference reports lose a sentence (PR077 object 1, PR135 object 2), so
+   the reference case files are remade after it.
+2. **Whether the hold of 2026-10-10 on the balloon work is lifted**, and with it decision 5's wording: for a single
+   point the negative stands (W9); for an object with something under it there is now a test, a known balloon that
+   passes it and three PURSUE objects that do.
+3. **PR051**: whether a leaked data bar can carry a case, and a look at the five readings, the heading offset and
+   the contradiction with the case note and the golden check, before the stage's words on it are used anywhere.
+4. **The nine gliders by eye** (the sheets), and whether `glide` is built from the three-gate rule as it stands or
+   after an airborne set it has not met.
+5. A look at PR105 (frames 529-605, 1376-1396, 1600-1760, 2080-2230, and 3599-3756 at x2), PR28 (620-1650) and
+   PR29: nothing here was looked at by a person.
+
+### What I would build, in order
+
+1. `tether`'s four defects, with their regression checks (PR077 object 1 and PR135 object 2: no pendulum; PR29: no
+   companion on the scene; PR105: the follower stays; PR28: the stem found; WA9ONY-5: the swing kept).
+2. A first outcome for `tether`, "does something hang under it?": the companion re-found each frame at the stack's
+   offset, read against the object's own picture; the line's angle from the picture's vertical and its spread, with
+   the scene's own roll and scale beside it; outcomes hangs / beside it / nothing tied / cannot say; the gate from
+   a null, run once on PURSUE's other linked objects. It names a class with something on a line under it, not a
+   balloon, and says nothing of drift.
+3. `drift`: the heading offset in `aircraft_wind`, the own-track errors from the rays' own scatter, T2's shear
+   allowance, `test_tracer`'s order, `test_beat`'s floor; a reader for the MTS-B bar if PR051 is to be a known answer.
+4. `glide`, after Jacob's look at the controls: NO POWER where a beat is present or could hide, where pictures are
+   held, or the track is under 3 s; the scene's stream against a scale ("too fast across the scene for a bird") as
+   its one decisive outcome; the attitude and three-gate readings in the words above.
+5. `run`'s "the scene held still" where `scene` says it moved (PR058), and `symbology --method hue`.
+
+### Not done
+
+The strands' own lists are in their notes. Across them: nothing was built; no IDEAS.md rows were added (they wait for
+Jacob's choice of what goes ahead); PR121 and PR122 were proposed by Find and not looked at; PR-004 was not measured
+frame by frame; the hanging gate has no null yet; the drift agent's PR051 readings have no second reader.
 
 ## Session 18 (2026-11-07, afternoon and night): the 0.5.0 cut built, and the 0.4.x additions, by ten agents
 
