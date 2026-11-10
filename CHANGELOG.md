@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (0.5.2)
+## 0.5.2 (2026-11-10)
 
 A correctness patch for `mcdonald tether`: four defects found on 2026-11-09/10 by running the released stage on AARO's
 known cases, on the reference case files and on three PURSUE clips with something under the object (IDEAS.md, H1-H4;
