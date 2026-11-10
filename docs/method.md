@@ -406,7 +406,7 @@ that skips building it. On PR144 the first automatic tracker spent seven
 frames on a cloud feature 100 px from the object and returned a clean, wrong
 rate; the sheet is how that is caught.
 
-## 6. `mcdonald tether` — a hanging point is a clock (added 2026-10-07)
+## 6. `mcdonald tether` — a hanging point is a clock (added 2026-10-07; the follower, its gate and the swing's null set again in 0.5.2, 2026-11-10)
 
 A sounding balloon carries its radiosonde 25–55 m below it; a hobby balloon a few grams
 a metre or two below; the Lake Huron object of 2023-02-12 (PR071) had, in the pilots'
@@ -416,60 +416,222 @@ metres with no range and no field of view — the balloon analogue of PR135's wi
 and the one signature in the sky that nothing but a tethered payload has.
 
 **Does anything move with the object?** Every frame, overlay masked, shifted so the
-tracked position lands at the centre, and averaged. A thing tied to the object adds up
+tracked position lands at the centre, and averaged. A feature tied to the object adds up
 at its offset; the scene and the overlay smear by however far the object moved on the
-screen. Three tests then say what a sharp feature is:
+screen. A candidate is a compact feature of that stack, 5 times its noise, in the ring
+from the object's own footprint (its extent plus 12 px, or 1.2 object sizes) out to 40
+object sizes. Three tests then say what it is (`tether.judge`):
 
 1. *The control.* The same frames stacked on the track run backwards in time have the
-   same set of positions and the wrong one each frame. A thing tied to the object
+   same set of positions and the wrong one each frame. A feature tied to the object
    smears there; whatever only looked sharp because the object hardly moved stays
    sharp. On PR055 the two residual peaks of the first stack reappeared in the control
-   identically — they were the frame's edges.
-2. *Single frames.* A thing tied to the object is there at its offset on single frames,
-   at the same place to within a few pixels across its own spread. Cloud texture is
-   dark *somewhere* in a patch on many frames, but spread over the patch (PR055: 11–14
-   px of scatter); PR071's string sits at 4.
-3. *With the object, or with the scene.* The feature followed frame by frame moves with
-   the object rather than with the background's own shift — `groups`' test. It is the
-   one that catches a piece of cloud drifting steadily past, which passes the first two.
+   identically — they were the frame's edges. The control shows at most 0.6 of the
+   candidate's strength.
+2. *Frame by frame.* The candidate is found again on the frames themselves
+   (`tether.Follower`). A stretch starts where the stack put the candidate: at the
+   strongest compact feature of its polarity within 12 px of the stack's offset, 5 times
+   the frame's own noise and at least half as strong as the stack's feature. After that
+   the feature nearest to where it was last seen is taken, within 12 px of it, and never
+   farther from the stack's offset than 0.75 of the candidate's distance from the object
+   (its leash) nor nearer the object than the ring's inner edge. Unseen for 5 frames, the
+   stretch ends and the next starts at the stack's offset again. The frames are gone
+   through twice, in order and in reverse, each a follower of its own; where the two hold
+   different features the one followed for longer is kept and, where both were followed
+   about as long, the one nearer the stack's offset. A companion is **held**: it lies in
+   stretches of 45 frames or more on at least 0.3 of the track's frames (on a track
+   shorter than 45 frames, in a stretch nearly as long as the track), along a path
+   smooth to 1.5 px (how far each place lies from the line between its neighbours: a
+   swing's motion drops out, noise does not).
+3. *With the object, the scene or the screen.* The re-found place against the object is
+   regressed on the scene's place against the object (the background's own shift, by
+   phase correlation) and on the screen's, each stretch about its own mean. A feature
+   tied to the object makes none of either motion; a piece of cloud drifting past makes
+   all of the scene's; a mark the display or the sensor leaves makes all of the
+   screen's. Half or more of either, where it moved 20 px or more, and the candidate is
+   not the object's. Places are regressed and not the steps between frames: a step of
+   the companion against the object and a step of the scene against the object carry
+   the same error of the track, which alone made a drawn companion, tied exactly, 0.7
+   of a scene that hardly moved.
 
 The overlay's thin bright strokes (reticle arms, a tracking gate's box, brackets) are
 masked before any of this, by a morphological opening: a tracking gate *is* tied to the
 object — by the tracker, late — and its edges passed every test on PR071 until they
 were masked.
 
-**Does it swing?** The companion's separation vector from the object gives the swing
-angle, which needs no scale and survives any camera motion short of a roll. Repeated
-frames are left out. A Lomb–Scargle periodogram starts it, but the estimator is a
-sinusoid with a drift fitted to the angle: on a window of a few cycles a periodogram's
-peak slides up to whatever cap the window sets, and a peak at the longest period asked
-is never a period. The period's error is a block bootstrap of the fit's residuals
-(they are correlated frame to frame; single draws would say the period is known to a
-thousandth). A swing is claimed from 2 cycles of the window and reported as tentative
-from 1.5.
+**Does it swing?** Asked of the companion alone, on the frames that show it. Its
+separation vector from the object gives the swing angle, which needs no scale and
+survives any camera motion short of a roll. Repeated frames are left out. A
+Lomb–Scargle periodogram starts it, but the estimator is a sinusoid with a drift fitted
+to the angle: on a window of a few cycles a periodogram's peak slides up to whatever cap
+the window sets, and a peak at the longest period asked is never a period. The period's
+error is a block bootstrap of the fit's residuals (they are correlated frame to frame;
+single draws would say the period is known to a thousandth). A swing is claimed from 2
+cycles of the window and reported as tentative from 1.5 — and only where the period
+beats a slow wander (`tether.wander_null`, below).
 
-**Validation** (`docs/tether-validation.md`, the figure `docs/tether-validation.png`):
+**Validation** (`docs/tether-validation.md`, with the stage's own figure of each):
 - WA9ONY-5, a 13 g pico payload under a mylar balloon, 2021-07-13, filmed at 1080p30
   for 4.3 s of free flight; the builder's own assembly video says "a little over one
-  metre of cable" to the balloon. The swing: 2.59 ± 0.02 s, amplitude 14.1°, 1.7 cycles
-  (tentative) → 1.66 ± 0.02 m. The pivot of a balloon's pendulum is the balloon's
-  centre, not its neck (its inertia is mostly the air it displaces), so the pendulum is
-  the line plus the balloon's radius plus the payload's own offset ≈ 1.5 m. Consistent;
-  the error quoted is statistical, and the 1.7 cycles are why it is tentative.
-- PR071: a dark line 1.6 object sizes below the object, 14° left of straight down, on
-  64% of single frames, jitter 3 px; followed for 7.9 s it holds −18 ± 5°. No swing, so
-  no length: a line held by drag, or stiff.
-- PR055: the stack's strongest features (cloud streaks 7–22 sizes out) pass the control
-  and even the single-frame test; followed, they move with the clouds, not the sphere
-  (449 px apart by the end). Nothing tied.
+  metre of cable" to the balloon. The payload is re-found on all 130 frames, in one
+  stretch, to 0.4 px. The swing: 2.58 ± 0.02 s, amplitude 12.8°, 1.7 cycles (tentative) →
+  1.66 ± 0.03 m; no drawn wander of 2,000 is as strong. The pivot of a balloon's pendulum is
+  the balloon's centre, not its neck (its inertia is mostly the air it displaces), so the
+  pendulum is the line plus the balloon's radius plus the payload's own offset ≈ 1.5 m.
+  Consistent; the error quoted is statistical, and the 1.7 cycles are why it is
+  tentative.
+- PR071: a dark line 1.6 object sizes below the object, 14° left of
+  straight down, re-found on 92 % of the frames to 0.5 px; over 7.9 s it holds
+  −14 ± 3.6°. No swing, so no length: a line held by drag, or stiff.
+- PR055: the stack's features are cloud streaks; re-found, they make 0.84 to 0.94 of
+  the clouds' motion against the sphere. Nothing tied.
 
-**How it fails.** A payload too faint for single frames that swings more than its own
-size smears in the stack by its swing and evades the follower too; that needs a search
-over the pendulum's own motion (period, amplitude, phase), not written. A thin *bright*
-line on the object is masked with the overlay's strokes (`--no-stroke-mask`). A line
-held at a steady angle gives no length. And a tracking gate's edges can still pass as
-"tied to the object" when they are too wide for the stroke mask; they are reported,
-with their jitter, not hidden.
+### What 0.5.2 changed, and what it was set from (2026-11-10)
+
+Session 19 ran the stage as released (0.5.1) on AARO's known cases, on the reference case
+files and on three PURSUE clips with something under the object, and found four
+defects (IDEAS.md, H1–H4). Two of them had put a pendulum that was noise into released
+reference reports.
+
+- **H1, the follower left the companion.** After each frame the gate moved to whatever
+  it had last found, the strongest feature in a gate a quarter of the separation wide;
+  a candidate that passed the stack's tests and moved "smoothly" became the companion
+  whatever its angle did; and a refused candidate's swing stayed in the record. On
+  PR105 the follower went with the scene, 14 to 1,290 px from the object, and reported
+  "steady to ±18.8°". On PR077 object 1 it went round the object through 320° ("a
+  pendulum of 9.71 m", tentative), on PR135 object 2 through 150° ("2.52 m"): both are
+  birds of the bird paper's Table 1, and both sentences were in their reference
+  reports. PR149's record held `swings: true`, 0.159 m, beside "nothing tied to the
+  object". The follower above replaces it: it starts where the stack put the candidate,
+  cannot leave its leash, counts the companion only where it is seen, and the swing is
+  asked of the companion alone.
+- **H2, a period with no null.** An angle that only wanders shows a cycle or two in a
+  short window most of the time. The wander null: the angle is put in 60 bins of its
+  span (wider where a bin would hold under 3.5 samples; medians), a line is taken out,
+  and its strongest Lomb–Scargle power between 4 bins and two thirds of the span is
+  ranked among the same statistic on 2,000 Ornstein–Uhlenbeck series of the same
+  variance and the same correlation between neighbouring bins, drawn at the same bin
+  times. **Its rate was measured before it was stated**, on drawn wanders
+  (`tools/tether_wander_rate.py`: 57 kinds, 31,867 series —
+  correlation times of 0.1 to 3 s over 4.3, 10 and 32 s at 30 frames a second, with and
+  without reading noise, seen on every frame or on 40 % of them in stretches, random
+  walks, and two wanders at once). The cycles rule alone calls a swing in 0 to 78 % of
+  them (29 % at the median; over a tenth in 43 of the 57 kinds). With the null beside it
+  at p ≤ 0.01, the proposal, the whole rule still calls one in up to 3.3 % (above 1 % in
+  20 kinds): the p is not exact, because the wander's correlation is read off the series
+  itself and only series the cycles rule has already picked are asked. At **p ≤ 0.001**
+  (`WANDER_P`: at most 2 of the 2,000 draws as strong) the whole rule calls a swing in
+  **1 in 100 drawn wanders at the worst** (0 to 1.0 % by kind, 41 of the 31,867 in all).
+  That is the threshold. What it costs: a pendulum four times the wander's size is
+  still found in 84 to 100 % of drawn series, one twice its size in 2 to 75 %, one of
+  the wander's own size in 0 to 11 %. A series too sparse to read the wander's
+  correlation (273 of the 9,407 periods the cycles rule called) is refused, and the
+  finding says so.
+- **H3, companions that were scene or symbology.** 11 of 45 AARO tracks got a
+  "companion" 112 to 760 px away, and PR29 "a pendulum of 0.65 ± 0.01 m" from a feature
+  277 px away on 8 % of frames. They came in by a rule that kept any strong feature the
+  follower could follow "smoothly", and smoothness was a share of the separation: far
+  out, a jump of tens of px passed. **The gate was set against a null**
+  (`tools/tether_null.py`): each of 80 recorded tracks, 19,941 frames — AARO's 45,
+  29 of the 31 reference objects (PR113's track of 4 frames and PR43's of 24 are under
+  the 30 the null asks), WA9ONY-5, PR071, PR055, PR105, PR28 and PR29 — run again on
+  two tracks that nothing in the picture keeps step with, its own track run backwards
+  in time and its own track shifted by half its length, with the same ring searched.
+  A feature a null track "finds" that is the real object, or what the real track's own
+  run followed with it, is not counted (52 of the features the null tracks followed).
+  The known companions are WA9ONY-5's payload, PR071's string, PR105's lower point and
+  PR-004's on each of its eight tracks. The released stage on the same null is the
+  first row:
+
+  | the gate | real tracks given a companion (of 80) | known companions kept (of 11) | null tracks given a false companion (of 160) |
+  |---|---|---|---|
+  | the released stage, 0.5.1, by its own command on the same null tracks | | | 38 of the 154 it runs on, a pendulum read off 13 of them (on six, PR097's objects of 4 px, it ends with an error: the stack is narrower than 200 px) |
+  | 0.5.2 as set: the control at 0.6; a sighting 5 times the frame's noise; held in stretches of 45 frames on 0.3 of the frames; smooth to 1.5 px; under 0.5 of the scene's and of the screen's motion | 26 | 11 | **2** (both on tracks run backwards) |
+  | every frame seen counted, not the held ones | 39 | 11 | 28 |
+  | no test against the scene or the screen | 34 | 11 | 30 |
+  | no smooth path asked | 26 | 11 | 3 |
+  | no control | 29 | 11 | 14 |
+  | the control at 0.3 or 0.45 | 24 | 11 | 2 |
+  | the control at 0.8 | 27 | 11 | 3 |
+  | held on 0.2, 0.25 of the frames | 26 | 11 | 5, 3 |
+  | held on 0.4, 0.5 of the frames | 23, 21 | 10, 9 | 1, 1 |
+  | smooth to 1, 2.5 px | 26 | 11 | 2, 3 |
+  | the scene test at 0.3, 0.7 | 25, 26 | 11 | 2, 5 |
+
+  2 of 160 is 1.3 % (0.2 to 4.4 %, exact 95 % interval), and both are things that
+  do keep pace with the null track for a third of it or more: on PR135 object 6 run
+  backwards another bird of the flock, 132 px away, held on 0.36 of the frames; on
+  AARO's PR-009 row 4 run backwards three dark features 345 to 429 px away. What the
+  null taught: a re-found feature is 5 times the frame's noise, not 2.5 (within 12 px
+  of a place a 2.5-sigma feature is there by chance on a quarter of frames; on an
+  earlier pass of this null over its first 33 tracks, with the follower's bar at 2.5,
+  the followers of the null were made of them, 3 to 4 times the noise at the median,
+  and 29 of 66 null tracks passed with every frame counted; every known companion is
+  16 to 111 times the noise at its median); a companion is **held**, in stretches of 45
+  frames (noise and texture come and go: counted frame by frame, 28 null tracks pass
+  even at 5 times the noise); and half the scene's motion, the old test's own line
+  between "nearer the object's motion" and "nearer the scene's", is where the scene test
+  sits (the known companions make −0.05 to 0.26 of it, the scene's features 0.7 and
+  more). The control's share stays at 0.6: at 0.3 the null's count does not change,
+  and the two features that keep pace with AARO's PR-010 (below) go, which nothing
+  here shows to be false. No rule here is a distance in object sizes: a sounding
+  balloon's train hangs 10–35 diameters down, and an unresolved object's size is the
+  point-spread pattern (H6).
+- **H4, "nothing tied to the object" with no word of where.** PR28's stem hangs
+  straight under the head, inside the inner radius (the object's extent plus 12 px) and
+  the stroke mask. The finding and the checklist's row now say the ring that was
+  searched, in pixels, and that nearer in was not (`searched_px`). Finding a line that
+  starts at the object is H5's work, not done here.
+
+**The controls, before and after** (the stage's own words; `tests/test_golden.py` holds each):
+
+| case | 0.5.1 said | 0.5.2 says |
+|---|---|---|
+| WA9ONY-5, the one known swing | swings, 2.59 ± 0.02 s, 1.66 m (tentative) | the payload re-found on all 130 frames in one stretch; swings, 2.58 ± 0.02 s, 1.66 ± 0.03 m (tentative); no wander of 2,000 as strong |
+| AARO PR-004, a known balloon (the blind run's eight tracks, 4 to 11 s each) | a companion 28.6–32.8 px away on all eight; "a pendulum of 1.95 m" on row 4, "2.00 m" on row 8, a tentative 5.88 m on row 3 | the companion on all eight (28.6–32.8 px, held on 0.46 to 1.00 of the frames, to 0.4–0.6 px); no pendulum on any: rows 4 and 8 read p = 0.21 and 0.22, row 3 p = 0.002 (1.5 cycles of 5.0 s), the other five are steady to ±1.6–4.2° |
+| PR105, frames 1075–2155 | a bright companion 28 px straight down, then a follower 14 to 1,290 px away: "steady to ±18.8°" | the companion 26 px straight down, re-found on 46 % of the frames (held on 0.34), 26.3 px from the object at the median and never past its leash; steady to ±4.9° over 36 s, no period |
+| PR077 object 1, a bird | "a pendulum of 9.71 m" (tentative) | nothing tied between 15 and 280 px; the dark features 15 px out, at the ring's inner edge, are there on 4–7 % of frames |
+| PR135 object 2, a bird | "2.52 m" (tentative) | the next bird of the flock, 30 px away, held on 0.77 of the frames; no swing (its angle spreads over ±16° with under 1.5 cycles of anything in 3.8 s) |
+| PR149 | nothing tied, with `swings: true`, 0.159 m in the record | nothing tied between 14 and 480 px; no swing in the record |
+| PR29 | a "companion" 277 px away on 8 % of frames, "a pendulum of 0.65 ± 0.01 m" | nothing tied between 23 and 780 px |
+| PR28 | "nothing tied to the object" | nothing tied between 18 and 540 px; nearer than 18 px, where the stem is, was not searched |
+| PR071, the string | a dark line 1.6 sizes below; −18 ± 5° over 7.9 s, no swing | the same line 1.6 sizes below, re-found on 92 % of the frames; −14 ± 3.6° over 7.9 s, no swing |
+| PR055, the null | nothing tied: followed, the features went with the clouds | nothing tied between 29 and 960 px: re-found, the features make 0.84 to 0.94 of the clouds' motion |
+
+**How it fails.** A payload too faint for single frames (under 5 times a frame's
+noise) evades the follower, and one that swings more than its own size smears in the
+stack besides; that needs a search over the pendulum's own motion (period, amplitude,
+phase), not written. A companion seen in stretches shorter than 45 frames, or held on
+under 0.3 of the frames, is refused as "not held for long": PR105's lower point, which
+brightens and fades by itself, is held on 0.34 of its frames, not far above the line.
+What keeps the object's pace across the screen for another reason passes as a companion,
+and is reported with its numbers, not hidden. Three kinds were met on these tracks. A
+neighbour in a flock (PR135's six birds, PR097's: `run` names it a fellow member where
+the neighbour was followed too). The far scene, where the background's shift is read
+off a nearer layer: on AARO's PR-010 a dark feature on the horizon, 618 px from the
+object in one window and 448 px in another, keeps the pace of the distant object while
+the sea in front does not (0.08 and 0.20 of "the scene's" motion). And a straight edge
+the object moves along: on AARO's PR-009 the features lie on the picture's upper and
+lower borders, which stay as sharp along themselves however the object moves beside
+them, and a follower on an edge can slide along it (0.41 of the screen's motion and
+0.46 of the scene's, under the half that would refuse it; features of the same kind
+are one of the null's two false companions). These three tracks are what is left of
+the eleven far "companions" 0.5.1 gave AARO's. The sensor's own picture can follow the object
+too: under PR097's objects 7 and 8 a dark feature sits 14 px straight down, on 71 and
+72 % of frames, where a smear down the sensor's column would be; it is just outside
+the ring's inner edge and passes. A stronger spot of the scene passing right over the
+companion carries one pass of the follower with it to the end of the leash; the pass
+made in reverse holds the companion on that side, unless a second spot does the same
+from the other. Where the picture is held three or four frames at a time (PR29) the
+cadence check of `stack_both` does not see the repeats (it asks each frame against the
+median of the last ten, most of which are repeats); the follower's scatter leaves out
+places read off a held picture, and the count of repeated frames is short. A thin
+*bright* line on the object is masked with the overlay's strokes (`--no-stroke-mask`).
+A line that starts at the object is inside the ring searched. A line held at a steady
+angle gives no length. And the wander null's 1 in 100 is its rate on drawn wanders; on
+the one known balloon whose payload shows (AARO's PR-004, eight windows of 4 to 11 s)
+the nearest miss was p = 0.002 on one window, a period of 5.0 s over 1.5 cycles that
+the clip's 32 s do not hold (p = 0.55).
 
 ## 7. The astronomer's tests in `mcdonald flicker` (added 2026-10-15)
 

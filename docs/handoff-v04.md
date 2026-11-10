@@ -1,6 +1,130 @@
-# Handoff: ROADMAP 0.4 and 0.5 -- session 19 (2026-11-09/10, night) on top: what comes after 0.5.1, measured on PURSUE (things that hang under an object, a second drift screen, gliding birds), nothing built; session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 and 0.5 -- session 20 (2026-11-10) on top: 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, waiting for the maintainer's word to release; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 20 (2026-11-10): 0.5.2 built -- `tether`'s four defects, its gate set against a null
+
+**Jacob:** "Build 0.5.2 from session 19 of docs/handoff-v04.md and the kit in /scratch/mcdonald/next-2026-11-09/handoff-0.5.2/.
+Run jobs through /slurm."
+
+### Where it stands (read this first)
+
+**0.5.2 is built and committed on `main`, not pushed, and the version is still 0.5.1**: the CHANGELOG's entry is headed
+"Unreleased (0.5.2)", as 0.5.1's was before its release commit. What is Jacob's: the word to release; the version commit
+(`src/mcdonald/__init__.py`, the READMEs' status lines, `CITATION.cff`, the CHANGELOG's heading and its date, the push day);
+the Mac and Windows runs on that commit; the tag and the push; then the reference case files remade for the record
+(one command, below) and the site.
+
+Built in a worktree (`/hugespace/models/mcdonald-052`, branch `tether-052`, merged into `main` and removed), every run through
+Slurm. The working folder is `/scratch/mcdonald/tether-052/` (scripts in `dev/`, the null's runs in `out/`, the cases'
+outputs in `cases/`, the trial remake in `cases052/`, logs in `logs/`); what the method rests on was copied to the
+reference-data folder, `tether_null/` (30 MB; its README; `SHA256SUMS` and the folder's README carry it). Of the
+scratch folder's 18 GB, `frames/` (8 GB), `frames_cases/` (3 GB) and `cases052/out*/work` (6 GB) are extracted frames
+and unpacked case files, safe to delete; nothing was deleted.
+
+| row | what was wrong | what 0.5.2 does | held by |
+|---|---|---|---|
+| H1 | the gate moved to whatever was last found, the strongest feature in it; a refused candidate's swing stayed in the record | `tether.Follower`: a stretch starts at the strongest feature within 12 px of the stack's offset, the nearest to where it was last seen continues it, never past 0.75 of its distance from the stack's offset; the frames are gone through both ways and the two merged (`merge_ways`); `fields.swing` is the companion's alone | test_tether's three drawn clips; test_golden: PR105 (26.3 px at the median, on 46 % of frames), PR077 object 1 and PR135 object 2 (no pendulum), PR149 (no swing in the record) |
+| H2 | a period from the cycles in the window, with no null | `tether.wander_null`: the angle's strongest period ranked among 2,000 drawn wanders of its own size and correlation; a swing at p <= 0.001 | `tools/tether_wander_rate.py` (the rate: 1 in 100 drawn wanders at the worst); test_tether's drawn wander (2.12 m by the cycles rule, refused); test_golden: PR-004 rows 4 and 8, WA9ONY-5 |
+| H3 | any strong feature the follower could follow "smoothly" was a companion | `tether.judge`: not on the control, held in stretches of 45 frames on 0.3 of the frames at 5 times the frame's noise, smooth to 1.5 px, under half of the scene's motion and of the screen's | `tools/tether_null.py` (the null: 2 false of 160; 0.5.1 on the same: 38 of the 154 it runs on, a pendulum read off 13); test_golden: PR29 |
+| H4 | "nothing tied to the object" with no word of where | the finding, the record (`searched_px`) and the checklist's row say the ring searched, in pixels, and that nearer in was not | test_golden: PR28 (18 to 540 px); test_reduction |
+
+Beside them, found on the way: `mcdonald tether` exits 5 again where the object moves under 20 px on screen (the test had
+kept the old title since 0.5.0's sweep of "thing"); an object given as under 5 px no longer ends the stage (a stack
+narrower than 200 px raised in `object_size` and `object_extent`); the report's three places for the swing follow the stage.
+
+### How the numbers were set (method section 6 has the tables)
+
+- **The swing's threshold, measured before it was stated.** The kit proposed 1 in 100 on the null's p. On 57 kinds of
+  drawn wander (31,867 series) the two-cycle rule alone calls a swing in up to 78 % (29 % at the median); with the null at
+  p <= 0.01 the whole rule still calls one in up to 3.3 % (the p is not exact: the wander's correlation is read off the
+  series, and only series the cycles rule picked are asked). At p <= 0.001 it is 1 in 100 at the worst. That is
+  `WANDER_P`. PR-004's row 3 is the nearest miss on a real companion: p = 0.002 over 7.4 s, a period the clip's 32 s do
+  not hold; at 0.01 it would have been a third false pendulum on the known balloon.
+- **The companion gate, against a null.** 80 recorded tracks, each run again backwards in time and shifted by half its
+  length (160 null tracks; a feature that is the real object or its own companion is not counted). Three things came out
+  of it that the kit did not have: the follower's bar on a single frame is 5 times the noise, not 2.5; a companion is
+  *held* (stretches of 45 frames on 0.3 of the frames), not just seen; and the scene's test regresses places, not steps
+  (a step of the companion and a step of the scene share the track's own error: a drawn companion tied exactly read 0.7
+  "scene"). The control stays at 0.6. No number is a distance in object sizes.
+- **Four designs of the follower were run and three thrown away** (each a restart of the null's array): a leash-wide
+  search for the strongest feature (far candidates were "followed" on every frame by whatever was strongest); one pass
+  with a backward fill; two passes merged frame by frame (a line was chopped into stretches); and the one kept. The
+  harness now saves each pass's own chain, so the merge and the gate can be changed against the same null with no frame
+  read again (`tools/tether_null.py table`, `gate --scan`); a change to `Follower` or the stack needs `collect` again,
+  about a day of one CPU.
+
+### What it says on the cases (the stage's own words are in `/scratch/mcdonald/tether-052/cases/*/tether.json`)
+
+WA9ONY-5: the payload on all 130 frames, 2.58 +- 0.02 s, 1.66 +- 0.03 m, tentative (0.5.1: 2.59, 1.66). PR-004: the
+companion on all eight tracks, no pendulum on any. PR105: 26 px straight down, on 46 % of the frames, steady to +-4.9 deg,
+no period. PR077 object 1: nothing tied between 15 and 280 px. PR135 object 2: the next bird of the flock, no swing. PR149,
+PR29: nothing tied. PR28: nothing tied between 18 and 540 px, nearer in not searched. PR071: the string, steady. PR055:
+the clouds'.
+
+### The reference case files: a trial remake, and the one for the record
+
+**A trial remake was made, not the one for the record.** The files say which version made them, and the version is
+Jacob's word; so all fourteen were remade from their own recorded commands with the patch as it stands
+(`/scratch/mcdonald/tether-052/cases052/`: `remake.sbatch`, the scripts of the 0.5.0 remake, and `tether_diff.py`,
+which sets old against new sentence by sentence; the output in `out_final/`, the comparison in `diff_final.txt`) and
+compared with the released ones in the reference-data folder, which were not touched.
+
+- **No label moves and no number of record moves** (the beat and its error, the rate, T, the speed across the picture,
+  the scale bar), on any of the 31 objects.
+- **Two lose a pendulum, in the headline, the paragraph and the checklist:** PR077 object 1 ("like a pendulum 9.71 m
+  long (tentative)") and PR135 object 2 ("2.52 m"). PR077 object 1 now has nothing tied between 15 and 280 px; PR135
+  object 2 keeps its neighbour of the flock, "It shows there on 77% of the frames. It holds a steady angle".
+- **Three lose a dark feature at the object's edge** (PR077 object 1, PR085, PR44): their "with" row goes from Yes to
+  No. **Two gain one** (PR097 objects 7 and 8: a dark feature 3.5 object widths straight under each).
+- PR149's record loses the stray swing; every "No" row now says the ring ("nothing between 14 and 480 pixels from it
+  keeps step with it; closer in was not searched").
+- On PR135's flock three objects name another neighbour than before (objects 1, 4 and 6: the nearest of those held as
+  well, where 0.5.1 took the one seen most at its own offset); PR097 object 6 names the same one. In all, 26 of the 31
+  objects differ: 2 lose a pendulum, 3 a companion, 2 gain one, 3 name another neighbour, and the other 17 change only
+  the "No" row's wording, a "shows there on N% of the frames", or a stray swing in the record.
+- Three of the remade files were run again strictly (`share rerun --strict`: PR113, PR141, PR149) and rerun to their
+  numbers; the other eleven were not (the remake for the record reruns all fourteen).
+
+**For the record, after the version commit:** `sbatch --array=0-13%4 remake.sbatch` there with `SNAP` at a snapshot of
+the release commit and a `NOTE` naming it (the script's default note says "trial"), then `rerun.sbatch` (`share rerun
+--strict`) on all fourteen, `tether_diff.py`, and the files copied over the reference-data folder's `cases/` with its
+README and `SHA256SUMS`. About two and a half hours of queue for the remake, as much again for the rerun (PR088's
+second object, 3,558 frames, is the long one).
+
+### Not done, and what the null and the cases showed that 0.5.2 does not fix
+
+1. **The version commit, the Mac and Windows runs, the tag, the push** (Jacob's). No push was made, to `main` or to the
+   CI branches.
+2. **Three far "companions" are left on AARO's tracks**, where 0.5.1 had eleven, and the tests here cannot refuse them:
+   a feature on the horizon that keeps the distant object's pace while the nearer scene, which the background's shift is
+   read off, does not (PR-010, rows 4 and 8); and features on the picture's straight borders, which the object moves
+   along and a follower can slide along (PR-009 row 2; the same kind is one of the null's two false companions). A rule
+   for a feature on a straight edge, and the scene read in layers, belong with H5.
+3. **PR097's objects 7 and 8 gain a companion**: a dark feature 14 px straight under each bird, on seven frames in ten,
+   where a smear down the sensor's column would be. It is just outside the ring's inner edge. For H5 it is a null to
+   have: something straight under an object that does not hang.
+4. **`stack_both`'s cadence check misses a picture held three or four frames at a time** (PR29: 6 repeats counted where
+   two frames in three are): it asks each frame against the median of the last ten. The follower's scatter leaves held
+   places out; the count of repeated frames, and the swing's series on such a clip, do not.
+5. **The validation page's composite figure is gone**: `docs/tether-validation.md` now shows the stage's own figure for
+   each of its three clips (`docs/tether-validation.*.png`). The old composite had panel letters and 0.5.1's numbers.
+6. **H5** (does something hang under it?), **DR1-DR5** and **GL1** are as session 19 left them; Jacob's looks L1-L6 too.
+
+### Slurm jobs of the session (merlin)
+
+The null: 21845 (the array that stands: 35 videos, snapshot s5 of the follower as shipped) and 21941 (PR097's last three
+tracks, by the repository's tool, after the small-stack fix); earlier arrays 21701, 21722, 21740, 21746, 21776, 21802 were
+the designs thrown away. The wanders: 21900 (`tools/tether_wander_rate.py`). 0.5.1 on the null: 21908, 21963, 21986, 21993.
+The cases by the stage's own command, on the code as committed: 22015 (and 21990, 21995 for PR097 and the far features). The suites (`tools/suites.sbatch golden`, 21999, on a snapshot one line of `tether.measure` and the docs short of the commit): measurement 603,
+reduction 671, published 32, tether 45, audio 62, cli 138, share 28, sweep 20, stabilize 13, aspect 10, waves 14, slew 95,
+zoom 37, horizon 25, focus 19, haze 9, streak 20, camera 151, golden 228 (208 before), none failing; the window's suite
+769 with 1 skip (22037: in 21999 it had skipped the window, the trap now fixed in `tests/test_gui.py`); the golden suite's
+tether cases again on the code as committed (22016, 30 of 30); and the suites that read what changed after 21999 (tether, reduction, cli, share, the window) on the tree as committed (22047: 45, 671, 138, 28 and 769, none failing). The
+trial remake: 21981, and 22024 for PR097 and PR135 on the code as committed; the strict reruns of three: 22039.
 
 ## Session 19 (2026-11-09/10, night): what comes after 0.5.1 -- PURSUE cases for the drift paper, gliding birds, other tests for balloons
+
+*(Session 20, above, built the 0.5.2 this section hands over; what follows is as it was written, and "the next session"
+in it is that one. Its list for Jacob to look at, L1-L6, is still open.)*
 
 **Jacob:** "Version 0.5.1 will ship in the JAIS technical note revisions. What's next for development? I still have to
 finish the wind-drift paper, but I'd really like some PURSUE cases to include in that paper. And I am sure there are some

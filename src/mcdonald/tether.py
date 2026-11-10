@@ -8,33 +8,47 @@ the line, T = 2 pi sqrt(L/g), so T read off the video in seconds gives L in metr
 no range and no field of view, and the line's length in pixels then scales the whole
 image. That is the balloon analogue of PR135's wingbeat.
 
-The question is asked in two parts (`stack_both` with `candidates` and `support`, then
-`follow_many` and `swing`), reading every frame three times in all:
+The question is asked in two parts (`stack_both` with `candidates`, `examine` with a
+`Follower` for each candidate and `judge`, then `swing`), reading every frame three
+times in all:
 
 1. **Does anything move with the object?** Every frame, overlay masked, is shifted so
-   the tracked position lands at the centre and the frames are averaged: a thing tied
+   the tracked position lands at the centre and the frames are averaged: a feature tied
    to the object adds up at its offset; the scene and the overlay smear by however far
    the object moved on the screen. A candidate is a compact feature of that stack, `Z_MIN`
-   times its noise, between `r_min` and `r_max` object sizes of the centre. Three things
-   then say whether it is the object's:
+   times its noise, between `r_min` and `r_max` object sizes of the centre (and outside
+   the object's own footprint: `searched_px` is the ring in pixels, and a line that
+   starts at the object, inside it, is not looked for). Three things then say whether it
+   is the object's (`judge`):
    - *the control*: the same frames stacked on the track run backwards in time have the
-     same set of positions and the wrong one each frame, so a thing tied to the object
+     same set of positions and the wrong one each frame, so a feature tied to the object
      smears there while anything that only looked sharp because the object hardly moved
      stays sharp (PR055's edge peaks reappeared there identically). `z_control` at most
      `CONTROL` of `z`. Both stacks are made in the one pass.
-   - *single frames*: a thing tied to the object is there at its offset on single frames,
-     `FRAME_Z` times the frame's noise (by MAD over a wide crop, so the overlay's lines do
-     not set it), on `SUPPORT` of them, and at the same place to within `JITTER_PX`
-     across its own spread (along a line the darkest point wanders, and that is not a
-     jitter). Cloud texture is dark *somewhere* in a patch on many frames, but spread
-     over the patch (PR055: 11-14 px); PR071's string sits at 4.
-   - *with the object or with the scene*: the candidate followed frame by frame (below)
-     moves with the object rather than with the background's own shift
-     (`groups.with_the_group`), when the object moves at least `STILL` px against the
-     scene. The one test that catches a piece of cloud drifting steadily past.
-   A payload that swings more than a patch is at its mean offset on few single frames:
-   the strongest features the control does not show are followed anyway, and one that
-   moves smoothly (`SMOOTH`) and with the object is kept.
+   - *frame by frame*: the candidate is re-found on the frames themselves, starting
+     where the stack put it (`Follower`): the strongest compact feature of its polarity
+     within `STEP` px of the stack's offset, `SIGHT` times the frame's noise (by MAD
+     over a wide crop, so the overlay's lines do not set it) and at least `HALF` as
+     strong as the stack's own; then, frame to frame, the nearest feature to where it
+     was last seen. It may swing, to `LEASH` of its distance from the stack's offset, and
+     no farther: it is never followed away, and after `MISS` frames unseen the search
+     starts again at the stack's offset. The frames are gone through in order and in
+     reverse, and the two ways put together (`merge_ways`). A companion is held: it lies
+     in stretches of `HOLD` frames or more on `FOLLOWED` of the frames, along a path
+     smooth to `STEADY` px (noise and texture met near the offset come and go).
+     Until 0.5.2 the gate moved to whatever was last found, the strongest feature in it:
+     on PR105 the follower went 1,290 px from the object with the scene, and on two
+     birds of the released reference reports it went round the object and read a
+     pendulum of 9.71 m and one of 2.52 m (session 19, 2026-11-10).
+   - *with the object, the scene or the screen*: the re-found place against the object
+     is regressed on the scene's place against the object (the background's own shift,
+     `propose.background_shift`) and on the screen's. A feature tied to the object makes
+     none of either motion; a piece of cloud drifting past makes all of the scene's, a
+     mark left on the display all of the screen's. `SCENE` of either, where it moved
+     `STILL` px or more, and the candidate is not the object's.
+   These numbers were set against a null (docs/method.md, section 6;
+   tools/tether_null.py): every recorded track run again on tracks that nothing in the
+   picture keeps step with, the known companions kept.
    **The overlay's strokes are masked first** (`stroke_mask`): thin bright lines --
    reticle arms, a tracking gate's box, brackets -- are found by a morphological
    opening (what survives a line-shaped opening along either axis but not a square
@@ -43,28 +57,33 @@ The question is asked in two parts (`stack_both` with `candidates` and `support`
    until they were masked. A thin *bright* line on the object would be masked with
    them (`--no-stroke-mask`); PR071's string is dark and is not. When the object moves
    less than `STILL` px on the screen, nothing can be told apart and the stage says so.
-2. **Does it swing?** The companion -- the one kept, or an offset given with --seed --
-   is followed: in a gate about where it was last, the compact feature of its polarity.
-   The separation vector from the object gives the swing angle (0 = straight down the
-   image, + = to the right), which needs no scale and survives any camera motion short
-   of a roll. Repeated frames (the hold-and-jump cadence sensor clips have) are left out
-   of the series. A Lomb-Scargle periodogram starts it; the estimator is a sinusoid with
-   a drift fitted to the angle, kept when it is clean (residual under half the
-   amplitude) -- a periodogram's peak on a window of a few cycles slides up to whatever
-   cap the window sets, and a peak at the longest period asked is never a period. The
-   period's uncertainty is a block bootstrap of the fit's residuals (`BOOT` resamples,
-   blocks of `BLOCK_S`), and `line_length_m` = g T^2 / 4 pi^2 carries it doubled. A
-   swing is **claimed** from `CLAIM_CYCLES` cycles of the window and **tentative** from
-   `TENTATIVE_CYCLES`: the one calibration with ground truth (WA9ONY-5, a 13 g pico
-   payload "a little over one metre" below the balloon, 2021-07-13) is tentative -- 1.7
-   cycles, 2.59 s, 1.66 m, which is the line plus the balloon's radius and the payload's
-   own offset, the pivot of a balloon's pendulum being the balloon's centre, not its neck.
+2. **Does it swing?** Asked of the companion alone -- the one kept, or an offset given
+   with --seed -- on the frames that show it. The separation vector from the object
+   gives the swing angle (0 = straight down the image, + = to the right), which needs no
+   scale and survives any camera motion short of a roll. Repeated frames (the
+   hold-and-jump cadence sensor clips have) are left out of the series. A Lomb-Scargle
+   periodogram starts it; the estimator is a sinusoid with a drift fitted to the angle,
+   kept when it is clean (residual under half the amplitude) -- a periodogram's peak on
+   a window of a few cycles slides up to whatever cap the window sets, and a peak at the
+   longest period asked is never a period. The period's uncertainty is a block bootstrap
+   of the fit's residuals (`BOOT` resamples, blocks of `BLOCK_S`), and `line_length_m` =
+   g T^2 / 4 pi^2 carries it doubled. A swing is **claimed** from `CLAIM_CYCLES` cycles
+   of the window and **tentative** from `TENTATIVE_CYCLES` -- and, since 0.5.2, only
+   where the period beats a slow wander (`wander_null`): an angle that only wanders shows
+   a cycle or two in a short window most of the time, and the cycles rule alone read
+   "2.0 m" off AARO's known balloon PR-004 from two 6-7-s windows. The one calibration
+   with ground truth (WA9ONY-5, a 13 g pico payload "a little over one metre" below the
+   balloon, 2021-07-13) is tentative -- 1.7 cycles, 2.59 s, 1.66 m, which is the line
+   plus the balloon's radius and the payload's own offset, the pivot of a balloon's
+   pendulum being the balloon's centre, not its neck -- and passes the null (none of
+   2,000 wanders as strong).
 
 What it cannot do: a payload too faint for single frames that swings more than its own
 size evades the stack (it smears by its swing) and the follower both; that needs a
-search over the pendulum's own motion, not done here. A line held at a steady angle by
-drag (PR071: no swing in 8 s) gives no length. And the companion's pixel offset is in
-pixels for the reasons every separation is; only the period is a metre.
+search over the pendulum's own motion, not done here. A line that starts at the object
+(PR28's stem) is inside the ring searched. A line held at a steady angle by drag (PR071:
+no swing in 8 s) gives no length. And the companion's pixel offset is in pixels for the
+reasons every separation is; only the period is a metre.
 """
 import csv
 from collections import deque
@@ -82,31 +101,51 @@ R_MIN = 1.2          # x the object's size: the first ring a companion is looked
 R_MAX = 40.0         # x the object's size: a radiosonde hangs 10-35 diameters below a sounding balloon
 NOISE_SIZES = 8.0    # the stack's noise is measured out to this many object sizes (see `candidates`)
 TOP = 200            # candidates the control does not show that get their single-frame support ...
-FOLLOW = 12          # ... and how many of those, by support then strength, are followed
+FOLLOW = 60          # ... and how many of those, strongest first, are re-found frame by frame
 COVERED = 0.6        # a candidate's pixel was covered by the frames on this share of them at least: a tracking gate's
                      # strokes, masked, sweep the object's neighbourhood by the tracker's lag, and 0.95 here dropped
                      # PR071's string out of the search
 COVERED_EXTENT = 0.95   # the object's own footprint is traced only through pixels covered on nearly every frame
-NEAR = 2.5           # x the object's size: nearer than this, a feature single frames cannot confirm is the object's own
-                     # halo or glint, however strong on the stack (WA9ONY's balloon: a glint at 1.2 sizes, 30 x noise)
 Z_MIN = 5.0          # a candidate is at least this many times the stack's noise (DoG units)
-CONTROL = 0.6        # ... and the reversed-track control shows at most this share of it at the same place
+CONTROL = 0.6        # ... and the reversed-track control shows at most this share of it at the same place (held against
+                     # the null in 0.5.2 and left: 0.3 changes no count there)
 STILL = 20.0         # px moved on the screen below which nothing can be told from the overlay or the scene
 SIGMA = 1.2          # DoG inner scale, px: a line or a point a few px across
 SIGMA_OUT = 6.0      # DoG outer scale, px
-SUPPORT = 0.3        # a companion is seen on at least this share of single frames at its offset ...
-FRAME_Z = 2.5        # ... at this many times the frame's own noise there
-STRONG = 2.0         # x Z_MIN: a stack feature this strong is kept even when single frames cannot show it
-JITTER_PX = 6.0      # px, across its own spread: a thing tied to the object is at the same place on every frame to
-                     # within this (PR071's string: 4; WA9ONY's payload sweeps an arc, 4 across it); texture that happens
-                     # to be dark somewhere in the patch is spread over it (PR055's clouds: 11-14)
-SMOOTH = 0.08        # x its distance: a followed companion moves at most this much a frame (a pendulum's payload,
-                     # 2.5 s and 14 deg on 170 px, 2 %); texture caught in the gate jumps by the gate
-GATE = 0.25          # per frame, the companion may move this share of its separation from where it was predicted
+FRAME_Z = 2.5        # a candidate counts as seen at its own offset on a frame at this many times the frame's noise
+                     # (`seen_on_frames`, with `jitter_px`: reported; the verdict is the follower's, since 0.5.2)
+SMOOTH = 0.08        # x its distance: a companion moving under this much a frame is `smooth` in the swing's record (a
+                     # pendulum's payload, 2.5 s and 14 deg on 170 px: 2 %)
+STEP = 12.0          # px: from one frame to the next a companion is re-found no farther than this from where it was
+                     # last seen (WA9ONY-5's payload moves 3 px a frame at the middle of its swing), and a stretch starts
+                     # no farther than this from the stack's offset
+LEASH = 0.75         # x its distance on the stack: the companion is looked for no farther than this from where the stack
+                     # put it. It may swing, and a swing's stack peaks at one end of it (WA9ONY-5's payload is found up to
+                     # 0.70 of its 158 px from the stack's offset); it is never followed away (0.5.1 followed PR077 object
+                     # 1's from 13 to 400 px and PR105's from 14 to 1,290 px, and read a swing off each)
+MISS = 5             # frames unseen after which a stretch ends; the next starts at the stack's offset
+HALF = 0.5           # a single-frame feature is at least this share of the stack feature's own strength: the stack is the
+                     # mean of the frames, so a companion is at least as strong as its stack on the frames that show it
+PEAK = 9             # px: two compact features of one frame are at least half of this apart
+SIGHT = 5.0          # a companion re-found on a frame is at least this many times the frame's own noise, the multiple
+                     # the stack asks of a candidate: within STEP px of a place a feature at FRAME_Z times the noise is
+                     # there by chance on a quarter of the frames, and the null's followers were made of them (3 to 4
+                     # times the noise at the median; every known companion is 8 to 111)
+HOLD = 45            # frames: a companion is held in stretches at least this long (nearly the whole of a shorter track) ...
+FOLLOWED = 0.3       # ... on at least this share of the frames (PR105's lower point, which fades and returns: 0.34) ...
+STEADY = 1.5         # ... along a path smooth to this many px (the known companions: 0.4 to 0.6) ...
+SCENE = 0.5          # ... making under this share of the scene's motion against the object, and of the screen's: nearer
+                     # the object's motion than theirs (the known companions make 0.00 to 0.26, the scene's features 0.7 on)
 MIN_SWING_FRAMES = 20
 CLAIM_CYCLES = 2.0       # a period is claimed from this many cycles of the window ...
 TENTATIVE_CYCLES = 1.5   # ... and reported as tentative from this many: a clean sinusoid over 1.5 fixes it to ~10%
 SWING_POWER = 0.3    # Lomb-Scargle normalised power below which the angle is called steady
+WANDER_P = 0.001     # a period is a swing only when a slow wander of the angle's own size and correlation shows one as
+                     # strong less often than this (`wander_null`). Set on drawn wanders, 57 kinds and 600 of each
+                     # (2026-11-10): with the cycles rule, which alone calls up to 78 % of them a swing, this holds the
+                     # false swings to 1 in 100 at the worst (0-1.0 %); 0.01 here left up to 3.3 %
+WANDER_DRAWS = 2000  # wanders drawn for it
+WANDER_BINS = 60     # the angle is read in this many bins of its span (wider where a bin would hold under 3.5 samples)
 BOOT, BLOCK_S = 200, 0.3   # bootstrap resamples of the fit's residuals, in blocks this long
 STROKE_LEN = 21      # px: a bright line at least this long is the overlay's
 STROKE_DN = 20.0     # ... standing this far above what a 9x9 opening leaves (PR071's reticle arm: 25-45)
@@ -232,6 +271,7 @@ def object_extent(m, cnt, R, size, cap=200):
     balloon's glints and facets are part of it, well outside the half-max width
     `object_size` gives (WA9ONY: 44 px wide, glints at 59 px out); a tracking gate's box,
     masked as a stroke on the frames it was seen on, is not covered and does not join."""
+    cap = min(cap, R)              # a stack smaller than the cap (an object given as under 5 px: the stack is 42 sizes)
     sub = m[R - cap:R + cap + 1, R - cap:R + cap + 1]
     cov = cnt[R - cap:R + cap + 1, R - cap:R + cap + 1] >= COVERED_EXTENT * cnt.max()
     ok = np.isfinite(sub) & cov
@@ -305,6 +345,7 @@ def stack_both(clip, track, frames, radius=None, progress=None, stop=None):
 def object_size(m, cnt, R, cap=200):
     """The object's own size in the stack, px: the width at half its central contrast,
     measured along four directions and averaged. None when there is no central contrast."""
+    cap = min(cap, R)
     c = m[R, R]
     ring = m[R - cap:R + cap + 1, R - cap:R + cap + 1]
     bg = np.nanmedian(ring)
@@ -384,7 +425,7 @@ def candidates(m, cnt, mc, size, R, r_min=R_MIN, r_max=R_MAX, top=TOP, z_min=Z_M
                  direction_deg=float(np.degrees(np.arctan2(dx, dy))),
                  sign="dark" if dog[y, x] < 0 else "bright",
                  contrast_dn=float(m[y, x] - np.nanmedian(m[max(y - 30, 0):y + 31, max(x - 30, 0):x + 31])),
-                 z=float(z[y, x]), z_control=zc, frames=int(cnt[y, x]),
+                 dog_dn=float(abs(dog[y, x])), z=float(z[y, x]), z_control=zc, frames=int(cnt[y, x]),
                  not_on_control=bool(zc <= control * z[y, x]), seen_on_frames=None, jitter_px=None, co_moving=False)
         (out if c["not_on_control"] and len(out) < top else on_control if len(on_control) < 5 else []).append(c)
     out = out + on_control
@@ -392,24 +433,233 @@ def candidates(m, cnt, mc, size, R, r_min=R_MIN, r_max=R_MAX, top=TOP, z_min=Z_M
 
 
 # ---- pass 2: single frames, and following ----------------------------------------------
-def examine(clip, track, frames, cands, size=None, follow=(), progress=None, stop=None):
-    """One pass over the frames. For every candidate: `seen_on_frames` (the share of frames
-    on which the feature is there at its offset, FRAME_Z times the frame's noise, with the
-    same sign), `jitter_px` (where it is on those frames, across its own spread) and the
-    verdict `co_moving`: not on the control, seen on SUPPORT of the frames or STRONG x Z_MIN,
-    and steady to JITTER_PX. And each candidate in `follow` (indices into cands) followed
-    from its offset -- in a gate about where it was last, the compact feature of its
-    polarity -- with the background's own displacement since the first frame
-    (`propose.background_shift`). Returns (cands, {index: {frame: (x, y, contrast)}}, bg)."""
+def leash_px(r):
+    """How far from the stack's offset a companion `r` px from the object is looked for."""
+    return max(LEASH * r, 2 * SIGMA_OUT)
+
+
+def _dog_valid(g, bad):
+    """The DoG of a crop with what is masked left out of both of its means (a normalised convolution),
+    NaN where either mean rests on less than half its weight: a mask's edge is not a feature."""
+    w = (~bad).astype(np.float64)
+    gw = np.where(bad, 0.0, g)
+    a0, b0 = gaussian_filter(w, SIGMA), gaussian_filter(w, SIGMA_OUT)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        d = gaussian_filter(gw, SIGMA) / a0 - gaussian_filter(gw, SIGMA_OUT) / b0
+    return np.where((a0 > 0.5) & (b0 > 0.5), d, np.nan)
+
+
+def feature_near(g, bad, noise, obj, place, anchor, leash, dark, least, keep, strongest=False):
+    """The compact feature of one frame nearest to `place` (dx, dy from the object at `obj`), or with
+    `strongest` the strongest about it: a local maximum of the DoG of that polarity within STEP px of the
+    place, at least `least` DN strong and SIGHT times the frame's `noise`, at least `keep` px from the
+    object and no farther than `leash` from `anchor`. Its centroid, as (dx, dy, strength in units of the
+    noise, contrast DN), or None when nothing is there."""
+    ox, oy = obj
+    px, py = ox + place[0], oy + place[1]
+    pad = STEP + 3 * SIGMA_OUT
+    x0, y0 = int(max(px - pad, 0)), int(max(py - pad, 0))
+    x1, y1 = int(min(px + pad + 1, g.shape[1])), int(min(py + pad + 1, g.shape[0]))
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return None
+    sub, sbad = g[y0:y1, x0:x1], bad[y0:y1, x0:x1]
+    d = _dog_valid(sub, sbad)
+    resp = np.where(np.isfinite(d), -d if dark else d, -np.inf)
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    far = np.hypot(xx - px, yy - py)
+    top = ((resp == ndimage.maximum_filter(resp, size=PEAK)) & (resp >= max(SIGHT * noise, least)) & (far <= STEP)
+           & (np.hypot(xx - ox, yy - oy) >= keep) & (np.hypot(xx - (ox + anchor[0]), yy - (oy + anchor[1])) <= leash))
+    if not top.any():
+        return None
+    iy, ix = np.unravel_index(int(np.argmax(np.where(top, resp, -np.inf)) if strongest else np.argmin(np.where(top, far, np.inf))),
+                              top.shape)
+    # its centroid, over its own peak alone: a stronger spot passing 9 px away is another peak, and a centroid that
+    # reached it was pulled to it, and the follower after it
+    wgt = np.where((resp >= 0.5 * resp[iy, ix]) & (np.hypot(xx - (x0 + ix), yy - (y0 + iy)) <= PEAK // 2 + 1), resp, 0.0)
+    cx_, cy_ = float((xx * wgt).sum() / wgt.sum()), float((yy * wgt).sum() / wgt.sum())
+    around = sub[~sbad]
+    return (cx_ - ox, cy_ - oy, float(resp[iy, ix] / noise), float(sub[iy, ix] - np.median(around)) if around.size else 0.0)
+
+
+class Follower:
+    """One candidate's companion, re-found frame by frame. A stretch starts where the stack put the
+    candidate: at the strongest compact feature of its polarity within STEP px of the stack's offset, at
+    least HALF as strong as the stack's own. After that the feature nearest to where the companion was last seen is taken,
+    within STEP px of it and within the candidate's leash of the stack's offset (a brighter spot passing by
+    is not taken; the companion may swing, and is never followed away). When nothing has been there for MISS
+    frames the stretch ends, and the next starts at the stack's offset as the first did.
+
+    The frames are gone through twice, `look(n, ...)` with way 0 in order and with way 1 in reverse, each
+    way a follower of its own. The second reaches the frames before the companion first came by the stack's
+    offset; and where a stronger spot of the scene passed right over the companion, each way is carried off
+    with it on the far side of the crossing only. `merged()` puts the two together: where they disagree, the
+    feature nearer the stack's offset is the companion -- what is tied stays about it, what passes leaves."""
+
+    def __init__(self, c, keep):
+        self.anchor = (c["dx_px"], c["dy_px"])
+        self.dark, self.leash, self.keep = c["sign"] == "dark", leash_px(c["r_px"]), keep
+        self.least = HALF * (c.get("dog_dn") or 0.0)
+        self.got = ({}, {})                   # each way's {frame: (dx, dy, strength, contrast)}
+        self.place, self.last = [None, None], [None, None]
+
+    def look(self, way, n, g, bad, noise, obj):
+        held = self.place[way] is not None and abs(n - self.last[way]) <= MISS
+        f = feature_near(g, bad, noise, obj, self.place[way] if held else self.anchor, self.anchor, self.leash, self.dark,
+                         self.least, self.keep, strongest=not held)
+        if f is not None:
+            self.place[way], self.last[way], self.got[way][n] = f[:2], n, f
+
+    def merged(self):
+        return merge_ways(self.anchor, self.got)
+
+
+def stretches(got):
+    """{frame: stretch} of a chain {frame: (dx, dy, ...)}: frames no more than MISS apart whose places are no
+    more than STEP px apart."""
+    run, runs, last = 0, {}, None
+    for n in sorted(got):
+        if last is None or n - last > MISS or np.hypot(got[n][0] - got[last][0], got[n][1] - got[last][1]) > STEP:
+            run += 1
+        runs[n], last = run, n
+    return runs
+
+
+def merge_ways(anchor, ways):
+    """({frame: (dx, dy, strength, contrast)}, {frame: stretch}): a Follower's two ways as one. Over a run of
+    frames on which they hold different features, the one followed for longer is the companion (scene texture
+    met at the stack's offset while a swinging companion is elsewhere lasts a few frames); where both were
+    followed about as long, less than twice apart, the one nearer the stack's offset `anchor` over the run.
+    One way is taken for the whole run: along a line the two sit at different points of it, and frame by
+    frame the choice would jump between them."""
+    runs = [stretches(g) for g in ways]
+    size = [{r: sum(1 for v in rr.values() if v == r) for r in set(rr.values())} for rr in runs]
+    off = lambda f: np.hypot(f[0] - anchor[0], f[1] - anchor[1])
+    differ = lambda n: (n in ways[0] and n in ways[1]
+                        and np.hypot(ways[0][n][0] - ways[1][n][0], ways[0][n][1] - ways[1][n][1]) > 2.0)
+    frames, got, i = sorted(set(ways[0]) | set(ways[1])), {}, 0
+    while i < len(frames):
+        n = frames[i]
+        if not differ(n):
+            got[n] = ways[0][n] if n in ways[0] else ways[1][n]
+            i += 1
+            continue
+        j = i
+        while j < len(frames) and differ(frames[j]) and frames[j] - frames[max(j - 1, i)] <= MISS:
+            j += 1
+        run = frames[i:j]
+        la, lb = (np.mean([size[w][runs[w][m]] for m in run]) for w in (0, 1))
+        way = 0 if la >= 2 * lb else 1 if lb >= 2 * la else int(np.median([off(ways[1][m]) for m in run])
+                                                                  < np.median([off(ways[0][m]) for m in run]))
+        got.update({m: ways[way][m] for m in run})
+        i = j
+    return got, stretches(got)
+
+
+def followed_how(ns, got, runs, track, bg, repeats=()):
+    """How a re-found companion behaves, from its places against the object over the frames `ns` of the track
+    (`got`: {frame: (x, y, ...)}, `runs`: {frame: stretch}, repeated frames left out):
+    `followed_on`, the share of the frames it was seen on, and `held_on`, the share of the frames that lie in
+    stretches of HOLD frames or more (a companion is held; noise and texture met near the offset come and go; on
+    a track shorter than HOLD the stretch asked is nearly the whole track, `hold_frames`);
+    `followed_jitter_px`, its scatter about a smooth path: how far each place lies from the line between the
+    places before and after it in the same stretch, scaled to one reading's error (a swing's motion drops
+    out; noise picked up near the offset does not);
+    `scene_share`, the share of the scene's motion against the object that the companion makes: its place
+    against the object regressed on the scene's place against the object, each stretch about its own mean
+    (about 0 for what is tied to the object, 1 for a piece of the scene passing by), with `scene_moved_px`,
+    how far the scene moved against the object within a stretch at the most (under STILL px the two cannot be
+    told apart);
+    `screen_share` and `screen_moved_px`, the same against the screen: 1 for what stays put on the screen while
+    the object moves across it (the display's, or the sensor's).
+    Places are regressed, not the steps between frames: a step of the companion against the object and a step
+    of the scene against the object carry the same error of the track, which alone made a drawn companion,
+    tied exactly, 0.7 of a scene that hardly moved."""
+    rep = set(repeats)
+    fs = [n for n in ns if n in got and n not in rep]
+    rel = {n: np.array([got[n][0] - track[n][0], got[n][1] - track[n][1]]) for n in fs}
+    length = {}
+    for n in fs:
+        length[runs[n]] = length.get(runs[n], 0) + 1
+    count = max(len([n for n in ns if n not in rep]), 1)
+    hold = min(HOLD, max(count - MISS, MIN_SWING_FRAMES))        # on a track shorter than HOLD, nearly the whole of it
+    out = dict(followed_on=float(len(fs) / count), held_on=float(sum(v for v in length.values() if v >= hold) / count),
+               hold_frames=int(hold), followed_frames=len(fs), stretches=len(length), longest_stretch=max(length.values(), default=0),
+               followed_jitter_px=None, scene_share=None, scene_moved_px=0.0, screen_share=None, screen_moved_px=0.0)
+    # a place read off a held picture is the same reading again, to the last digit, not a second one: left out of the
+    # scatter (PR29 holds each picture three or four frames, and a feature that jumped 5-10 px from one picture to the
+    # next read as steady to 0.0 px)
+    fresh = [n for i, n in enumerate(fs) if i == 0 or abs(got[n][0] - got[fs[i - 1]][0]) + abs(got[n][1] - got[fs[i - 1]][1]) > 1e-6]
+    e = []
+    for a, b, c in zip(fresh, fresh[1:], fresh[2:]):
+        if runs[a] == runs[c]:
+            h1, h2 = b - a, c - b
+            e.append((rel[b] - (rel[a] * h2 + rel[c] * h1) / (h1 + h2)) / np.sqrt(1 + (h1 * h1 + h2 * h2) / (h1 + h2) ** 2))
+    if len(e) >= 5:
+        out["followed_jitter_px"] = float(1.4826 * np.median(np.abs(np.array(e))))
+    sums = dict(scene=[0.0, 0.0], screen=[0.0, 0.0])
+    for run in sorted({runs[n] for n in fs}):
+        f = [n for n in fs if runs[n] == run and n in bg]
+        if len(f) < 3:
+            continue
+        own = np.array([rel[n] for n in f])
+        own = own - own.mean(0)
+        at = np.array([track[n] for n in f], float)
+        for name, v in (("scene", np.array([bg[n] for n in f], float) - at), ("screen", -at)):
+            out[f"{name}_moved_px"] = max(out[f"{name}_moved_px"], float(np.hypot(*(v.max(0) - v.min(0)))))
+            v = v - v.mean(0)
+            sums[name][0] += float((own * v).sum())
+            sums[name][1] += float((v ** 2).sum())
+    for name, (num, den) in sums.items():
+        if den > 0:
+            out[f"{name}_share"] = num / den
+    return out
+
+
+def judge(c):
+    """A followed candidate's verdict, written into it: `co_moving` when the control does not show it and,
+    re-found frame by frame, it is held in stretches of HOLD frames on FOLLOWED of the frames, along a path
+    smooth to STEADY px, making less than SCENE of the scene's motion against the object and of the screen's
+    (each asked where it moved STILL px or more). Else why not: `scene`, `screen`, `seldom` or `jumps`."""
+    c["scene"] = bool(c.get("scene_share") is not None and c["scene_moved_px"] >= STILL and c["scene_share"] >= SCENE)
+    c["screen"] = bool(not c["scene"] and c.get("screen_share") is not None and c["screen_moved_px"] >= STILL
+                       and c["screen_share"] >= SCENE)
+    c["seldom"] = bool((c.get("held_on") or 0.0) < FOLLOWED)
+    c["jumps"] = bool(not c["seldom"] and (c.get("followed_jitter_px") is None or c["followed_jitter_px"] > STEADY))
+    c["co_moving"] = bool(c["not_on_control"] and not (c["scene"] or c["screen"] or c["seldom"] or c["jumps"]))
+    return c["co_moving"]
+
+
+def why_not(c):
+    """Why a candidate is not the object's, in a few words; '' for one that moves with it."""
+    if c.get("co_moving"):
+        return ""
+    return ("as sharp on the reversed track" if not c.get("not_on_control") else
+            "the scene's, once followed" if c.get("scene") else
+            "stays put on the screen, once followed" if c.get("screen") else
+            "not held for long, once followed" if c.get("seldom") else
+            "jumps about, once followed" if c.get("jumps") else "not followed")
+
+
+def examine(clip, track, frames, cands, size=None, follow=(), progress=None, stop=None, keep=None):
+    """One pass over the frames, and for the followed candidates a second, in reverse. For every candidate:
+    `seen_on_frames` (the share of frames on which the feature is there at its own offset, FRAME_Z times
+    the frame's noise, with the same sign) and `jitter_px` (where it is on those frames, across its own
+    spread). And each candidate in `follow` (indices into cands) re-found frame by frame from the stack's
+    offset (`Follower`: it is counted where it is seen and never followed away), with the background's own
+    displacement since the first frame (`propose.background_shift`). Returns (cands, {index: {frame: (x, y,
+    contrast)}}, bg); a followed candidate carries the stretches it was seen in as `_runs` ({frame:
+    stretch}) and each way's own chain as `_ways`. `keep` is how near the object, in px, a re-found feature
+    may be. The verdict is `judge`'s, from `followed_how`."""
     from .propose import background_shift
     ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
     w = int(4 * SIGMA_OUT)
     hits, seen, where = np.zeros(len(cands)), np.zeros(len(cands)), [[] for _ in cands]
     follow = list(follow)
-    offs = {k: np.array([cands[k]["dx_px"], cands[k]["dy_px"]]) for k in follow}
-    gots = {k: {} for k in follow}
-    bg, last = {}, None
-    keep = max(0.6 * (size or 0), 2 * SIGMA_OUT)
+    bg, last, noises = {}, None, {}
+    # nearer the object than `keep` px nothing is taken for a companion: the ring's inner edge where the stage gives
+    # it (inside is the object's own picture; PR105's middle point, 15 px out, took the follower from the lower one)
+    keep = max(0.6 * (size or 0), 2 * SIGMA_OUT) if keep is None else keep
+    followers = {k: Follower(cands[k], keep) for k in follow}
     for n, g, bad in frames.each(ns, progress, stop, "Frames"):
         ox, oy = track[n]
         if follow:
@@ -438,60 +688,100 @@ def examine(clip, track, frames, cands, size=None, follow=(), progress=None, sto
                             dd = np.where(np.isfinite(d), d, 0.0)
                             iy, ix = np.unravel_index(int(np.argmin(dd) if c["sign"] == "dark" else np.argmax(dd)), dd.shape)
                             where[k].append((ix - w, iy - w))
-            if k not in offs:
-                continue
-            dark = c["sign"] == "dark"
-            px, py = ox + offs[k][0], oy + offs[k][1]
-            gate = max(GATE * np.hypot(*offs[k]), 4 * SIGMA_OUT)
-            pad = gate + 3 * SIGMA_OUT
-            x0, y0 = int(max(px - pad, 0)), int(max(py - pad, 0))
-            x1, y1 = int(min(px + pad + 1, clip.W)), int(min(py + pad + 1, clip.H))
-            if x1 - x0 < 8 or y1 - y0 < 8:
-                continue
-            sub = g[y0:y1, x0:x1].copy()
-            sub[bad[y0:y1, x0:x1]] = np.nan
-            resp = -_dog(sub) if dark else _dog(sub)
-            yy, xx = np.mgrid[y0:y1, x0:x1]
-            inside = (np.hypot(xx - px, yy - py) <= gate) & (np.hypot(xx - ox, yy - oy) >= keep)
-            resp = np.where(inside & np.isfinite(resp), resp, -np.inf)
-            if not np.isfinite(resp).any():
-                continue
-            iy, ix = np.unravel_index(int(np.argmax(resp)), resp.shape)
-            if resp[iy, ix] <= 0:
-                continue
-            m = (resp >= 0.5 * resp[iy, ix]) & np.isfinite(resp)
-            m &= np.hypot(xx - (x0 + ix), yy - (y0 + iy)) <= 2 * SIGMA_OUT
-            wgt = np.where(m, resp, 0.0)
-            cx_, cy_ = float((xx * wgt).sum() / wgt.sum()), float((yy * wgt).sum() / wgt.sum())
-            gots[k][n] = (cx_, cy_, float(sub[iy, ix] - np.nanmedian(sub)))
-            offs[k] = np.array([cx_ - ox, cy_ - oy])
+        if follow and noise > 0:
+            noises[n] = noise
+            for f in followers.values():
+                f.look(0, n, g, bad, noise, (ox, oy))
+    if followers and noises:                            # and again in reverse: see Follower
+        for n, g, bad in frames.each(ns[::-1], progress, stop, "Frames"):
+            if n in noises:
+                for f in followers.values():
+                    f.look(1, n, g, bad, noises[n], track[n])
+    gots = {}
+    for k, f in followers.items():
+        got, cands[k]["_runs"] = f.merged()
+        cands[k]["_ways"] = f.got
+        gots[k] = {n: (track[n][0] + d[0], track[n][1] + d[1], d[3]) for n, d in got.items()}
     for k, c in enumerate(cands):
         c["seen_on_frames"] = float(hits[k] / seen[k]) if seen[k] else None
         pts = np.array(where[k]) if len(where[k]) >= 3 else None
         c["jitter_px"] = float(np.sqrt(max(np.linalg.eigvalsh(np.cov(pts.T)).min(), 0.0))) if pts is not None else None
-        steady = c["jitter_px"] is None or c["jitter_px"] <= JITTER_PX
-        near = c["r_px"] < NEAR * (size or 0)
-        strong = c["z"] is not None and c["z"] >= STRONG * Z_MIN and not near
-        need = 2 * SUPPORT if near else SUPPORT          # hugging the object, a glint or a halo is there on some frames; a line on most
-        c["co_moving"] = bool(c["not_on_control"] and ((c["seen_on_frames"] or 0) >= need or strong) and steady)
     return cands, gots, bg
-
-
-def with_the_object(companion, track, bg):
-    """(moves with the object rather than the scene, the object's own motion against the scene in px):
-    over the frames followed, the companion's displacement is nearer the object's than the
-    background's (groups.with_the_group). Under STILL px the two cannot be told apart."""
-    from .groups import with_the_group, _against
-    ns = [n for n in sorted(companion) if n in track and n in bg]
-    if len(ns) < 2:
-        return None, 0.0
-    moved = _against(track, bg, ns)
-    return (bool(with_the_group({n: companion[n][:2] for n in ns}, track, bg)) if moved >= STILL else None), moved
 
 
 # ---- the swing ----------------------------------------------------------------------------
 def _model(tt, A, T, ph, c, s):
     return A * np.sin(2 * np.pi * tt / T + ph) + c + s * (tt - tt.mean())
+
+
+def _ls_power(t, Y, om):
+    """The normalised Lomb-Scargle power of each row of `Y` (series at times `t`, their means taken out) at the
+    angular frequencies `om`: what `scipy.signal.lombscargle(t, y, om, normalize=True)` gives a row, for all of
+    them in two matrix products (the wander null asks it of 2,000 drawn series)."""
+    wt = np.outer(om, t)
+    tau = np.arctan2(np.sin(2 * wt).sum(1), np.cos(2 * wt).sum(1)) / 2
+    c, sn = np.cos(wt - tau[:, None]), np.sin(wt - tau[:, None])
+    p = (Y @ c.T) ** 2 / (c ** 2).sum(1) + (Y @ sn.T) ** 2 / (sn ** 2).sum(1)
+    return p / (Y ** 2).sum(1, keepdims=True)
+
+
+def wander_null(t, y, draws=None, seed=20261110, bins=None, min_in_bin=3):
+    """Is the strongest period of the series `y` at times `t` (s) more than a slow wander would show?
+    The series is put in bins of 1/WANDER_BINS of its span, or of 3.5 samples where that is wider (medians;
+    `min_in_bin` samples a bin at the least), and a line is taken out. Its strongest Lomb-Scargle power
+    between 4 bins and two thirds of the span is then ranked among the same statistic on `draws`
+    Ornstein-Uhlenbeck series of the same variance and the same correlation between neighbouring bins,
+    drawn at the same bin times, a line taken out of each. dict(p, period_s, power, cycles, r1, bins),
+    or None where fewer than 12 bins are filled or too few of them are neighbours to read the wander's
+    correlation. `p` is the share of the draws at least as strong: a wander's own slow excursions look
+    like a cycle or two in a short window, and this is how often."""
+    from scipy.signal import lombscargle
+    draws, bins = draws or WANDER_DRAWS, bins or WANDER_BINS
+    t, y = np.asarray(t, float), np.asarray(y, float)
+    ok = np.isfinite(t) & np.isfinite(y)
+    t, y = t[ok], y[ok]
+    if len(t) < 12 * min_in_bin:
+        return None
+    span = float(t.max() - t.min())
+    w = max(span / bins, 3.5 * float(np.median(np.diff(np.sort(t)))))
+    if not w > 0:
+        return None
+    b = np.floor((t - t.min()) / w).astype(int)
+    full = [k for k in np.unique(b) if (b == k).sum() >= min_in_bin]
+    if len(full) < 12:
+        return None
+    T = np.array([t[b == k].mean() for k in full])
+    Y = np.array([np.median(y[b == k]) for k in full])
+    Y = Y - np.polyval(np.polyfit(T, Y, 1), T)
+    per = np.linspace(4 * w, span / 1.5, 500)
+    if not per[-1] > per[0]:
+        return None
+    om = 2 * np.pi / per
+    P = lombscargle(T, Y - Y.mean(), om, normalize=True)
+    i = int(np.argmax(P))
+    d, yy = np.diff(T), Y - Y.mean()
+    near = d < 1.6 * w
+    if near.sum() < 8 or not np.sum(yy[:-1][near] ** 2) > 0:
+        return None
+    r1 = float(np.sum(yy[:-1][near] * yy[1:][near]) / np.sum(yy[:-1][near] ** 2))
+    r1 = min(max(r1, 0.05), 0.995)
+    tau, s = -float(np.median(d[near])) / np.log(r1), float(Y.std())
+    a = np.exp(-d / tau)
+    b = s * np.sqrt(1 - a ** 2)
+    Z = s * np.random.default_rng(seed).standard_normal((draws, len(T)))     # every draw at once, a row each
+    Z[:, 1:] /= s
+    for q in range(1, len(T)):
+        Z[:, q] = a[q - 1] * Z[:, q - 1] + b[q - 1] * Z[:, q]
+    X = np.column_stack([T - T.mean(), np.ones(len(T))])                     # a line out of each
+    Z -= Z @ X @ np.linalg.inv(X.T @ X) @ X.T
+    mx = _ls_power(T, Z - Z.mean(1, keepdims=True), om).max(1)
+    return dict(p=float((mx >= P[i]).mean()), period_s=float(per[i]), power=float(P[i]), cycles=float(span / per[i]),
+                r1=r1, bins=len(T), draws=int(draws))
+
+
+def _share(p):
+    """A share of the wander draws as a per cent: '55%', '1.7%'; under one draw in a thousand, 'under 0.1%'."""
+    return "under 0.1%" if p < 0.001 else f"{100 * p:.{0 if p >= 0.095 else 1}f}%"
 
 
 def swing(track, companion, fps, repeats=()):
@@ -508,6 +798,8 @@ def swing(track, companion, fps, repeats=()):
     sy = np.array([companion[n][1] - track[n][1] for n in ns])
     sep = np.hypot(sx, sy)
     ang = np.degrees(np.arctan2(sx, sy))
+    mid = float(np.degrees(np.arctan2(sx.mean(), sy.mean())))     # about its mean direction: a companion straight above
+    ang = mid + (ang - mid + 180.0) % 360.0 - 180.0               # the object sits at +-180, and must not wrap there
     span = t[-1] - t[0]
     step = np.hypot(np.diff(sx), np.diff(sy)) / np.maximum(np.diff(np.array(ns, float)), 1)
     out = dict(frames=len(ns), repeated_frames_dropped=dropped, first=ns[0], last=ns[-1], span_s=float(span),
@@ -554,6 +846,19 @@ def swing(track, companion, fps, repeats=()):
         out["finding"] = f"the companion's angle does not swing: {why}; no line length from it"
         return out
     T = per_fit if per_fit is not None else period
+    # a period, by the cycles in the window: now against a slow wander of the angle's own size and correlation, which
+    # shows a cycle or two in a short window most of the time (AARO's known balloon PR-004: "2.0 m" from two 6-7-s windows)
+    null = out["wander"] = wander_null(t, ang)
+    if null is None or null["p"] > WANDER_P:
+        out.update(swings=False, tentative=False, line_length_m=None, period_refused_s=float(T))
+        if null is None:
+            why = (f"a period of {T:.2f} s fits, but the companion is seen on too few frames, too far apart, to tell that "
+                   "from a slow wander")
+        else:
+            why = (f"its strongest period, {null['period_s']:.2f} s, is no stronger than a slow wander of the same size and "
+                   f"correlation shows {_share(null['p'])} of the time (a swing is claimed under {100 * WANDER_P:g}%)")
+        out["finding"] = f"the companion's angle does not swing: {why}; no line length from it"
+        return out
     cycles = float(span / T)
     L = G * T ** 2 / (4 * np.pi ** 2)
     tentative = cycles < CLAIM_CYCLES
@@ -616,7 +921,9 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
         npw.append(("tether: a feature on the object or on the screen",
                     f"the object moves only {moved:.0f} px on the screen over these frames: what is tied to it "
                     "cannot be told from the overlay or the scene, which stay as sharp"))
-    sw, followed, best = None, {}, None
+    sw, followed, best, bg = None, {}, None, {}
+    inner, outer = r_min_used * size, min(r_max * size, float(R))
+    fields["searched_px"] = [float(inner), float(outer)]
     if seed is not None:
         c0 = dict(dx_px=float(seed[0]), dy_px=float(seed[1]), r_px=float(np.hypot(*seed)), r_over_size=float(np.hypot(*seed) / size),
                   direction_deg=float(np.degrees(np.arctan2(seed[0], seed[1]))),
@@ -627,63 +934,70 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
             c0["sign"] = "dark" if v < 0 else "bright"
         _, gots, bg = examine(clip, track, frames, [c0], size, follow=[0], progress=progress, stop=stop)
         followed = gots[0]
+        c0.update(followed_how(ns, followed, c0["_runs"], track, bg, repeats))
+        judge(c0)
         sw = swing(track, followed, clip.fps, repeats)
-        sw["with_the_object"], sw["object_against_scene_px"] = with_the_object(followed, track, bg)
-        sw["seed"], sw["dark"] = [float(seed[0]), float(seed[1])], c0["sign"] == "dark"
+        sw.update(seed=[float(seed[0]), float(seed[1])], dark=c0["sign"] == "dark",
+                  **{k: c0[k] for k in ("followed_on", "followed_jitter_px", "scene_share", "scene_moved_px", "screen_share", "screen_moved_px")})
+        how = c0
     else:
-        # every candidate gets its single-frame support; the strongest the control does not show are also
-        # followed, in the same pass. The first that moves with the object -- not with the scene -- and is
-        # co-moving on the stack, or else moves smoothly, is the companion. The others are marked.
-        cands, _, _ = examine(clip, track, frames, cands, size, follow=(), progress=progress, stop=stop)
-        follow = [k for k, c in sorted(enumerate(cands), key=lambda kc: (not kc[1]["co_moving"], -(kc[1]["seen_on_frames"] or 0), -kc[1]["z"]))
-                  if c["not_on_control"]][:FOLLOW]
-        cands, gots, bg = examine(clip, track, frames, cands, size, follow=follow, progress=progress, stop=stop)
-        order = sorted(follow, key=lambda k: (not cands[k]["co_moving"], -(cands[k]["seen_on_frames"] or 0), -cands[k]["z"]))
-        for k in order:
-            c, got = cands[k], gots[k]
-            w = swing(track, got, clip.fps, repeats)
-            w["with_the_object"], w["object_against_scene_px"] = with_the_object(got, track, bg)
-            w["seed"], w["dark"] = [c["dx_px"], c["dy_px"]], c["sign"] == "dark"
-            c["followed_frames"] = w["frames"]
-            if w["with_the_object"] is False:
-                c["co_moving"], c["scene"] = False, True
-                sw = sw or w
-                continue
-            enough = w["frames"] >= max(MIN_SWING_FRAMES, 0.5 * len(ns))
-            consistent = w.get("angle_sd_deg", 999) <= 30 and w.get("step_over_separation", 1) <= SMOOTH / 2
-            if best is None and w.get("smooth") and enough and (c["co_moving"] or (w["with_the_object"] and consistent)):
-                c["co_moving"], c["followed"] = True, True
-                best, followed, sw = c, got, w
-            elif c["co_moving"] and not w.get("smooth"):
-                c["co_moving"], c["jumps"] = False, True          # followed, it jumps by its gate: not one thing
-    cands = sorted(cands, key=lambda c: (not c["co_moving"], -(c["seen_on_frames"] or 0), -c["z"]))
+        # every candidate gets its single-frame support, and the strongest the control does not show are re-found
+        # frame by frame from where the stack put them, in the same pass and its reverse. One that is held there
+        # in long stretches, along a smooth path, and moves neither with the scene nor with the screen moves with
+        # the object (`judge`); the one held on most frames, and of those the nearest, is the companion. The others are marked.
+        follow = [k for k, c in sorted(enumerate(cands), key=lambda kc: -kc[1]["z"]) if c["not_on_control"]][:FOLLOW]
+        cands, gots, bg = examine(clip, track, frames, cands, size, follow=follow, progress=progress, stop=stop, keep=inner)
+        for k in follow:
+            cands[k].update(followed_how(ns, gots[k], cands[k]["_runs"], track, bg, repeats))
+            judge(cands[k])
+        # of those held about as well (to a tenth of the frames), the nearest to the object: what is tied to it is likelier
+        # near it than a neighbour 40 sizes off (PR097 object 6 has both), and a swinging payload's several stack peaks
+        # along its arc each lead their follower to the same payload
+        with_it = sorted((k for k in follow if cands[k]["co_moving"]), key=lambda k: (-round(cands[k]["held_on"], 1), cands[k]["r_px"]))
+        if with_it:
+            best, followed = cands[with_it[0]], gots[with_it[0]]
+            best["followed"] = True
+            sw = swing(track, followed, clip.fps, repeats)
+            sw.update(seed=[best["dx_px"], best["dy_px"]], dark=best["sign"] == "dark")
+        how = best
+    cands = sorted(cands, key=lambda c: (not c["co_moving"], -(c.get("followed_on") or 0), -(c["seen_on_frames"] or 0), -c["z"]))
     cands = [c for c in cands if c["co_moving"]][:8] + [c for c in cands if not c["co_moving"]][:3]
     fields["candidates"] = [{k: v for k, v in c.items() if not k.startswith("_")} for c in cands]
     fields["companion"] = {k: v for k, v in best.items() if not k.startswith("_")} if best else None
-    fields["swing"] = sw
+    fields["swing"] = sw                            # the companion's, or the seed's: never a candidate's that was refused
+    ring = f"between {inner:.0f} and {outer:.0f} px of it ({r_min_used:.1f} to {r_max:g} object sizes)"
     if seed is None and best is None:
-        if sw and sw.get("with_the_object") is False:
-            finding = (f"the stack's feature(s) move with the scene, not the object (the object moves "
-                       f"{sw['object_against_scene_px']:.0f} px against the scene over the window); nothing tied to the object")
+        scene = [c for c in cands if c.get("scene") or c.get("screen")]
+        if not np.isfinite(sig):
+            finding = "the stack is too small to ask"
+        elif scene:
+            c = scene[0]
+            finding = (f"the stack's feature(s) move with the {'scene' if c.get('scene') else 'screen'}, not the object (the "
+                       f"{'scene' if c.get('scene') else 'screen'} moves {c['scene_moved_px' if c.get('scene') else 'screen_moved_px']:.0f} px "
+                       f"against the object over the frames they were followed on); nothing tied to the object {ring}")
         else:
-            finding = (f"nothing moves with the object between {r_min_used:.1f} and {r_max:g} object sizes of it at "
-                       f"{Z_MIN:g} x the stack's noise ({sig:.1f} DN)" if np.isfinite(sig) else "the stack is too small to ask")
+            finding = f"nothing moves with the object {ring} at {Z_MIN:g} x the stack's noise ({sig:.1f} DN)"
             if cands:
-                finding += (f"; the {len(cands)} strongest feature(s) are as sharp on the reversed track, or not there on single "
-                            "frames: the frame or the scene, not the object")
+                finding += (f"; the {len(cands)} strongest feature(s) are as sharp on the reversed track, or not there from frame to "
+                            "frame: the frame or the scene, not the object")
+        if np.isfinite(sig):
+            finding += f"; nearer than {inner:.0f} px is the object's own picture, and was not searched"
     else:
         if best is not None:
             finding = (f"a {best['sign']} feature moves with the object {best['r_px']:.0f} px ({best['r_over_size']:.1f} object "
                        f"sizes) away at {best['direction_deg']:+.0f} deg from straight down, {best['z']:.1f} x the noise "
-                       f"({best['z_control']:.1f} on the reversed track), there on {100 * (best['seen_on_frames'] or 0):.0f}% of single frames")
+                       f"({best['z_control']:.1f} on the reversed track), re-found on {100 * best['followed_on']:.0f}% of the frames "
+                       f"to {best['followed_jitter_px']:.1f} px")
         else:
-            finding = f"companion followed from the given offset {tuple(round(v) for v in seed)}"
+            finding = (f"companion followed from the given offset {tuple(round(v) for v in seed)} on "
+                       f"{100 * how['followed_on']:.0f}% of the frames")
         if sw:
             finding += "; " + sw["finding"]
-            if sw.get("with_the_object") is None and sw.get("object_against_scene_px", STILL) < STILL:
+            if max(how.get("scene_moved_px") or 0.0, how.get("screen_moved_px") or 0.0) < STILL:
                 npw.append(("tether: with the object or with the scene",
-                            f"the object moves only {sw['object_against_scene_px']:.0f} px against the scene over the window: "
-                            "a feature of the scene at that offset cannot be told from a feature tied to the object"))
+                            f"the object moves only {max(how.get('scene_moved_px') or 0.0, how.get('screen_moved_px') or 0.0):.0f} px "
+                            "against the scene and the screen over the frames the feature was followed on: a feature of the scene "
+                            "or the screen at that offset cannot be told from a feature tied to the object"))
             if sw.get("tentative"):
                 npw.append(("tether: the period", f"{sw['cycles']:.1f} cycles of the swing are in the window, fewer than "
                                                   f"{CLAIM_CYCLES:g}: the period and the line are tentative"))
@@ -694,12 +1008,16 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
         with open(f"{out}_tether_candidates.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["dx_px", "dy_px", "r_px", "r_over_size", "direction_deg", "sign", "contrast_dn", "z", "z_control",
-                        "frames", "seen_on_frames", "jitter_px", "co_moving", "scene"])
+                        "frames", "seen_on_frames", "jitter_px", "co_moving", "scene", "followed_on", "followed_jitter_px",
+                        "scene_share", "scene_moved_px", "screen_share", "screen_moved_px", "why_not"])
+            num = lambda v, n: "" if v is None else round(v, n)
             for c in cands:
                 w.writerow([round(c["dx_px"], 1), round(c["dy_px"], 1), round(c["r_px"], 1), round(c["r_over_size"], 2),
-                            round(c["direction_deg"], 1), c["sign"], round(c["contrast_dn"], 1), round(c["z"], 1),
-                            round(c["z_control"], 1), c["frames"], "" if c["seen_on_frames"] is None else round(c["seen_on_frames"], 2),
-                            "" if c.get("jitter_px") is None else round(c["jitter_px"], 1), c["co_moving"], bool(c.get("scene"))])
+                            round(c["direction_deg"], 1), c["sign"], num(c.get("contrast_dn"), 1), num(c.get("z"), 1),
+                            num(c.get("z_control"), 1), c["frames"], num(c.get("seen_on_frames"), 2), num(c.get("jitter_px"), 1),
+                            c["co_moving"], bool(c.get("scene")), num(c.get("followed_on"), 2), num(c.get("followed_jitter_px"), 2),
+                            num(c.get("scene_share"), 2), num(c.get("scene_moved_px"), 0), num(c.get("screen_share"), 2),
+                            num(c.get("screen_moved_px"), 0), why_not(c)])
         files.append(f"{out}_tether_candidates.csv")
         if followed:
             with open(f"{out}_tether_companion.csv", "w", newline="", encoding="utf-8") as f:
@@ -744,7 +1062,9 @@ def figure(m, mc, R, size, cands, track, followed, sw, fps, repeats, path):
     if followed and sw and "angle_mean_deg" in sw:
         ns = sorted(n for n in followed if n in track and n not in repeats)
         t = np.array([(n - ns[0]) / fps for n in ns])
-        ang = np.degrees(np.arctan2(*np.array([(followed[n][0] - track[n][0], followed[n][1] - track[n][1]) for n in ns]).T))
+        sx, sy = np.array([(followed[n][0] - track[n][0], followed[n][1] - track[n][1]) for n in ns]).T
+        mid = float(np.degrees(np.arctan2(sx.mean(), sy.mean())))
+        ang = mid + (np.degrees(np.arctan2(sx, sy)) - mid + 180.0) % 360.0 - 180.0
         ax.plot(t, ang, "o", ms=2.5, color=figures.BLUE, label="the companion")
         ax.set_title("Angle of the companion")
         ax.set_xlabel("Time (s)")
@@ -767,9 +1087,10 @@ def said(fields):
         L.append(f"  {c['sign']:6s} feature {c['r_px']:6.0f} px ({c['r_over_size']:5.1f} sizes) at {c['direction_deg']:+5.0f} deg: "
                  f"z {c['z']:5.1f} on the object, {c['z_control']:5.1f} on the reversed track, on "
                  f"{100 * (c['seen_on_frames'] or 0):3.0f}% of frames, jitter "
-                 + (f"{c['jitter_px']:.0f} px" if c.get("jitter_px") is not None else "n/a") + " -> "
-                 + ("moves with the object" if c["co_moving"] else ("the scene's, once followed" if c.get("scene")
-                    else "jumps about, once followed" if c.get("jumps") else "not the object's")))
+                 + (f"{c['jitter_px']:.0f} px" if c.get("jitter_px") is not None else "n/a")
+                 + (f"; re-found on {100 * c['followed_on']:3.0f}%, held on {100 * c['held_on']:3.0f}%"
+                    + (f", to {c['followed_jitter_px']:.1f} px" if c.get("followed_jitter_px") is not None else "")
+                    if c.get("followed_on") is not None else "") + " -> " + (why_not(c) or "moves with the object"))
     sw = fields.get("swing")
     if sw and "separation_px" in sw:
         L.append(f"  companion followed on {sw['frames']} frames ({sw['span_s']:.1f} s"
@@ -809,7 +1130,7 @@ def main():
     args = ap.parse_args()
     with said_to_stderr(args.json) as lines:
         found, clip = _main(args)
-    code = vf.EXIT_NOTHING if any(t.startswith("tether: a thing") or t == "tether" for t, _ in found.no_power) else 0
+    code = vf.EXIT_NOTHING if any(t.startswith("tether: a feature") or t == "tether" for t, _ in found.no_power) else 0
     if args.json:
         emit(found.envelope("tether", inputs_of(args), clip, said=lines, exit_code=code, error=None))
     return code

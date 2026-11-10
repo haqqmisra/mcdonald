@@ -1802,9 +1802,14 @@ class Case:
             c, sw = tf["companion"], tf.get("swing") or {}
             L.append(f"A {c['sign']} feature moves with it, {c['r_over_size']:.1f} object widths away and "
                      f"{c['direction_deg']:+.0f}° from straight down.")
+            if c.get("followed_on") is not None and c["followed_on"] < 0.9:     # counted only where it is seen (0.5.2)
+                L.append(f"It shows there on {100 * c['followed_on']:.0f}% of the frames.")
             if sw.get("swings"):
                 L.append(f"It swings with a period of {sw['period_used_s']:.2f} s, like a pendulum {sw['line_length_m']:.2f} m long"
                          + (" (tentative: under two cycles)." if sw.get("tentative") else "."))
+            elif sw.get("swings") is False and sw.get("period_refused_s"):      # a period the wander null refused (0.5.2)
+                L.append("Its angle drifts back and forth, but no more regularly than a slow random drift would. "
+                         "So no swing is claimed, and there is no length to read.")
             elif sw.get("swings") is False:
                 L.append("It holds a steady angle, so there is no swing and no length to read.")
 
@@ -2036,7 +2041,11 @@ class Case:
             add("with", "tether", YES, f"a {c['sign']} feature {c['r_over_size']:.1f} object widths away moves with it"
                 + (f", swinging with a period of {period:.1f} s like a pendulum {sw['line_length_m']:.2f} m long"
                    + (" (tentative: under two cycles)" if sw.get("tentative") else "") if sw.get("swings") and period and sw.get("line_length_m") else
+                   ", with no regular swing" if sw.get("swings") is False and sw.get("period_refused_s") else
                    ", at a steady angle (no swing)" if sw.get("swings") is False else ""))
+        elif tt.get("finding") and tt.get("searched_px"):   # said of the ring that was searched (0.5.2; PR28's stem starts at the object)
+            near, far = tt["searched_px"]
+            add("with", "tether", NO, f"nothing between {near:.0f} and {far:.0f} pixels from it keeps step with it; closer in was not searched")
         elif tt.get("finding"):
             add("with", "tether", NO, f"nothing within {tt.get('r_max') or 40:.0f} object widths keeps step with it")
         elif "tether" in self.stages and npw("tether"):

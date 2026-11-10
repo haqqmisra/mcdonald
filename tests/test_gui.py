@@ -4264,6 +4264,10 @@ def _host(xvfb):
         # X11 only. Left to themselves Qt and GTK find the Wayland session and
         # open on the desktop anyway, DISPLAY or no DISPLAY
         env.pop("WAYLAND_DISPLAY", None)
+        # nor the desktop's cookie file: it is another server's, and with it Qt's xcb could not open on this one, so
+        # the whole window went untested and the suite still said ALL PASS (2026-11-10, a job submitted from a shell
+        # of the desktop session: 33 checks and 6 skips where there are 769)
+        env.pop("XAUTHORITY", None)
         env.update(DISPLAY=xvfb[1], QT_QPA_PLATFORM="xcb", GDK_BACKEND="x11")
         return env, f"Xvfb {xvfb[1]}, off screen"
     if sys.platform in ("win32", "darwin") or env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):

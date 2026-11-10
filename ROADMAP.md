@@ -439,7 +439,10 @@ the grade and the discriminant plot beside the checklist, with the checklist's r
 stage on AARO's known cases and on three PURSUE objects with something under them: it claims pendulums from noise (two released
 reference reports, both of birds, carry one), its follower leaves the companion, it reports companions that are scene or
 symbology, and it says "nothing tied to the object" of a stem that starts at the object. Nothing new in it; the reference case
-files are remade after it. **After it, in 0.5.x:** the test the balloon class had lacked, "does something hang under it?" (H5,
+files are remade after it. **Built on 2026-11-10** (CHANGELOG, method section 6): the companion found again from where the stack
+put it and never followed away, the swing's period held against a slow wander at a rate measured on drawn wanders (1 in 100 at
+the worst), the companion gate set against a null (a false companion on 2 of 160 tracks that nothing keeps step with), and the
+finding saying the ring it searched. It waits for the maintainer's word on the version, its date and the push. **After it, in 0.5.x:** the test the balloon class had lacked, "does something hang under it?" (H5,
 with AARO's known balloon PR-004 and the WA9ONY-5 launch as its positives); `drift`'s corrections and PR051 as a known answer of
 its own-track route (DR1-DR5); and `glide` (GL1), once the maintainer has looked at its by-eye controls.
 

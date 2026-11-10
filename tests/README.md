@@ -283,23 +283,39 @@ python3 tests/test_drift.py
 
 ## `test_tether.py` — does a hanging thing's swing still give its line?
 
-Portable, seconds. `mcdonald tether` asks whether something is tied to the
+Portable, about a minute. `mcdonald tether` asks whether something is tied to the
 object and swings; a pendulum's period read off the video gives its line in
-metres with no range and no field of view (`docs/method.md` § 6). Its 24 checks
+metres with no range and no field of view (`docs/method.md` § 6). Its 45 checks
 are built the same way as the two above, with the answer known by construction:
 a period becomes the line it was made from; a planted companion is told from the
 frame's edges and from the scene; the overlay's strokes are masked and a dark
 line is not; repeated frames stay out of the series; and a window under two
-cycles is said to be tentative. It runs with the suites here
-(`tools/suites.sbatch`) and on the Mac and Windows runners.
+cycles is said to be tentative. Since 0.5.2 it also holds the stage's four fixes.
+A drawn slow wander that the two-cycle rule alone calls a pendulum of 2.12 m is
+refused by the wander null, and a pendulum drawn under the same wander is kept. A
+companion straight above the object, whose angle sits at ±180°, reads as the same
+pendulum. A feature tied to the object, a piece of the scene and a mark on the
+screen are told apart by whose motion they make, with the track's own error on
+all of them. And three drawn clips go through the whole stage: a companion that a
+stronger spot of the scene passes, 9 px away and right over it, is found again on
+every frame where it hangs; a pendulum is followed along its swing and gives its
+period; and where nothing is tied the record holds no swing, and the finding says
+the ring that was searched. It runs with the suites here (`tools/suites.sbatch`)
+and on the Mac and Windows runners.
 
 ```bash
 python3 tests/test_tether.py
 ```
 
-What it does to real clips is `test_golden.py`'s three tether cases (PR071's
-steady string, nothing tied on PR055, the swing on WA9ONY-5) and the table in
-`docs/tether-validation.md`.
+What it does to real clips is `test_golden.py`'s tether cases and the table in
+`docs/method.md` § 6: PR071's steady string, nothing tied on PR055, the swing on
+WA9ONY-5 (`docs/tether-validation.md`), and since 0.5.2 the cases its defects were
+found on: AARO's known balloon PR-004 (the companion, and no pendulum), PR105 (the
+companion never followed away), PR077 object 1 and PR135 object 2 (no pendulum on
+a bird), PR149, PR29 and PR28 (nothing tied, nothing in the record, the ring
+said). The gate's numbers were set against a null, which `tools/tether_null.py`
+rebuilds from the reference-data folder (`tether_null/`), and the swing's
+threshold on drawn wanders (`tools/tether_wander_rate.py`).
 
 ## `test_golden.py` — do the real clips still give the published numbers?
 
@@ -760,6 +776,7 @@ commit message.
 | `pr149_transit.csv`, `pr142_transit.csv`, `pr148_transit.csv` | the R05/R06 transits | published, find_rank |
 | `pr055_track.csv`, `pr055_sphere_track.csv` | PR055 sphere track (whole clip; the tether window) | find_rank, golden |
 | `pr071_object_track.csv`, `pr23_object_track.csv`, `wa9ony5_balloon_track.csv` | tether and no-beat cases | golden |
+| `aaro_pr004_object4_track.csv`, `aaro_pr004_object8_track.csv`, `pr105_upper_track.csv`, `pr077_object1_track.csv`, `pr135_object2_track.csv`, `pr149_object1_track.csv`, `pr29_head_track.csv`, `pr28_head_track.csv` | the cases tether's four defects were found on (0.5.2): AARO's known balloon PR-004 as the blind run linked it, PR105's upper point, two birds of the reference case files, and three with nothing tied | golden |
 | `pr135_tracks.csv` | the PR135 paper's tracks of the six birds A–F | golden |
 | `flyer1_paper_track.csv` … `flyer5_paper_track.csv`, `galileo_clips.csv` | the paper's Galileo flyer tracks and clip table (Zenodo DOI 10.5281/zenodo.23021686) | golden, find_rank |
 | `svanstrom_v054_track.csv`, `svanstrom_v030_track.csv` | Svanström et al. 2021 visible helicopters V_HELICOPTER_054 and _030, their labelled boxes (the uap repository's `heli_lights.py tracks`) | golden (`flicker` item 13: their lights' trains) |

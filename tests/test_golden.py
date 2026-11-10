@@ -1593,6 +1593,106 @@ def test_wa9ony5_swing():
           "" if sw is None else f"{sw.get('line_length_m')} m")
 
 
+def _tether_window(video, track_file, n0, n1, **kw):
+    """`tether.measure` on a vendored track over the frames n0-n1 of the clip (the window a case file's report
+    records can be wider than its track)."""
+    from mcdonald import forensics as vf, tether
+    track = vf.read_track(str(HERE / "golden" / track_file))
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(video, f"{td}/frames", n0, n1)
+        return tether.measure(clip, track, out=f"{td}/case", say=lambda line: None, **kw)
+
+
+def test_pr004_companion_and_no_pendulum():
+    """AARO's PR-004, "almost certainly a balloon" (0.5.2, H2): on the tracks the blind run recorded, a bright companion
+    30 px from the tracked end of the pair, held on most frames. 0.5.1 read "a pendulum of 1.95 m" off row 4 and
+    "2.00 m" off row 8, from two 6-7-s windows; over the clip's 32 s the angle shows no period (the wander null:
+    0.55). The companion stays; the pendulum does not."""
+    print("\nAARO PR-004, a known balloon -- the companion on both ends of the pair, and no pendulum")
+    video, why = _aaro("DOD_111300649.mp4")
+    if video is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR-004 companion")
+        return
+    for row, where, said in ((4, lambda d: abs(abs(d) - 180) <= 25, "above it"), (8, lambda d: abs(d) <= 25, "below it")):
+        f = _tether(video, f"aaro_pr004_object{row}_track.csv")
+        c, sw = f.fields["companion"], f.fields["swing"]
+        check(c is not None and c["sign"] == "bright" and 25 <= c["r_px"] <= 36 and where(c["direction_deg"]),
+              f"PR-004 row {row}: a bright companion about 30 px away, {said}",
+              "" if c is None else f"{c['r_px']:.1f} px at {c['direction_deg']:+.0f} deg")
+        check(c is not None and c["held_on"] >= 0.6 and c["followed_jitter_px"] <= 1.0 and abs(c["scene_share"]) < 0.2,
+              f"PR-004 row {row}: held on most frames, smoothly, with none of the scene's motion",
+              "" if c is None else f"held on {100 * c['held_on']:.0f}% to {c['followed_jitter_px']:.2f} px, {c['scene_share']:+.2f} of the scene's motion")
+        check(sw is not None and sw.get("swings") is False and sw.get("line_length_m") is None,
+              f"PR-004 row {row}: no pendulum (0.5.1: {'1.95' if row == 4 else '2.00'} m)", "" if sw is None else sw["finding"][:140])
+
+
+def test_pr105_companion_is_not_followed_away():
+    """PR105, frames 1075-2155 (0.5.2, H1): three unresolved points on a near-vertical line, the lower one 26 px under
+    the tracked one, brightening and fading by itself. 0.5.1's follower left it within a second and went with the
+    scene, 14 to 1,290 px from the object, and reported "steady to +-18.8 deg". Re-found where the stack put it, it
+    is counted on the frames that show it, within a few px of 26 px straight down, and no period is claimed."""
+    print("\nPR105, frames 1075-2155 -- the point under the object is re-found where it hangs, never followed away")
+    video, why = have_clip("PR105")
+    if video is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR105 companion")
+        return
+    f = _tether(video, "pr105_upper_track.csv")
+    c, sw = f.fields["companion"], f.fields["swing"]
+    check(c is not None and c["sign"] == "bright" and 23 <= c["r_px"] <= 30 and abs(c["direction_deg"]) <= 8,
+          "PR105: a bright companion 26 px straight down", "" if c is None else f"{c['r_px']:.1f} px at {c['direction_deg']:+.0f} deg")
+    check(c is not None and 0.25 <= c["followed_on"] <= 0.6 and c["followed_jitter_px"] <= 1.0 and abs(c["scene_share"]) < 0.1,
+          "PR105: seen on a third to a half of the frames, smoothly, while the scene streams past",
+          "" if c is None else f"on {100 * c['followed_on']:.0f}% to {c['followed_jitter_px']:.2f} px; {c['scene_share']:+.2f} of the scene's {c['scene_moved_px']:.0f} px")
+    check(sw is not None and 24 <= sw["separation_px"] <= 28 and 19 <= sw["separation_range_px"][0]
+          and sw["separation_range_px"][1] <= 1.75 * 26 + 1 and sw["angle_sd_deg"] < 8,
+          "PR105: 26 px from the object at the median, and never past its leash (0.5.1: 14 to 1,290 px)",
+          "" if sw is None else f"{sw['separation_px']:.1f} px, {sw['separation_range_px'][0]:.0f}-{sw['separation_range_px'][1]:.0f} px in all, "
+                                f"angle sd {sw['angle_sd_deg']:.1f} deg")
+    check(sw is not None and sw.get("swings") is False, "PR105: no period claimed", "" if sw is None else sw["finding"][:140])
+
+
+def test_no_pendulum_on_the_birds():
+    """PR077 object 1 and PR135 object 2, birds of the bird paper's Table 1 (0.5.2, H1 and H2): the released reference
+    reports said "like a pendulum 9.71 m long (tentative)" and "2.52 m", each from a follower that had gone round
+    the object (through 320 and 150 degrees) and a period a slow wander shows as often as not. No pendulum on either."""
+    print("\nPR077 object 1 and PR135 object 2 -- no pendulum on a bird")
+    for rid, track, n0, n1, was in (("PR077", "pr077_object1_track.csv", 6203, 6627, "9.71"), ("PR135", "pr135_object2_track.csv", 1180, 1449, "2.52")):
+        video, why = have_clip(rid)
+        if video is None:
+            print(f"  SKIP  {why}")
+            SKIP.append(f"{rid} no pendulum")
+            continue
+        f = _tether_window(video, track, n0, n1)
+        c, sw = f.fields["companion"], f.fields["swing"] or {}
+        check(not sw.get("swings") and sw.get("line_length_m") is None and "pendulum" not in f.fields["finding"],
+              f"{rid}: no pendulum (0.5.1: {was} m)", f.fields["finding"][:150])
+        check(c is None or (sw.get("separation_range_px") and sw["separation_range_px"][1] <= 1.75 * c["r_px"] + 12),
+              f"{rid}: nothing is followed away from where the stack put it",
+              "no companion" if c is None else f"{sw['separation_range_px'][0]:.0f}-{sw['separation_range_px'][1]:.0f} px, the stack's {c['r_px']:.0f} px")
+
+
+def test_nothing_tied_leaves_nothing_in_the_record():
+    """PR149, PR29 and PR28 (0.5.2, H1, H3 and H4). PR149's record held `swings: true` and 0.159 m beside "nothing tied
+    to the object"; PR29 got "a pendulum of 0.65 +- 0.01 m" from a feature 277 px away on the scene, seen on 8 % of
+    frames; PR28, whose stem hangs straight under the head inside the ring searched, was told "nothing tied to the
+    object" with no word of where that was looked for. Now: no companion, no swing in the record, and the finding
+    says the ring it searched."""
+    print("\nPR149, PR29, PR28 -- nothing tied: no swing in the record, and the ring that was searched")
+    for rid, track, n0, n1 in (("PR149", "pr149_object1_track.csv", 1, 158), ("PR29", "pr29_head_track.csv", 1, 369), ("PR28", "pr28_head_track.csv", 620, 1650)):
+        video, why = have_clip(rid)
+        if video is None:
+            print(f"  SKIP  {why}")
+            SKIP.append(f"{rid} nothing tied")
+            continue
+        f = _tether_window(video, track, n0, n1)
+        a, b = f.fields["searched_px"]
+        check(f.fields["companion"] is None and f.fields["swing"] is None, f"{rid}: no companion, and no swing in the record", f.fields["finding"][:150])
+        check(f"between {a:.0f} and {b:.0f} px of it" in f.fields["finding"] and f"nearer than {a:.0f} px" in f.fields["finding"],
+              f"{rid}: the finding says the ring it searched, and that nearer in was not", f"{a:.0f} to {b:.0f} px")
+
+
 def _audio(path, **kw):
     from mcdonald import audio
     return audio.measure(path, **kw).fields
@@ -1872,6 +1972,10 @@ def main():
     test_pr071_string()
     test_pr055_nothing_tied()
     test_wa9ony5_swing()
+    test_pr004_companion_and_no_pendulum()
+    test_pr105_companion_is_not_followed_away()
+    test_no_pendulum_on_the_birds()
+    test_nothing_tied_leaves_nothing_in_the_record()
     test_audio_cases()
     test_flyover_cases()
     test_pr051_zoom_with_no_blank()

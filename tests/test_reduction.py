@@ -2514,6 +2514,44 @@ def test_something_that_only_moves_with_it_is_not_in_the_headline():
           "and where it is all there is, it is said, not \"nothing was measured\"", f"{label}: {head}")
 
 
+def test_the_report_follows_the_tether_stage_of_0_5_2():
+    """0.5.2 (tether's four defects, IDEAS.md H1-H4). The released reference reports said "like a pendulum 9.71 m long
+    (tentative)" of PR077 object 1 and "2.52 m" of PR135 object 2, both birds, from a follower that had left the
+    companion and a period no better than a slow wander shows. The report prints the swing in three places (the
+    headline, the paragraph, the checklist's row); each follows the stage: a period the wander null refused is no
+    pendulum anywhere, a companion seen on some of the frames says on how many, and "nothing keeps step with it" is
+    said of the ring that was searched. A report made before reads as it did."""
+    print("\nreport: the tether stage's words after 0.5.2")
+
+    def case(companion=None, swing=None, **more):
+        c = report.Case("t", "/tmp/x.mp4")
+        report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0)).into(c)
+        report.Found("tether", {"finding": "x"}, fields=dict(finding="x", r_max=40.0, companion=companion, swing=swing, **more)).into(c)
+        return c
+    near = dict(sign="bright", r_over_size=2.8, direction_deg=0.0, followed_on=0.34, followed_jitter_px=0.6)
+    refused = dict(swings=False, tentative=False, line_length_m=None, period_refused_s=6.25, period_s=6.4, cycles=1.6,
+                   wander=dict(p=0.38, period_s=11.05, power=0.2, cycles=4.3, r1=0.5, bins=54, draws=2000))
+    c = case(near, refused)
+    (label, head), line = c.conclusion(), c.bottom_line()
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check("pendulum" not in head and "pendulum" not in line and "pendulum" not in row["said"],
+          "a period the wander null refused is a pendulum nowhere: not in the headline, the paragraph or the checklist", row["said"])
+    check("A bright feature moves with it, 2.8 object widths away and +0° from straight down. It shows there on 34% of the frames. "
+          "Its angle drifts back and forth, but no more regularly than a slow random drift would. So no swing is claimed, and "
+          "there is no length to read." in line, "the paragraph says where it is, on how many frames, and why no swing is read", line[-260:])
+    check(row["answer"] == "Yes" and row["said"] == "a bright feature 2.8 object widths away moves with it, with no regular swing",
+          "the checklist's row says it moves with it, with no regular swing", row["said"])
+    c = case(dict(near, followed_on=1.0), dict(swings=False))
+    check("It shows there" not in c.bottom_line() and "It holds a steady angle, so there is no swing and no length to read." in c.bottom_line(),
+          "a companion seen on every frame at a steady angle reads as before")
+    c = case(None, None, searched_px=[18.2, 540.0])
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check(row["answer"] == "No" and row["said"] == "nothing between 18 and 540 pixels from it keeps step with it; closer in was not searched",
+          "nothing tied is said of the ring that was searched, in pixels (PR28's stem starts at the object, inside it)", row["said"])
+    row = {r["key"]: r for r in case(None, None).checklist()}["with"]
+    check(row["said"] == "nothing within 40 object widths keeps step with it", "a report made before 0.5.2 reads as it did", row["said"])
+
+
 def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
     """Jacob, 2026-10-22, exercise 2 (PR149): "Knowing the range ratio provides an upper bound on relative velocity (we
     showed this in the JAIS Technical Note). This means for PR149, after the reference length is taken, we can report

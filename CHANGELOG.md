@@ -3,6 +3,99 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (0.5.2)
+
+A correctness patch for `mcdonald tether`: four defects found on 2026-11-09/10 by running the released stage on AARO's
+known cases, on the reference case files and on three PURSUE clips with something under the object (IDEAS.md, H1-H4;
+the maintainer, 2026-11-10: "0.5.2 goes ahead as a correctness patch for `tether`"). Two released reference reports
+carried a pendulum that was noise.
+
+- **The follower no longer leaves the companion, and a pendulum is no longer read off one that did** (H1;
+  `tether.Follower`, `merge_ways`, `followed_how`, `judge`). After each frame the stage moved its gate to whatever it
+  had last found, the strongest feature in a gate a quarter of the separation wide, and a candidate that passed the
+  stack's tests and moved "smoothly" became the companion whatever its angle did. On PR105 the follower went with the
+  scene, 14 to 1,290 px from the object, and the stage reported "steady to +-18.8 deg". On PR077 object 1 it went round
+  the object through 320 degrees ("like a pendulum 9.71 m long (tentative)"), on PR135 object 2 through 150 ("2.52 m"):
+  both are birds of the bird paper's Table 1, and both sentences were in their reference reports. PR149's record held
+  `swings: true`, 0.159 m, beside "nothing tied to the object". Now a candidate is found again on the frames from where
+  the stack put it: the strongest compact feature within 12 px of the stack's offset starts a stretch, the nearest to
+  where it was last seen continues it, it may swing to 0.75 of its distance from the stack's offset and no farther, and
+  it is counted on the frames that show it. The frames are gone through in order and in reverse and the two put
+  together, so a companion is held from before it first passes the stack's offset, and past a stronger spot of the
+  scene going by. `fields.swing` is the companion's alone: null where nothing is tied. PR105 reads "a bright feature
+  moves with the object 26 px away at +0 deg from straight down ... re-found on 46% of the frames to 0.4 px;
+  the companion's angle does not swing: steady to +-4.9 deg over 36.0 s".
+- **A swing's period is held against a slow wander** (H2; `tether.wander_null`, `WANDER_P`). An angle that only
+  wanders shows a cycle or two in a short window most of the time, and the two-cycle rule alone read "2.0 m" off
+  AARO's known balloon PR-004 from two 6-7-s windows. The angle's strongest Lomb-Scargle power is now ranked among
+  2,000 Ornstein-Uhlenbeck series of its own variance and correlation, drawn at the same sampling, and a swing is
+  claimed only where under 1 in 1,000 is as strong. That threshold was measured, not assumed: on 57 kinds of drawn
+  wander, 31,867 series (`tools/tether_wander_rate.py`), the two-cycle rule alone calls a swing in up to 78 % (29 % at
+  the median); with the null at p <= 0.01 the whole rule still calls one in up to 3.3 %; at p <= 0.001 in 1 in 100 at
+  the worst (0 to 1.0 % by kind), while a pendulum four times the wander's size is found in 84 to 100 % of series. The
+  one known swing, WA9ONY-5's payload, passes (none of 2,000; 2.58 +- 0.02 s, 1.66 +- 0.03 m, tentative as before); PR-004 keeps its
+  companion on all eight of its tracks and has no pendulum on any. A period the null refuses is in the record as
+  `period_refused_s`, and the finding says how often a wander shows one as strong.
+- **The companion gate is set against a null** (H3; `tools/tether_null.py`). 11 of 45 AARO tracks got a "companion" 112 to
+  760 px away, scene or symbology, and PR29 "a pendulum of 0.65 +- 0.01 m" from a feature 277 px away on 8 % of frames:
+  any strong feature the follower could follow "smoothly" was kept, and smooth was a share of the separation. Each of
+  80 recorded tracks, 19,941 frames (AARO's 45, 29 of the reference objects, the stage's goldens, PR105, PR28, PR29) was
+  run again on two tracks that nothing in the picture keeps step with: itself backwards in time, and itself shifted by
+  half its length. The released stage, by its own command on those null tracks, names a false companion on 38 of the 154
+  it runs on (a quarter) and reads a pendulum off 13 of them; the gate as now set names one on 2 of the 160 (1.3 %; 0.2
+  to 4.4 %), with every known
+  companion kept (WA9ONY-5's payload, PR071's string, PR105's lower point, PR-004 on its eight tracks). What it took: a
+  feature re-found on a frame is 5 times the frame's noise, not 2.5 (within 12 px of a place a 2.5-sigma feature is there
+  by chance on a quarter of frames); a companion is **held**, in stretches of 45 frames or more on 0.3 of the frames
+  (counting every frame seen instead: 28 of the 160); and it makes under half of the scene's motion against the object
+  and of the screen's (without that test: 30), the places regressed and not the steps, which share the track's own
+  error. The control's 0.6 was held to the same null and stays. On the real tracks: of AARO's eleven far "companions"
+  three are left, a feature on the horizon that keeps the distant object's pace (PR-010, in two windows) and features
+  on the picture's straight borders, which the object moves along (PR-009); the method says why the tests here cannot
+  refuse them. Of the twelve companions in the reference reports the neighbours in a flock stay (PR097, PR135), and the
+  dark features hugging PR077 object 1, PR085 and PR44, at the inner edge of the ring where a sharpening ring puts its
+  dark side, are companions no longer; PR097's objects 7 and 8 gain one each, a dark feature 14 px straight under the
+  object on seven frames in ten, where a smear down the sensor's column would be.
+- **Of several features that move with the object, the nearest is the companion reported**, among those held about as
+  well (to a tenth of the frames). A swinging payload leaves several points of its arc on the stack, and each leads to
+  the same payload; a neighbour 40 object sizes off is not what is tied to it.
+- **"Nothing tied to the object" says where it looked** (H4). PR28's stem hangs straight under the head, inside the
+  ring the stage searches. The finding now reads "nothing tied to the object between 18 and 540 px of it (1.3 to 40
+  object sizes); nearer than 18 px is the object's own picture, and was not searched", the record carries `searched_px`,
+  and the checklist's row says "nothing between 18 and 540 pixels from it keeps step with it; closer in was not
+  searched". Finding a line that starts at the object is not in this release (IDEAS.md, H5).
+- **The report follows the stage** in the three places it prints a swing (the headline's "swinging like a pendulum", the
+  paragraph, the checklist's "with" row): a period the wander null refused is a pendulum in none of them ("Its angle
+  drifts back and forth, but no more regularly than a slow random drift would. So no swing is claimed, and there is no
+  length to read."; "with no regular swing"), and a companion seen on some of the frames says on how many. A report made
+  before reads as it did.
+- **`mcdonald tether` exits 5 again where the object moves under 20 px on the screen** and nothing can be told from the
+  overlay: the test had kept the title's old wording since 0.5.0's sweep of "thing", and the command exited 0.
+- **An object given as under 5 px no longer ends the stage.** Its stack reaches 42 object sizes, under the 200 px the
+  object's size and extent were read over, and both readers raised (`run` recorded the stage as no power). Found on the
+  null tracks of PR097 object 6, 4 px.
+- **Tests.** `tests/test_tether.py`, 45 checks (24 before): a drawn wander the two-cycle rule calls a 2.12-m
+  pendulum, refused, and a pendulum under the same wander, kept; a companion above the object, whose angle sits at +-180;
+  the object's, the scene's and the screen's motion told apart, with the track's own error on both; a stack narrower than
+  200 px read; and three drawn
+  clips: a companion past a stronger spot going by 9 px away and right over it, a pendulum followed along its swing, and
+  nothing tied, with no swing in the record and the ring that was searched. `tests/test_golden.py`: PR-004 (its rows 4
+  and 8: the companion, no pendulum), PR105 (never more than a few px from where it hangs), PR077 object 1 and PR135
+  object 2 (no pendulum), PR149, PR29 and PR28 (nothing tied, nothing in the record, the ring said), beside PR071,
+  PR055 and WA9ONY-5 as before; their small tracks are in `tests/golden/`. `tests/test_reduction.py` holds the report's
+  words. `docs/method.md` section 6 has the null, the rates, the controls' table and how the stage still fails;
+  `tools/tether_null.py` and `tools/tether_wander_rate.py` rebuild its numbers, from `tether_null/` in the
+  reference-data folder. `docs/tether-validation.md` shows the stage's own figure of each of its three clips.
+- **The window's suite no longer skips the window in a job sent from the desktop.** `tests/test_gui.py` hosts the
+  windows on an Xvfb of its own, and handed that child the desktop session's `XAUTHORITY`: another server's cookie file,
+  with which Qt could not open there. The window went untested, and the suite and `tools/suites.sbatch` still said all
+  passed (33 checks and 6 skips where there are 769). The variable is left out for the Xvfb child now.
+- **For someone reading the JSON**: `companion` and each of `candidates[]` gain `followed_on`, `held_on`, `stretches`,
+  `followed_jitter_px`, `scene_share`, `scene_moved_px`, `screen_share`, `screen_moved_px` and the reason a candidate is
+  not the object's (`scene`, `screen`, `seldom`, `jumps`); `swing` gains `wander` and `period_refused_s` and loses
+  `with_the_object` and `object_against_scene_px`, which the candidate's shares replace; `_tether_candidates.csv` has the
+  new columns after the old ones, and `_tether_companion.csv` lists the frames the companion was seen on.
+
 ## 0.5.1 (2026-11-09)
 
 Two things the JAIS Technical Note's reproducibility package found (2026-11-09; Jacob: the paper will be mcdonald's
