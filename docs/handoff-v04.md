@@ -7,9 +7,50 @@ finish the wind-drift paper, but I'd really like some PURSUE cases to include in
 gliding birds in the PURSUE videos. And maybe there are even other tests for balloons? (As always, run any jobs through
 /slurm)"
 
+### Jacob's answers (2026-11-10) -- the next session starts here
+
+Put to him as four decisions. His answers: to the first, "Yes, but let's set up to handof[f] to a new session"; to the
+second and the third, yes; to the fourth, "Let me know what to look for - if you want it before the handoff, ask in
+multiple choice".
+
+1. **0.5.2 goes ahead as a correctness patch for `tether`, built by a new session.** Rows H1-H4 in IDEAS.md; the
+   reference case files are remade after it. ROADMAP's 0.5 section says so.
+2. **The hold of 2026-10-10 on the balloon and tether work is lifted, and decision 5 is amended** (ROADMAP): for a
+   single point the negative stands (W9); an object with something under it has a test (H5), which comes after 0.5.2.
+3. **PR051's unredacted upload may be used** (DR1). The contradiction with the case note and
+   `test_pr051_released_track_against_the_scene` is still to be settled, by measurement, before the stage's words on
+   PR051 are used anywhere.
+4. **His looks are not needed before the handoff**: none of them changes 0.5.2. The list, with what to look for, is
+   at the end of this section; the next session records his answers there.
+
+**The next session's job is 0.5.2, and its kit is ready**: `/scratch/mcdonald/next-2026-11-09/handoff-0.5.2/` (a copy
+with the hanging-test note in the PURSUE analyses). Its `README.md` has, for each of H1-H4, the place in
+`src/mcdonald/tether.py`, what happens there and what the fix must do; the eight cases with the track, the video and
+what each must read afterwards; the tests, docs and release steps. `tracks/` and `series/` hold every input the checks
+need and the stage's 0.5.1 output on each case; `wander_null.py` is the prototype of the null (`wander_p`), with the
+five numbers it gives (`wander_null_expected.txt`: WA9ONY-5 0.000, PR-004 0.546, PR105 0.152, PR135 object 2 0.560,
+PR077 object 1 0.017). In short:
+
+- **H1.** `examine` moves its gate to wherever it last found something (`offs[k] = ...`), so the follower leaves; and
+  `measure` accepts a companion that is `co_moving` on the stack and `smooth` when followed whatever its angle did, and
+  keeps a rejected candidate's swing (`sw = sw or w`). The companion is to be re-found near the stack's offset (it may
+  swing: WA9ONY-5's sweeps +-14 deg on 158 px), counted only where seen, and dropped if it leaves.
+- **H2.** `swing` claims a period from the periodogram or a sinusoid fit with no null. The wander null beside it, at a
+  stated rate (1 in 100 proposed: PR077 object 1 reads 0.017, the known swing 0 of 2,000).
+- **H3.** `CONTROL` 0.6 and the far ring admit scene and symbology. The gate from a null, with WA9ONY-5 (0.06 on the
+  reversed track, seen on 17 % of frames), PR-004 and PR105 kept. No gate on distance in object sizes.
+- **H4.** "nothing tied to the object" is to say the ring it was said of. Finding PR28's stem is H5's, not 0.5.2's.
+- `report.py` prints the swing in three places (the conclusion's bit about line 1322, the paragraph about 1806, the
+  checklist's "with" row about 2036): each follows the stage.
+- Build in a worktree, every run through Slurm (`tether` peaks near 2 GB at 1080p: ask 3). The remake's scripts are in
+  `/scratch/mcdonald/s18-2026-11-07/cases050/`. The version, the date, the tag and the push are Jacob's.
+
+**After 0.5.2**, in the order proposed (Jacob has not fixed it): H5, the hanging test; DR1-DR5, `drift` and PR051;
+GL1, `glide`, once he has looked at the nine gliders.
+
 ### Where it stands (read this first)
 
-**Nothing in the package was changed, and nothing is committed but this section.** The night was measurement: three
+**Nothing in the package was changed by the measurements below**; the decisions above were then written into ROADMAP.md and IDEAS.md (18 rows: H1-H6, DR1-DR6, GL1-GL6). The night was measurement: three
 strands, each with its controls first, to say what 0.5.x should build. The coordinator took the balloons; two agents took
 the drift screen and the gliding birds under one brief (`/scratch/mcdonald/next-2026-11-09/BRIEF-common.md`). Each
 strand's `notes.md` there is its record (numbers, scripts, every Slurm job); the notes and the small outputs were copied
@@ -121,7 +162,7 @@ screen, the gliding sweep), uncommitted there. The frame caches of the gliding s
   moving scene, while `scene` read 16 of 16 blocks moving (half the pairs had locked at zero); `symbology --method
   hue` solves no frame of a plainly visible magenta "N".
 
-### For Jacob, in one place
+### For Jacob, in one place (as put to him on 2026-11-10; his answers are at the top)
 
 1. **0.5.2 as a correctness patch for `tether`** (recommended first): no pendulum without a companion that stays
    where the stack put it and a period that beats the wander null; no companion far out on the scene; a line that
@@ -155,9 +196,24 @@ screen, the gliding sweep), uncommitted there. The frame caches of the gliding s
 
 ### Not done
 
-The strands' own lists are in their notes. Across them: nothing was built; no IDEAS.md rows were added (they wait for
-Jacob's choice of what goes ahead); PR121 and PR122 were proposed by Find and not looked at; PR-004 was not measured
+The strands' own lists are in their notes. Across them: nothing was built; PR121 and PR122 were proposed by Find and not looked at; PR-004 was not measured
 frame by frame; the hanging gate has no null yet; the drift agent's PR051 readings have no second reader.
+
+### What Jacob is to look at (none of it holds up 0.5.2; answers go here)
+
+Each is one picture or a short stretch of video, and one question with its choices.
+
+| | open | the question | choices |
+|---|---|---|---|
+| L1 | PR105: `pr105/tether_1075_2155/pr105_tether.png` (the stage's stack), `pr105/strip_529_605.png`, `pr105/big_1370_1400.png`, `pr105/stack_zoom.png`; in the video 0:17-0:20, 0:45-0:47, 2:00-2:05 | the points under the object | (a) parts of one thing, hanging under it; (b) separate things that happen to be in line; (c) cannot tell |
+| L2 | PR28: `balloons/more/pr28_under.png`; in the video 0:21-0:55 | the stem under the bright head | (a) attached to it and hanging; (b) not attached, or made by the display; (c) cannot tell |
+| L3 | PR29: `balloons/more/pr29_under.png`; the whole 21 s | the same | (a) / (b) / (c) |
+| L4 | AARO PR-004: `balloons/tether/dod_111300649/object-4/dod_111300649_tether.png`; the whole 32 s | the two blobs, the smaller above the larger | (a) one balloon and what it carries; (b) two separate objects; (c) cannot tell |
+| L5 | the gliders: `glide/sheets/IR_BIRD_033_o0_crops_1.png` first, then 031_o0, 033_o1, 034_o1, 034_o2, 036_o0, 037_o0 (called clear), 008_o0 and 037_o1 (called probable) | wings held out and no flapping, frame after frame? | (a) all nine are gliding birds; (b) some: which; (c) none can be called from stills |
+| L6 | PR051: `drift/pr051/read/f2_bar_*.png` (frames 2339, 3059, 3957, 4137, 4407) beside the rows of `drift/pr051/fit/readings_f2_v2.csv` | do the five readings match the bar? | (a) all five; (b) not all: which; (c) cannot read them |
+
+All paths are under `/scratch/mcdonald/next-2026-11-09/`. L1-L4 decide what the hanging test's controls and candidates
+are called; L5 whether `glide` has a positive control; L6 whether PR051's fit rests on readings a person has checked.
 
 ## Session 18 (2026-11-07, afternoon and night): the 0.5.0 cut built, and the 0.4.x additions, by ten agents
 

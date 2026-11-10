@@ -435,6 +435,14 @@ the grade and the discriminant plot beside the checklist, with the checklist's r
 **Released as 0.5.0 on 2026-11-08.** Two surveys of 2026-11-07 -- the air and the sea (W1-W42) and judging a test
 (Dx1-Dx40) -- are in IDEAS.md, their rows that change reports marked; six are the maintainer's decisions (the handoff lists them).
 
+**0.5.2 is a correctness patch for `tether`** (the maintainer, 2026-11-10; IDEAS.md's H1-H4), found on 2026-11-09/10 by running the
+stage on AARO's known cases and on three PURSUE objects with something under them: it claims pendulums from noise (two released
+reference reports, both of birds, carry one), its follower leaves the companion, it reports companions that are scene or
+symbology, and it says "nothing tied to the object" of a stem that starts at the object. Nothing new in it; the reference case
+files are remade after it. **After it, in 0.5.x:** the test the balloon class had lacked, "does something hang under it?" (H5,
+with AARO's known balloon PR-004 and the WA9ONY-5 launch as its positives); `drift`'s corrections and PR051 as a known answer of
+its own-track route (DR1-DR5); and `glide` (GL1), once the maintainer has looked at its by-eye controls.
+
 **Classes, signatures and tests.**
 
 - **The labelled infrared set first** (in the data folder: Svanström et al. 2021, 365 clips,
@@ -493,8 +501,9 @@ the grade and the discriminant plot beside the checklist, with the checklist's r
       rule.
   - Flash trains across a group's members (a formation's synchronised lights, a lit wind farm), once a clip shows them:
     a band under 0.6 Hz (L-864 flashes 20-40 a minute) and a reading of whether the members flash in step.
-- **Balloons.** The payload's swing (`tether`: a hanging point is a clock; on hold, since it
-  needs the payload resolved) and the balloon's recoil against it (tried, parked: every PURSUE
+- **Balloons.** The payload's swing (`tether`: a hanging point is a clock; on hold from 2026-10-10, since it
+  needs the payload resolved, and taken up again on 2026-11-10, when a known balloon and three PURSUE objects were
+  found with something resolved under them: IDEAS.md's H1-H5) and the balloon's recoil against it (tried, parked: every PURSUE
   clip refused it for a stated reason). What remains for a point source: no self-propulsion,
   so motion with the local wind field (`comotion`, kriged within the object's layer); a
   constant angular rate on a straight line; a mylar balloon's mirror in the infrared. The
@@ -781,7 +790,7 @@ finding becomes a paper when the toolkit reproduces it from a case file and the 
 | What the pixels constrain, case by case | not started | 0.4, 1.0 |
 | The software paper (JOSS) | at 1.0 | 0.9, 1.0 |
 | The methods paper (RAS Techniques and Instruments; open-access fee funded) | at 1.0 | 0.4, 0.5, 0.8 |
-| Wind-borne drift: the Yemen Hellfire clip, with the Santa Barbara hoist and AARO's Puerto Rico lanterns as controls (Scientific Reports draft, the maintainer's; the uap repository's `manuscript/hellfire_yemen/`) | drafted 2026-10-21, in revision 2026-11-02 | 0.4.0's `drift` stage (§34); its F4-F6 guards and Test 4b's band in 0.4.2; the drift paper cites the installed release |
+| Wind-borne drift: the Yemen Hellfire clip, with the Santa Barbara hoist and AARO's Puerto Rico lanterns as controls (Scientific Reports draft, the maintainer's; the uap repository's `manuscript/hellfire_yemen/`) | drafted 2026-10-21, in revision 2026-11-02 | 0.4.0's `drift` stage (§34); its F4-F6 guards and Test 4b's band in 0.4.2; the drift paper cites the installed release; a second screen of PURSUE (2026-11-09/10: DR1-DR6 in IDEAS.md) found one clip its strong tests run on, PR051 from its unredacted upload's data bar |
 | Estimation of target kinematics from georeferenced imagery (N. Long, R. Kopparapu, J. Haqq-Misra) | revised 2026-11-01 | 0.4.1's parallax ladder, whose known answers are its Table 2 and Fig. 4 |
 | Metallic orbs: at least three classes in the pixels, and the known foil balloon's look (the uap repository's `analysis/corpus/metallic_orbs/`) | a class note, 2026-10-29; not for the drift paper "at the moment" (the maintainer) | 0.4.0's `focus`, `zoom` and `symbology` |
 | Cabin sound identifies the aircraft in the Gulf of Oman gunship videos (PR117) | a methods subsection for a longer paper (2026-10-17) | 0.3.0's `audio` (§11) |
@@ -827,6 +836,10 @@ Decided by the maintainer on 2026-10-16, the day the roadmap was written:
 4. **0.4 and 0.5** come in whichever order the footage and the hand marks allow.
 5. **Balloons.** The tether and the recoil stay parked; if no range-free signature survives
    0.5, the negative is written down and the class closed.
+   *Amended 2026-11-10.* For a single point the negative stands and is written down (IDEAS.md's W9: no range-free
+   sign of drifting survives in one track at a clip's scales). The class is not closed: an object with something
+   under it has a test, whether it hangs (H5), with a known balloon that passes it and three PURSUE objects that do,
+   and `tether` is taken up again, its defects first (0.5.2). The recoil stays parked.
 
 6. **The bird headline rule and the flicker gates** (0.3), decided on 2026-10-17 on the gate
    study's evidence (760 saved curve sets, the held-out third left out): `GATE_ASTRO` and
@@ -876,7 +889,7 @@ Still open:
 
 ## The ideas bank
 
-In [IDEAS.md](IDEAS.md) since 2026-11-02 (decision 11), with the two surveys of 2026-11-07 (W, Dx: 82 rows) added: 315 rows at the split -- 62 shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused; by release, 21 in 0.3, 32 in 0.4, 2 in 0.5, 22 in 0.6, 26 in 0.7, 63 in 0.8, 7 in 0.9, 1 in 1.0, 12 in 0.4.2, 2 in 0.4.3, 55 in 0.4.x, 12 in 0.5.0, 59 in 0.5.x, 1 in later; the twelve of 0.4.2 shipped that evening. Each row
+In [IDEAS.md](IDEAS.md) since 2026-11-02 (decision 11), with the two surveys of 2026-11-07 (W, Dx: 82 rows) added: 315 rows at the split -- 62 shipped, 14 report-changer, 198 theme, 39 measured, 1 parked, 1 refused; by release, 21 in 0.3, 32 in 0.4, 2 in 0.5, 22 in 0.6, 26 in 0.7, 63 in 0.8, 7 in 0.9, 1 in 1.0, 12 in 0.4.2, 2 in 0.4.3, 55 in 0.4.x, 12 in 0.5.0, 59 in 0.5.x, 1 in later; the twelve of 0.4.2 shipped that evening; 18 rows of 2026-11-09/10 since (H, DR, GL: 4 in 0.5.2, 14 in 0.5.x). Each row
 names the survey it came from and its rank there, the module it lands in and what became of it; a `kind` column
 separates the report-changers that go first in a patch release from the theme work of a minor version, and both
 from findings measured and kept. The surveys themselves are working notes kept with the PURSUE analyses, outside
