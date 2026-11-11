@@ -1,0 +1,872 @@
+mcDonald UAP Toolkit — reduction self-check
+
+kinematics: robust fitting
+  PASS  recovers a clean rate  514.2 px/s
+  PASS  and calls it uniform
+  PASS  clips outliers and still recovers it  514.2 px/s, 23 clipped
+  PASS  and reports how many it dropped
+  PASS  accelerating motion is flagged NOT uniform  residual 7.6% of span
+  PASS  and the reduction refuses to let it pass quietly
+
+symbology: screen direction -> bearing
+  PASS  moving up the screen while north points down is due south
+  PASS  moving right while north points up is due east
+  PASS  wraps across 0/360
+
+report: a beat inside a flame's band, and the group's rigidity beside it
+  PASS  one object's beat inside the lantern's band: the bottom line says a flame flickers there and nothing here decides it; the headline still names a bird  flickers near 10. A flame keeps a rhythm of its own too, so the beat cannot tell a flame from a wingbeat. Nothing here decides it for one object. Its height, its heat or its drift with the wind would.
+  PASS  a flock's beats inside it: out of step does not clear a flame; the group that rearranges, keeps its shape, or was not read is said each way  of step cannot tell a flame from a wingbeat. The group does not keep its shape. A flock rearranges, while lanterns drifting on one wind would keep their places.
+  PASS  a beat outside every flame's band says nothing of flames  Its brightness beats 3.5 times a second. That rhythm is the object's own, not the video's.
+
+kriging: a beat held as covariance (M8)
+  PASS  the Matérn times a cosine has no negative eigenvalue on a track's times  least 1.5e-07
+  PASS  a beat drawn at 6 Hz (0.7 px) is found beside the wander at its rate  5.98 Hz, gain 220
+  PASS  a series with no beat gains little from one  gain 1.2
+
+storage: a download that cannot start says why
+  PASS  certificate: one sentence that says why, and nothing left on disk  Python cannot check the website's certificate. With Python from python.org on a Mac, run "Install Certificates.command" once (in Applications → Python 3.x), then try again
+  PASS  no answer: one sentence that says why, and nothing left on disk  could not reach DVIDS ([Errno 111] Connection refused): check the internet connection
+  PASS  gone: one sentence that says why, and nothing left on disk  DVIDS answered 404 (Not Found) for that address
+  PASS  setup's certificate line is the same sentence  certificate not trusted: Python cannot check the website's certificate. With Python f
+
+report: the farthest the object can be, a limit where a range is a value
+  PASS  a row of KNOWN, so `run`, `report` and the Measure form all have it, and it can be given afterwards
+  PASS  the limit is the number the range gives, omega R, to the last digit, and it is no speed  261.80 m/s
+  PASS  not given, the fields are empty; given, the stage's line calls it a ceiling
+  PASS  the ledger holds R as bounded at the value given, still naming what would close it  at most 5 km, the farthest range given
+  PASS  the summary's range, speed across the line of sight and size each say at most, and the full speed stays unknown  at most 5,000 m; at most 260 m/s; at most 35 m
+  PASS  the admissible region stops there, and says what stopped it  with the range at least 1 m (nothing bounds it below) and at most 5,000 m (the farthest ra
+  PASS  under the speed of sound the label is a thing of known size's, and the paragraph says what the bound leaves out  Subsonic motion: No farther than the given 5 km, it is at most about 35 m across. It moves at most 260 m/s across the line of sight as th
+  PASS  a spot size is no width: the speed's limit stands and the size has none (PR051: 9 px gave 0.36 m, the thing is five times that)  No farther than the given 5 km, it moves at most 260 m/s across the line of sight as the camera held
+  PASS  a limit past the speed of sound says nothing of the speed: a range is still what is needed  3142 m/s: Indeterminate, range needed
+  PASS  a bird is named first, as ever
+  PASS  without it the case reads as it did
+  PASS  the speed changed along the track: the limit on its speed along its path (B6: the net is no limit), and at its fastest, the band's  316.3 and 546.1 m/s
+  PASS  a track that held one speed has one number
+  PASS  the label goes by the fastest: under the speed of sound on average and past it at its fastest says nothing  316 and 546 m/s
+  PASS  too short for a band, and not uniform: its fastest is its largest step between frames  3839.7 m/s
+  PASS  the camera held it in view: its size is still bounded, and no speed is said  No farther than the given 5 km, it is at most about 35 m across. The camera kept it in view, so its 
+  PASS  what cannot be: a range and a limit together, or a limit of nothing  --range gives the object's distance and --range-max the farthest it can be: give one of them
+  PASS  what cannot be: a range and a limit together, or a limit of nothing  --range-max: the farthest the object can be is more than 0 meters
+  PASS  a field under a degree and a rate under 0.01 rad/s keep their figures, where they read 0.1° and 0.00 rad/s  0.08°; 0.00014 rad/s (0.0079°/s)
+  PASS  a stage's nearer ceiling wins, and the speed's limit stays at the range given  at most 3 km, by the horizon (mcdonald horizon)
+
+report: a field of view and a range give the least speed, and the label follows it
+  PASS  PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative  At the given distance of 3 km, it is about 33 m across, about a fighter jet's size. It moves at least 6,800 m/
+  PASS  at 100 m the least speed is under it, and with no angle nothing settles it: an angle is needed  Indeterminate, angle needed: At the given distance of 100 m, it is about 1.1 m across, about a bird's or a party balloon's or a small drone
+  PASS  with an angle of 60 degrees the speed itself: Subsonic motion  Subsonic motion: At the given distance of 100 m, moving at 60° to the line of sight, it is about 1.1 m across, about a bird's or a party 
+  PASS  with an angle of 30 degrees the speed itself: Supersonic motion  Supersonic motion: At the given distance of 100 m, moving at 30° to the line of sight, it is about 1.1 m across, about a bird's or a party 
+  PASS  held in view by the camera: its size at that distance, and no speed  r a weather balloon's size. The camera kept it in view, so its speed is not measured here.
+  PASS  a case with only a speed is read as before  The object moved about 250 m/s as the camera held it, with the given range and scale.
+
+report: a field of view without a range is indeterminate, with a bird, a balloon and a jet placed
+  PASS  PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be  The object crossed the view at about 130° a second. It is 21 pixels across (0.64°). What it is depends on how far away i
+  PASS  a point no wider than the blur: each at least that far  The object crossed the view at about 130° a second. It is no wider than a point here, 21 pixels (0.64°). What it is depe
+  PASS  no size in the picture: the speed at 100 m and at 1 km  The object crossed the view at about 130° a second. At 100 m away that is at least 230 m/s across the line of sight, and
+  PASS  a bird is named first; a ruler or a distance takes it past
+
+clip: a folder named like a video is not the video
+  PASS  `PR23` beside a folder `PR23` is the catalog's video, not the folder  /Users/runner/Documents/mcdonald/videos/DOD_111688809.mp4 (pr23)
+  PASS  `pr44` beside a folder `pr44` is the catalog's video, not the folder  /Users/runner/Documents/mcdonald/videos/DOD_111689115.mp4 (pr44)
+  PASS  a folder that is no video's name is said to be a folder  a-folder is a folder, not a video, and no video in the PURSUE catalog has that name.
+
+mark: typed by a person
+  PASS  --typed marks are a person's, typed: never a hand's  typed: the dark speck, read off look --at
+  PASS  and without it, an agent's, as before
+  PASS  a report on typed marks says a person decided, and how  ><summary>Stage by stage</summary>
+
+### the record
+
+- No catalog record for this file, so 
+
+marks: taken from a proposal
+  PASS  its kind is 'proposed'
+  PASS  it is never a hand mark: by_hand() leaves it out
+  PASS  a report built on proposed marks says on its face that the detector proposed the object and a person accepted it; each mark's record is further down, folded
+  PASS  and mixed with an agent's marks, that neither was a hand's
+
+report: a rate read over a picture that held still on screen is the camera's hold, not the object's motion
+  PASS  with a scale: the rate as the camera held it, to its figures, no speed built on it, and where each thing would be  The object crossed the view at about 0.091° a second, as the camera held it. The picture behind it held still on screen, so its motion against the bac
+  PASS  and the bottom line says whose motion the layers' rate is, and builds no floor on it  The object moves about 30 pixels a second in the picture, its typical speed over each second of the track. The picture behind the object held still on screen while it was tracked. So this is its motio
+  PASS  without a scale: pixels a second as the camera held it, and why that is not its motion against the background  The object moved about 30 pixels a second in the picture, as the camera held it. The picture behind it held still on screen, so its motion against the
+  PASS  a layers step that read the background keeps the rate against it, the speeds and the floor, as before  The object crossed the view at about 0.091° a second. It is 21 pixels across (0.29°). What it is depends on how far away
+  PASS  degrees a second: whole from 1° up, two figures under it
+
+report: a report from an older version, written again to say what its card says
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmp_jyi4f0h/t_case.{md,json}
+  PASS  a report written by this version is left as it is, and says nothing of versions
+  PASS  read by this version, the old case's beat is a bird's -- its card says so -- and the case knows which version measured it  Measured with mcdonald 0.2.12 and read with 0.5.2. This is what that version fou
+  PASS  the report's page writes it again from the case file, so that the page says what the card says, with which version measured it above the conclusion; once written, it is left alone  > Measured with mcdonald 0.2.12 and read with 0.5.2. This is what that version found, in t
+
+mark: provenance
+  PASS  a mark is by hand unless it says otherwise
+  PASS  and the hand marks can be asked for alone
+  PASS  a snapped mark still counts toward the velocity: it is a position
+  PASS  provenance round-trips through the JSON
+  PASS  the CSV still reads back as the same track
+  PASS  and says, in its header and on the row, which mark is not a hand's
+  PASS  placing it again by hand makes it a hand mark
+  PASS  and a file with only hand marks is the file it always was
+  PASS  deleting a class's last mark leaves no empty class behind
+  PASS  a marks file from before provenance still loads
+  PASS  and so does one written by hand or by an agent: four lines, whole numbers, nothing but the marks
+
+kinematics: the refusal to invent a speed
+  PASS  no k, no R -> no speed
+  PASS  and all four unknowns are named  k (angular scale), R (range), theta or Rdot (aspect angle / range rate), v_own (platform velocity)
+  PASS  the report says so plainly
+  PASS  with k and R a speed appears
+  PASS  theta=90 is the lower bound
+  PASS  and no aspect angle goes below it
+  PASS  and it is labelled relative, not object, speed
+
+report: a speed on the screen is no physical conclusion, whatever is beside it
+  PASS  pixels a second and pendulum: no physical conclusion, and the rest still said  No physical conclusion: The object moved about 604 pixels a second across the picture. Its real speed and size cannot be found from th
+  PASS  pixels a second and imagery: no physical conclusion, and the rest still said  No physical conclusion: The object moved about 604 pixels a second across the picture. Its real speed and size cannot be found from th
+  PASS  pixels a second and flagged: no physical conclusion, and the rest still said  No physical conclusion: The object moved about 604 pixels a second across the picture. Its real speed and size cannot be found from th
+  PASS  pixels a second and stretch: no physical conclusion, and the rest still said  No physical conclusion: The object moved about 604 pixels a second across the picture. Its real speed and size cannot be found from th
+  PASS  pixels a second and slow: no physical conclusion, and the rest still said  No physical conclusion: The object moved about 604 pixels a second across the picture. Its real speed and size cannot be found from th
+  PASS  pixels a second and companion and imagery: no physical conclusion, and the rest still said  No physical conclusion: The object moved about 604 pixels a second across the picture. Its real speed and size cannot be found from th
+  PASS  with a thing of known size it is subsonic motion, the speed under the speed of sound (the exercise's second report)  Subsonic motion: If it is no farther away than the reference object of known size, the object moved at most about 115 m/s acros
+  PASS  a bird is named with pixels a second, as before; pixels a second alone is no physical conclusion, as before
+
+report: a measurement that was stopped
+  PASS  stopped during steps: v_px and the bottom line say it was stopped during layers  | pixel velocity | v_px | — | not measured: the measuring was stopped during layers. Measure again to get it |
+  PASS  and the conclusion is that there is none yet  ('No conclusion yet', 'The measuring was stopped during layers, so the steps after it did not run. Measure again for the rest.')
+  PASS  and the note is not repeated as a line of its own
+  PASS  stopped between steps: v_px and the bottom line say it was stopped before kinematics  | pixel velocity | v_px | — | not measured: the measuring was stopped before kinematics. Measure again to get it |
+  PASS  and the conclusion is that there is none yet  ('No conclusion yet', 'The measuring was stopped before kinematics, so the steps after it did not run. Measure again for the rest.')
+  PASS  and the note is not repeated as a line of its own
+
+several objects: a thing followed twice is counted once
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/pieces/object-1/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/pieces/object-2/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/pieces/object-3/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/pieces/object-4/t_case.{md,json}
+  PASS  a track on another's pixels on every frame both were followed on (41 of them) is the same thing, followed again; a neighbour 8 px away and one that crosses for 5 frames are not  {2: {'same_as': 1, 'on': 41, 'shared': 41}}
+  PASS  it is not counted: three looked for are three followed, and the list's first line names the one followed twice  You looked for 3 objects: 3 were followed; object 2 followed the same object as object 1.
+  PASS  its row says so, on the page and in the list's json  **You looked for 3 objects: 3 were followed; object 2 followed the same object as object 1
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/flock/object-1/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/flock/object-2/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/flock/object-3/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/flock/object-4/t_case.{md,json}
+  PASS  a row on a group's path and its member's is counted through them, named as the member (one point), and the group's member on the group's track is not a thing followed twice  You looked for 2 objects: 2 were followed, 2 of them the members of 1 group (object 1); object 2 followed the same object as object 3.
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/alone/object-1/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/alone/object-2/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpc1_8_xfm/alone/object-3/t_case.{md,json}
+  PASS  on a group's path where no member of it is, the row is named as the group
+
+report: a thing of known size under the speed of sound is subsonic motion
+  PASS  115 m/s at the ship's distance: subsonic motion, the bound said, and the unchecked sheet still said  Subsonic motion: If it is no farther away than the reference object of known size, the object moved at most about 115 m/s acros
+  PASS  115 m/s at the ship's distance: subsonic motion, the bound said, the sheet looked at  Subsonic motion: If it is no farther away than the reference object of known size, the object moved at most about 115 m/s acros
+  PASS  400 m/s at the ship's distance bounds nothing under the speed of sound: Tentative conclusion, as before  Tentative conclusion: If it is no farther away than the reference object of known size, the object moved at most about 400 m/s acros
+  PASS  400 m/s at the ship's distance bounds nothing under the speed of sound: Conclusion, as before  Conclusion: If it is no farther away than the reference object of known size, the object moved at most about 400 m/s acros
+  PASS  with a range ratio given, the speed at that ratio, under the speed of sound  At 2 times the distance of the reference object of known size (as given), the object moved about 115 m/s acros
+  PASS  a bird is named first; the line is the speed of sound itself, 343 m/s
+  PASS  a relative speed from the range and the field of view is the headline's, and not a bound  Tentative conclusion: The object moved about 500 m/s as the camera held it, with the given range and scale.
+
+projective: the turn read whole past 150 degrees (M4)
+  PASS  a 286° turn of 25 body widths, its plane 0° from facing the camera: read whole, the radius, the tilt and the rate  24.97 widths (the sagitta 12), cos i 0.998, 0.601 rad/s
+  PASS  a 286° turn of 25 body widths, its plane 70° from facing the camera: read whole, the radius, the tilt and the rate  25.11 widths (the sagitta 35), cos i 0.341, 0.599 rad/s
+  PASS  a 360° turn of 25 body widths, its plane 45° from facing the camera: read whole, the radius, the tilt and the rate  25.01 widths (the sagitta 14578), cos i 0.707, 0.600 rad/s
+  PASS  a 540° turn of 25 body widths, its plane 85° from facing the camera: read whole, the radius, the tilt and the rate  25.00 widths (the sagitta 5778), cos i 0.087, 0.600 rad/s
+  PASS  a 180° turn of 25 body widths, its plane 0° from facing the camera: read whole, the radius, the tilt and the rate  25.34 widths (the sagitta 15), cos i 0.992, 0.598 rad/s
+  PASS  and said: the speed and the acceleration toward its centre in body widths, with no range, field of view or foreshortening  15.2 widths/s, 9.07 widths/s²
+  PASS  a half turn and nothing else: past the track's own wander, its minor axis far from nothing, and the radius's error is the track's own with the turn rate let go (the rate fixed, it read a tenth of this)  gain 235, minor 459.0 errors, 25.0 +- 0.52 widths
+  PASS  a quarter turn is not read whole: a short arc does not fix a circle  20
+  PASS  a circle drifting faster than it goes round draws a wave, not a loop: not read as one  2396
+  PASS  a straight track is not a loop
+  PASS  nor is a thing that goes back and forth along a line: it does not go round  0.0
+  PASS  the tilt's band in the words is the geometry's: the turn's own radius 0.118 to 6.57 times the picture's, ten times straighter 4.25 % of the time, forty 1.06 %  0.118-6.57; 0.0425, 0.0106
+
+projective: a track's own wander is not a loop
+  PASS  wander with no turn in it: an ellipse follows many of them  12 of 20 followed
+  PASS  and few are called a loop (5.1 and 6.0 % at worst on 1000 draws a case: 6 % stated)  0 of 20 called a loop  [0 of 20 at a stated 6 %: green (green to 2, yellow to 6; P(X <= 0) = 0.2901)]
+  PASS  and what is refused is said: it swings about, how far, and that no loop is claimed  ; it swings about more than a bend does (an ellipse 149 by 31 px at 1.38 rad/s follows it, 392° in 5.0 s, 31.3 px rms), but no loop is claimed: its ow
+  PASS  a sway along a line with a wander on it is no loop either: its minor axis is not shown (6 % stated, as the wander's; the white error let 52 % through)  0 of 8 called a loop  [0 of 8 at a stated 6 %: green (green to 1, yellow to 3; P(X <= 0) = 0.6096)]
+  PASS  and said so where it is the minor axis that fails   and forth along a line, which a turn seen edge-on, a sway and a camera's swing draw alike
+
+report: a case with nothing in it
+  PASS  says no result rather than implying one
+  PASS  and disclaims provenance
+  PASS  no-power entries are rendered under Measurements, never dropped
+  PASS  and what would close it is under Missing quantities
+  PASS  the order Jacob asked for (2026-09-24), the conclusion first (2026-10-07), with Measurements and Reproduce folded, and the sections he struck gone
+  PASS  a case with a pixel velocity typed in but nothing measured, and an empty case, say there is no conclusion  ('No conclusion', 'Nothing was measured about the object.')
+  PASS  the JSON carries the same structure
+
+the checklist: each test, its answer in a word, and why
+  PASS  a case with nothing measured has no checklist, and its paragraph stands where it was
+  PASS  PR135's shape: the rows in their fixed order -- the video, the camera (Can't tell: its picture held still on screen), the motion, the beat, the company, whether it was added, a real speed, the person's part -- each answered in a word, with why  {'video': 'No', 'camera': "Can't tell", 'moves': 'Yes', 'straight': 'No', 'closing': "Can't tell", 'beat': 'Yes', 'lookalike': 'Yes', 'flash': 'No', 'with': 'Yes', 'added': "Can't tell", 'real': 'No', 'chosen': 'Yes', 'checked': 'Not yet'}
+  PASS  the camera's row: Can't tell wherever the picture behind the object held still on screen (the layers step's no-power, above half the pairs, the first line's 'as the camera held it'), with the moved share where there is one; Partly at half or under; Yes where the background moved; never No  {1.0: "Can't tell", 0.93: "Can't tell", 0.7: "Can't tell", 0.5: 'Partly', 0.3: 'Partly', 0.0: 'Yes'}
+  PASS  each row's line says the number and what it rests on, in plain words
+  PASS  the report: the conclusion's sentence, then the table, one row a test, then the paragraph folded under it
+  PASS  the questions and the lines use none of the trade's words, and name the object or a feature, never a thing (sciencespeak's mcdonald glossary, the standard since 2026-11-07)  Does the video have repeated frames or sudden changes of brightness? every frame
+  PASS  a group: so many objects move together, and whether they keep their places, said with the count  6 objects move together, changing places as a flock does
+  PASS  a camera that moved: the object's rate against the background not measured is Can't tell, a bend may be the camera's, and a beat the shake could make names nothing to beat like it  {'camera': 'Yes', 'moves': "Can't tell", 'straight': 'No', 'beat': "Can't tell"}
+  PASS  a beat in one stretch or too faint is Partly, one outside a wingbeat's band or none at all is No  ['Partly', 'Partly', 'No', 'No']
+  PASS  no beat on a track that could not have shown a bird's (its power at the floor) is Can't tell, with the amplitude it would need; one that could is No; a refusal with a peak measured is Can't tell, in the stage's words  ["Can't tell", 'No', "Can't tell", "Can't tell"]
+  PASS  a real speed is Yes with a scale and a distance (a guessed field of view said so), Partly with one of them or a thing of known size  ['about 2300 m/s relative to the camera, w', 'the field of view gives how fast it cros', 'at most about 115 m/s across the line of']
+  PASS  who chose the object: Yes from hand marks (linked or not), No where the track file says not a hand's, Can't tell where nothing says -- a case from before read from its run command (--marks a hand's, --track alone not known)  ['Yes', "Can't tell", 'No', "Can't tell", 'Yes']
+  PASS  the sheet looked at says what was looked at, and when: `run --i-looked` is said before this run draws its sheet  a person said with --i-looked, before this run drew its track sheet, that they had looked at the sheet: the look was at an earlier run's sheet, not this one
+  PASS  integrity's row says agreement, not Yes or No (2026-11-07, Dx7): Inconsistent where a check flags it, Consistent where those that could decide pass, each with the checks' untested limit and, for layer order, its known false flag  1 of the 2 checks say it behaves like something laid over the picture: cadence; no check has been tested on a real insert
+  PASS  marks an agent placed say so; the sheet looked at turns Not yet to Yes
+  PASS  a bird named: the beat first, weighed once on the labelled set (how many times as common on birds), then what else could beat so, which nothing weighs  Its brightness beats at a wingbeat's rate along its track, s / Something else could beat like this: a tumbling body or a bl
+  PASS  no bird named: the label's own reason first (no real speed; a speed bounded by arithmetic), then the beat's 'No' weighed against a bird, then integrity, which nothing weighs; at most four; none where nothing was concluded  real:none / beat:against a bird / added:none
+  PASS  the grade: down one for each serious concern -- the track not looked at (very serious with who chose the object not recorded), a beat whose own error reaches under the floor, a track shorter than the labelled ones -- and high where none; none where nothing was concluded  Moderate, Low, High, Moderate, Moderate
+  PASS  the report: the conclusion, how sure it is, what it rests on, then the checklist
+  PASS  coming or going: Yes from its size or a path that fits an approach, No as a bound, Can't tell where its size held or its path fits only roughly  ['Yes', 'Yes', 'No', "Can't tell", "Can't tell"]
+
+comotion: object minus field
+  PASS  relative displacement in D  3.00 D
+  PASS  object - field is the difference, measured on the same pairs
+  PASS  direction is clockwise from screen-up
+
+comotion: verdict boundaries
+  PASS  under one diameter is carried
+  PASS  the middle is named, not forced
+  PASS  PR055 moves through
+  PASS  nothing measured is NO POWER
+  PASS  and the strong verdict carries its own caveat
+
+kinematics: "constant" as an upper bound (E12)
+  PASS  a steady change of 0.8 px/s over 4 s under half a pixel of jitter: the band says constant (seen 5 % of the time stated: a judgement)  20 of 20 constant  [0 of 20 at a stated 5 %: green (green to 2, yellow to 5; P(X <= 0) = 0.3585)]
+  PASS  and its bound holds the change (95 %)  the bound held 20 of 20; median bound 1.3 px/s  [0 of 20 at a stated 5 %: green (green to 2, yellow to 5; P(X <= 0) = 0.3585)]
+  PASS  and the band's own words say so  rror and the ends'); a steady change of its speed of more than 1.8 px/s over the 4.0 s would have shown (95 %)
+  PASS  a track exactly on its line: the bound is nil  {'dv_max_px_per_s': 5.010083140760994e-13, 'dv_px_per_s': 6.361002898672222e-14, 'dv_err_px_per_s': 2.2316648932805763e-13, 'span_s': 1.2666666666666666, 'z': 1.959964, 'by': 'a steady change: a free quadratic, its residual white'}
+  PASS  a change the band sees needs no bound  35.5 sigma
+
+the control population: the labelled infrared set's weights, the screening words and the plot
+  PASS  the packaged table: 432 tracks, 125 birds, 365 clips
+  SKIP  the data folder's table (/models/data/mcdonald/controls/svanstrom_tracks.csv)
+  PASS  at 8 %: a bird named 35.6 (stage) and 63.9 (paper) times as common on birds; a 'No' with power 0.42; a track too noisy to show a bird's beat 4.5 (why the row says Can't tell there); a refusal about as common on both; one stretch and the shake too few to weigh  {('named', 'stage'): 35.61, ('faint', 'stage'): 0.33, ('once', 'stage'): 0.0, ('none', 'stage'): 0.42, ('deaf', 'stage'): 4.48, ('band', 'stage'): 7.37, ('refused', 'stage'): 1.94, ('shaken', 'stage'): 0.0}
+  PASS  the screening words rest on the plot's populations: consistent with the birds, the others not screened out while any reach it, screened out with the exact bound where none does; nothing said outside a wingbeat's rate  Of the labelled tracks with a rhythm of their own at a wingbeat's rate, 18 of 31 birds and 2 of 23 aircraft, drones and helicopters beat at least this strongly. So its beat is consistent with the birds, and the others are not screened out by it.
+Matplotlib is building the font cache; this may take a moment.
+  PASS  the discriminant plot drawn in the house style, nothing over a line  []
+
+the window's oval: each stage's command
+  PASS  every stage has a command, and every one is a command of mcdonald's  camera, comotion, flicker, focus, groups, haze, horizon, integrity, kinematics, layers, mark, report, run, symbology, tether, tracksheet
+  PASS  the commands run_case records for its stages are among them  camera, comotion, flicker, focus, groups, haze, horizon, integrity, layers, run, symbology, tether, tracksheet
+
+the exercises
+  PASS  the issue form offers as many exercises as there are pages  4 offered, 4 pages
+  PASS  01-pr44.md starts with its number and name  # Exercise 1: Birdwatching (PR44)
+
+You will open part of a v
+  PASS  01-pr44.md: its file name starts with its number  1
+  PASS  01-pr44.md is listed in docs/exercises/README.md  Birdwatching (PR44)
+  PASS  01-pr44.md is offered in the issue form  1. Birdwatching (PR44)
+  PASS  01-pr44.md shows the command line's way too  6 commands
+  PASS  01-pr44.md: `mcdonald setup` is a command  mcdonald setup
+  PASS  01-pr44.md: `mcdonald setup` has the options it is shown with  mcdonald setup
+  PASS  01-pr44.md: `mcdonald readme` is a command  mcdonald readme
+  PASS  01-pr44.md: `mcdonald readme` has the options it is shown with  mcdonald readme
+  PASS  01-pr44.md: `mcdonald report` is a command  mcdonald report pr44/segment-7980-8400/pr44_case.json --i-looked
+  PASS  01-pr44.md: `mcdonald report` has the options it is shown with  mcdonald report pr44/segment-7980-8400/pr44_case.json --i-looked
+  PASS  01-pr44.md: `mcdonald look` is a command  mcdonald look PR44 --n0 7980 --n1 8400 --propose
+  PASS  01-pr44.md: `mcdonald look` has the options it is shown with  mcdonald look PR44 --n0 7980 --n1 8400 --propose
+  PASS  01-pr44.md: `mcdonald mark` is a command  mcdonald mark PR44 --no-window --link --set object@7983=690.0,542.0 … --set obje
+  PASS  01-pr44.md: `mcdonald mark` has the options it is shown with  mcdonald mark PR44 --no-window --link --set object@7983=690.0,542.0 … --set obje
+  PASS  01-pr44.md: `mcdonald run` is a command  mcdonald run PR44 --marks pr44/segment-7980-8400/pr44_marks.json --n0 7980 --n1 
+  PASS  01-pr44.md: `mcdonald run` has the options it is shown with  mcdonald run PR44 --marks pr44/segment-7980-8400/pr44_marks.json --n0 7980 --n1 
+  PASS  02-pr149.md starts with its number and name  # Exercise 2: A ship for a ruler (PR149)
+
+You will measure a
+  PASS  02-pr149.md: its file name starts with its number  2
+  PASS  02-pr149.md is listed in docs/exercises/README.md  A ship for a ruler (PR149)
+  PASS  02-pr149.md is offered in the issue form  2. A ship for a ruler (PR149)
+  PASS  02-pr149.md shows the command line's way too  7 commands
+  PASS  02-pr149.md: `mcdonald setup` is a command  mcdonald setup
+  PASS  02-pr149.md: `mcdonald setup` has the options it is shown with  mcdonald setup
+  PASS  02-pr149.md: `mcdonald readme` is a command  mcdonald readme
+  PASS  02-pr149.md: `mcdonald readme` has the options it is shown with  mcdonald readme
+  PASS  02-pr149.md: `mcdonald report` is a command  mcdonald report pr149/segment-1-150/pr149_case.json --i-looked
+  PASS  02-pr149.md: `mcdonald report` has the options it is shown with  mcdonald report pr149/segment-1-150/pr149_case.json --i-looked
+  PASS  02-pr149.md: `mcdonald look` is a command  mcdonald look PR149 --n0 1 --n1 150 --propose
+  PASS  02-pr149.md: `mcdonald look` has the options it is shown with  mcdonald look PR149 --n0 1 --n1 150 --propose
+  PASS  02-pr149.md: `mcdonald mark` is a command  mcdonald mark PR149 --no-window --link --set object@17=1637.5,893.2 … --set obje
+  PASS  02-pr149.md: `mcdonald mark` has the options it is shown with  mcdonald mark PR149 --no-window --link --set object@17=1637.5,893.2 … --set obje
+  PASS  02-pr149.md: `mcdonald run` is a command  mcdonald run PR149 --marks pr149/segment-1-150/pr149_marks.json --n0 1 --n1 150 
+  PASS  02-pr149.md: `mcdonald run` has the options it is shown with  mcdonald run PR149 --marks pr149/segment-1-150/pr149_marks.json --n0 1 --n1 150 
+  PASS  02-pr149.md: `mcdonald report` is a command  mcdonald report pr149/segment-1-150/pr149_case.json --ref-px 920 --ref-m 175
+  PASS  02-pr149.md: `mcdonald report` has the options it is shown with  mcdonald report pr149/segment-1-150/pr149_case.json --ref-px 920 --ref-m 175
+  PASS  03-pr113.md starts with its number and name  # Exercise 3: A known field of view (PR113)
+
+You will measur
+  PASS  03-pr113.md: its file name starts with its number  3
+  PASS  03-pr113.md is listed in docs/exercises/README.md  A known field of view (PR113)
+  PASS  03-pr113.md is offered in the issue form  3. A known field of view (PR113)
+  PASS  03-pr113.md shows the command line's way too  8 commands
+  PASS  03-pr113.md: `mcdonald setup` is a command  mcdonald setup
+  PASS  03-pr113.md: `mcdonald setup` has the options it is shown with  mcdonald setup
+  PASS  03-pr113.md: `mcdonald readme` is a command  mcdonald readme
+  PASS  03-pr113.md: `mcdonald readme` has the options it is shown with  mcdonald readme
+  PASS  03-pr113.md: `mcdonald report` is a command  mcdonald report pr113/segment-380-440/pr113_case.json --graticule 35.4 --forget 
+  PASS  03-pr113.md: `mcdonald report` has the options it is shown with  mcdonald report pr113/segment-380-440/pr113_case.json --graticule 35.4 --forget 
+  PASS  03-pr113.md: `mcdonald report` is a command  mcdonald report pr113/segment-380-440/pr113_case.json --i-looked
+  PASS  03-pr113.md: `mcdonald report` has the options it is shown with  mcdonald report pr113/segment-380-440/pr113_case.json --i-looked
+  PASS  03-pr113.md: `mcdonald look` is a command  mcdonald look PR113 --n0 380 --n1 440 --propose
+  PASS  03-pr113.md: `mcdonald look` has the options it is shown with  mcdonald look PR113 --n0 380 --n1 440 --propose
+  PASS  03-pr113.md: `mcdonald mark` is a command  mcdonald mark PR113 --no-window --link --set object@408=1007.9,317.3 --set objec
+  PASS  03-pr113.md: `mcdonald mark` has the options it is shown with  mcdonald mark PR113 --no-window --link --set object@408=1007.9,317.3 --set objec
+  PASS  03-pr113.md: `mcdonald run` is a command  mcdonald run PR113 --marks pr113/segment-380-440/pr113_marks.json --n0 380 --n1 
+  PASS  03-pr113.md: `mcdonald run` has the options it is shown with  mcdonald run PR113 --marks pr113/segment-380-440/pr113_marks.json --n0 380 --n1 
+  PASS  03-pr113.md: `mcdonald report` is a command  mcdonald report pr113/segment-380-440/pr113_case.json --graticule 36.25 --pixel-
+  PASS  03-pr113.md: `mcdonald report` has the options it is shown with  mcdonald report pr113/segment-380-440/pr113_case.json --graticule 36.25 --pixel-
+  PASS  04-pr135.md starts with its number and name  # Exercise 4: Six at once (PR135)
+
+You will tell mcdonald ho
+  PASS  04-pr135.md: its file name starts with its number  4
+  PASS  04-pr135.md is listed in docs/exercises/README.md  Six at once (PR135)
+  PASS  04-pr135.md is offered in the issue form  4. Six at once (PR135)
+  PASS  04-pr135.md shows the command line's way too  8 commands
+  PASS  04-pr135.md: `mcdonald setup` is a command  mcdonald setup
+  PASS  04-pr135.md: `mcdonald setup` has the options it is shown with  mcdonald setup
+  PASS  04-pr135.md: `mcdonald readme` is a command  mcdonald readme
+  PASS  04-pr135.md: `mcdonald readme` has the options it is shown with  mcdonald readme
+  PASS  04-pr135.md: `mcdonald report` is a command  mcdonald report pr135/segment-1240-1389/object-4/pr135_case.json --i-looked
+  PASS  04-pr135.md: `mcdonald report` has the options it is shown with  mcdonald report pr135/segment-1240-1389/object-4/pr135_case.json --i-looked
+  PASS  04-pr135.md: `mcdonald look` is a command  mcdonald look PR135 --n0 1240 --n1 1389 --propose --objects 6
+  PASS  04-pr135.md: `mcdonald look` has the options it is shown with  mcdonald look PR135 --n0 1240 --n1 1389 --propose --objects 6
+  PASS  04-pr135.md: `mcdonald mark` is a command  mcdonald mark PR135 --no-window --link --set object@1281=420.0,635.0 … --set obj
+  PASS  04-pr135.md: `mcdonald mark` has the options it is shown with  mcdonald mark PR135 --no-window --link --set object@1281=420.0,635.0 … --set obj
+  PASS  04-pr135.md: `mcdonald mark` is a command  mcdonald mark PR135 --no-window --link --set object@1256=381.0,578.0 … --set obj
+  PASS  04-pr135.md: `mcdonald mark` has the options it is shown with  mcdonald mark PR135 --no-window --link --set object@1256=381.0,578.0 … --set obj
+  PASS  04-pr135.md: `mcdonald mark` is a command  mcdonald mark PR135 --no-window --link --set object@1242=428.0,518.0 --set objec
+  PASS  04-pr135.md: `mcdonald mark` has the options it is shown with  mcdonald mark PR135 --no-window --link --set object@1242=428.0,518.0 --set objec
+  PASS  04-pr135.md: `mcdonald run` is a command  mcdonald run PR135 --each pr135/segment-1240-1389 --objects 6 --n0 1240 --n1 138
+  PASS  04-pr135.md: `mcdonald run` has the options it is shown with  mcdonald run PR135 --each pr135/segment-1240-1389 --objects 6 --n0 1240 --n1 138
+
+files: UTF-8 whatever the locale
+  (the default encoding is now US-ASCII)
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpn4uhr874/t_case.{md,json}
+  PASS  the case report is written and read back as UTF-8
+  PASS  so are the marks  agent: θ
+  PASS  the shipped catalog reads, its accents intact  144 records, 90 with accents
+
+Help -> About
+  PASS  About has the one sentence as the README says it  mcdonald is a frame-by-frame analysis toolkit for measuring 
+  PASS  About has the quote as the README says it  Science is in default for having failed to mount any truly a
+  PASS  About has who said it as the README says it  James E. McDonald
+  PASS  About has the copyright and license as the README says it  Copyright (c) 2026 Jacob Haqq Misra. Released under the BSD 
+  PASS  About has where to donate as the README says it  To support its development, you can donate to the mcDonald U
+  PASS  README.md links the donation form About links  https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit
+  PASS  README-technical.md links the donation form About links  https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit
+  PASS  .github/FUNDING.yml links the donation form About links  https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit
+  PASS  mkdocs.yml links the donation form About links  https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit
+
+the house figure style: the box, the ticks, bold labels, short titles, no text over a line
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpq3y9oact/t_speed.png  (7.400 x 6.364 in at 200 dpi)
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpq3y9oact/t_size_speed.png  (7.400 x 6.068 in at 200 dpi)
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpq3y9oact/t_size_speed_k.png  (7.400 x 6.068 in at 200 dpi)
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpq3y9oact/t_admissible.png  (7.400 x 4.884 in at 200 dpi)
+  PASS  each axes of the five is a full box with the ticks in, no grid, its axis labels bold
+  PASS  every title is a short name on one line; the finding is the caption's
+  PASS  and no text crosses a line, overlaps other text or runs off the figure (Jacob: "make sure text does not overlap with lines")
+  PASS  and no figure letters its panels (a), (b), (c): Jacob's text names a panel by its place  []
+
+how many objects: the count against what was followed, and a group's members as objects
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmp3a_7i_lg/flock/object-1/flock_case.{md,json}
+  PASS  an object whose case found several points moving together, their tracks written, is a group
+  PASS  the count against what was followed, in one sentence, with nothing invented to make the number  You looked for 6 objects: 1 was followed; 5 were not found.
+  PASS  no count, no sentence; the count met is said as met
+  PASS  its members seen on 60 frames or more become the next objects, longest first, each with its positions written as its track and a file naming the group; one seen on 40 frames does not  [(2, {'object': 1, 'member': 1, 'folder': 'object-1', 'members': 'object-1/flock_members.csv', 'siblings': [2]}), (3, {'object': 1, 'member': 2, 'folder': 'object-1', 'members': 'object-1/flock_members.csv', 'siblings': [1]})]
+  PASS  the member's track is its positions to the digit, its marks every ten frames and its last say what it is and why, and it knows its fellows  member 1 of object 1, one of the 2 points of that group followed on their own be
+  PASS  the group is counted through its members from then on, which have no report yet
+  PASS  the list's first line holds the count, the group names its members, each member's row names its group, and the count is remembered when the list is written again  **You looked for 6 objects: 0 were followed; 6 were not found.**
+  PASS  a member's beat is read from the group's stage, its own where it is out of step with a fellow's  it beats at 7.40 Hz, 20% of its brightness, over frames 30–120; out of step with, or at an
+  PASS  and its report leads with the bird, as a thing alone would  A bird is the leading explanation. Its brightness rises and falls 7.4 times a se
+  PASS  a member too brief for a beat says so, with no power
+  PASS  a member whose own beat did not pass the group's tests (not `strong`: under the background's, or no more than its drift) has none, though it is out of step with a fellow (2026-10-09)  no beat in the group's flicker stage: not brighter than the ring about it on every frame, 
+  PASS  in step with every fellow, the beat may be the video's: no power, said
+  PASS  a feature moving with the object at a member's offset (within 4 px or 30%, and 20 degrees) is that member; elsewhere it is not (PR135: the next bird, 29 px away)
+  PASS  the report says the fellow member, and the conclusion does not call it something moving with the object
+
+kinematics: jumps named (E4)
+  PASS  a clean wandering track has a jump named about one time in a hundred  0 of 40  [0 of 40 at a stated 1 %: green (green to 1, yellow to 3; P(X <= 0) = 0.6690)]
+  PASS  the threshold is drawn on the track's own frames, the same every time  5.57 times the local scale over 300 frames
+  PASS  a planted 6-px glitch is found, named a glitch, and its point left out of the band's fit  [{'kind': 'glitch', 'frame': 151, 'off': [151], 'px': 6.33, 'L': 10.6}]
+  PASS  a 3-frame excursion of 6 px is named an excursion, its three points left out  [{'kind': 'excursion', 'frame': 151, 'off': [151, 152, 153], 'px': 5.58, 'L': 7.4}]
+  PASS  a 6-px step is found and named a step, and kept: dropping points cannot undo it  [{'kind': 'step', 'frame': 151, 'off': [], 'px': 6.02, 'L': 10.1}]
+  PASS  and said as such  1 past 5.6 times the local scale, which a clean track on these frames passes 99 % of the time: a step kept (6.0 px at frame 151): off its path for goo
+  PASS  a track with no jitter that turns at a knot is not jumpy (the floor)  0 named
+  PASS  a track written on a 0.1-px grid with less jitter than that is not jumpy (one in a hundred, as a clean track)  0 of 20 named  [0 of 20 at a stated 1 %: green (green to 0, yellow to 2; P(X <= 0) = 0.8179)]
+  PASS  and the grid is read  0.1 px
+  PASS  under 10 points there is no test
+  PASS  a track with no jump says the test found none
+
+scale: k from a known-size object at a known range
+  PASS  k = p R / S  61333 px/rad
+  PASS  and it round-trips through the size equation
+
+kinematics: k is not a constant across the frame
+  PASS  k is larger at the corner  1884 -> 2528 px/rad
+  PASS  by about a third  ratio 1.34 (paper: 34 %)
+
+mark: what two clicks produce
+  PASS  no velocity from zero marks
+  PASS  nor from one
+  PASS  two marks give the velocity  (-102.3, +97.0)
+  PASS  and the seed is the first mark
+  PASS  count is across all classes
+  PASS  a mark of another class does not disturb the object track
+  PASS  deleting a mark takes the velocity with it
+
+mark: files
+  PASS  JSON round-trips
+  PASS  and the CSV reads back through the package's own reader  3 rows
+  PASS  the CSV carries a provenance header, which read_track skips
+
+scale: measuring an in-frame reference
+  PASS  the bar is found
+  PASS  length within 8 px  240.4 (truth 240.0)
+  PASS  angle within 1.5 deg  10.5 (truth 12.0)
+
+the version
+  PASS  pyproject takes the version from mcdonald.__version__, and writes none of its own
+  PASS  both READMEs' status lines say the version the package is  0.5.2: {'README.md': ['0.5.2'], 'README-technical.md': ['0.5.2']}
+  PASS  CITATION.cff says the version and the day it was released  0.5.2 2026-11-10: ['version: 0.5.2', 'date-released: 2026-11-10']
+  PASS  CHANGELOG.md has this version's entry, with its day  ## 0.5.2 (2026-11-10)
+  PASS  the version has the day it was released, and it is not to come  2026-11-10
+
+report: PR051, the ground as the farthest range
+  PASS  the drift, at the ground's 41.7 km: at most 9.9 m/s on average along its path (B6, 0.4.2: the pointer steps as the held picture catches up, and its path is 1.7 times the line from start to finish, whose 5.7 m/s the bound was until then), in steps that read about 32 at their fastest; the steps' 6-frame memory with a 14.6-px sill is picture motion, not the detector's  9.90 and 31.9 m/s, path/net 1.73
+  PASS  read in the upload's own pixels with the width's scale on both axes, 8.1 along its path (was 4.8 on the net): the vertical pixels are a third wider in angle than that says, and most of the drift is vertical  8.14 m/s
+  PASS  the dash's centroid: 49 m/s on its line, 121 at its fastest step (the track too short for a band)  49.0 and 121.1 m/s
+
+symbology: rotation rate, and the radius check
+  PASS  recovers +0.400 deg/s  +0.400
+  PASS  a fixed radius reads as fixed  0.0e+00
+  PASS  positive rotation -> platform right, parallax left
+  PASS  and the mirror case
+  PASS  no measurable rotation is undetermined, not zero
+  PASS  a wandering radius is flagged  0.056
+
+symbology: angles across the 0/360 seam
+  PASS  unwrapped before fitting  +1.000 deg/s (a naive fit gives a large negative)
+
+report: something that only moves with the object is the bottom line's, not the headline's
+  PASS  pixels a second: not in the headline, and the bottom line says where it is  No physical conclusion: ross the picture. Its real speed and size cannot be found from this video alone.
+  PASS  a ship for a ruler: not in the headline, and the bottom line says where it is  Subsonic motion: ne of sight as the camera held it. That is under the speed of sound (Mach 0.34).
+  PASS  a bird: not in the headline, and the bottom line says where it is  Beats like a bird: ross the picture. Its real speed and size cannot be found from this video alone.
+  PASS  one that swings is in the headline, as a pendulum, and the bottom line has its length   found from this video alone. A feature moves with it, swinging like a pendulum.
+  PASS  and where it is all there is, it is said, not "nothing was measured"  Conclusion: A feature moves with it.
+
+symbology: auto tries a few frames before the whole clip
+  PASS  a white pointer: hue is tried on 20 frames and solves none  {'frames': 20, 'solved': 0}
+  PASS  and the other 80 frames are not read (the 20 twice: to try, and to list glyphs)  43 frames read
+  PASS  it says what finds a white pointer  no coloured pointer on the first frame, and hue found none o
+  PASS  and it lists the glyph the template can follow, with its box (the agent's 9 a)  [{'x': 242.7, 'y': 56.7, 'r_px': 143.0, 'theta_deg': 1.2, 'tpl_box': [232, 46, 255, 69], 'solved': 20}]
+  PASS  and it says how far along it is while it tries
+  PASS  an orange pointer passes the trial and every frame is read  100 solved
+  PASS  hue asked for by name is not second-guessed: every frame is tried
+
+symbology: the circle the pointer draws, off the boresight
+  PASS  the centre to a fifth of a pixel, 8.6 px from the reticle  (644.62, 366.05) r 199.81
+  PASS  the mislocated glyphs dropped, the rest kept  rms 0.29, dropped 14 of 14 bad
+  PASS  a sweep of 25 deg is too short: no circle fitted
+
+symbology: the same readings on a pool as in one process
+  PASS  an orange pointer, by hue: the same on two processes as in one  100 frames solved, 0 glyphs listed
+  PASS  a turning glyph, by template: the same on two processes as in one  100 frames solved, 0 glyphs listed
+  PASS  a white pointer auto cannot see, and the glyphs it lists: the same on two processes as in one  0 frames solved, 4 glyphs listed
+
+symbology: the angle between pixels, and the boresight's share
+  PASS  a pointer 150 px out: 0.38 deg of theta per pixel of boresight  0.381
+  PASS  a block drawn at whole pixels is found there between pixels, so the step is the video's: 1 px, 0.38 deg  r = 150.519
+  PASS  over the 9.9 s window a rotation under 0.038 deg/s is not seen, and the sense is not claimed (PR135)  0.0385 deg/s
+  PASS  and it says the step is the video's
+  PASS  a boresight 4 px to the side moves theta by atan(4/150) = 1.53 deg, inside what it says  -1.52 deg
+  PASS  a glyph drawn between pixels has no step
+  PASS  a pointer turning 0.1 deg/s reads 0.1 deg/s  +0.1001 deg/s
+  PASS  and follows the turn between pixels, not in whole-pixel treads  residual 0.0125 deg (treads: ~0.1)
+  PASS  the slowest rotation it could see is twice the fit's standard error, and 0.1 deg/s is well over it: a sense  0.0009 deg/s
+  PASS  and it prints all three
+  PASS  a rate under what can be seen is no sense; over it, a sense
+  PASS  hue still places a box's centre to half a pixel, and its step still binds  0.190 deg
+
+projective: t_z's error on a long track
+  PASS  what the model leaves in the residual: seen from the whole track, not from its middle 450 points  0.663 s against 0.139 s
+  PASS  a speed falling 0.3 % a second moves T by that share of T² / 2, with nothing to show in the residual  24.17 -> 25.03 s; 0.88 s
+  PASS  and the sentence says what the band does not hold  (16-84 % 24.13 to 24.20 s), which a speed changing by 1 % a second of its own would move by 2.9 s; its speed is then abo
+
+kinematics: tau from looming and the light curve; the admissible region
+  PASS  a rendered disc growing as 1/(t_z - t): t_z from its sizes alone, read in whole pixels  t_z 3.99 (3.76-4.05) for 4.0
+  PASS  and tau at the last frame  2.03 s for 2.03
+  PASS  a 1/R² light curve under a gain, the gain taken out by a background aperture: tau  2.98 s for about 3.02 at the arc's middle
+  PASS  without the background the gain leaks in  2.96 s
+  PASS  theta = atan(omega tau), nothing without either
+  PASS  the region: the least speed is omega R at the floor, the most the cap  10-1029 m/s
+  PASS  its rim is the speed cap
+  PASS  a size ceiling cuts the range where S = p R / k reaches it  R_hi 2000 m
+  PASS  with tau the region is one line, and the aspect angle one value  theta median 11.3° for 11.3
+  PASS  bounds that cross leave nothing, and say so
+  PASS  and the region has its sentence, naming what bounds it
+  PASS  a region nothing bounds but the cap has no sentence: the figure is the fan
+  PASS  one region, two draws: the extent stands, the share under the speed of sound is the draw's  31% drawn evenly (median 527 m/s), 97% invariantly (median 83)
+  PASS  the fan's one-sidedness under an isotropic direction: the words the transverse row adds are the formula's  1.155: 0.4996, 2: 0.1340, 10: 0.0050
+  PASS  a wedge from the depth bound: the invariant draw's aspect stays inside it, and the extent's most is where the wedge meets the farthest range  theta [64.82566936637623, 77.07954558191174, 88.6854595204795], at most 224 m/s
+
+kinematics: tau from a size series, and when there is none
+  PASS  a size growing as 1/(t_z - t) on top of the blur's reach: tau at the last frame; the law with no room for the blur puts it late  2.02 ± 0.21 s for 2.03 (offset 2.8 px); without it 3.36
+  PASS  a size that holds: no tau  its size held, 9.0 px in radius: no trend in it stands out of its own wander (-0.2 px over the stretch, 1.4 sigma), so no closing is seen in it
+  PASS  read on a third of the frames it was tried on: none  its size was read on 39 of the 120 frames it was tried on: one that comes and goes is its neighbours' or the background's as often as its own
+  PASS  slips to a neighbour are dropped against the running median, and tau stands  11 dropped, 2.08 s
+  WARN  a size that wanders with a second's memory rarely passes as looming (the sweep's 2 in 100 stated)  3 of 40 (at most 4 before E20)  [3 of 40 at a stated 2 %: yellow (green to 1, yellow to 5; P(X <= 3) = 0.9918)]
+  PASS  a point: no size to read; its light curve, the gain out by its ring, says what tau it would be  3.80 s for 4.02
+  PASS  a thing that beats has no light-curve reading
+  PASS  a size read out to the extent's cap is no size (the Yemen object inside its gate, 2026-10-29): not "held at 80 px", and not resolved, so its light curve is read  its size was read on 30 of the 120 frames it was tried on: one that comes and goes is its neighbours' or the background's as often as its own
+
+symbology: the angle convention
+  PASS  straight up reads 0 deg  got 0.0
+  PASS  to the right reads 90 deg  got 90.0
+  PASS  straight down reads 180 deg  got 180.0
+  PASS  to the left reads 270 deg  got 270.0
+  PASS  radius is the distance from the boresight  50.00
+
+kinematics: the band held to its own track (E1, M8)
+  PASS  the one-step innovations of a drawn series are N(0, 1)  mean +0.03, sd 0.99
+  PASS  on tracks drawn from its own covariance the band is green about nine times in ten  green, green, green, green, green, green, green, green, green, green, green, green, green, green, green, green, green, green, green, green  [0 of 20 at a stated 10 %: green (green to 3, yellow to 7; P(X <= 0) = 0.1216)]
+  PASS  and red next to never (past 99.99 % of a right band's misses)  [0 of 20 at a stated 0.01 %: green (green to 0, yellow to 0; P(X <= 0) = 0.9980)]
+  PASS  its fields: the count of misses, each test's p by coordinate, and a sentence that begins with the light  green: 11 of its 300 one-step predictions missed by more than 1.96 of their sds (3.7 %, 5 % stated), the misses apart, n
+  PASS  a beat in the position: the band alone is not green, and the reason names a rhythm at the beat's rate  yellow: ["a rhythm is left in it, strongest near 6.0 Hz: the track moves in a way its model does not hold (a wingbeat, a sway, the camera's shake)", 'its jitter changes along the track']
+  PASS  M8 holds it beside the wander as a beat at its rate, and the rhythm is gone from the innovations  beat at [5.979605521475607, 5.982095560020012], Ljung-Box p 2.5e-102 -> 4.6e-02, light green
+  PASS  and says so   frame; a rhythm near 6.0 Hz was left in it, and is held beside the wander as a beat at 6.0 Hz (the light without it yellow; the rate is the wander's)
+  PASS  a band too narrow for its track is red  17.5% missed: it misses 105 of its 600 one-step predictions (17.5 %) where
+  PASS  tails heavier than a normal's are a reason  its errors have tails heavier than a normal's: 1 past 4 sds, jumps or slips the band kept
+  PASS  under 30 points there is no backtest
+
+report: whose rate the bottom line says it is
+  PASS  a look at the background, with no track, is not the object's rate  No object was tracked, so nothing here measures one. What follows describes the video. 1 t
+  PASS  and the bottom line says that nothing was tracked
+  PASS  a measurement of the object against each layer is named by layer  Against the sea, the object moves about 599 pixels a second, its typical speed over each second of the track. Against th
+  PASS  and what `mcdonald layers` prints is written from the same fields, so the prose cannot disagree with them
+  PASS  stages.kinematics: the fields are the numbers, and the report's lines are made from them  543.323 px/s
+  PASS  a speed in body lengths says, wherever it is printed, that it is one only if the object is resolved (PR135: 28.6 /s from a point's 7.4 px)
+  PASS  with no frames, the blur is said not to have been measured, and why
+  PASS  an object no wider than a point: its speed in body lengths is NO POWER, and the number is still there  the object is 2.4 px wide at half its peak and a point on this clip 2.3 px, so i
+  PASS  the body-lengths line says it is the object's own only on a camera that did not move; with nothing said of the camera the row stands
+  PASS  B7: the camera's own speed given, the row is NO POWER with the arithmetic, and the number is still there  the camera flew at 100 m/s (--own-ship): a thing still in the air crosses the picture at t
+  PASS  the layers step saw the background move: the camera turned or moved, and the row is NO POWER  the background moved across the picture in 95% of the frame pairs (the layers st
+  PASS  the picture behind it held still on screen: a camera following it looks so, and the row cannot tell  lengths is not the object's own unless the camera held still
+  PASS  with no size there is no row, and nothing to say of the camera
+  PASS  a resolved one: no NO POWER, and a note that says it was measured  the object 9.2 px wide at half its peak, a point 2.3 px (the sharpest spots on 12 frames): resolved
+  PASS  a clip with no points to measure the blur on says so, and claims nothing either way
+  PASS  with no scale and no range the bottom line says the rate does not convert, and names what is missing  The object moves about 543 pixels a second across the picture. Its speed held steady to within ±1 pixels a second. A steady change
+  PASS  and the case file carries both: the number, and the line
+  PASS  a track too short to fit is a stage with no power, not an exception
+
+report: the four unknowns
+  PASS  a case with nothing: all four missing, each with the datum that would close it  ['missing', 'missing', 'missing', 'missing']
+  PASS  a graticule and a given range, angle and platform speed: all four constrained, nothing to close  k: 35.4 px/deg (graticule, measured); R: 5,000 m (given); θ: 60° (given); v_own: 120 m/s (given)
+  PASS  a field of view given with no source is assumed, as scale says, and still names what would close it  an ASSUMED field of view of 40 deg
+  PASS  slew's standing floor bounds k; the horizon's ceiling and focus's floor bound R, each by its route  at least 1087 px/deg; at most 57 km, by the horizon (mcdonald horizon); at least 2.5 km, by sharp as a point, if focused far (mcdonald focus)
+  PASS  a graticule and a slew that agree: the row says so (the graticule's error is not stated: tested as none, not weighed)  graticule, measured; 2 routes: the routes agree (the graticule and the camera's slew are 0.6 of the error apart; 1.96 allowed): k = 35.9 +/- 0.8 px/deg from the camera's slew; the graticule: its error is not stated: tested against the others with none (the strictest the test can be), not weighed into the combination
+  PASS  a graticule and a slew that disagree: the row says so (the graticule's error is not stated: tested as none, not weighed)  graticule, measured; 2 routes: the routes DISAGREE, so they are not combined: the graticule and the camera's slew are 13.5 of their combined errors apart; the graticule: its error is not stated: tested against the others with none (the strictest the test can be), not weighed into the combination
+  PASS  a field of view assumed where the slew's c says k is at least twice its k: the assumption is contradicted  an ASSUMED field of view of 40 deg; 2 routes: no route measures k; the field of view assumed gives 46 px/deg, below the camera's slew (k cos(depression), so k is at least it): the assumption is contradicted; the camera's slew (k cos(depression), so k is at least it): at least 80 px/deg
+  PASS  a floor that does not stand (no window of the clip registered a slew) is no bound
+  PASS  a reference of known length, the range ratio and k give the range (as assumed as k is), in the ledger, the summary and the admissible region's bounds; the size needs no k  1,032 m (assumed); 11.7 m
+  PASS  with a measured k the range from the ratio is constrained  794 m
+  PASS  without the ratio, or without k, the range stays missing, and the row says what the reference would give; k's row says the reference gives the speed without it (it gives no k)  not given, and no bound measured; the reference of known length is at L k / l = 516 m, and the object's range is that times R_obj / R_ref, not given / not given, and no bound measured; with k, the reference of known length and the range ratio given (2) would give it: R = (R_obj / R_ref) L k / l
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpeqzshw2w/t_case.{md,json}
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpeqzshw2w/t_case.{md,json}
+  PASS  --case records a stage run on its own in the case: its bound in the table (after the summary), its command in the record, the table in the JSON too  at most 8 km
+
+scale: the FOV ladder
+  PASS  plausible fields span more than an order of magnitude  74 to 1433 m/s at 5 km = x19
+  PASS  a narrow field means a larger k
+
+kinematics: the jitter read without a model (E6)
+  PASS  white jitter: the nugget read without a model is the jitter's, rho_1 of the second differences -2/3  0.486 px for 0.5, rho_1 -0.664
+  PASS  on frames every other one there are no second differences on consecutive frames: no reading
+  PASS  tracks drawn with a wander and jitter and no beat are flagged about one time in a hundred  [0 of 20 at a stated 1 %: green (green to 0, yellow to 2; P(X <= 0) = 0.8179)]
+  PASS  PR135's bird A: flagged, the jitter read without a model well under REML's nugget, rho_1 far above -2/3  ratio 0.75/0.56, rho_1 -0.40/-0.28, p 0.002
+  PASS  PR144: not flagged, and REML's nugget agrees with the jitter read without a model  ratio 0.84/0.86 inside 0.81-1.15
+  PASS  and the same track reads the same twice (its draws are seeded)
+
+the lens's radial term, known
+  PASS  50.2 deg over 640 px through k1 -0.43 is the fit's focal length (750-757 px/rad), and with no bend a pinhole's 683  754.3
+  PASS  undistort is distort's exact inverse, barrel or pincushion  1.1e-13 px
+  PASS  a point past what the lens can reach has no undistorted place, where the one-term model folds back (0.587 f here)
+  PASS  a field of view past the model's fold is refused  --lens-k1 -1: a lens with that term folds back 30 degrees off its axis
+  PASS  refused before anything is measured: ['lens_k1']  --lens-k1 is counted in the lens's focal length: give the field of vie
+  PASS  refused before anything is measured: ['fields', 'lens_k1']  --lens-k1 is the lens at one focal length, and --fields says it change
+  PASS  refused before anything is measured: ['fov', 'lens_k1']  --lens-k1 -1: a lens with that term folds back 30 degrees off its axis
+  PASS  an approach's bend under the jitter passes through a pinhole, at a time that is wrong  T 23.87 of 29.48 s
+  PASS  drawn back through k1 it fits at the time drawn  T 29.53 of 29.48 s, misfit 1.0
+  PASS  a crossing near the frame's edge fails through a pinhole, and fits drawn back  3.6 -> 0.38 px rms, misfit 1.0
+  PASS  the picture's jitter carried through the lens: as it was on the axis, stretched toward the corner, the band's other numbers kept  0.500, 0.702 px
+  PASS  with no lens the stage's test is the plain call on the track itself
+  PASS  with one, the test and the turn are on the track drawn back, and say how far it moved  142.5 px
+  PASS  the words say so, and no longer offer the lens for a bend it was taken out of  k drawn back through the lens first (k1 -0.43, which moved it by up to 142.5 px)
+  PASS  the rate and the speed band stay the picture's, in pixels a person can count
+  PASS  the lens's scale along the track turns the picture's pixels into the angle swept, where a pinhole's misses it  1.000 against 0.964 (k 659, 683, f 754 px/rad)
+  PASS  with none given, a free radial term finds the lens that bent this track, and the words offer it, with its size  corner -0.19650504791163248; ounts for the whole miss (0.2 px rms, against the free quadratic's 0.5), so if the lens's k1 is known, give it
+  PASS  a real curve misses as well, and no lens is offered for it  {'kappa': -8.821702800361337e-07, 'corner': -0.3333161202213104, 'rms_px': 12.695948839536
+
+kinematics: the parallax ladder
+  PASS  a still object: k = 1 + v_G / v_A, two thirds of the way down  k 3.0, h 0.6667
+  PASS  an object with a speed of its own: the range every direction allows  2.727 to 3.333
+  PASS  with both directions, the still object is k = 3 again, and exactly opposite the heading  {'v_obj_m_s': 0.0, 'closest': {'k': 3.0, 'h_ratio': 0.6667, 'own_speed_needed_m_s': 0.0}, 'k': [3.0], 'h_ratio': [0.6667]}
+  PASS  and each k for 10 m/s of its own solves k v_O = |v_G + (k - 1) v_A|  [2.727, 3.333]
+  PASS  10 deg off the heading, a still object fits nowhere; the least it needs of its own is the smallest |v_G + (k - 1) v_A| / k, not v_G sin 10 deg (that is k times a speed, at another k)  {'k': 3.01, 'h_ratio': 0.6678, 'own_speed_needed_m_s': 11.62} against 11.62 at k 3.010
+  PASS  an object made to move 10 m/s of its own at k 4: the still row says 10 m/s at k 4, 1500 m of 2000  {'k': 4.0, 'h_ratio': 0.75, 'own_speed_needed_m_s': 10.0, 'h_m': 1500}
+  PASS  PR043 on Long's numbers: a still object fits nowhere, and the least it needs is 29.1 m/s of its own, 1564 m up (it said 922.9 m/s before the fix)  {'k': 34.287, 'h_ratio': 0.9708, 'own_speed_needed_m_s': 29.11, 'h_m': 1564}
+  PASS  and its other rows are Long's Fig. 4: 30 m/s at 1559-1568 m, Mach 1 near 1340 m, Mach 5 near 434 m  [[1559, 1568], [1338], [432]]
+  PASS  PR023 on Long's numbers: the ground moving the aircraft's way, faster -- no nearest height, and never less than the aircraft's own 6.54 m/s  {'k': None, 'h_ratio': 1.0, 'own_speed_needed_m_s': 6.54, 'h_m': 1351}
+  PASS  and it says so      0.0 m/s of its own: no height gives it; the nearer the aircraft's height, the less it needs of its own, down to the aircraft's own 6.5 m/s just under it and never less
+  PASS  a still thing under a descending aircraft: the level ladder puts it at the wrong height (looking ahead) or makes it move (looking aside); the climb folded in finds it still, at its height  ahead: level 1285 m, with the climb 1340 m at 0.0 m/s; aside: level 12.65 m/s, with the climb 0.0 m/s at 1340 m
+  PASS  PR043 with its descent: the least it needs is 24.0 m/s, about 1573 m up (Long's curve ends at 23.5, 1570 m), and his cut-off's speed at 1132 m  {'k': 43.027, 'h_ratio': 0.9768, 'own_speed_needed_m_s': 24.0, 'h_m': 1573}; 658.5 m/s at [1133]
+  PASS  a climb with no line of sight, a line of sight with no climb, or either with no directions: not used, the rows the level ones, and why  the aircraft's climb needs the line of sight's bearing and depression (--line-of-sight) | the line of sight is used only with the aircraft's climb (the fourth part of --own-ship) | the aircraft's climb needs its heading and the ground motion's bearing
+  PASS  the climb as the aircraft's fourth part (m/s or feet a minute; an indicated speed's height leaves the third empty), the line of sight as bearing,depression  aircraft 76.37 m/s = 76.4 m/s, heading 272.7 deg, at 1611 m, descending at 5.01 m/s / line of sight toward 270 deg, 17.87 deg below the horizontal
+  PASS  a line of sight or climb it cannot read says how to write it  'down': give the aircraft's climb as -5m/s or -1000fpm (+ climbing, - descending
+  PASS  the stage: the climb in its fields and said, the aircraft's speed the rows take; a line of sight it cannot read is NO POWER with the sentence    the aircraft descending at 5.01 m/s, looking toward 270 deg and 17.87 deg down: worth -15.5 m/s of its speed along the
+  PASS  the kinematics step's line: what was given, the line of sight among it, and the least a still object needs   the horizontal: no height holds a still object, and the least it needs of its own is 24.0 m/s, at h_O/h_A 0.977 (1573 m) (the ladder is in the notes)
+  PASS  indicated airspeed: true at sea level, and 250 kt at 10,000 ft is about 290 kt true  290.9 kt
+  PASS  speeds in the units reports give them  [214.58, 128.61, 111.11]
+  PASS  without a ground speed it is NO POWER, and says which of the two is missing  how much of a ground speed is the aircraft's own motion needs a speed along the 
+  PASS  a speed it cannot read says how to write one  'fast': give a speed as 480mph, 215m/s, 250kt, 400km/h, or 250kias@7000ft
+  PASS  an indicated airspeed at a height gives the band a day 15 C colder or warmer, and the height  aircraft 250 kt indicated at 2134 m: 142.8 m/s true in ISA (138.9-146.7 at -15 to +15 C), heading 85 deg
+
+the picture's stretch, known
+  PASS  a row of KNOWN, a string (the number, and where it was read), so `run`, `report`, `kinematics` and the Measure form all have it, and it can be given afterwards
+  PASS  the number and its source: given, read from the display's symbols, read from the scene, or the person's own words  (1.333, 'given: a 4:3 tape shown in 16:9')
+  PASS  refused before anything is measured: --pixel-aspect x  --pixel-aspect x: write how much wider than tall a pixel is drawn, suc
+  PASS  refused before anything is measured: --pixel-aspect 0  --pixel-aspect 0: the width of a pixel over its height is a positive n
+  PASS  refused before anything is measured: --pixel-aspect -1.3  --pixel-aspect -1.3: the width of a pixel over its height is a positiv
+  PASS  with the lens's term it is refused: a stretched picture is not drawn back through the lens yet  --lens-k1 is counted in square pixels, and a stretched pictu
+  PASS  a drawn clip with a known stretch comes back exact: the rate in square pixels along the track, over k up the picture  82.759 of 82.759 deg/s
+  PASS  and one k on the stretched picture reads it high by the stretch's share along the track (the surveys' D8)  1.179 times
+  PASS  the scale step: k up the picture, a k across, the field of view in square pixels both ways, the stretch and its source  39.7 by 29.8 deg; 2077.0 px/rad (graticule, measured up the picture; 2769.3 across)
+  PASS  a drawn clip with no stretch, or one of 1, is unchanged: field for field and word for word
+  PASS  a field of view with a stretch spans the frame's width in square pixels, and the field up the picture follows  k 2039.4
+  PASS  the summary's rows: the stretch with its source, the field both ways, k up and across, the rate in square pixels, the extent's two readings  ('1.333 wide to tall', "given, read from the scene: the picture's pixels are drawn 1.333 times wider than tall, so k is read up the picture and the rate is turned into square pixels along the track before it becomes an angle"); 39.7° by 29.8° up
+  PASS  the first line gives the size's two readings and says the picture is stretched; the bottom line the rate both ways; the ledger k up and across  The object crossed the view at about 83° a second. It is 9 pixels across in the file, 0.19–0.25° in angle, because the picture is drawn 1.333 times wi
+  PASS  and with square pixels the report has no such row and no such words
+  PASS  PR113's transit at the ladder's 36.25 px/deg: about 103 deg/s at the scene's stretch (1.29-1.333), 94 at the symbols' 1.753, 118 with one k; 142.3 px/frame stays its rate in the file's pixels; the field about 40 by 30 deg over the frame  1.333,a 4:3 tape shown in 16:9: 103.2 deg/s; 1.29,scene: 104.5 deg/s; 1.753,symbols: 94.3 deg/s; None: 117.8 deg/s
+
+kinematics: body-lengths per second (needs nothing)
+  PASS  PR149 contact  145 /s (published: above 110)
+  PASS  a zero size yields None, not infinity
+
+kinematics: the range ratio, given or not
+  PASS  a row of KNOWN, after the reference object's length, so the form and `run --range-ratio` both have it
+  PASS  the scale-bar speed scales with it, and the fields carry it  176.1 -> 352.2
+  PASS  the stage's line says at how many times the reference's range, or that it is a ceiling  352.2 m/s at 2 times the reference's range (the range ratio given)
+  PASS  the report's row: the factor left to the reader without it, the speed with it  | transverse relative speed | \|v_obj − v_own\| sin θ | **352 m/s** | from the reference object at R_obj/R_ref = 2 (give
+
+report: the tether stage's words after 0.5.2
+  PASS  a period the wander null refused is a pendulum nowhere: not in the headline, the paragraph or the checklist  a bright feature 2.8 object widths away moves with it, with no regular swing
+  PASS  the paragraph says where it is, on how many frames, and why no swing is read  bright feature moves with it, 2.8 object widths away and +0° from straight down. It shows there on 34% of the frames. Its angle drifts back and forth, but no more regularly than a slow random drift would. So no swing is claimed, and there is no length to read.
+  PASS  the checklist's row says it moves with it, with no regular swing  a bright feature 2.8 object widths away moves with it, with no regular swing
+  PASS  a companion seen on every frame at a steady angle reads as before
+  PASS  nothing tied is said of the ring that was searched, in pixels (PR28's stem starts at the object, inside it)  nothing between 18 and 540 pixels from it keeps step with it; closer in was not searched
+  PASS  a report made before 0.5.2 reads as it did  nothing within 40 object widths keeps step with it
+
+report: the segment chosen, and the figure in plain words with the birds on it
+  PASS  the segment chosen is said at the top, in the video's time as the segment step shows it, and the frames measured where they are fewer  **Segment:** 0:30.00 to 0:56.00 of the video, 26.0 s (frames 901–1681). Measured over 0:33.70 to 0:45.00 (frames 1012–13
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpv7xrl89l/pr44_case.{md,json}
+  PASS  the case file keeps it, and the report read back says it again
+  PASS  a case from before the segment was kept says the frames it has, as a segment  **Segment:** 0:33.70 to 0:45.00 of the video, 11.3 s (frames 1012–1351).
+  PASS  its axes are named in words, each with its unit in parentheses: no k, no equation, no FOV, no px (sciencespeak, 2026-11-07)  0.7° view | 3° view | 10° view | 30° view | Distance to the object | Size of the object (m) | Size and speed against distance | Speed across the line of sight (
+  PASS  the band a bird's size would sit in is drawn with the weather balloon and the fighter jet, the other bands beside them, and said as the case's own where its brightness beats like a bird's (since 2026-11-07 in the legend under the plot, the house style's: no text in it can cross a line)
+  PASS  a line for each of four fields of view where none is known, a targeting pod's 0.7° among them, and the one given where it is  2.5° view | Distance to the object | Size of the object (m) | Size and speed against distance | Speed across the line of
+
+report: the beat, in the summary and the bottom line
+  PASS  the summary's last row: the beat, its double, its frames, and that a wingbeat is one of the things that beat  ('3.9 Hz (and 7.9 Hz, its double)', "the object's own, over frames 602–721: clear of the codec's rhythm, not shared by t
+  PASS  a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, labelled Beats like a bird (2026-10-12), with the alternatives named (Jacob, Galileo flyer 2, 2026-10-07)  A bird is the leading explanation. Its brightness rises and falls 3.9 times a second, the rate of a 
+  PASS  a group whose members each beat at a wingbeat's rate, out of step: a flock of birds, in the conclusion, the summary and the bottom line  A flock of birds is the leading explanation. Its 6 members each beat 7.1–8.0 times a second, the rate of a win
+  PASS  a member beating outside the wingbeat band is counted among the members, not the flock; members too brief for a beat (under 60 frames: PR135's after the group's jump) are said   bodies or blinking lights would beat too. 3 more were seen too briefly to tell.
+  PASS  a member whose beat did not pass the stage's tests (`strong`) is not counted among those that beat, in the conclusion, the summary or the bottom line, though its strongest is at a wingbeat's rate  A flock of birds is the leading explanation. 5 of its 6 members each beat 7.1–8.0 times a second, th
+  PASS  the bottom line says it  Its brightness beats 3.9 times a second, and also 7.9, its double. That rhythm is the object's own, not the video's.
+  PASS  a beat in one stretch names no bird: the conclusion, the summary and the bottom line say it is one stretch  Its brightness beats 7.1 times a second in one stretch, frames 300–359, and not elsewhere along its track. Tha
+  PASS  two windows apart that agree, or the whole track, name a bird -- and so does a case from before the rule, with no mark
+  PASS  a beat in one stretch under a wingbeat's rate says it is one stretch, and has no bird to refuse  Its brightness beats 1.7 times a second in one stretch, frames 300–359, and not elsewhere along its track.
+  PASS  a stretch the stage did not keep is no beat in the conclusion or the bottom line, and the row says why  Nothing was measured about the object.
+  PASS  a beat the camera's shake may make names no bird, and each place says so  Its brightness beats 7.1 times a second, but the whole picture shakes at that rate by 0.39 pixels. The camera may make t
+  PASS  the beats `run` reads the shake for are those that would name a bird
+  PASS  of a flock, a member the shake may make is not counted  A flock of birds is the leading explanation. 2 of its 3 members each beat 7.1–7.8 times a 
+  PASS  a beat that comes back at a wingbeat's rate but by only 5 % names no bird, and the headline says why: the rate the floor was set at, on known aircraft, drones and helicopters  Its brightness beats 7.1 times a second, a rhythm of its own, but by only 5.0 % of its brightness. Known aircraft, drones and helicopters can beat that strongly too. About 1 in 100 of them reach 7 %, so this is too faint to name a bird.
+  PASS  just over the floor it names a bird, just under it does not, and a case from before the floor, with no amplitude, does
+  PASS  the floor and the rate it was set at, said in words  0.07, 0.01
+  PASS  members that each beat by 4 % make no flock  Its brightness beats 7.8 times a second, a rhythm of its own, but by only 4.0 % of its brightness. Known aircraft, drone
+  PASS  a beat that reaches the background beside it in step is said to look like a rotor's, and the bird is still named   a labelled infrared set, 6 of 8 helicopters whose beat would have named a bird showed this, against 1 of 50 birds. It is a reading beside the conclusion, not a test, until it is held to helicopters it was not chosen on.
+  PASS  the light that beats sitting off its middle is said too; a beat with neither says nothing of a rotor
+  PASS  of a group, only the members whose beats come back make the flock  A flock of birds is the leading explanation. 2 of its 3 members each beat 7.1–7.8 times a second, th
+  PASS  with none found, the row says why and the bottom line says nothing of it  (None, 'no beat reaches 3 times what the background beside it does')
+
+kinematics: the in-frame scale bar (PR149)
+  PASS  150 m LOA -> 192 kn  192 kn
+  PASS  200 m LOA -> 255 kn  255 kn (published ceiling 192-257)
+  PASS  a nearer object scales down linearly with the range ratio
+
+kinematics: the speed band in the stage and the report
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpcufh8y4x/pr055_speed.png  (7.400 x 6.364 in at 200 dpi)
+  PASS  PR055's sphere: not uniform, and the band says how the speed ran  the speed ran from 69.4 ± 6.0 px/s at 35.57 s to 78.3 ± 6.0 at 43.30 s (least 25.9 ± 4.9 a
+  PASS  the not-uniform line carries the band's range  NO -- v_px does not describe this motion: the speed ran from 26 to 99 px/s (the speed band)
+  PASS  the rate frame by frame and its figure are written beside the case  pr055_speed.csv, pr055_speed.png
+  PASS  the CSV has a row a point under its header  frame,t_s,vx_px_per_s,vy_px_per_s,sd_vx,sd_vy,speed_px_per_s,sd_speed
+  PASS  the bottom line describes the change instead of refusing  The object's speed across the picture changed. It went from 69 pixels a second at 35.6 s to 78 at 43.3 s, with the least 26 and the most 99. Along its path it a
+  PASS  and the summary's row says it  fitted to 91 points of the track against wall-clock time; the speed band (the track's own covariance, section 32) says t
+  PASS  the band's backtest (E1): its light and reasons in the stage, the light in the summary's row and the CSV's header  yellow: 9 of its 176 one-step predictions missed by more than 1.96 of their sds (5.1 %, 5 % stated); its errors have tai
+  PASS  the note begins as add_known expects (KIN_NOTES) and goes on with the band
+  PASS  a speed in body lengths of a changing speed is marked the line's rate, not unquotable  ate over a changing speed: it ran from 26 to 99 px/s (the speed band)]
+  PASS  B6: the two speeds are named in the stage's line, the bottom line and the summary's row, and the sphere's path speed is well over its net  path 56.6, net 37.8 px/s
+  PASS  the reduction's own print says the same
+  PASS  a constant rate is said to be, with its band and the most it could have changed (E12), in the stage, the bottom line and the row; on an exact line the band is the floor (F9: 1/60 px a frame, 0.5 px/s at 30 fps)  18.1 px/frame (543.323 ± 0.001 px/s)
+  PASS  a track too short for a band: NO POWER, and the line's rate stands  30.0 px/s
+
+kinematics: the speed band on drawn tracks (K8)
+  PASS  the rate's ±2 sd band holds the drawn velocity about 95 % of the time (counted at each track's middle frame, x and y: the frames of one track are not independent draws)  0.942 of every frame over 16 tracks  [2 of 32 at a stated 4.55 %: green (green to 3, yellow to 6; P(X <= 2) = 0.8230)]
+  PASS  and its sd is the right size  z sd 1.04
+  PASS  the average speed's error is honest  z sd 1.03 over 16 tracks
+  PASS  a track that wanders is called constant hardly ever (1 % stated: a judgement, the band's power on this wander is near 100 %)  0 of 16 called constant  [0 of 16 at a stated 1 %: green (green to 0, yellow to 2; P(X <= 0) = 0.8515)]
+  PASS  B6: the speed along the path, from 200 drawn paths: its 95 % holds the drawn path's speed about nine times in ten (the covariance is the fitted one, not the truth's: the survey's 90-95 %)  held 21 of 24  [3 of 24 at a stated 10 %: green (green to 4, yellow to 8; P(X <= 3) = 0.7857)]
+  PASS  and reads the drawn path's speed  median read/true 0.996
+  PASS  the drawn fastest's 95 % holds the truth about nine times in ten, as the path's does  held 23 of 24  [1 of 24 at a stated 10 %: green (green to 4, yellow to 8; P(X <= 1) = 0.2925)]
+  PASS  the drawn fastest reads nearer the truth than the kriged mean's fastest, which reads low (the mean path is smoother than the path)  drawn fastest/true 0.999, kriged max/true 0.939
+  PASS  the path speed is at least the net speed (a path is never shorter than the line from its start to its end)  path 67.5, net 60.0 px/s
+  PASS  a wander with the detector's memory (range about 2 frames) is read as the line's (missed 10 % of the time stated: a judgement)  memory on both coordinates 16 of 16  [0 of 16 at a stated 10 %: green (green to 3, yellow to 6; P(X <= 0) = 0.1853)]
+  PASS  and the velocity is constant (11 % of the planted straight dots were not: MEMORY_FRAMES)  constant 16 of 16  [0 of 16 at a stated 11 %: green (green to 3, yellow to 7; P(X <= 0) = 0.1550)]
+  PASS  and the line's velocity is held by the stated error (the GLS slope's, or the ends', the larger: 95 %)  16 of 16  [0 of 16 at a stated 5 %: green (green to 1, yellow to 4; P(X <= 0) = 0.4401)]
+  PASS  the band's words say whose the wander is  ere is the line's, with the larger of the line's error and the ends'); a steady change of its speed of more than 0.1 px/s over the 6.6 s would have shown (95 %)
+  PASS  a wander of the path's length (1 s) is the path's: nothing changes  [1.6955425917966795, 0.7433849555260753]
+  PASS  a line with jitter is constant within its band (all but 1 % stated: a judgement, Δln L 10 is far out)  16 of 16  [0 of 16 at a stated 1 %: green (green to 0, yellow to 2; P(X <= 0) = 0.8515)]
+  PASS  and its velocity is not said to have changed (3 sigma: 0.27 %)  0 of 16 at 3 sigma or more  [0 of 16 at a stated 0.27 %: green (green to 0, yellow to 1; P(X <= 0) = 0.9577)]
+  PASS  the nugget is the jitter planted  median 0.49 px for 0.5
+  PASS  a planted acceleration of 200 px/s² is seen (missed 1 % of the time stated: a judgement, it is 35 sigma)  8 of 8  [0 of 8 at a stated 1 %: green (green to 0, yellow to 1; P(X <= 0) = 0.9227)]
+  PASS  and read near its value  median 199 px/s² (the wander's own rate adds to it)
+  PASS  a drawn track that lies on its line exactly: constant, nugget nil, the rate exact  543.323 px/s, nugget 0.0010
+  PASS  under 10 points there is no band
+  PASS  a frame that repeats the one before is dropped first (the picture did not update)  8 dropped
+  PASS  and the same track gives the same band twice (nothing in it is random)  []
+
+kinematics: the speed band on recorded tracks
+  PASS  pr055_sphere_track.csv: the nugget is the survey's 0.50 px  0.46 px
+  PASS     and the band is tighter than the scatter of single pairs of frames by about 8x  7.5x
+  PASS     the velocity wanders (no recorded track is a line with white jitter)  dlnl 526
+  PASS  pr071_object_track.csv: the nugget is the survey's 0.33 px  0.40 px
+  PASS     and the band is tighter than the scatter of single pairs of frames by about 4x  3.1x
+  PASS     the velocity wanders (no recorded track is a line with white jitter)  dlnl 1214
+  PASS  pr144_track.csv: the nugget is the survey's 0.80 px  0.51 px
+  PASS     and the band is tighter than the scatter of single pairs of frames by about 7x  13.1x
+  PASS     the velocity wanders (no recorded track is a line with white jitter)  dlnl 4208
+  PASS  pr23_object_track.csv: the nugget is the survey's 0.65 px  0.65 px
+  PASS     and the band is tighter than the scatter of single pairs of frames by about 2x  2.2x
+  PASS     the velocity wanders (no recorded track is a line with white jitter)  dlnl 726
+  PASS  wa9ony5_balloon_track.csv: the nugget is the survey's 0.44 px  0.46 px
+  PASS     and the band is tighter than the scatter of single pairs of frames by about 8x  9.3x
+  PASS     the velocity wanders (no recorded track is a line with white jitter)  dlnl 921
+  PASS  PR144's 672 points are read window by window  2 windows
+  PASS  FLIR1's exit: the 27-px step at its field change (frame 2235) is named a step and kept (E4)  6 past 5.9 times the local scale, which a clean track on these frames passes 99 % of the time: 6 steps kept (2
+  PASS  and its change of speed over the stretch, within its noise, is bounded (E12)  nd the ends'); within its noise: its speed along the track changed by less than 254 px/s over the 2.2 s (95 %)
+  PASS  PR055's sphere: three glitches of 2-3 px named and left out of its band  5 past 8.1 times the local scale, which a clean track on these frames passes 99 % of the time: a glitch at fra
+  PASS  Galileo flyer 5's paper track: the bird holds to a tenth of a pixel and speeds up along it  nugget 0.08 px, 106-174 px/s
+
+the window's jewels: the stages planned
+  PASS  everything, in the order run_case goes through it; co-motion only with a D, the horizon with a height, the haze with a visibility  ingest, survey, symbology, track, verify, layers, scale, kinematics, camera, groups, flicker, tether, integrity, report
+  PASS  what is skipped is left out, and `only` is all there is
+  PASS  and the stages asked for are run_case's own rule (`asked_for`)
+
+report: the summary of variables, on PR113's published numbers
+  PASS  pixel velocity first, then against each layer of the background, FOV, k, omega and the image extent  pixel velocity, pixel velocity against the striated background, pixel velocity against the isotropic background, horizontal field of view, angular scale, angular rate, image extent
+  PASS  the Technical Note's numbers: v_px, FOV about 54 deg, k 2.03e3 px/rad, omega about 2.10 rad/s  pixel velocity: 141.0 px/frame (4231 px/s); pixel velocity against the striated background: None; pixel velocity against the isotropic background: None; horizontal field of view: 54.2°
+  PASS  R, v_own and the speeds that need them are not available, and the table says what would give each
+  PASS  and it is near the top of the report, under the conclusion; W x H and f are said once, above it
+  PASS  the conclusion comes first: with the angle marks and no range, where a bird, a balloon and a jet would be (Jacob, 2026-10-22; the Technical Note's ~37 m craft at 3 km is the same line)  Indeterminate, range needed: The object crossed the view at about 120° a second. It is 21 pixels across (0.59°). What i
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpjfpiv7lf/pr113_track_frame.png  (7.400 x 4.522 in at 200 dpi)
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpjfpiv7lf/pr113_size_speed.png  (7.400 x 6.068 in at 200 dpi)
+wrote /var/folders/h5/t85nd63d71x27_8gl5gw3l_w0000gn/T/tmpjfpiv7lf/pr113_admissible.png  (7.400 x 4.884 in at 200 dpi)
+  PASS  the three figures (a frame with the path; size and speed against range; the admissible region, since k is known) are drawn, after Missing quantities  pr113_track_frame.png, pr113_size_speed.png, pr113_admissible.png
+
+kinematics: the published PR113 reduction
+  PASS  k from the graticule  2028.3 px/rad (published 2028.3)
+  PASS  omega = v_px f / k  2.100 rad/s (published 2.100)
+  PASS  object angular size  0.01233 rad
+  PASS  small-angle FOV  54.2 deg (paper: ~54)
+  PASS  full sec^2 FOV  50.7 deg
+  PASS  the small-angle form overstates k by 8 % at FOV 54  1.081
+  PASS  the window and the stages import without scipy.signal  []
+
+kinematics: rates are against wall-clock time
+  PASS  mean rate survives repeated frames  350.0 px/s (truth 350)
+  PASS  while individual per-frame readings are 0 or double  13% read as stationary, 13% read as ~2x -- which is why a single frame pair is never a rate
+
+who placed a track given alone, from its own first lines
+  PASS  linked from hand marks or a marks file's hand marks: a hand's; marks not a hand's or share make's agent's track: not; a file that says nothing (or is not there): not known  {}
+
+what is known: afterwards, and the speed from a thing of known size
+  PASS  what can be given afterwards is KNOWN's rows that only reckon, not those that change what other steps look at  fov, fov_px, graticule, lens_k1, pixel_aspect, range_m, range_max_m, ref_px, ref_m, range_ratio, size_px, ground_speed, own_ship, line_of_sight
+  PASS  a case keeps what it was told (`known` in its ingest step); an older one is read off the command it records  {'fov': 30.0, 'range_m': 8046.72, 'ref_px': 120.0, 'own_ship': '180kt'}
+  PASS  and what changes more than the arithmetic is refused before anything is read: measure again for that
+  PASS  a thing of known size gives a speed: the conclusion says it, at most at that thing's distance, and the bottom line how  Subsonic motion: If it is no farther away than the reference object of known size, the object moved at most about 176
+  PASS  and with a range ratio, at that ratio, said to be given  At 0.5 times the distance of the reference object of known size (as given), the object moved about 8
+
+stages: what survives, in the stage and the report
+  PASS  the fields: the projective test, the turn and the smear, from the width given
+  PASS  and their sentences in the result
+  PASS  the model confidence set (E22) in the fields and the result  the 90 % model confidence set (Hansen, Lunde & Nason 2011) of a line at a steady image vel
+  PASS  the summary's rows  passes: closing, T = 1.55 s, θ = 5°
+  PASS  and the bottom line's paragraph  The track still says something without the range, the field of view or the camera's own speed. The track's path does not bend beyond its own
+  PASS  and the set in the paragraph's words after it, and among what survives  Three simple ways of moving were compared: a steady speed across the picture, a straight flight toward or away from the camera, and a steady turn. Each was aske
+  PASS  the admissible region from the case: the cap alone bounds it, the size from the extent and k
+  PASS  with no width the turn and the smear are NO POWER, the projective test stands
+  PASS  held to the track's own jitter (the larger of the band's nugget and its residual's), which it fits   quadratic's 0.9, 1.1 times the track's own jitter (0.61 px)
+  PASS  a camera's sway: the row and the bottom line say the model describes its trend, not that it passes  describes its trend to 1.8 px
+  PASS  no closing seen on a track that fits: θ bounded below by atan(ω / the depth's rate), and the region a wedge  at least 81° at 1.04 % a second; θ ≥ 81°
+  PASS  a track the camera held has none of them, and no NO POWER for it either: the motion is the camera's
+
+projective: what survives the missing variables
+  PASS  a closing object: the model fits, t_z found with its band, one of its errors either side (over 100 such draws the band holds the truth 85 % of the time, its 95 % 98 %; 2026-10-31)  t_z 2.59 (2.55-2.62) for 2.5
+  PASS  with jitter that has memory, t_z is given an error nearly every time (5 % stated: a judgement)  30 of 30  [0 of 30 at a stated 5 %: green (green to 3, yellow to 6; P(X <= 0) = 0.2146)]
+  PASS  and t_z's error is the track's own covariance's: within one error about as often as it says (71 % on 100 draws, 2026-10-31, held both ways)  19 of 30 within one error  [11 of 30 at a stated 29 %: green (green to 12, yellow to 17, and as far the other way; P(X <= 11) = 0.8690)]
+  PASS  and within 1.96 (94 % on 100 draws)  29 of 30 within 1.96  [1 of 30 at a stated 6 %: green (green to 3, yellow to 7; P(X <= 1) = 0.4555)]
+  PASS  its speed in units of its range at the last frame  0.607 for 0.641 /s
+  PASS  and the aspect angle there, from the vanishing point with k  5.2° for 5.0°
+  PASS  it describes the track as a free quadratic does, and constant image speed does not  0.61 px against 0.80 and 4.76
+  PASS  and it fits to the track's own jitter (the larger of two readings of it): the half pixel drawn  0.97 times 0.63 px
+  PASS  a far object at constant velocity: no closing seen, the track straight  straight to 0.42 px, t_z 82 s, 1.00 times its jitter
+  PASS  a camera's sway: the models pass it, but held to its jitter the model follows only the trend, and says so  12.5 times its jitter (0.15 px)
+  PASS  no closing seen, bounded (refused 5 % of the time stated: a judgement)  20 of 20  [0 of 20 at a stated 5 %: green (green to 2, yellow to 5; P(X <= 0) = 0.3585)]
+  PASS  and the depth's rate is under the bound the speed change gives (95 %)  19 of 20 for a truth of 0.0208/s  [1 of 20 at a stated 5 %: green (green to 2, yellow to 5; P(X <= 1) = 0.7358)]
+  PASS  and said in place of 'the track says nothing of how its range changed'  e track changed by -0 ± 3 px/s over 1.0 s): it was at least 82 s from the camera's plane if closing and 83 s if receding
+  PASS  a band that reads the velocity as unchanging to within nothing (its wander fitted to nothing) is floored by a free quadratic's error, which `fit` gives it
+  PASS  T from the mean speed and the change of speed, exactly, closing and receding, at r 1.02 to 10  9e-16
+  PASS  a change past twice the mean has its bound now, with a tenth of the change in its error (the band's ends lag a steep curve)  115 % a second
+  PASS  past DEPTH_X times the mean no bound, and it says why  no bound on how fast its depth changed: its speed along the track changed by +450 ± 45 px/s on a mean of 100, more than 4 times over, and the speed at a track's ends is not read that well
+  PASS  ends three times the mean are no straight flight's: the model has their geometric mean equal to it, and it says so  no bound on how fast its depth changed: its speed at the two ends (300 and 330 px/s) is not what a straight flight at a steady speed draws about its mean (100 px/s), so they are the track's wander's
+  PASS  ends about the mean are read; no band, no reason to give
+  PASS  a bound is of the trend the test chose: a change of speed that trend draws is read
+  PASS  one that trend does not draw is none: a link hopping on a large object reads its ends' speed anywhere  no bound on how fast its depth changed: its speed along the track changed by +90 ± 9 px/s where the trend it follows changes by +583, so its two ends are not that trend's
+  PASS  a drawn approach whose speed changes by twice its mean: bounded (refused 5 % of the time stated: a judgement)  12 of 12  [0 of 12 at a stated 5 %: green (green to 1, yellow to 4; P(X <= 0) = 0.5404)]
+  PASS  and the bound holds the truth (95 %)  12 of 12  [0 of 12 at a stated 5 %: green (green to 1, yellow to 4; P(X <= 0) = 0.5404)]
+  PASS  a track looping over a short chord gets no bound, and the reason  no bound on how fast its depth changed: its speed at the two ends (200 and 199 px/s) is no
+  PASS  and the sentence gives that reason
+  PASS  a drawn track with no jitter at all is held to the floor, a tenth of a pixel, and fits  7e-14
+  PASS  under ten points with no band there is no jitter to hold it to: the verdict is the models' alone, and says so
+  PASS  a curving track fails the test  straight to 20.2 px: neither model
+  PASS  under six points there is no test
+  PASS  an arc of 500 px drawn by a 10-px object: a turn of about 50 body widths  48.1, sagitta 41.7 ± 0.2 px
+  PASS  an arc of 47° is read by its sagitta, and said as the picture's radius, the turn's own 0.12 to 6.6 times it (M4: the tilt of its plane)  that radius is the picture's: with its plane at random to the line of sight, the turn's own radius is 6 to 316
+  PASS  a straight track with jitter: did not turn, the radius at least hundreds of body widths  at least 10462 (95 %)
+  PASS  and 'did not turn' says how a turn hides: its plane holding the line of sight  10 times tighter looks this straight for 4 % of the ways its plane can lie, 40 times tighter for 1 %
+  PASS  no width, no turn number
+  PASS  a track with no bend at all (drawn): did not turn, with no bound to give -- said, not a crash (2026-10-29: the kinematics stage raised on one)  the track bends by 0.0 ± 0.0 px over 38 px: no bend at all: it did not turn, wit
+  PASS  the smear number: PR43's 609 px/s over a 4.27-px width is 4.75 widths a frame
+  PASS  each has its sentence
+
+projective: which motion models survive (E22)
+  PASS  losses alike: the set keeps all three  MCS p [1.0, 0.38, 0.38]
+  PASS  one model's losses far larger: it leaves the set  MCS p [1.0, 0.184, 0.0]
+  PASS  a straight line at a steady image speed: the line is in the set  ['line', 'turn']
+  PASS  a straight flight closing on the camera: the projective model alone  ['projective'], p {'line': 0.0, 'projective': 1.0, 'turn': 0.0}
+  PASS  a steady turn: the turn alone  ['turn'], p {'line': 0.0, 'projective': 0.0, 'turn': 1.0}
+  PASS  under 20 points there is no set
+  PASS  the words: technical for Measurements, plain for the paragraph  confidence). The track rules out a steady speed across the picture and a straight flight toward or away from the camera.
+  PASS  where the line stays, the models that left are said to predict worse, not ruled out (each holds the line)   straight flight toward or away from the camera predicts it worse than a steady speed across the picture does.
+  PASS  where the track wanders about the best model, the words rank the predictions and name no motion (the null's level does not hold there)  best (90 % confidence). But the track also wanders about it, so this ranks the predictions and does not name the motion.
+  PASS  a set that keeps all three says the track cannot tell them apart
+
+1 WARN (a count on drawn data in the yellow, not failed): a size that wanders with a second's memory rarely passes as looming (the sweep's 2 in 100 stated)
+
+ALL PASS

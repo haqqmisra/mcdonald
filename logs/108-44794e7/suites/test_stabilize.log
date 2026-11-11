@@ -1,0 +1,23 @@
+
+stabilize: a reticle on a grainy display, filmed by a wandering hand
+  PASS  every frame aligned  40 aligned, 0 lost
+  PASS  held to the truth  rms 0.08 px, worst 0.29 px
+  PASS  the repeated frames are found  7 of 7
+  PASS  the drawing held at the start is the one at the end  0.957
+  PASS  nothing said to be missing  []
+
+stabilize: a track made on the held video, carried back onto the clip's pixels
+  PASS  a gap of 2 is filled
+  PASS  a gap of 6 is left
+  PASS  carried back, it stays on one display point  worst 0.10 px
+
+stabilize: a native recording (the drawing never moves) is said to be one
+  PASS  native  hand [0.0, 0.0] px
+  PASS  and said to have nothing to remove
+
+stabilize: a redaction box is kept, a pillarbox band is left out
+  PASS  the pillarbox band is left out
+  PASS  the box inside the picture is kept
+  PASS  the frame's own edge pixels are left out
+
+ALL PASS
