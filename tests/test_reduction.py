@@ -4015,11 +4015,21 @@ def test_house_figure_style():
     check(not letters, "and no figure letters its panels (a), (b), (c): Jacob's text names a panel by its place", str(letters))
 
 
-def main():
-    print("mcDonald UAP Toolkit — reduction self-check")
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
-            fn()
+def main(argv=None):
+    """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
+    that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for
+    Cannon, where this suite run whole is the second longest, after test_measurement (no suite runs faster on more
+    than 4 CPUs)."""
+    argv = sys.argv[1:] if argv is None else argv
+    k, n = 1, 1
+    if "--part" in argv:
+        k, n = (int(x) for x in argv[argv.index("--part") + 1].split("/"))
+        if not 1 <= k <= n:
+            sys.exit(f"--part K/N needs 1 <= K <= N, not {k}/{n}")
+    print("mcDonald UAP Toolkit — reduction self-check" + (f", part {k} of {n}" if n > 1 else ""))
+    names = sorted(name for name, fn in globals().items() if name.startswith("test_") and callable(fn))
+    for name in names[k - 1::n]:
+        globals()[name]()
     if traffic.WARNS:
         print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))
     print(f"\n{'ALL PASS' if not FAIL else str(len(FAIL)) + ' FAILED: ' + ', '.join(FAIL)}")

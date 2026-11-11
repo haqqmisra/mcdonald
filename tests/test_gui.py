@@ -4242,7 +4242,10 @@ def _xvfb():
     if ON_SCREEN or not shutil.which("Xvfb"):
         return None
     r, w = os.pipe()
-    x = subprocess.Popen(["Xvfb", "-displayfd", str(w), "-screen", "0", "1600x1200x24", "-nolisten", "tcp"],
+    # -noreset: by default an X server resets when its last client disconnects, and a client that connects during the
+    # reset is refused. The windows' children start together and each briefly opens the display to check it, so one of
+    # them could find "Invalid DISPLAY variable" and its whole backend was skipped (Cannon's shared nodes, 2026-11-10).
+    x = subprocess.Popen(["Xvfb", "-displayfd", str(w), "-screen", "0", "1600x1200x24", "-nolisten", "tcp", "-noreset"],
                          pass_fds=[w], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.close(w)
     try:

@@ -1102,7 +1102,9 @@ def noise(path, rows, fps):
     keys = [Patch(color=c, alpha=a, label=lab) for c, a, lab in fills] + \
         [Line2D([], [], color=HOUSE[0], lw=1.5, label="The object"), Line2D([], [], color=RED, lw=1.2, label="Its beat"),
          Line2D([], [], color=MUTED, lw=1.0, ls=(0, (2, 2)), label="The video file's rhythm")]
-    fig.legend(handles=keys, loc="outside upper center", ncol=3)
+    # two columns, the three bands in one and the three lines in the other: in three columns the legend ran off the
+    # figure with matplotlib 3.11 and FreeType 2.14 (Cannon, 2026-11-10), a few points wider than 3.10 with FreeType 2.6
+    fig.legend(handles=keys, loc="outside upper center", ncol=2)
     save(fig, path, dpi=200, quiet=True)
     plt.close(fig)
     return str(path)
