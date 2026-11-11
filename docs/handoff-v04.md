@@ -1,4 +1,4 @@
-# Handoff: ROADMAP 0.4 and 0.5 -- session 20 (2026-11-10) on top: 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made on the maintainer's word, the Mac and Windows runs, the tag and the push still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 and 0.5 -- session 20 (2026-11-10) on top: 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
 
 ## Session 20 (2026-11-10): 0.5.2 built -- `tether`'s four defects, its gate set against a null
 
@@ -7,13 +7,17 @@ Run jobs through /slurm."
 
 ### Where it stands (read this first)
 
-**0.5.2 is built and on `main` with its version commit, dated 2026-11-10, and is not pushed.** Jacob, the same day, on
-the report of the build: "Go ahead with the 0.5.2 version commit, dated today". The version commit is the last commit of
-the session, on top of the build (1566e6d) and of this section's own update: `src/mcdonald/__init__.py`, the READMEs'
-status lines, `CITATION.cff` and the CHANGELOG's heading, as 0.5.1's was (CITATION's version DOI stays 0.5.1's until
-Zenodo has minted 0.5.2's, after the release). What is still Jacob's: the Mac and Windows runs on that commit (a push to
-`macos-ci` and `windows-ci`); the tag and the push; then the reference case files remade for the record (one command,
-below), the Zenodo DOI and the site.
+**0.5.2 is built, versioned (44794e7, dated 2026-11-10) and pushed to `main`; it is not tagged, so it is not on PyPI
+or the site yet.** Jacob, the same day, on the report of the build: "Go ahead with the 0.5.2 version commit, dated
+today"; then, on the report of that: "go ahead and push". The version commit sits on top of the build (1566e6d) and of
+this section's first update: `src/mcdonald/__init__.py`, the READMEs' status lines, `CITATION.cff` and the CHANGELOG's
+heading, as 0.5.1's was (CITATION's version DOI stays 0.5.1's until Zenodo has minted 0.5.2's, after the release).
+Before `main` went out the version commit was run on the Mac and on Windows (a push to `macos-ci` and `windows-ci`):
+**runs 108 (macOS 26.7) and 109 (Windows Server 2025), both green**, all thirteen suites of `platforms.yml` on each,
+`test_tether` 45 of 45 on both, the Homebrew install reporting 0.5.2 (logs on `ci-logs`, `logs/108-44794e7/` and
+`logs/109-44794e7/`; the skips are the expected ones, the window's GTK and Wx backends). What is still Jacob's: the
+tag on 44794e7 (it starts PyPI's publishing and the site), the Zenodo DOI's commit after it, and the reference case
+files remade for the record (one command, below).
 
 Built in a worktree (`/hugespace/models/mcdonald-052`, branch `tether-052`, merged into `main` and removed), every run through
 Slurm. The working folder is `/scratch/mcdonald/tether-052/` (scripts in `dev/`, the null's runs in `out/`, the cases'
@@ -95,8 +99,9 @@ second object, 3,558 frames, is the long one).
 
 ### Not done, and what the null and the cases showed that 0.5.2 does not fix
 
-1. **The Mac and Windows runs, the tag, the push** (Jacob's; the version commit is made). No push was made, to `main`
-   or to the CI branches.
+1. **The tag** (Jacob's hands: `git tag v0.5.2 44794e7`, `git push origin v0.5.2`), and after it the Zenodo DOI's
+   commit and the remake for the record. The version commit, the Mac and Windows runs on it (108, 109: green) and
+   the push of `main` are done. `platforms.yml` still runs thirteen of the suites; the rest run on merlin only.
 2. **Three far "companions" are left on AARO's tracks**, where 0.5.1 had eleven, and the tests here cannot refuse them:
    a feature on the horizon that keeps the distant object's pace while the nearer scene, which the background's shift is
    read off, does not (PR-010, rows 4 and 8); and features on the picture's straight borders, which the object moves
