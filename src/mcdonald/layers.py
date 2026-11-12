@@ -38,6 +38,7 @@ from PIL import Image
 from scipy import ndimage
 
 from . import forensics as vf
+from . import gpu
 from . import scene as whole
 from .progress import PROCS_HELP, pool_of, pooled, size_of, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
@@ -83,6 +84,13 @@ def _init(video, workdir, n0, n1, masks, rows, trk, k, reach, size, dark, longer
 
 
 def _bad(n):
+    """Frame n's grey and its mask: read here, or taken from the threads that read ahead of a loop on a graphics
+    card (`_G["ahead"]`, `measure`)."""
+    ahead = _G.get("ahead")
+    return ahead.get(n) if ahead is not None else _read(n)
+
+
+def _read(n):
     clip = _G["clip"]
     rgb = clip.rgb(n)
     bad = vf.frame_mask(rgb, _G["masks"], _G["rows"], n)
@@ -91,6 +99,26 @@ def _bad(n):
         yy, xx = np.ogrid[:clip.H, :clip.W]
         bad = bad | ((xx - cx) ** 2 + (yy - cy) ** 2 < 28 ** 2)
     return vf.grey_of(rgb), bad
+
+
+def _filtered(n, g):
+    """Frame n band-passed, for `_first`: None with no card (`shift_field_auto` filters it, as ever); on a card, the
+    filtered frame left there and kept for the pair k frames on, whose first frame it is."""
+    kept = _G.get("filtered")
+    if kept is None:
+        return None
+    if n not in kept:
+        kept[n] = vf.bandpass_kept(g)
+        for m in [m for m in kept if m < n - 2 * _G["k"]]:      # long past: every pair that had it is done
+            del kept[m]
+    return kept[n]
+
+
+def _forget_card():
+    """What a round on a graphics card left in `_G` let go: the filtered frames kept there, and a window's."""
+    _G.pop("filtered", None)
+    _G.pop("window_from", None)
+    _G.pop("window", None)
 
 
 # How each pair was measured: the last two columns of a template row, after vf.SHIFT_COLS. UNMOVED: held still, between
@@ -133,8 +161,8 @@ def _first(a):
     k = _G["k"]
     ga, ba = _bad(a)
     gb, bb = _bad(a + k)
-    return vf.shift_field_auto(ga, gb, ba, bb, a=a, reach=_G["reach"], tpl=_G.get("tpl", TEMPLATES[0]),
-                               stride=_G.get("stride", TEMPLATES[1]))
+    return vf.shift_field_auto(ga, gb, ba, bb, _filtered(a, ga), _filtered(a + k, gb), a=a, reach=_G["reach"],
+                               tpl=_G.get("tpl", TEMPLATES[0]), stride=_G.get("stride", TEMPLATES[1]))
 
 
 def window_start(a, k, L, n0, n1):
@@ -175,7 +203,7 @@ def _window(s):
         clip = _G["clip"]
         L = min(_G["longer"], clip.n1 - clip.n0)
         (gs, bs), (ge, be) = _bad(s), _bad(s + L)
-        _G["window_from"], _G["window"] = s, (gs, ge, bs, be, vf.bandpass(gs), vf.bandpass(ge))
+        _G["window_from"], _G["window"] = s, (gs, ge, bs, be, vf.bandpass_kept(gs), vf.bandpass_kept(ge))
     return _G["window"]
 
 
@@ -591,7 +619,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     reach = int(max_shift * k + 20)
     longer = max(int(round(clip.fps)), k)                 # a pair held still over k frames is measured again over a second
     trk = {n: p for n, p in track.items() if clip.n0 <= n <= clip.n1} if track else None
-    size, size_fields = template_size(clip, masks, rows)
+    with gpu.on(gpu.card()):                              # nine frames filtered: on a card where there is one, which
+        size, size_fields = template_size(clip, masks, rows)      # gives the CPU's filtered frame to the last bit
 
     # The templates are minutes of work and are kept beside the frames. What they depend on is in the
     # name: until 2026-09-20 the track was there only as "is there one", and --mask-rows and --max-shift
@@ -604,28 +633,51 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                       "the vote along the streaks", vf.VOTE_LEAD, vf.VOTE_FLOOR_PX, "zero left out read first",
                       "a tint is not symbology", vf.TINT_FIFTH, vf.TINT_SHARE)
                      + (() if size == TEMPLATES else ("templates", size)))
+    # ... and what computes them, where it is a graphics card: its templates agree with the CPU's to a hundredth of
+    # their own errors and not to the last bit (method section 52), so they are kept apart. A run on the CPU never
+    # reads a card's, and its own cache is named as it always was.
+    card = gpu.card()
+    if card is not None:
+        made_from = repr((made_from, "matched on a graphics card"))
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
     if cache.exists() and not fresh:
         tpl = np.load(cache)["tpl"]
+        gpu.took_part(card)
         say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
     else:
         # Two rounds on one pool: every pair over k frames, then, for the pairs held still, the second
         # passes -- one an L-frame window, shared by the pairs nearest it (`window_start`), not one a pair.
+        # On a graphics card (`gpu.card`) the same two rounds in this process: the card matches a pair's templates
+        # together, threads read the frames ahead of it (`Ahead`), and no pool is made.
         pairs = list(range(clip.n0, clip.n1 - k + 1, step))
         L = min(longer, clip.n1 - clip.n0)
-        pool = pool_of(procs, _init, (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer,
-                                      size), pixels=clip.W * clip.H)
+        args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer, size)
+        pool = first = None
         try:
-            first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
+            if card is not None:
+                say(f"the frame pairs are matched on the graphics card, {card.name}")
+                _G["filtered"] = {}
+                first = vf.pooled_or_on_card(_G, _read, [n for a in pairs for n in (a, a + k)], procs, _first, pairs, _init, args,
+                                             2, progress, stop, "Layers", pixels=clip.W * clip.H)
+                _forget_card()
+            if gpu.card() is None:                    # no card, or one that stopped: a pool of CPUs for what is left
+                pool = pool_of(procs, _init, args, pixels=clip.W * clip.H)
+                if first is None:
+                    first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
             first, _ = held_but_moved(first)
             _, unmoved = repeating(pairs, first, k, L, clip.n0, clip.n1) if L > k else (set(), set())
             starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first)
                              if still and L > k and a not in unmoved})
-            again = dict(zip(starts, second_pass(pool, starts, clip.H, k, L, progress, stop, tpl=size)))
+            with gpu.on(None if pool is not None else gpu.card()):     # the card's round again, where it did the first
+                again = dict(zip(starts, second_pass(pool, starts, clip.H, k, L, progress, stop, tpl=size)))
         finally:
-            pool.terminate()
-            pool.join()
+            _forget_card()
+            if pool is not None:
+                pool.terminate()
+                pool.join()
+            if gpu.card() is not None:
+                gpu.card().tidy()
         tpl = np.vstack([_rows(a, f, still, again.get(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None, k, L,
                                unmoved=a in unmoved) for a, (f, still) in zip(pairs, first)])
         np.savez_compressed(cache, tpl=tpl)

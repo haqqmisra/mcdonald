@@ -52,7 +52,7 @@ USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video
 For the graphical interface, type `mcdonald-gui`: it walks you through each
 step of the analysis.
 
-usage: mcdonald [--cpus N] <command> [options] VIDEO
+usage: mcdonald [--cpus N] [--gpu CARD] <command> [options] VIDEO
 
 commands:
 """ + "".join(f"  {n:<12} {d}\n" for n, (d, _) in COMMANDS.items()) + """
@@ -69,6 +69,13 @@ fails; `mcdonald readme agents` for doing the whole job from here with no window
 --cpus N (before or after the command) lets it use at most N of this computer's
 CPU cores; the default is all of them (a batch job's allocation, not the
 machine). MCDONALD_CPUS=N in the environment says the same.
+
+--gpu CARD says which graphics card computes, where a step can use one: a
+card's name or part of it, its number, or `none` for the CPU only. The default
+is the first NVIDIA card found, if CuPy is installed (pip install
+"mcdonald[gpu]"); with no card every step runs on the CPU and gives the same
+measurement. MCDONALD_GPU in the environment says the same; `mcdonald setup`
+says which card is in use.
 
 Every command takes --json: one object on stdout (command, inputs, clip, files,
 results, no_power, needs, exit, error), and everything else on stderr. `results`
@@ -113,11 +120,35 @@ def take_cpus(argv):
     return rest
 
 
+def take_gpu(argv):
+    """`--gpu CARD` or `--gpu=CARD`, wherever it is, taken out of `argv` (no command has an option of that name) and
+    put where this process and its children will see it (`gpu.choose`): a card's name or part of it, its number, or
+    `none`. The message of a ValueError says what was wrong with it."""
+    rest, i = [], 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--gpu" or a.startswith("--gpu="):
+            if a == "--gpu":
+                if i + 1 >= len(argv) or argv[i + 1].startswith("-"):
+                    raise ValueError("--gpu needs a graphics card's name or number, or `none` for the CPU only")
+                value, i = argv[i + 1], i + 2
+            else:
+                value, i = a.split("=", 1)[1], i + 1
+            if not value.strip():
+                raise ValueError("--gpu needs a graphics card's name or number, or `none` for the CPU only")
+            from . import gpu
+            gpu.choose(value)
+        else:
+            rest.append(a)
+            i += 1
+    return rest
+
+
 def main(argv=None):
     utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
-        argv = take_cpus(argv)
+        argv = take_gpu(take_cpus(argv))
     except ValueError as e:
         print(f"mcdonald: {e}", file=sys.stderr)
         return EXIT_USAGE

@@ -35,6 +35,7 @@ from typing import NamedTuple
 import numpy as np
 
 from . import catalog, forensics as vf
+from . import gpu
 from . import kinematics as kin
 from . import lens
 from . import scale as sc
@@ -1294,6 +1295,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         record = dict(title=rec.get("title"), release=rec.get("release"),
                       disclosure=cat.disclosure(rec), catalog=cat.name)
     case = Case(tag, video, clip, record)
+    gpu.begin()                                           # the case says whether a graphics card took part (`computed_on`)
     case.segment = [int(segment[0]), int(segment[1])] if segment else [clip.n0, clip.n1]
     say(f"{video.name}: {clip.W}x{clip.H}, {clip.info['fps']} fps, frames {clip.n0}-{clip.n1}")
     say(f"case directory: {prefix.parent}")
@@ -1712,6 +1714,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             files += case.figures
         except Exception as e:                       # a figure that cannot be drawn is said, and the report still written
             say(f"  ! the report's figures were not drawn: {type(e).__name__}: {e}")
+        case.computed_on = gpu.computed_on()
         path = case.write(str(prefix))
         files += [path, f"{prefix}_case.json"]
         label, head = case.conclusion()

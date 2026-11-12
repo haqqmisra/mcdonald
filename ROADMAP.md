@@ -57,7 +57,7 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
   bird wingbeat rates* (Scientific Reports, submitted; arXiv; reproduction package on Zenodo,
   DOI 10.5281/zenodo.23021686). The cases in them are the reference cases of this roadmap.
 - **Funding.** Emergent Ventures (Mercatus Center) awarded a grant in October 2026: a 48-core
-  workstation with 128 GB of memory and a 16 GB GPU (ordered), two years of the AI coding
+  workstation with 128 GB of memory and a 16 GB GPU (on the desk since 2026-11-11), two years of the AI coding
   agent the package is developed with, and the open-access fee of a methods paper. Donations
   continue through Project Janus at Blue Marble Space.
 - **People.** A colleague has run the window end to end on macOS; Windows has so far been run
@@ -609,6 +609,21 @@ knowing what the search could not have found.
    so that by 0.6 the GPU path is complete rather than begun. On GitHub's runners, which have
    no GPU, the CPU path is what is tested; the GPU path is held to the goldens on the
    workstation.
+
+   *Begun 2026-11-12, the workstation's second day* (`mcdonald.gpu`, `docs/method.md` §52, `tests/test_gpu.py`). The
+   three array versions are built and held: the band-pass (the CPU's to the last bit), the correlation shift field
+   (the same templates, a pair's agreed shift within 0.0001 px on PR113) and the spot detector's matched filter.
+   `layers` and `integrity`'s background passes run on the card, in one process with the frames read ahead by threads:
+   a ninth of the time four cores take, a little over half the time all 88 threads take. The correlations were single
+   precision on the CPU already, so there was no move to single precision to check; what differs is the transform and
+   its order, a few 1e-7 in the maps. The card is CuPy's (NVIDIA, through CUDA; the `gpu` extra), chosen by
+   `--gpu`, `MCDONALD_GPU` or Preferences, used inside a batch job only where the job was given it, and only where a
+   stage says so. A case says what computed it, and `rerun` measures it again the same way. On GitHub's runners the
+   card's code is run with NumPy standing in for it. *Still to do for "complete":* Find and Follow on the card (the
+   spot detector's routine is there, the stages still run on pools), `flicker`'s camera-shake pass, `stabilize`, the
+   third pass of `layers`; a Mac's card (Metal has no double precision: the routines that sum in double need
+   another way there); and the work the card is for -- the plants, the dense field, the error models (objective 4,
+   A14).
 4. **Planted objects at scale.** `plant`: synthetic objects and synthetic look-alikes written
    into frames and re-encoded with the clip's own settings, through the whole chain (Find,
    link, flicker, report), thousands per clip -- completeness and reliability per video, the

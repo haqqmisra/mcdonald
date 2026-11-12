@@ -4,8 +4,9 @@
 # minutes to two hours, and this one is the check that every push is green somewhere.
 #
 # What it does not do: the real-clip goldens (tests/test_golden.py needs the footage; the maintainer runs it
-# through Slurm before a release) and the GPU path (the runners have none). Each suite's log is kept as a
-# run artifact for two weeks; the summary lines are in the job's own log.
+# through Slurm before a release) and a real graphics card (the runners have none: test_gpu runs the card's code
+# with NumPy standing in for it, and the maintainer runs the suites on a card, `sbatch --gres=gpu:1`). Each suite's
+# log is kept as a run artifact for two weeks; the summary lines are in the job's own log.
 name: suites
 on:
   push:
@@ -49,7 +50,7 @@ jobs:
       - name: the suites
         run: |
           failed=""
-          for s in test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_measurement test_gui; do
+          for s in test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_gpu test_measurement test_gui; do
             echo "== $s  $(date +%H:%M:%S)"
             t0=$SECONDS
             python -u tests/$s.py > out/$s.log 2>&1 || failed="$failed $s"

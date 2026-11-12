@@ -33,9 +33,10 @@ import numpy as np
 from PIL import Image
 from scipy import fft as sfft, ndimage
 
+from . import gpu
 # Re-exported so tools can reach the whole measurement surface through one
 # import, as they did when this was a single module.
-from .progress import Stopped, counted, pool_of, pooled, workers  # noqa: F401
+from .progress import Ahead, Stopped, counted, pool_of, pooled, workers  # noqa: F401
 from .clip import (EXIT_INPUT, EXIT_MISSING, EXIT_NOTHING, EXTRACTED, STUDIO, Clip, Levels,  # noqa: F401
                    MissingTool, NotAVideo, Stop, case_dir, chroma_of, cost_text, grey_of, named, out_prefix, probe,
                    require_ffmpeg, resolve)
@@ -340,7 +341,90 @@ def _par(m1, m0, p1):
 
 
 def bandpass(g, lo=1.0, hi=12.0):
+    """The frame with its coarse shading and its finest noise taken out: a Gaussian of `lo` px less one of `hi`. On
+    a graphics card where a stage has said so (`gpu.active`), the same two filters there (0.1 s a 1080p frame on a
+    CPU, a few thousandths on a card), by SciPy's own arithmetic: the same frame to the last bit."""
+    c = gpu.active()
+    if c is not None:
+        try:
+            return c.run(lambda: c.down(_bandpass_on(c, c.up(g), lo, hi)))
+        except c.errors as e:
+            gpu.gave_up(e, "filtering a frame")
     return ndimage.gaussian_filter(g, lo) - ndimage.gaussian_filter(g, hi)
+
+
+def bandpass_kept(g, lo=1.0, hi=12.0):
+    """`bandpass`, left where it was made: on the card where this thread computes on one (`gpu.active`), for a caller
+    that only hands it on to `shift_field` (as `ha` or `hb`) -- a frame is the second of one pair and the first of
+    another, and is filtered once. With no card it is `bandpass`."""
+    c = gpu.active()
+    if c is not None:
+        try:
+            return c.run(lambda: _bandpass_on(c, c.up(g), lo, hi))
+        except c.errors as e:
+            gpu.gave_up(e, "filtering a frame")
+    return bandpass(g, lo, hi)
+
+
+def pooled_or_on_card(G, read, asks, procs, fn, jobs, init, initargs, chunksize=1, progress=None, stop=None, what="",
+                      pixels=None):
+    """`pooled(procs, fn, jobs, init, initargs, ...)` -- or, where this process has a graphics card to compute on
+    (`gpu.card`), the same jobs here, one after another, their arithmetic on the card (`gpu.on`) and their frames
+    read ahead by threads. For a stage whose jobs are pairs of frames matched by `shift_field`.
+
+    `G` is the stage's own dictionary of what `init` sets up for a worker, which is this process then; `read(key)` is
+    the stage's reading of one frame, and `asks` every key the jobs will ask it for, in their order (`progress.Ahead`).
+    The stage's reader takes a frame from `G["ahead"]` where there is one. Should the card stop part-way (`gpu.gave_up`
+    has said so), the jobs not yet done go to a pool of CPUs as they would have: the same measurement, by the
+    reference arithmetic."""
+    jobs = list(jobs)
+    card = gpu.card()
+    if card is None:
+        return pooled(procs, fn, jobs, init, initargs, chunksize, progress, stop, what, pixels=pixels)
+    init(*initargs)
+    out = []
+    G["ahead"] = Ahead(read, asks)
+    try:
+        if progress:
+            progress(what, 0, len(jobs))
+        with gpu.on(card):
+            for job in jobs:
+                if card.stopped:                           # it stopped: the CPUs take the rest
+                    break
+                out.append(fn(job))
+                if progress:
+                    progress(what, len(out), len(jobs))
+                if stop is not None and stop():
+                    raise Stopped(what)
+    finally:
+        G.pop("ahead").close()
+        card.tidy()
+    if len(out) < len(jobs):
+        done = len(out)
+        rest = (lambda text, i=None, total=None: progress(text, None if i is None else done + i, len(jobs))) if progress else None
+        out += pooled(procs, fn, jobs[done:], init, initargs, chunksize, rest, stop, what, pixels=pixels)
+    return out
+
+
+def _here(a):
+    """An array a caller handed over, if it is in this computer's own memory; None for one left on a card, which the
+    CPU's arithmetic cannot use (the card stopped after it was made: it is made again from the frame)."""
+    return a if a is None or isinstance(a, np.ndarray) else None
+
+
+def _bandpass_on(c, g, lo=1.0, hi=12.0):
+    """`bandpass` of a frame that is on the card `c`, left there."""
+    return _gaussian_on(c, g, lo) - _gaussian_on(c, g, hi)
+
+
+def _gaussian_on(c, g, sigma):
+    """`ndimage.gaussian_filter(g, sigma)` on the card `c`, by SciPy's own arithmetic: along each axis in turn the
+    sums are made in double and the result kept in the frame's precision. CuPy's filter sums a single-precision
+    frame in single precision, and over the 97 taps of a 12-px Gaussian that is 1e-4 of a grey level away from
+    SciPy's; this way the card's band-pass is the CPU's to the last bit in all but a few pixels of a million."""
+    for axis in range(g.ndim):
+        g = c.ndimage.gaussian_filter1d(g.astype(c.xp.float64), sigma, axis=axis).astype(g.dtype)
+    return g
 
 
 SHIFT_COLS = "a x y dx dy pk pk2 ani theta mean wxx wyy wxy ridge".split()
@@ -411,19 +495,28 @@ def _peak(c, oy, ox, zero, tpl):
     n9 = c[py - 1:py + 2, px - 1:px + 2]
     if n9.min() <= -1.0:                          # on the rim of the excluded zone or of a mask
         return None
-    pk = float(c[py, px])
+    c2 = c.copy()
+    c2[max(py - RUNNER_UP_APART, 0):py + RUNNER_UP_APART + 1, max(px - RUNNER_UP_APART, 0):px + RUNNER_UP_APART + 1] = -1.0
+    qy, qx = np.unravel_index(np.argmax(c2), c2.shape)
+    return _peak_read(n9, px - ox, py - oy, float(c2[qy, qx]), (qx - px, qy - py), tpl)
+
+
+RUNNER_UP_APART = 12    # px: the runner-up is the highest match outside the square this far each way about the peak
+
+
+def _peak_read(n9, dx, dy, pk2, runner_up, tpl):
+    """`_peak`'s numbers from the peak's 3 x 3 neighbourhood `n9` (the peak in its middle, at whole-pixel shift
+    (dx, dy)), the runner-up's height and its place from the peak, (x, y). The half of `_peak` that needs no map:
+    the card finds the peaks of a batch of maps and this reads each one (`_shift_field_on`)."""
+    pk = float(n9[1, 1])
     kxx = 2 * pk - n9[1, 0] - n9[1, 2]
     kyy = 2 * pk - n9[0, 1] - n9[2, 1]
     kxy = (n9[2, 2] + n9[0, 0] - n9[0, 2] - n9[2, 0]) / 4
     ev, evec = np.linalg.eigh(np.array([[kxx, -kxy], [-kxy, kyy]]))
     ani = float(max(ev[0], 0) / max(ev[1], 1e-9))
     theta = float(np.degrees(np.arctan2(evec[1, 0], evec[0, 0])))   # flat axis
-    c2 = c.copy()
-    c2[max(py - 12, 0):py + 13, max(px - 12, 0):px + 13] = -1.0
-    qy, qx = np.unravel_index(np.argmax(c2), c2.shape)
-    pk2 = float(c2[qy, qx])
-    w, ridge = peak_information(pk, kxx, kyy, kxy, tpl * tpl, pk2, (qx - px, qy - py))
-    return (px - ox + _par(n9[1, 0], pk, n9[1, 2]), py - oy + _par(n9[0, 1], pk, n9[2, 1]), pk, pk2, ani, theta) + w + (ridge,)
+    w, ridge = peak_information(pk, kxx, kyy, kxy, tpl * tpl, pk2, runner_up)
+    return (dx + _par(n9[1, 0], pk, n9[1, 2]), dy + _par(n9[0, 1], pk, n9[2, 1]), pk, pk2, ani, theta) + w + (ridge,)
 
 
 def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None, only=None, zeros=None):
@@ -441,13 +534,21 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     the same correlations (the zone is only where the peak is looked for): the
     field with zero left out and the one with it allowed cost one search."""
     H, W = ga.shape
+    zs = [zero] if zeros is None else list(zeros)
+    card = gpu.active()
+    if card is not None:
+        try:
+            fields = card.run(_shift_field_on, card, ga, gb, bad_a, bad_b, a, tpl, stride, reach, zs, ha, hb, only)
+            return fields if zeros is not None else fields[0]
+        except card.errors as e:
+            gpu.gave_up(e, "matching two frames")
+    ha, hb = _here(ha), _here(hb)
     ha = bandpass(ga) if ha is None else ha
     hb = bandpass(gb) if hb is None else hb
     # Every placement's normalisation and mask count, from three summed-area tables of the whole
     # frame b, once, in float64 -- not two box sums a template window in float32 (2026-09-26, §4.5:
     # the variance of a flat-sky window came out as rounding noise, and matched anything)
     S1, S2, SB = integral(hb), integral(hb.astype(np.float64) ** 2), integral(bad_b)
-    zs = [zero] if zeros is None else list(zeros)
     out = [[] for _ in zs]
     for y0 in template_rows(H, tpl, stride) if only is None else only:
         for x0 in range(16, W - tpl - 16, stride):
@@ -466,6 +567,130 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
                     rows.append(head + p[:6] + (mean,) + p[6:])
     fields = [np.array(rows, dtype=np.float64).reshape(-1, len(SHIFT_COLS)) for rows in out]
     return fields if zeros is not None else fields[0]
+
+
+def _shift_field_on(c, ga, gb, bad_a, bad_b, a, tpl, stride, reach, zs, ha, hb, only):
+    """`shift_field` on the card `c`: [a field for each zone size of `zs`], the rows `shift_field` gives, in its order.
+    Called through `c.run`, as every routine on a card is.
+
+    The same search, arranged for a card. `shift_field` takes one template at a time: its region of frame b, cut
+    where the frame ends, a correlation by FFT, then the peak. Here the templates go a batch at a time:
+    - every template's region is the same size, min(tpl + 2 reach, the frame), slid to stay inside the frame where
+      the template is near an edge. It holds every placement `shift_field` tries; the placements more than `reach`
+      from the template's own place, which that region does not have, are set to -1, as masked ones are. A peak on
+      the rim of what `shift_field` searched then has a -1 beside it and is dropped, as a peak on a map's border is
+      there: the same templates keep or lose their rows;
+    - regions that coincide (two templates near the same edge; every template, where `reach` is larger than the
+      frame, which is `integrity`'s whole-frame search) are transformed once;
+    - the correlation is circular over the region's own size, not padded by the template's: the placements wanted
+      are the ones that do not wrap;
+    - each placement's normalisation and mask count come from the whole frame's summed-area tables in float64, as
+      there, made once a frame, not once a template;
+    - the card finds each map's peak, its 3 x 3 neighbourhood and its runner-up, and `_peak_read` reads them here.
+    Which templates are clear of the masks, and each one's mean level, are worked out here from the same arrays as
+    there, so they are the same to the bit. The correlations are single precision in both, by different FFTs, and
+    the maps agree to a few 1e-7: the shift read from a sharp peak to a few 1e-6 px, from one nearly flat along a
+    streak to 1e-3 px along it, where its own error is a thousand times that (method section 52; tests/test_gpu.py
+    holds each shift to a hundredth of its own error and a pair's agreed shift to 0.001 px)."""
+    xp = c.xp
+    H, W = ga.shape
+    spots = [(y0, x0) for y0 in (template_rows(H, tpl, stride) if only is None else only)
+             for x0 in range(16, W - tpl - 16, stride) if not bad_a[y0:y0 + tpl, x0:x0 + tpl].any()]
+    out = [[] for _ in zs]
+    if spots:
+        Sy, Sx = min(tpl + 2 * reach, H), min(tpl + 2 * reach, W)       # a region, and its placements
+        Py, Px = Sy - tpl + 1, Sx - tpl + 1
+        Ny, Nx = sfft.next_fast_len(Sy, True), sfft.next_fast_len(Sx, True)
+        y0s, x0s = (np.array(v, dtype=np.int64) for v in zip(*spots))
+        rys, rxs = np.clip(y0s - reach, 0, H - Sy), np.clip(x0s - reach, 0, W - Sx)
+        got = None
+        ha = c.up(ha) if ha is not None else _bandpass_on(c, c.up(ga))
+        hb = c.up(hb) if hb is not None else _bandpass_on(c, c.up(gb))
+        S1, S2, SB = _integral_on(xp, hb), _integral_on(xp, hb.astype(xp.float64) ** 2), _integral_on(xp, c.up(bad_b))
+        s1 = box_of(S1, 0, H, 0, W, tpl, tpl)
+        norm = xp.sqrt(xp.maximum(box_of(S2, 0, H, 0, W, tpl, tpl) - s1 * s1 / (tpl * tpl), 1e-6))
+        masked = box_of(SB, 0, H, 0, W, tpl, tpl) > 0
+        del S1, S2, SB, s1
+        each = 28 * Ny * Nx + 30 * Py * Px                              # bytes a template, at the worst moment
+        while got is None:
+            n = c.batch(each, len(spots))
+            try:
+                parts = [_peaks_on(c, ha, hb, norm, masked, y0s[i:i + n], x0s[i:i + n], rys[i:i + n], rxs[i:i + n],
+                                   tpl, reach, zs, (Sy, Sx), (Ny, Nx)) for i in range(0, len(spots), n)]
+                got = [np.concatenate([p[k] for p in parts], axis=1) for k in range(6)]
+            except c.errors as e:                                       # the card is full: half as many at once
+                if not (c.full(e) and c.fewer()):
+                    raise
+        py, px, n9, pk2, qy, qx = got
+        oy, ox = y0s - rys, x0s - rxs
+        for i, (y0, x0) in enumerate(spots):
+            head = (a, x0 + tpl / 2, y0 + tpl / 2)
+            mean = float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())
+            for k, rows in enumerate(out):
+                y, x = int(py[k, i]), int(px[k, i])
+                if not (0 < y < Py - 1 and 0 < x < Px - 1) or n9[k, i].min() <= -1.0:
+                    continue                                            # on the rim of the search, the zone or a mask
+                p = _peak_read(n9[k, i], x - int(ox[i]), y - int(oy[i]), float(pk2[k, i]),
+                               (int(qx[k, i]) - x, int(qy[k, i]) - y), tpl)
+                rows.append(head + p[:6] + (mean,) + p[6:])
+    return [np.array(rows, dtype=np.float64).reshape(-1, len(SHIFT_COLS)) for rows in out]
+
+
+def _integral_on(xp, a):
+    """`integral` with the array module `xp`: the padded summed-area table, in float64."""
+    return xp.cumsum(xp.cumsum(xp.pad(xp.asarray(a, dtype=xp.float64), ((1, 0), (1, 0))), 0), 1)
+
+
+def _peaks_on(c, ha, hb, norm, masked, y0s, x0s, rys, rxs, tpl, reach, zs, region, fft_size):
+    """One batch of `_shift_field_on`'s templates (top-left corners y0s, x0s in frame a; their regions' in frame b
+    rys, rxs): for each zone size of `zs` and each template, the peak's place in its map, its 3 x 3 neighbourhood,
+    the runner-up's height and place -- six arrays brought back from the card, the zones along their first axis.
+    A neighbourhood off the map's edge is filled from the edge: the caller drops such a peak before reading it."""
+    xp = c.xp
+    (Sy, Sx), n = region, len(y0s)
+    Py, Px = Sy - tpl + 1, Sx - tpl + 1
+    at = xp.arange(tpl)
+    Y0, X0, RY, RX = (c.up(v)[:, None, None] for v in (y0s, x0s, rys, rxs))
+    t = ha[Y0 + at[None, :, None], X0 + at[None, None, :]]
+    tz = t - t.mean(axis=(1, 2), keepdims=True)
+    e = xp.sqrt((tz * tz).sum(axis=(1, 2)))
+    ft = c.fft.rfftn(tz, s=fft_size, axes=(1, 2))
+    del t, tz
+    uniq, inv = np.unique(np.stack([rys, rxs], 1), axis=0, return_inverse=True)   # regions that coincide, once
+    UY, UX = (c.up(uniq[:, k])[:, None, None] for k in (0, 1))
+    fr = c.fft.rfftn(hb[UY + xp.arange(Sy)[None, :, None], UX + xp.arange(Sx)[None, None, :]], s=fft_size, axes=(1, 2))
+    fr = fr if len(uniq) == 1 else fr[c.up(inv.ravel())]
+    num = c.fft.irfftn(fr * xp.conj(ft), s=fft_size, axes=(1, 2))[:, :Py, :Px]
+    del fr, ft
+    yy, xx = xp.arange(Py)[None, :, None], xp.arange(Px)[None, None, :]
+    cm = num / (xp.maximum(e, 1e-6)[:, None, None] * norm[RY + yy, RX + xx])    # float64, as `zncc` divides
+    del num
+    cm[e < 1e-6] = 0.0                                                    # a flat template matches nothing
+    oy, ox = Y0 - RY, X0 - RX                                             # the template's own place in its map
+    xp.putmask(cm, masked[RY + yy, RX + xx] | (abs(yy - oy) > reach) | (abs(xx - ox) > reach), -1.0)
+    found = {}
+    rows, each = xp.arange(n), xp.arange(n)[:, None, None]
+    flat = cm.reshape(n, -1)
+
+    def square(y, x, half):
+        """Each map's own square of placements within `half` of (y, x), cut at the map's edge: its indices."""
+        d = xp.arange(-half, half + 1)
+        return each, xp.clip(y + d[None, :, None], 0, Py - 1), xp.clip(x + d[None, None, :], 0, Px - 1)
+    for z in sorted(set(zs)):                                             # each zone holds the smaller ones
+        if z >= 0:
+            cm[square(oy, ox, z)] = -1.0
+        j = flat.argmax(axis=1)
+        py, px = j // Px, j % Px
+        n9 = cm[square(py[:, None, None], px[:, None, None], 1)]
+        # the runner-up: the highest match outside the square about the peak, which is set to -1 for the looking and
+        # put back after (a few hundred placements a map, where a copy of every map was two passes over them all)
+        about = square(py[:, None, None], px[:, None, None], RUNNER_UP_APART)
+        was = cm[about]
+        cm[about] = -1.0
+        q = flat.argmax(axis=1)
+        found[z] = [c.down(v) for v in (py, px, n9, flat[rows, q], q // Px, q % Px)]
+        cm[about] = was
+    return [np.stack([found[z][k] for z in zs]) for k in range(6)]
 
 
 def still_score(ga, gb, bad_a, bad_b, tpl=128, stride=192, ha=None, hb=None):
@@ -512,8 +737,8 @@ def shift_field_auto(ga, gb, bad_a, bad_b, ha=None, hb=None, **kw):
     and the one with zero left out is read first: on a picture truly held it
     keeps a handful of templates (the peaks sit on the zone's rim and are
     dropped), on the streaks it keeps the step."""
-    ha = bandpass(ga) if ha is None else ha
-    hb = bandpass(gb) if hb is None else hb
+    ha = bandpass_kept(ga) if ha is None else ha
+    hb = bandpass_kept(gb) if hb is None else hb
     f, fz = shift_field(ga, gb, bad_a, bad_b, ha=ha, hb=hb, zeros=(kw.pop("zero", 4), -1), **kw)
     if moved(f, len(fz)):
         return f, False
@@ -1168,10 +1393,27 @@ def spot_response(img, size, fft=None):
     FFT_FROM the direct way is the quicker one (5 px: 0.28 s against 0.41) and is kept; `fft`
     forces one or the other, for a test that compares them."""
     k = _kernel(size)
+    c = gpu.active() if fft is None else None              # a test that names the way gets the CPU's
+    if c is not None:
+        try:
+            return c.run(lambda: c.down(_spot_response_on(c, c.up(img), k)))
+        except c.errors as e:
+            gpu.gave_up(e, "looking for spots")
     if not (size >= FFT_FROM if fft is None else fft):
         return ndimage.correlate(img, k, mode="nearest")
     r = k.shape[0] // 2                                    # in double, as the direct way sums, then the frame's precision
     return fftconvolve(np.pad(img, r, mode="edge"), k[::-1, ::-1], mode="valid").astype(img.dtype, copy=False)
+
+
+def _spot_response_on(c, img, k):
+    """`spot_response` of a frame on the card `c` with the kernel `k`, left there: by FFT at every size (on a card
+    the transform costs the same whatever the kernel), the frame padded with its own edges as there, in double
+    throughout -- which is what the direct sum is -- and the result in the frame's precision."""
+    xp, r = c.xp, k.shape[0] // 2
+    padded = xp.pad(img.astype(xp.float64), r, mode="edge")
+    size = [sfft.next_fast_len(int(d), True) for d in padded.shape]
+    out = c.fft.irfftn(c.fft.rfftn(padded, size) * xp.conj(c.fft.rfftn(c.up(k), size)), size)
+    return out[:img.shape[0], :img.shape[1]].astype(img.dtype, copy=False)
 
 
 def source_candidates(g, bad, size=9.0, dark=False, n_max=N_STRONG, min_resp=35.0, fft=None):

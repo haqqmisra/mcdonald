@@ -157,6 +157,19 @@ the same one for every job on a clip, and remove the frames when the work is
 done. The cost line says where the frames will go and whether that directory
 is in memory.
 
+**What computes.** Every command uses the CPUs it may (`--cpus N` or
+`MCDONALD_CPUS` for fewer; in a batch job, the job's allocation). Where the
+computer has an NVIDIA graphics card and CuPy is installed, the steps that match
+one frame against another (`layers`, `integrity`'s background passes) run on the
+card, several times sooner, and give the CPU's measurement to about one part in
+a million. `mcdonald setup` says which card is in use. `--gpu none` (or
+`MCDONALD_GPU=none`) keeps a command on the CPU, and `--gpu NAME` picks a card.
+In a batch job a card is used only if the job was given one (for Slurm,
+`--gres=gpu:1`): ask for it, or the job runs on the CPU and says so. A case's
+`_case.json` records the card that took part (`computed_on`, null for the CPU
+alone), and a command's `--json` says so among its `notes`. If you are comparing
+numbers to the last digit with a case measured on the CPU, measure on the CPU.
+
 To read a position yourself, or to check one:
 
 ```bash

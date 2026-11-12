@@ -330,6 +330,76 @@ def pooled(procs, fn, jobs, init=None, initargs=(), chunksize=1, progress=None, 
             p.join()
 
 
+READERS = 16        # the most threads that read ahead: past this a card's loop is not waiting for frames
+
+
+class Ahead:
+    """What `read(key)` gives for each key of `asks`, read by threads before a loop in this process asks for it.
+
+    Where a graphics card does a stage's arithmetic, the stage runs in this one process (`gpu.card`), and what is left
+    for the CPUs is reading the frames: decoding a 1080p picture and masking it is 30 ms and more, the card's share
+    of a pair of frames less than that. `asks` is every key the loop will ask for, in its order and as often as it
+    will ask (a frame is the second of one pair and the first of a later one). `get(key)` gives the next: threads
+    have read up to `depth` keys ahead of it, a key asked for again is not read again, and one is let go after its
+    last asking. A key that was not foreseen is read there and then. As many threads as `cpus()` allows, to READERS."""
+
+    def __init__(self, read, asks, threads=None, depth=None):
+        from concurrent.futures import ThreadPoolExecutor
+        self.read = read
+        self.left = {}                                # each key: how often it will still be asked for
+        for key in asks:
+            self.left[key] = self.left.get(key, 0) + 1
+        self.order = iter(list(self.left))            # the keys, each once, in the order they are first asked for
+        n = max(1, min(int(threads or cpus()), READERS))
+        self.depth = int(depth or 2 * n)
+        self.pool = ThreadPoolExecutor(n, thread_name_prefix="mcdonald-read")
+        self.out = {}                                 # each key read or being read, until its last asking
+        self.fresh = set()                            # those of them not asked for yet: the reads ahead of the loop
+        self._more()
+
+    def _start(self, key):
+        self.out[key] = self.pool.submit(self.read, key)
+        self.fresh.add(key)
+
+    def _more(self):
+        while self.pool is not None and len(self.fresh) < self.depth:
+            key = next(self.order, _END)
+            if key is _END:
+                return
+            self._start(key)
+
+    def get(self, key):
+        if self.left.get(key, 0) <= 0 or self.pool is None:
+            return self.read(key)                     # not foreseen, or asked for once more than was said
+        while key not in self.out:                    # further on than the reads have got: bring them up to it
+            nxt = next(self.order, _END)
+            if nxt is _END:
+                return self.read(key)
+            self._start(nxt)
+        self.fresh.discard(key)
+        value = self.out[key].result()
+        self.left[key] -= 1
+        if self.left[key] <= 0:
+            del self.out[key]
+        self._more()
+        return value
+
+    def close(self):
+        """The threads ended, and what they had read let go; reads not yet begun are not made."""
+        pool, self.pool = self.pool, None
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
+        self.out.clear()
+        self.fresh.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+
 def counted(items, progress=None, stop=None, what=""):
     """A plain loop's items, with the same two courtesies."""
     items = list(items)

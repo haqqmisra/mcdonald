@@ -3717,8 +3717,9 @@ class QtMarker(QtWidgets.QMainWindow):
         - sound: where a video's sound plays (Jacob, 2026-10-19: "in case they want to adjust to something other than
           the system default"), the outputs as ffplay's SDL names them (`speaker.outputs`), and a test tone;
         - the graphics card (GPU) (the same day: "greyed out if no GPU is available; we will add actual GPU features
-          later", and "only show devices with real GPU features"): the cards found that can compute (`gpu.found`,
-          `gpu.usable`), remembered for when something uses one.
+          later", and "only show devices with real GPU features"): the cards found that mcdonald can compute on
+          (`gpu.found`, `gpu.usable`), remembered (`use_remembered_gpu`) and, since 2026-11-12, used: the steps with a
+          card version of their arithmetic run on it (`gpu.card`) from the next one that starts.
         The outputs and the cards are looked for in a thread each time the page opens, and filled in when found."""
         if getattr(self, "prefs_page", None) is not None:
             self.prefs_page.close()
@@ -3796,7 +3797,7 @@ class QtMarker(QtWidgets.QMainWindow):
         box = d.gpu = QtWidgets.QComboBox()
         box.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         box.setMinimumContentsLength(34)
-        box.setToolTip("the graphics card mcDonald may use, once it uses one")
+        box.setToolTip("the graphics card the slow steps run on; they give the same measurement on the CPU")
         box.activated.connect(self.choose_gpu)
         row.addWidget(box)
         row.addStretch(1)
@@ -3898,12 +3899,17 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def _say_gpu(self, d):
         """Preferences' graphics card row, from the cards found so far (`_cards`, None while they are looked for): only
-        those that can compute are offered (Jacob, 2026-10-19: "only show devices with real GPU features", `gpu.usable`),
-        and the row is greyed out when none can, naming the cards that cannot. Before anything is chosen, the first card
-        is the choice."""
+        those mcdonald can compute on are offered (Jacob, 2026-10-19: "only show devices with real GPU features",
+        `gpu.usable`: since 2026-11-12 an NVIDIA card with CUDA), and the row is greyed out when there is none, naming
+        the cards that are not it and saying why. It is greyed out too where the card is there and CuPy is not
+        (`gpu.installed`: the line says how to install it), and where MCDONALD_GPU was set before the window opened.
+        Before anything is chosen, the first card is the choice."""
         from . import gpu
         box, cards, chosen = d.gpu, self._cards, gpu_setting()
-        offered, others = gpu.usable(cards or []), [c["name"] for c in cards or () if not c.get("compute")]
+        offered = gpu.usable(cards or [])
+        others = [c["name"] for c in cards or () if not c.get("cuda")]
+        computing = any(c.get("compute") for c in cards or () if not c.get("cuda"))   # a card, but not one for mcdonald
+        ready, fixed = gpu.installed(), os.environ.get(GPU_FROM_OUTSIDE, "")
         box.blockSignals(True)
         box.clear()
         if not offered:
@@ -3916,18 +3922,22 @@ class QtMarker(QtWidgets.QMainWindow):
             box.addItem("None: the CPU only", GPU_NONE)
             box.setCurrentIndex(max(0, box.findData(chosen)) if chosen else 0)
         box.blockSignals(False)
-        box.setEnabled(bool(offered))
+        box.setEnabled(bool(offered) and ready and not fixed)
+        why = ("is not one mcDonald can compute on yet (it uses NVIDIA cards)" if computing else "cannot be used for computing",
+               "are not ones mcDonald can compute on yet (it uses NVIDIA cards)" if computing else "cannot be used for computing")
         d.gpu_said.setText(
             "Looking for graphics cards…" if cards is None else
-            "Nothing in mcDonald uses the graphics card yet: this is remembered for when something does." if offered else
-            f"The graphics card here, {others[0]}, cannot be used for computing, so there is none to choose." if len(others) == 1 else
-            f"The graphics cards here ({', '.join(others)}) cannot be used for computing, so there is none to choose." if others else
+            f"This was set to {fixed} before the window opened ({gpu.GPU_VAR}), and cannot be changed here." if offered and fixed else
+            GPU_USED if offered and ready else
+            GPU_INSTALL.format(card=offered[0]["name"]) if offered else
+            f"The graphics card here, {others[0]}, {why[0]}, so there is none to choose." if len(others) == 1 else
+            f"The graphics cards here ({', '.join(others)}) {why[1]}, so there is none to choose." if others else
             "No graphics card (GPU) was found on this computer.")
 
     def choose_gpu(self, i):
         d = getattr(self, "prefs_page", None)
         if d is not None:
-            settings().setValue("gpu", d.gpu.itemData(i) or "")
+            choose_gpu(d.gpu.itemData(i) or "")
 
     def _frame_typed(self, n):
         self.goto(n)
@@ -4180,12 +4190,40 @@ def choose_sound_device(name):
 
 
 GPU_NONE = "none"           # the graphics card setting that says none: the CPU only
+GPU_FROM_OUTSIDE = "_MCDONALD_GPU_FROM_OUTSIDE"     # said by `use_remembered_gpu`: MCDONALD_GPU came from outside, and what it was
+# Preferences' line under the graphics card's choice: where one is used, and where one could be once CuPy is installed
+GPU_USED = ("The steps that compare one frame with another run on this card, and finish many times sooner. "
+            "They give the same measurement as on the CPU. A step already under way keeps what it has; the next one uses this.")
+GPU_INSTALL = ("{card} can do the slow steps many times sooner, once the add-on for graphics cards is installed. "
+               "In a terminal, type: pip install \"mcdonald[gpu]\" and open mcDonald again. "
+               "Until then every step runs on the CPU, with the same measurement.")
 
 
 def gpu_setting():
     """Preferences' graphics card: its name, GPU_NONE, or "" before one is chosen (and then it is the first found).
-    Nothing reads it yet: it is there for when something computes on a graphics card."""
+    `use_remembered_gpu` puts it where the measuring reads it (`gpu.card`)."""
     return str(settings().value("gpu", "") or "")
+
+
+def use_remembered_gpu():
+    """The graphics card the measuring computes on (`gpu.card`) is MCDONALD_GPU, which a person at a window cannot
+    set: theirs is remembered from Preferences, and put where this process and every one it starts will see it. One
+    set before the window started wins, and Preferences says so."""
+    from . import gpu
+    outside = os.environ.get(gpu.GPU_VAR, "").strip()
+    if outside:
+        os.environ[GPU_FROM_OUTSIDE] = outside
+        return
+    gpu.choose(gpu_setting())
+
+
+def choose_gpu(name):
+    """Preferences' choice: compute on the card `name` (GPU_NONE: the CPU only; "": the first found) from the next step
+    on, remembered."""
+    from . import gpu
+    settings().setValue("gpu", name or "")
+    if not os.environ.get(GPU_FROM_OUTSIDE, ""):
+        gpu.choose(name)
 
 
 def choose_storage(parent=None):

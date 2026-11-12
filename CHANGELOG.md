@@ -3,6 +3,47 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+**The slow steps can run on a graphics card** (ROADMAP 0.6, objective 3; built 2026-11-12, the day the development
+workstation had one). Never required: with no card, or without the add-on, every step runs on the CPU as before, and
+the CPU's arithmetic is the reference.
+
+- **`layers` and `integrity`'s background passes on an NVIDIA card** (`mcdonald.gpu`, `forensics._shift_field_on`).
+  The card matches all of a pair's templates in one batch, threads read the frames ahead of it, and one process does
+  the pass. On the workstation (a 48-core Xeon 678X and an RTX 5070 Ti) the *layers* check of PR113's frames 380-440
+  takes 26.6 s on four CPU cores, 10.0 s on all 88 threads and 2.8 s on the card; of frames 1-900, 60 s on 88 threads
+  and 35 s on the card. A whole `mcdonald run` of PR135 object 2 (270 frames) takes 107 s on eight cores and 71 s with
+  the card.
+- **The measurement is the CPU's.** The band-pass on the card is the CPU's to the last bit. The same templates keep
+  their rows; each shift is within a hundredth of its own error; a pair's agreed shift within 0.0001 px on PR113. On
+  PR135's whole case 26 of 4,040 values differ at all, the farthest by 1.3 parts in 100,000; no sentence, count or
+  verdict differs, and the seven tables are byte for byte the same. `docs/method.md` §52 has the tables and the reason
+  it is not "to the last bit" (single-precision correlations by another transform in another order).
+- **Install**: `pip install "mcdonald[gpu]"` (CuPy with CUDA 12's libraries from PyPI: any NVIDIA card from the GTX
+  900 series on, with only its driver installed), or `mcdonald[gpu-cuda13]`; `docs/install.md` has a section. Linux
+  and Windows. A Mac's card, an AMD or an Intel one is named and said not to be used yet.
+- **The choice**: `mcdonald --gpu NAME|NUMBER|none` (before or after the command), `MCDONALD_GPU`, and **Edit →
+  Preferences…**, whose graphics card row is now live: it offers the cards mcdonald can compute on, says what runs on
+  the card, and where CuPy is missing says how to install it. `mcdonald setup` has a "graphics card" line. Inside a
+  batch job a card is used only if the job was given one (Slurm's `--gres=gpu:1`), as CPUs are counted by the
+  allocation and not the machine.
+- **A card is used only where a stage says so** (`gpu.on`), for the whole of a pass, never wherever one is to hand:
+  a stage's numbers do not depend on whether it ran in one process or on a pool. A pool's workers never compute on
+  the card. A card out of memory is sent half as much at once; one that stops is said once on stderr and the CPUs take
+  the pairs left. One thread of its own talks to the card and never ends, because CuPy's FFT plans run Python's cycle
+  collector in the thread that lets them go, and the window allows the collector in its own thread only.
+- **A case says what computed it** (`computed_on` in `_case.json`, a line under the report's heading when a card took
+  part, and a note in a command's `--json`). `mcdonald share rerun` measures a case again by the arithmetic it was measured by: a case the CPU measured,
+  which is every case until now, on the CPU also where there is a card, held to one part in a billion as before; a
+  case a card took part in is held to the card's agreement, one part in 10,000, and the comparison says so.
+- **Held by** `tests/test_gpu.py` (new; in `tools/suites.sbatch` and both workflows): the card's code against the
+  CPU's on drawn scenes, with NumPy standing in for the card where there is none (GitHub's runners), and on the real
+  card where the job has one. `sbatch --gres=gpu:1 tools/suites.sbatch golden` runs every suite with the card's
+  arithmetic wherever a stage has it.
+- Also there and held, not yet used by a stage: the spot detector's response on the card
+  (`forensics._spot_response_on`). Find and Follow still run on pools of CPUs.
+
 ## 0.5.2 (2026-11-10)
 
 A correctness patch for `mcdonald tether`: four defects found on 2026-11-09/10 by running the released stage on AARO's

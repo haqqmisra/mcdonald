@@ -549,6 +549,51 @@ Without the reference-data folder it skips the curves and still checks the rest.
 After a change to the photometry (what the curves are, not what is judged from them) the saved curves
 are stale: `tools/controls/README.md` says how to make them again.
 
+## `test_gpu.py` — is the graphics card's arithmetic the CPU's? (2026-11-12)
+
+Portable, about a minute; no video data, and no graphics card needed. Since 2026-11-12 the steps that match one
+frame against another can compute on an NVIDIA card (`mcdonald.gpu`, `docs/method.md` § 52). The CPU's arithmetic is
+the reference and is not touched: the card's version of a routine stands beside it, and this suite holds the one to
+the other.
+
+The card's routines are written against three modules a `gpu.Card` carries: an array module, its FFT and its filters.
+On a card they are CuPy's. Here they are also run with NumPy's and SciPy's in their place (`gpu.stand_in`,
+`MCDONALD_GPU=stand-in`), so the same code is checked on GitHub's runners, which have no card. Where the process has
+a real card, every comparison is made on it as well, and a `NOTE` line says so where it has none. In a batch job
+that means asking for the card: `sbatch --gres=gpu:1 tools/suites.sbatch` runs every suite with the card's arithmetic
+wherever a stage has it, which is how the goldens are held on both.
+
+What it checks:
+
+- **The choice and the rules.** `MCDONALD_GPU` (`mcdonald --gpu`, Preferences): none, the first card, a card by name
+  or number. Inside a Slurm job a card is used only if the job was given one. A pool's worker never computes on the
+  card. `mcdonald setup` says which card computes. `found`'s cards say which mcdonald can use (an NVIDIA card with
+  CUDA's library), which is what Preferences offers.
+- **The band-pass** on the card is the CPU's to the last bit: it does SciPy's own arithmetic there.
+- **The shift field**, every template of a pair in one batch: the same templates keep their rows as on the CPU; each
+  shift is within 0.01 px and a hundredth of the template's own error; a pair's agreed shift is within 0.001 px. On
+  cloud and on streaks, with masks, near the frame's edges, with the zone about zero left out and allowed, with a
+  reach larger than the frame, with 64-px templates, and with some rows of templates only.
+- **The spot detector's** response is the direct sum's, and the same spots come out in the same order.
+- **A card short of memory** takes a pair in several batches, and one that runs out halves what it sends: each
+  template's numbers are the same to the bit. **A card that stops** is said once on stderr, and the CPU's own
+  numbers come back, then and for the rest of the process.
+- **One thread talks to the card.** A pass made as the window makes one, in a thread of its own with automatic
+  collection off: on a real card the arithmetic is done in the thread "mcdonald-card" whichever thread asks, and
+  the cycle collector runs in no thread but the main one, through the passes, the plans let go and the threads' ends.
+- **A case says what computed it**, its report and a command's `--json` say so, and `rerun` measures a CPU's case on
+  the CPU and holds a card's to the card's agreement. The card's templates are kept beside the frames apart from the
+  CPU's.
+- **The stages, whole**: `layers` (both its rounds) and `integrity`'s background motion on two drawn clips, one
+  sliding and one held nearly still, by the CPU and by the card's code with the frames read ahead by threads
+  (`progress.Ahead`). The same pairs are read the same way and the rates agree to 0.01 px/s. A stage whose card stops
+  part-way hands the pairs left to a pool of CPUs (`forensics.pooled_or_on_card`).
+
+The tolerances are not "to the last bit" for the shift field, and the suite's docstring says why: the correlations are
+single precision on both, by different transforms in a different order, so the maps differ by a few 1e-7; a template
+whose peak is nearly flat along a streak turns that into 1e-3 px along the streak, where its own error is a thousand
+times larger.
+
 ## `test_gui.py` — do the marking windows do what their keys say?
 
 Portable, no video, about three minutes (the Qt window's child measures three

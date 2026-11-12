@@ -85,6 +85,19 @@ for updates in the window, and the `version` line of `mcdonald setup` (`--json`:
   window **Edit → Preferences…** (on a Mac, mcDonald → Settings) does the same and is remembered; `--procs N` on a
   command sets one step's worker processes within that.
 
+- **A graphics card (GPU), if there is one.** Never needed. Where the computer has an NVIDIA card and CuPy is
+  installed (`pip install "mcdonald[gpu]"`; [docs/install.md](docs/install.md)), the steps that match one frame
+  against another run on it: the *layers* check and the *integrity* check's background passes, which are most of a
+  Measure's time. On the workstation mcdonald is now developed on (a 48-core Xeon and an RTX 5070 Ti, November 2026),
+  the *layers* check of a 2-second 1080p segment takes 27 s on four CPU cores, 10 s on all 88 threads and 3 s on the
+  card; of a 30-second segment, 60 s on all 88 threads and 35 s on the card. A whole `mcdonald run` of a 9-second
+  720p segment takes 107 s on eight cores and 71 s with the card. The measurement is the CPU's: the same templates
+  and verdicts, the report word for word, and numbers that agree to about one part in a million
+  ([docs/method.md](docs/method.md) §52 says what is held, and how). `mcdonald --gpu none` (or `MCDONALD_GPU=none`, or
+  Preferences) keeps every step on the CPU, and `--gpu NAME` picks among several cards. Inside a batch job a card is
+  used only if the job was given one (for Slurm, `--gres=gpu:1`). `mcdonald setup` says which card is in use, and a
+  case's report says when a card took part in it.
+
   So **open only the part of the video with the object in it**, plus a second or two either side:
   the window asks which part, and says what it will cost before it starts. A whole 3-minute video
   measured with every check is hours. Each step shows its progress, and can be stopped.
@@ -105,6 +118,7 @@ python3 tests/test_reduction.py      # reduction: symbology, kinematics, scale, 
 python3 tests/test_published.py      # every number in the Technical Note and the PR144 notes
 python3 tests/test_tether.py         # tether: a hanging thing's swing, its period, its line
 python3 tests/test_audio.py          # audio: planted propellers, supplies and codec lines; noise gives nothing
+python3 tests/test_gpu.py            # a graphics card's arithmetic held to the CPU's (runs with or without a card)
 ```
 
 Together those are the checks against cases whose answers are known by
@@ -594,8 +608,9 @@ the first that will open.
   ticked and grey), and its sound plays with the picture, in the player and while choosing the
   segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). **Edit →
   Preferences…** chooses where it plays -- the system default, or any output ffplay's SDL lists -- with a test
-  tone, and lists the graphics cards (GPUs) that can compute (Vulkan, CUDA or Metal), greyed out where there are
-  none; nothing uses a GPU yet, and the choice is remembered for when something does. Opening another video while one is still on its way in (its
+  tone, and chooses the graphics card (GPU) the slow steps run on: the cards mcdonald can compute on (NVIDIA's, through
+  CUDA, with CuPy installed), greyed out where there is none, with a line saying why and what would change it. The
+  choice is remembered and used from the next step (`mcdonald --gpu` on the command line). Opening another video while one is still on its way in (its
   segment being chosen, its frames saved) stops that one first. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra
   installed once. On macOS every suite passes on GitHub's runner

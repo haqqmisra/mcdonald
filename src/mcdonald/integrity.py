@@ -134,6 +134,13 @@ def _init(video, workdir, n0, n1, masks, rows, trk, reach, zero):
 
 
 def _bad(n):
+    """Frame n's grey and its mask: read here, or taken from the threads that read ahead of a loop on a graphics
+    card (`_G["ahead"]`, `vf.pooled_or_on_card`)."""
+    ahead = _G.get("ahead")
+    return ahead.get(n) if ahead is not None else _read(n)
+
+
+def _read(n):
     clip = _G["clip"]
     rgb = clip.rgb(n)
     bad = vf.frame_mask(rgb, _G["masks"], _G["rows"], n)
@@ -150,7 +157,7 @@ def _frame(n):
     was 0.35 s of a 0.65-s pair, and every frame was read, masked and filtered twice)."""
     if _G.get("frame_n") != n:
         g, bad = _bad(n)
-        _G.update(frame_n=n, frame=(g, bad, vf.bandpass(g)))
+        _G.update(frame_n=n, frame=(g, bad, vf.bandpass_kept(g)))
     return _G["frame"]
 
 
@@ -172,9 +179,12 @@ def per_frame_background(clip, masks, rows, trk, reps, procs=None, max_shift=45.
     """{n: (shift n -> n+1, class)}, one texture class preferred throughout so
     that consecutive pairs refer to the same layer."""
     def run(zero, what):
-        return dict(vf.pooled(procs, _pair1, [n for n in range(clip.n0, clip.n1) if n + 1 not in reps], _init,
-                              (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
-                              8, progress, stop, what, pixels=clip.W * clip.H))
+        pairs = [n for n in range(clip.n0, clip.n1) if n + 1 not in reps]
+        _G.pop("frame_n", None)                       # `_frame` keeps one frame: none from an earlier run
+        asks = [n for i, a in enumerate(pairs) for n in ((a + 1,) if i and pairs[i - 1] == a - 1 else (a, a + 1))]
+        return dict(vf.pooled_or_on_card(_G, _read, asks, procs, _pair1, pairs, _init,
+                                         (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
+                                         8, progress, stop, what, pixels=clip.W * clip.H))
     res, note = run(2, "Background motion"), ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
         res = run(-1, "Zero-shift background")
@@ -963,9 +973,10 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
     moving = sorted(n for n, (v, c) in bg.items() if c != "repeat" and np.hypot(*v) >= 3)
     stage("Symbology mask")
     masks = vf.refine_graphics(clip, masks, moving)
-    rig = np.array([r[1:] for r in vf.pooled(procs, _pair5, np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist(), _init,
-                                             (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4),
-                                             1, progress, stop, "Rigid motion", pixels=clip.W * clip.H)])
+    fives = np.linspace(clip.n0, clip.n1 - 5, 30).astype(int).tolist()
+    rig = np.array([r[1:] for r in vf.pooled_or_on_card(_G, _read, [n for a in fives for n in (a, a + 5)], procs, _pair5, fives, _init,
+                                                        (video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 4),
+                                                        1, progress, stop, "Rigid motion", pixels=clip.W * clip.H)])
     stage("Static pattern")
     live = [n for n in clip.frames() if n not in reps and not any(a <= n <= b for a, b in runs)]
     cuts = [clip.n0 - 1] + [b for _, b in runs] + [clip.n1 + 1]

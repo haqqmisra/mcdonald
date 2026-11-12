@@ -3620,8 +3620,9 @@ def drive_preferences():
     # they want to adjust to something other than the system default" and "a GPU selection option; this should be greyed
     # out if no GPU is available"), with the computer's own lists, ffplay and its tone stood in for
     from mcdonald import gpu, speaker
-    keep = speaker.outputs, speaker.try_output, speaker.available, speaker.Speaker, gpu.found
+    keep = speaker.outputs, speaker.try_output, speaker.available, speaker.Speaker, gpu.found, gpu.installed
     kept = {k: mark_qt.settings().value(k) for k in ("sound/device", "gpu")}
+    kept_env = {k: os.environ.pop(k, None) for k in (gpu.GPU_VAR, mark_qt.GPU_FROM_OUTSIDE)}
     played = []
 
     class Speaker:
@@ -3640,9 +3641,12 @@ def drive_preferences():
 
     def slow_cards():
         time.sleep(0.3)
-        return [dict(name="Test Graphics One", vendor="10de", compute=True), dict(name="Test Graphics Old", vendor="1002", compute=False),
-                dict(name="Test Graphics Two", vendor="8086", compute=True)]
+        return [dict(name="Test Graphics One", vendor="10de", compute=True, cuda=True),
+                dict(name="Test Graphics Old", vendor="1002", compute=False, cuda=False),
+                dict(name="Test Graphics Two", vendor="8086", compute=True, cuda=False),
+                dict(name="Test Graphics Three", vendor="10de", compute=True, cuda=True)]
     try:
+        gpu.installed = lambda: True
         speaker.outputs = lambda program=None: ["Speakers (Test)", "Headphones (Test)"]
         speaker.available = lambda: "ffplay"
         speaker.try_output = lambda device, program=None, timeout=10: device != "Gone (Test)"
@@ -3678,15 +3682,49 @@ def drive_preferences():
         QtTest_wait(lambda: not w._trying, 5)
         check(d.sound_said.text() == "The tone played on Headphones (Test). If you heard nothing, choose another and try again."
               and d.sound_test.isEnabled(), "Play a test sound plays a short tone there, and says so", d.sound_said.text())
-        check(items(d.gpu) == ["Test Graphics One", "Test Graphics Two", "None: the CPU only"] and d.gpu.isEnabled()
-              and d.gpu.currentIndex() == 0 and d.gpu_said.text().startswith("Nothing in mcDonald uses the graphics card yet"),
-              "Graphics card: the cards that can compute, and None -- not one that cannot (Jacob, 2026-10-19: \"only show "
-              "devices with real GPU features\"); the first until another is chosen; and it says nothing uses one yet",
-              str(items(d.gpu)))
+        check(items(d.gpu) == ["Test Graphics One", "Test Graphics Three", "None: the CPU only"] and d.gpu.isEnabled()
+              and d.gpu.currentIndex() == 0 and d.gpu_said.text() == mark_qt.GPU_USED
+              and "same measurement as on the CPU" in mark_qt.GPU_USED,
+              "Graphics card: the cards mcDonald can compute on, and None -- not one that cannot compute, nor one it cannot "
+              "use (Jacob, 2026-10-19: \"only show devices with real GPU features\"); the first until another is chosen; and "
+              "it says what runs on the card, and that the measurement is the CPU's", str(items(d.gpu)))
+        d.gpu.setCurrentIndex(1)
+        d.gpu.activated.emit(1)
+        check(mark_qt.gpu_setting() == "Test Graphics Three" and os.environ.get(gpu.GPU_VAR) == "Test Graphics Three",
+              "a card chosen is remembered, and put where the measuring reads it", str(os.environ.get(gpu.GPU_VAR)))
         d.gpu.setCurrentIndex(2)
         d.gpu.activated.emit(2)
-        check(mark_qt.gpu_setting() == mark_qt.GPU_NONE, "None chosen is remembered", mark_qt.gpu_setting())
+        check(mark_qt.gpu_setting() == mark_qt.GPU_NONE and gpu.asked() == gpu.NONE and gpu.card() is None,
+              "None chosen is remembered, and the measuring is on the CPU from the next step", mark_qt.gpu_setting())
         d.close()
+        os.environ.pop(gpu.GPU_VAR, None)
+        mark_qt.settings().setValue("gpu", "Test Graphics Three")
+        mark_qt.use_remembered_gpu()
+        first = (os.environ.get(gpu.GPU_VAR), os.environ.get(mark_qt.GPU_FROM_OUTSIDE))
+        os.environ[gpu.GPU_VAR] = "none"                                  # as a shell that started the window would set it
+        mark_qt.use_remembered_gpu()
+        check(first == ("Test Graphics Three", None) and os.environ.get(gpu.GPU_VAR) == "none"
+              and os.environ.get(mark_qt.GPU_FROM_OUTSIDE) == "none",
+              "when the window opens, the card remembered is the one the measuring uses; one set before the window "
+              "opened wins", str(first))
+        w.do("preferences")
+        d = w.prefs_page
+        QtTest_wait(lambda: w._cards is not None and d.gpu.count() == 3, 10)
+        check(not d.gpu.isEnabled() and "before the window opened" in d.gpu_said.text() and gpu.GPU_VAR in d.gpu_said.text(),
+              "and Preferences says so, the choice greyed out", d.gpu_said.text())
+        d.close()
+        for k in (gpu.GPU_VAR, mark_qt.GPU_FROM_OUTSIDE):
+            os.environ.pop(k, None)
+        gpu.installed = lambda: False
+        w.do("preferences")
+        d = w.prefs_page
+        QtTest_wait(lambda: w._cards is not None and d.gpu.count() == 3, 10)
+        check(not d.gpu.isEnabled() and items(d.gpu)[0] == "Test Graphics One"
+              and d.gpu_said.text() == mark_qt.GPU_INSTALL.format(card="Test Graphics One") and "mcdonald[gpu]" in d.gpu_said.text(),
+              "a card mcDonald could use, with the add-on for it not installed: named, greyed out, and the page says how "
+              "to install it and that every step runs on the CPU until then", d.gpu_said.text()[:90])
+        d.close()
+        gpu.installed = lambda: True
 
         mark_qt.settings().setValue("sound/device", "Gone (Test)")       # unplugged since it was chosen
         gpu.found = lambda: []
@@ -3702,7 +3740,17 @@ def drive_preferences():
         check("could not be used" in d.sound_said.text(), "and its test tone says it could not be used", d.sound_said.text())
         check(not d.gpu.isEnabled() and items(d.gpu) == ["None found"] and d.gpu_said.text() == "No graphics card (GPU) was found on this computer.",
               "with no graphics card, the choice is greyed out, and the page says none was found", str(items(d.gpu)))
-        gpu.found = lambda: [dict(name="AMD FirePro 2270", vendor="1002", compute=False)]      # merlin's
+        gpu.found = lambda: [dict(name="Apple M2", vendor="106b", compute=True, cuda=False)]   # a Mac's: it computes, but not for mcDonald yet
+        d.close()
+        w.do("preferences")
+        d = w.prefs_page
+        QtTest_wait(lambda: w._cards and w._cards[0]["name"] == "Apple M2", 10)
+        check(not d.gpu.isEnabled() and items(d.gpu) == ["None found"]
+              and d.gpu_said.text() == "The graphics card here, Apple M2, is not one mcDonald can compute on yet (it uses NVIDIA cards), "
+                                       "so there is none to choose.",
+              "with a card that computes but is not one mcDonald can use, the choice is greyed out, and the page says which "
+              "cards it uses", d.gpu_said.text())
+        gpu.found = lambda: [dict(name="AMD FirePro 2270", vendor="1002", compute=False, cuda=False)]      # merlin's
         d.close()
         w.do("preferences")
         d = w.prefs_page
@@ -3726,7 +3774,13 @@ def drive_preferences():
         d.close()
         w.close()
     finally:
-        speaker.outputs, speaker.try_output, speaker.available, speaker.Speaker, gpu.found = keep
+        speaker.outputs, speaker.try_output, speaker.available, speaker.Speaker, gpu.found, gpu.installed = keep
+        for k, v in kept_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        gpu.forget()
         for k, v in kept.items():
             if v is None:
                 mark_qt.settings().remove(k)
@@ -4470,8 +4524,12 @@ def test_sound_outputs_and_graphics_cards():
           "virtual machine's screen nor one on the basic driver, computing where Vulkan lists them or CUDA is there for "
           "NVIDIA's -- and a compute card that is no display adapter, by Vulkan's name",
           str([(c["name"], c["compute"]) for c in macs + wins]))
-    check([c["name"] for c in gpu.usable([dict(name="A", compute=True), dict(name="B", compute=False)])] == ["A"],
-          "Preferences offers only the cards that can compute")
+    check([c["name"] for c in gpu.usable([dict(name="A", compute=True, cuda=True), dict(name="B", compute=True, cuda=False),
+                                          dict(name="C", compute=False, cuda=False)])] == ["A"]
+          and [c["name"] for c in gpu.usable(wins)] == ["NVIDIA GeForce RTX 3060", "Tesla T4"] and gpu.usable(macs) == []
+          and [c["name"] for c in gpu.usable(cards)] == [],
+          "Preferences offers only the cards mcDonald can compute on: NVIDIA's with CUDA's library (a compute card that "
+          "drives no screen too), not a card that only computes for others, and none where CUDA's library is not there")
     keep_linux = gpu.linux
     try:
         gpu.linux = lambda: [dict(name="Intel Arc A770", vendor="8086", compute=True), dict(name="AMD Radeon RX 7900", vendor="1002", compute=True),

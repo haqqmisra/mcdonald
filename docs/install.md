@@ -84,6 +84,39 @@ do next.
 
 ---
 
+## A graphics card (optional)
+
+mcdonald never needs a graphics card (GPU). If the computer has one made by NVIDIA, the slowest steps can run on it
+and finish many times sooner. They give the same measurement as on the CPU. This works on Linux and Windows. On a
+Mac, and with a card from AMD or Intel, every step runs on the CPU for now.
+
+1. **The card's driver** from NVIDIA has to be installed. If the card already shows pictures at its full resolution,
+   it usually is. `nvidia-smi` in a terminal prints the card's name when the driver is there.
+2. **The add-on**, about 2 GB:
+
+   ```bash
+   python3 -m pip install "mcdonald[gpu]"
+   ```
+
+   On Windows, `py -m pip install "mcdonald[gpu]"`. If mcdonald was installed in a venv, install the add-on there too.
+3. **Check**: `mcdonald setup` has a line "graphics card" that names the card in use.
+
+The add-on is CuPy, a library that does on a card what NumPy does on the CPU, with NVIDIA's CUDA 12 libraries. It
+runs on any NVIDIA card from the GeForce GTX 900 series (2014) on. Three things to know:
+
+- A computer whose driver is new and whose card is from the RTX 2000 series or later can use CUDA 13 instead:
+  `pip install "mcdonald[gpu-cuda13]"`. Install one of the two, never both.
+- A computer that already has NVIDIA's CUDA toolkit needs only CuPy itself: `pip install cupy-cuda12x`, or
+  `cupy-cuda13x` for CUDA 13.
+- The first step that uses the card takes some seconds longer, once: CuPy builds its small programs for the card and
+  keeps them.
+
+To choose among several cards, or to keep everything on the CPU, use **Edit → Preferences…** in the window (on a
+Mac, mcDonald → Settings). On the command line it is `mcdonald --gpu NAME` or `mcdonald --gpu none`. On a shared
+computer with a job scheduler, a job uses the card only if it was given one (for Slurm, `--gres=gpu:1`).
+
+---
+
 ## What `mcdonald setup` checks
 
 | line | what it means | when it says NO |
@@ -91,6 +124,7 @@ do next.
 | Python | the version running mcdonald | install Python 3.10 or newer |
 | ffmpeg | ffmpeg and ffprobe are found | install ffmpeg (above), then open a new terminal |
 | the window | PySide6 is installed, and there is a screen | install mcdonald again, as above; the command line works without it |
+| graphics card | which card the slow steps run on, or why none is used | never: every step also runs on the CPU (see "A graphics card", above) |
 | storage | the folder where videos and their frames are saved, and the room there | set `MCDONALD_HOME`, or change it on the window's first screen |
 | catalog | the PURSUE list is there | — |
 | downloads | the website of DVIDS, the Defense Visual Information Distribution Service, answers | the internet connection, or (Mac) the certificates |

@@ -649,8 +649,11 @@ def test_setup_says_what_is_there_and_what_to_do():
     rc, out, err = mcdonald("setup", "--offline", "--json", XDG_DATA_HOME=menu)
     d = as_json(out)
     names = [c["name"] for c in (d or {}).get("checks", [])]
-    check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "catalog", "downloads", "version"],
+    check(rc == 0 and d and d["ready"] and names == ["Python", "ffmpeg", "the window", "storage", "graphics card", "catalog", "downloads", "version"],
           "--json: each check, and ready", f"exit {rc}; {names}")
+    card = next((c for c in (d or {}).get("checks", []) if c["name"] == "graphics card"), {})
+    check(card.get("ok") in (True, None) and card.get("found"),
+          "the graphics card's line never says NO: a computer with none is ready, and every step runs on the CPU", str(card)[:160])
     from mcdonald import setup_cli, update
     was = update.now
     try:

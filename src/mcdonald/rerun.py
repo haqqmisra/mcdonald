@@ -27,16 +27,32 @@ import sys
 import time
 from pathlib import Path
 
-from . import share, storage
+from . import gpu, share, storage
 from .report import Case
 
 REL = 1e-9                       # a float may differ by this, relative: another machine's rounding, not a different number
+# Where a graphics card took part in measuring either of the two (`report.Case.computed_on`), a float may differ by
+# CARD_REL, relative, or by CARD_ABS: the card's agreement with the CPU, whose arithmetic is the reference. The card
+# matches a pair's templates in single precision as the CPU does, by another transform in another order (method
+# section 52). On the first case measured both ways (PR135 object 2, 270 frames, 2026-11-12) 10 of the case's 4,042
+# values differed past one in a billion, the farthest by 1.3 parts in 100,000 (a median error of 0.002 px); no count,
+# verdict or sentence differed. CARD_REL is eight times that.
+CARD_REL, CARD_ABS = 1e-4, 1e-7
 VOLATILE = {"started", "mcdonald", "python", "ffmpeg", "commands", "figures", "files", "video", "clip",
-            "segment", "measured_by"}    # the case's own, not the measurement's
+            "segment", "measured_by", "computed_on"}    # the case's own, not the measurement's
 
 
-def _same(a, b, path, diffs):
-    """Compare two JSON-ish values; record each difference as (path, old, new)."""
+def held_to(old, new):
+    """(relative, absolute, card): how far a float of two cases (their dictionaries) may differ. One part in a billion
+    and nothing more, where the CPU measured both; where a graphics card took part in either, the card's agreement
+    (CARD_REL, CARD_ABS), and its name, for the comparison to say so."""
+    card = (old or {}).get("computed_on") or (new or {}).get("computed_on")
+    return (CARD_REL, CARD_ABS, card) if card else (REL, 0.0, None)
+
+
+def _same(a, b, path, diffs, rel=REL, floor=0.0):
+    """Compare two JSON-ish values; record each difference as (path, old, new). A float may differ by `rel`, relative,
+    or by `floor`."""
     if isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b)):
             if k in ("source", "path", "file", "files", "out", "figure", "png", "csv"):     # paths: by their file name
@@ -48,16 +64,16 @@ def _same(a, b, path, diffs):
             if k not in a or k not in b:
                 diffs.append((f"{path}.{k}", a.get(k, "<absent>"), b.get(k, "<absent>")))
                 continue
-            _same(a[k], b[k], f"{path}.{k}", diffs)
+            _same(a[k], b[k], f"{path}.{k}", diffs, rel, floor)
     elif isinstance(a, list) and isinstance(b, list):
         if len(a) != len(b):
             diffs.append((f"{path}[]", f"{len(a)} items", f"{len(b)} items"))
             return
         for i, (x, y) in enumerate(zip(a, b)):
-            _same(x, y, f"{path}[{i}]", diffs)
+            _same(x, y, f"{path}[{i}]", diffs, rel, floor)
     elif isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool) and not isinstance(b, bool):
         if not (a == b or (isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b))
-                or abs(a - b) <= REL * max(abs(a), abs(b))):
+                or abs(a - b) <= max(rel * max(abs(a), abs(b)), floor if isinstance(a, float) or isinstance(b, float) else 0.0)):
             diffs.append((path, a, b))
     elif isinstance(a, str) and isinstance(b, str) and ("/" in a or "\\" in a) and ("/" in b or "\\" in b):
         if Path(a).name != Path(b).name:
@@ -83,7 +99,8 @@ def review_state(case):
 
 def compare_cases(old_json, new_json, review=None):
     """The differences between two case files' measurements: [(where, old, new)]. The review state (`review_state`) is
-    not among them; where `review` is a list, its differences are added to that instead."""
+    not among them; where `review` is a list, its differences are added to that instead. Numbers are held to one part
+    in a billion, or to a graphics card's agreement with the CPU where one took part in either (`held_to`)."""
     old, new = json.loads(Path(old_json).read_text(encoding="utf-8")), json.loads(Path(new_json).read_text(encoding="utf-8"))
     ro, rn = review_state(old), review_state(new)
     if review is not None and ro != rn:
@@ -91,8 +108,9 @@ def compare_cases(old_json, new_json, review=None):
             if ro.get(k) != rn.get(k):
                 review.append((f"stages.verify.{k if k == 'reviewed' else 'result.reviewed'}", ro.get(k), rn.get(k)))
     diffs = []
+    rel, floor, _ = held_to(old, new)
     for k in sorted((set(old) | set(new)) - VOLATILE):
-        _same(old.get(k), new.get(k), k, diffs)
+        _same(old.get(k), new.get(k), k, diffs, rel, floor)
     co, cn = Case.load(old_json), Case.load(new_json)
     if co.bottom_line() != cn.bottom_line():
         diffs.append(("bottom line", co.bottom_line(), cn.bottom_line()))
@@ -148,7 +166,14 @@ def rerun_object(folder, video, out, procs=None, say=print):
     flags, _ = rerun_args(rec, folder, tag)
     cmd = [sys.executable, "-m", "mcdonald.cli", "run", str(video), "--out", str(out)] + flags + (["--procs", str(procs)] if procs else [])
     say("  " + " ".join(shlex.quote(x) for x in cmd[3:]))
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    # Measured again by the arithmetic it was measured by. A case the CPU measured alone -- every case from before
+    # 2026-11-12 -- is measured on the CPU, also on a computer with a graphics card: a card's numbers agree with the
+    # CPU's to about a part in a million, and a file is held to one in a billion. A case a card took part in is left to
+    # this computer's own choice (its card, if it has one), and held to the card's agreement (`CARD_REL`).
+    env = dict(os.environ)
+    if not Case.load(Path(folder) / f"{tag}_case.json").computed_on:
+        env[gpu.GPU_VAR] = gpu.NONE
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
     if r.returncode != 0:
         raise RuntimeError(f"run exited {r.returncode}: {r.stderr[-800:]}")
     return Path(out) / f"{tag}_case.json"
@@ -242,6 +267,11 @@ def rerun_folder(folder, video, procs=None, say=print, strict=False, progress=No
         review = []
         diffs = compare_cases(old, new, review=review)
         result["objects"][obj.name] = dict(differences=diffs, seconds=round(time.time() - t1), review_state=review)
+        rel, _, card = held_to(json.loads(old.read_text(encoding="utf-8")), json.loads(Path(new).read_text(encoding="utf-8")))
+        if card:
+            result["objects"][obj.name]["held_to"] = rel
+            say(f"  {obj.name}: a graphics card took part in the measuring ({card}). A card's numbers agree with the "
+                f"CPU's to about one part in a million, so these are held to one part in {1 / rel:,.0f}, not one in a billion.")
         if review:
             said = next((b for w, a, b in review if w.endswith("result.reviewed")), None) or "that nobody has looked at it yet"
             was = next((a for w, a, b in review if w.endswith("result.reviewed")), None) or "that it was"

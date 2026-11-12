@@ -12,6 +12,12 @@
 #         it reads the reference-data folder ($MCDONALD_DATA, else data/mcdonald beside the repository; see
 #         tests/reference_data.py) and skips, saying so, any case whose video is not there.
 # On four CPUs (2026-09-26): measurement ~4 min, reduction ~1, published and tether seconds, cli ~1.5, gui ~3.5, golden ~5 with the frames on disk.
+#
+# On a graphics card (2026-11-12): the same suites with the card's arithmetic where a stage has it (docs/method.md, the
+# graphics card's section), which is how the goldens are held on both. The job has to be given the card:
+#     sbatch --gres=gpu:1 tools/suites.sbatch golden
+# Without --gres=gpu:1 every suite runs on the CPU, card or no card (`gpu.given`), and test_gpu checks the card's code
+# with NumPy standing in for it. Each run says which it was: the line after this one in the job's log.
 # A suite that fails does not stop the ones after it; the job fails if any did.
 
 set -uo pipefail
@@ -30,7 +36,8 @@ fi
 export MCDONALD_FIGURE_CLASHES="$SLURM_SUBMIT_DIR/logs/figure_clashes_${SLURM_JOB_ID}.txt"
 rm -f "$MCDONALD_FIGURE_CLASHES"
 
-suites="test_measurement test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_zoom test_horizon test_focus test_haze test_streak test_camera test_gui"
+python3 -c "from mcdonald import gpu; print('==', gpu.said())"
+suites="test_measurement test_reduction test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_zoom test_horizon test_focus test_haze test_streak test_camera test_gpu test_gui"
 [ "${1:-}" = "golden" ] && suites="$suites test_golden"
 failed=""
 for s in $suites; do

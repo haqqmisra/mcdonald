@@ -1,4 +1,91 @@
-# Handoff: ROADMAP 0.4 and 0.5 -- session 20 (2026-11-10) on top: 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- session 21 (2026-11-12) on top: the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 21 (2026-11-12): the graphics card -- `layers` and `integrity`'s passes on it, held to the CPU's
+
+**Jacob:** "Now that we have a GPU available, let's build the GPU features into mcdonald"; and, a little later, "let me
+know if you need me to install anything" (nothing was needed: the driver and CUDA 13.5 were there, and CuPy is pip's).
+
+### Where it stands (read this first)
+
+**Built, on `main` locally, not versioned and not pushed.** The CHANGELOG's entry is under `## Unreleased`; the version
+is still 0.5.2. Built in a worktree (`/hugespace/models/mcdonald-gpu`, branch `gpu`, merged into `main` and removed), every run through Slurm on
+arthur, the card asked for with `--gres=gpu:1`. The working folder is `/scratch/mcdonald/gpu-2026-11-12/` (the probes
+and timing scripts, `out/` their results, `logs/`, `snap/` the snapshots jobs imported, `frames/` and `home/` extracted
+frames, safe to delete).
+
+What there is now (method §52 has the tables; `gpu.py`'s docstring the rules with their reasons):
+
+| piece | what it does | held by |
+|---|---|---|
+| `gpu.card()`, `gpu.on(card)`, `gpu.active()` | the card this process may compute on (CuPy, so NVIDIA through CUDA; `MCDONALD_GPU`, `--gpu`, Preferences; inside a Slurm job only where the job was given one; never in a pool's worker), and the scope a stage enters for a whole pass | test_gpu |
+| `Card.run`, the thread "mcdonald-card" | every routine on a real card is computed in one thread that never ends, and `Card.tidy` lets the FFT plans go one by one: CuPy's plan cache runs the cycle collector in the thread that clears it or ends with it, and the window allows the collector in its own thread only | test_gpu; the window's suite on the card |
+| `forensics._gaussian_on`, `_bandpass_on`, `bandpass_kept` | the band-pass by SciPy's own arithmetic on the card: the CPU's to the last bit | test_gpu (0 pixels differ) |
+| `forensics._shift_field_on`, `_peaks_on`, `_peak_read` | a pair's templates matched in one batch; the peak found on the card and read by the one function both ways call | test_gpu; the goldens on the card |
+| `forensics._spot_response_on` | the spot detector's response by FFT in double: the direct sum's numbers. No stage uses it yet | test_gpu |
+| `forensics.pooled_or_on_card`, `progress.Ahead` | a stage's pass in one process on the card, its frames read ahead by threads; a card that stops hands the pairs left to a pool | test_gpu |
+| `layers.measure`, `integrity.per_frame_background`, the rigid-motion pass | the stages that use it. `layers`' cache of templates is kept apart for a card | test_gpu (two drawn clips); test_golden on the card |
+| `Case.computed_on`, `rerun.held_to` | a case says what computed it; `rerun` measures a CPU's case on the CPU and holds it to 1e-9 as ever, a card's to 1e-4 | test_gpu |
+| `cli.take_gpu`, `setup`'s line, Preferences' row (`mark_qt.use_remembered_gpu`, `choose_gpu`, `GPU_USED`, `GPU_INSTALL`) | the choice, for both audiences | test_gpu, test_cli, test_gui |
+| `pyproject.toml`: `gpu` (CuPy for CUDA 12 with its libraries) and `gpu-cuda13` | the add-on | -- |
+
+**The numbers** (arthur: 88 job threads, RTX 5070 Ti; CuPy 14.2.0, CUDA 13). `layers` on PR113 380-440: 26.6 s on 4
+CPUs, 10.0 s on 88, 2.8 s on the card, the table's 519 cells the same. On PR113 1-900: 60.4 s on 88, 34.7 s on the
+card; 11 of 11,400 cells differ, each by 0.01 px. A whole `run` of PR135 object 2 (270 frames): 106.5 s on 8 CPUs,
+70.5 s with the card; 26 of the case's 4,040 values differ, the farthest by 1.3 parts in 100,000, no sentence, and the
+seven tables byte for byte the same.
+
+**The suites**: `tools/suites.sbatch golden` twice on the tree as committed but for the documents' last words (snapshot `final2`): job 125 with no card given and job 126 with `--gres=gpu:1`. **Both: ALL SUITES PASS.** In each: measurement 603, reduction 671, published 32, tether 45, audio 62, cli 139, share 28, sweep 20, stabilize 13, aspect 10, waves 14, slew 95, zoom 37, horizon 25, focus 19, haze 9, streak 20, camera 151, the window's suite 774 with 1 skip, golden 228, none failing; test_gpu 70 with NumPy standing in for the card (125) and 89 on the card (126). The golden suite's own PR144 command (frames 300-500) by hand, both ways: 17 s on the card, 67 s on eight CPUs; every printed number the same, the medians equal to eight digits (599.08806, 501.19659, 507.24485 px/s), one cell of the table's 200 rows apart in its third decimal, and the card named among the envelope's notes.
+
+### What I decided on the way, for Jacob to confirm or change
+
+1. **CuPy, so NVIDIA cards only.** It answers to NumPy's and SciPy's names, so the card's routines are short and the
+   same code runs with NumPy standing in for the card on the runners. PyTorch would add a Mac's card, at 2 GB and a
+   second way of writing every routine; a Mac's card has no double precision in any library (G4 in IDEAS.md).
+   Preferences now offers only NVIDIA cards with CUDA, and names any other card as "not one mcDonald can compute on
+   yet".
+2. **A card is used by default where there is one and CuPy is installed** (as Preferences had it: "the first card
+   until another is chosen"). `--gpu none`, `MCDONALD_GPU=none` or Preferences' "None: the CPU only" turn it off. In a
+   Slurm job it is used only with `--gres=gpu:1`, so every job submitted as before runs on the CPU as before.
+3. **Only where a stage says so** (`gpu.on`). The first version used the card wherever a routine was called in the
+   main process; `groups` then gave other bits in one process than on its pool, and test_measurement said so.
+   **And one thread talks to the card.** The second version computed in the stage's own thread; the window's suite
+   then counted 19 runs of the cycle collector in Measure's thread (CuPy's FFT plan cache collects when it is
+   cleared and when its thread ends). Both were caught by suites that were there already, run on the card.
+4. **`rerun`'s rule**: a case from the CPU is measured again on the CPU, also on arthur; a case a card took part in is
+   held to one part in 10,000 (eight times the farthest seen on one case). The reference case files are the CPU's and
+   are untouched. If a card's cases should not exist at all, `run` could refuse the card; I did not go that far.
+5. **The add-on is CUDA 12's CuPy** (`mcdonald[gpu]`), because CUDA 13 dropped the GTX 900 and 1000 series; arthur's
+   own venv has `cupy-cuda13x`, which uses the CUDA 13.5 toolkit already installed (`/camelot/arthur/log.md`).
+6. **The short README is unchanged.** `docs/install.md` has the section, and the technical README the numbers.
+
+### Found on the way, not fixed
+
+- **`rerun` compares a sentence with a slash in it by its tail only** (IDEAS.md G6): two strings that both hold "/" are
+  taken for paths. "median 103 px/s ..." against "median 250 px/s ..." passes wherever the rest is the same. The
+  fields are held number for number, so most moved numbers are caught there. Fixing it wants the fourteen reference
+  cases rerun, because whatever the rule hid would show; I left it.
+- `.github/workflows/suites.yml` and `platforms.yml` run thirteen suites (fourteen with test_gpu), not the twenty-one
+  of `tools/suites.sbatch`; that was so before.
+
+### Not done
+
+1. **The Mac and Windows runs** (a push to `macos-ci` and `windows-ci`): `test_gpu` is new there and has not run on
+   either. It is portable by construction (the stand-in, a spawned pool, drawn clips through ffmpeg) and untried.
+2. **A version and a release.** Nothing here changes a number a CPU gives; it is an addition. Jacob's.
+3. **Find and Follow on the card** (G2), **a fused pass** for the card's batch (G3: about half of a pair's 25 ms),
+   **a Mac's card** (G4), **installing the add-on from the window** (G5: Preferences can only say which command to type).
+4. **The work the card is for** (ROADMAP 0.6, objectives 3 and 4): the plants at scale, the dense field (A14), the
+   error models. None is begun. The shift field at stride 16 is 36 times the templates and about 0.4 s a 1080p pair
+   on the card, which is where A14 would start.
+5. **A person at the window.** The window's suite passes on the card under Xvfb; nobody has pressed Measure on the
+   desktop with the card and looked. Preferences' row is the place to look first.
+6. **A card truly out of memory** makes CuPy's allocator run the cycle collector once, in the card's thread, before
+   it gives up (its `_try_malloc`). Batches are planned on half the free memory and halved on a first failure, so
+   it should not come to that; if the window ever crashes with the card full, this is where to look.
+
+### Slurm jobs of the session (arthur)
+
+The suites: 93 (the first snapshot, no card: everything but test_cli's list of `setup`'s lines, which had gained one); 100 and 101 (cancelled, superseded); 107 and 108 (snapshot `final1`: on CPUs all passing; on the card the goldens and test_gpu passing, the window's suite counting 19 collections outside its thread and test_cli finding a twelfth key in the envelope -- both fixed after it); **125 and 126 (snapshot `final2`: all passing, on CPUs and on the card)**. Everything else was `srun`, a few minutes each, with `--gres=gpu:1` where the card was wanted: the probes (`probe1.py`, `eq1.py`, `steps4.py`, `prof*.py`, `gc9.py`), the stage timings (`stage5.py`, `integ7.py`, `run8.sh`, `e2e11.sh`) and test_gpu by itself after each change. One card: a job that holds it for forty minutes holds every probe behind it, so the timings were taken between the suites, not beside them.
 
 ## Session 20 (2026-11-10): 0.5.2 built -- `tether`'s four defects, its gate set against a null
 

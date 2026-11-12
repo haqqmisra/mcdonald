@@ -98,6 +98,8 @@ def checks(offline=False):
     out.append(("storage", writable, f"{home} ({free / 1e9:.0f} GB free)" + ("" if home.exists() else "; made when first used"),
                 "" if writable else f"{probe} cannot be written to: set MCDONALD_HOME to a folder that can"))
 
+    out.append(("graphics card",) + _graphics_card())
+
     cat = catalog.active()
     n = len(cat.videos())
     out.append(("catalog", True, f"{cat.label}, {n} videos" if n else "none (MCDONALD_CATALOG=none): give videos by their path", ""))
@@ -111,6 +113,27 @@ def checks(offline=False):
         out.append(("downloads",) + _can_download(url))
         out.append(("version",) + _newest())
     return out
+
+
+def _graphics_card():
+    """(ok, found, what to do) for the graphics card: never needed (None unless one is in use), so that a computer
+    with none passes. Says which card computes, or which is here and what it would take to use it."""
+    from . import gpu
+    c = gpu.card()
+    if c is not None:
+        return True, f"{c.name} ({c.library}): the steps that can use it do", ""
+    if gpu.asked() == gpu.NONE:
+        return None, "not used: the CPU only was chosen (--gpu none, MCDONALD_GPU or Preferences)", ""
+    cards = gpu.found()
+    ours = gpu.usable(cards)
+    if ours and not gpu.installed():
+        return None, f"{ours[0]['name']}, not used: CuPy is not installed", 'to use it: pip install "mcdonald[gpu]"'
+    if ours:
+        return None, f"{ours[0]['name']}, not used: {gpu.why()}", ""
+    if cards:
+        return None, (f"{', '.join(c['name'] for c in cards)}: not one mcdonald can compute on "
+                      "(it uses NVIDIA cards, through CUDA)"), "nothing to do: every step runs on the CPU"
+    return None, "none found", "nothing to do: every step runs on the CPU"
 
 
 def _newest():

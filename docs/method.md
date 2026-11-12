@@ -5907,3 +5907,120 @@ larger: its wander's range, 0.10-0.18 s, is far shorter than the 1.8-s departure
 breaks are not ported). A velocity change only; a step in position is §32's jumps. The event study's windows are a second;
 a break within a second of the track's end has under 8 points on one side: no power. The scene is `layers`' largest motion group
 (else the streaked or the evenly textured layer): on a clip with two layers the abnormal change is against that one.
+
+## 52. Computing on a graphics card: the same measurement, and how it is held (ROADMAP 0.6, objective 3; added 2026-11-12)
+
+**What it answers.** Whether a number depends on what computed it. Since 2026-11-12 the steps that match one frame
+against another can run on a graphics card (`mcdonald.gpu`): `layers`' two rounds and `integrity`'s background passes.
+A card is never required. The CPU's arithmetic is the reference, its code was not touched, and the card's version of a
+routine stands beside it and is held to it. This section says what "held" means, to what tolerance, and why it is not
+"to the last bit".
+
+**The rules** (`gpu.py`'s docstring has each with its reason).
+
+- *Which cards.* The card's arithmetic is CuPy's, which answers to NumPy's and SciPy's names and runs on NVIDIA cards
+  through CUDA, on Linux and Windows (`pip install "mcdonald[gpu]"`). A Mac's card, an AMD or an Intel one is found,
+  named, and said not to be used yet.
+- *The choice.* `MCDONALD_GPU`, which `mcdonald --gpu X` and Preferences set: unset is the first card, `none` the CPU
+  only, otherwise a card's name or number.
+- *A batch job's allocation, not the machine*, as `progress.cpus` has it for CPUs. Inside a Slurm job a card is used
+  only where the job was given one (`--gres=gpu:1`).
+- *One process computes on it.* A pool's workers never do: each would hold its own state on the card, a few hundred MB,
+  and they would take turns. A stage with a card version runs its pass in one process, with the frames read ahead by
+  threads (`progress.Ahead`).
+- *A stage says so.* A routine with a card version runs on the card only inside `with gpu.on(card):`, which a stage
+  enters for the whole of a pass. Anywhere else it is the CPU's arithmetic, card or no card. On the first run on a card
+  the routines used it wherever one was to hand, and `groups` took its spots from the card in one process and from
+  the CPU on its pool: the suite that holds stages to "the same on a pool as in one process, to the bit" failed, and
+  the rule was made.
+- *A failure is not a crash.* A card out of memory is sent half as much at once. A card that refuses anything else is
+  said once on stderr and given up; the pairs not yet done go to a pool of CPUs.
+- *One thread talks to the card, and it never ends.* CuPy keeps its FFT plans in a cache of each thread's own, and
+  that cache runs Python's cycle collector when it is cleared and when its thread ends. The window runs the collector
+  in its own thread and nowhere else, because a widget freed in Measure's thread is a crash, and the window's suite
+  caught the card's first version collecting in Measure's thread 19 times. Every routine on a card is now handed to
+  one thread that is never joined (`Card.run`), and the plans are let go one by one, which collects nothing. What is
+  left: a card truly out of memory makes CuPy's allocator run the collector once in that thread before it gives up,
+  and batches are planned on half the free memory so that it does not come to that.
+
+**The band-pass is the CPU's to the last bit.** CuPy's Gaussian filter sums a single-precision frame in single
+precision. Over the 97 taps of the 12-px Gaussian that is 1.4e-4 of a grey level from SciPy's (PR113's frame 380),
+because SciPy sums each line in double and keeps the result in the frame's precision. `forensics._gaussian_on` does
+SciPy's own arithmetic on the card: along each axis in turn, the sums in double, the result in single. On that frame 0
+of 2,073,600 pixels differ. Everything read from a filtered frame therefore starts equal.
+
+**The shift field is the same search, arranged for a card** (`forensics._shift_field_on`). The CPU takes one template at
+a time: its region of the second frame, cut where the frame ends, a correlation by FFT, then the peak. The card takes
+a pair's templates in one batch:
+
+- every template's region is the same size, min(template + 2 x reach, the frame), slid to stay inside the frame where
+  the template is near an edge. It holds every placement the CPU tries. The placements farther than `reach` from the
+  template's own place, which the CPU's region does not have, are set to -1 as masked ones are, so a peak on the rim of
+  what the CPU searched has a -1 beside it and is dropped, as a peak on the border of the CPU's map is;
+- regions that coincide are transformed once: two templates near the same edge, or every template where the reach is
+  larger than the frame (`integrity`'s whole-frame search);
+- the correlation is circular over the region's own size (625 x 625 for the usual 618-px region, against the CPU's
+  750 x 750 padded by the template): the placements wanted are the ones that do not wrap;
+- each placement's normalisation and mask count come from the whole frame's summed-area tables in double, as on the
+  CPU, made once a frame;
+- the card finds each map's peak, its 3 x 3 neighbourhood and its runner-up; the rest of the peak's reading (the
+  parabola, the curvatures, each template's own error and ridge, section 31) is `forensics._peak_read`, one function
+  that both ways call. Which templates are clear of the masks, and each one's mean level, are worked out on the CPU
+  from the same arrays, so they are the same to the bit.
+
+The correlations are single precision on both, by different transforms of different sizes in a different order, so the
+maps differ by a few 1e-7. A sharp peak turns that into a few 1e-6 px. A peak nearly flat along a streak (open sea)
+turns it into as much as 2e-3 px along the streak, where the template's own error is a thousand times larger and its
+information next to nothing. Measured on PR113 (1920 x 1080; pairs from 380, 395, 410 and 425; both zones):
+
+| search | templates a pair | rows kept | a template's shift, worst | in its own error | a pair's agreed shift, worst | one CPU thread | the card |
+|---|---|---|---|---|---|---|---|
+| the usual (128 px, stride 96, reach 245) | 59-76 | the same | 2.0e-3 px | 3.7e-4 | 9.8e-6 px | 0.77 s | 0.027 s |
+| the second pass's (stride 48) | 243-313 | the same | 2.0e-3 px | 5.6e-4 | 2.6e-5 px | 2.4 s | 0.078 s |
+| the whole frame (stride 144, reach 1225) | 26-36 | the same | 4.6e-4 px | 2.3e-4 | 9.0e-6 px | 1.8 s | 0.055 s |
+| 64-px templates (stride 48) | 344-422 | the same | 1.6e-3 px | 5.1e-4 | 6.4e-5 px | 2.8 s | 0.096 s |
+
+The card's code run by NumPy and SciPy on the CPU (`gpu.stand_in`) differs from the CPU's own by as much: 2.7e-3 px on
+a template, 1.2e-4 px on an agreed shift. So the difference is the arrangement's rounding, not the card's.
+
+**The spot detector** (`forensics._spot_response_on`) is by FFT at every size on the card, in double throughout, which
+is what the direct sum is: on PR113's frame 380 it is the direct sum to 2e-13 of a grey level before it is kept in the
+frame's precision, at 5, 9 and 21 px. The CPU makes the direct sum under 9 px and a single-precision FFT from there,
+which is 2e-5 from it. No stage enters a card's pass for the spot detector yet (Find and Follow run on pools); the
+routine is there and held.
+
+**The stages, measured both ways** (the development workstation, 2026-11-12: a 48-core Xeon 678X, 88 threads for
+jobs, and an RTX 5070 Ti; CuPy 14.2.0 on CUDA 13).
+
+| what | on CPUs | on the card | what differs |
+|---|---|---|---|
+| `layers`, PR113 frames 380-440 (56 pairs) | 26.6 s on 4, 10.0 s on 88 | 2.8 s | none of the table's 519 cells |
+| `layers`, PR113 frames 1-900 (895 pairs) | 60.4 s on 88 | 34.7 s (8 CPUs reading) | 11 of 11,400 cells, each by 0.01 px, its last digit; the three median rates the same to 0.001 px/s |
+| `integrity`'s three frame-pair passes, PR113 380-440 | 11.5 s on 8 | 3.0 s | none of the report's 137 values |
+| a whole `mcdonald run`, PR135 object 2 (270 frames, 1280 x 720) | 106.5 s on 8 | 70.5 s (`layers` 36 s to 8 s, `integrity`'s passes 14 s to 6 s) | 26 of the case's 4,040 values; no sentence, count or verdict; the seven tables byte for byte the same |
+
+On PR135 the rates agree to nine digits (107.81341642 against 107.81341640 px/s). The farthest apart is the median of
+the pairs' own shift errors, 0.00216469 against 0.00216467 px: 1.3 parts in 100,000.
+
+**A case says what computed it** (`report.Case.computed_on`, `gpu.computed_on`). `mcdonald share rerun` holds a case
+file to one part in a billion, which the card's agreement is not. So a case keeps the card that took part in it (None
+where the CPU measured alone), and its report says so in a line under the heading. `rerun` measures a case again by
+the arithmetic it was measured by: a case the CPU measured, which is every case from before this, is measured on the
+CPU also on a computer with a card, and held to one in a billion as ever. A case a card took part in is held to the
+card's agreement, one part in 10,000 (`rerun.CARD_REL`, eight times the farthest seen), and the comparison says so. The
+reference case files are the CPU's.
+
+**How it is held.** `tests/test_gpu.py` runs the card's code against the CPU's on drawn scenes: with NumPy standing in
+for the card wherever the suite runs (GitHub's runners have no card), and on the real card where the process has one.
+It holds the same templates keeping their rows, each shift within 0.01 px and a hundredth of its own error, a pair's
+agreed shift within 0.001 px, the band-pass to the bit, the spot detector's response to 1e-4 of a grey level with the
+same spots in the same order, and `layers` and `integrity` whole on two drawn clips. `sbatch --gres=gpu:1
+tools/suites.sbatch golden` runs every suite with the card's arithmetic wherever a stage has it, which is how the
+goldens are held on both.
+
+**What it is not.** Not every step: Find, Follow, `flicker`, `stabilize`, `groups`, `tether` and the third pass of
+`layers` (the scene under the pattern) are the CPU's, on pools, as before. Not every card: NVIDIA's only. Not a
+different measurement: nothing here adds a number a CPU does not give. And not as fast as it could be: the card's
+batch is bound by the memory it moves, about ten passes over a pair's maps in double, and the peak's reading and
+the frames' decoding are still the CPU's, in Python. On the workstation the card does `layers` in a little over half
+the time all 88 threads do; on four cores, in a ninth.
