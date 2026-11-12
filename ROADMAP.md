@@ -442,8 +442,9 @@ symbology, and it says "nothing tied to the object" of a stem that starts at the
 files are remade after it. **Built on 2026-11-10** (CHANGELOG, method section 6): the companion found again from where the stack
 put it and never followed away, the swing's period held against a slow wander at a rate measured on drawn wanders (1 in 100 at
 the worst), the companion gate set against a null (a false companion on 2 of 160 tracks that nothing keeps step with), and the
-finding saying the ring it searched. Its version commit is dated 2026-11-10 (the maintainer's word, that day); the Mac and Windows runs,
-the tag and the push follow, and the reference case files are remade then. **After it, in 0.5.x:** the test the balloon class had lacked, "does something hang under it?" (H5,
+finding saying the ring it searched. Its version commit is dated 2026-11-10 (the maintainer's word, that day) and went to main that day, after the Mac and
+Windows runs; it had no tag of its own, and **was released with 0.5.3 on 2026-11-12** (with the graphics card's first
+steps, 0.6's objective 3). The reference case files are remade after it, on the maintainer's word. **After it, in 0.5.x:** the test the balloon class had lacked, "does something hang under it?" (H5,
 with AARO's known balloon PR-004 and the WA9ONY-5 launch as its positives); `drift`'s corrections and PR051 as a known answer of
 its own-track route (DR1-DR5); and `glide` (GL1), once the maintainer has looked at its by-eye controls.
 
@@ -610,7 +611,7 @@ knowing what the search could not have found.
    no GPU, the CPU path is what is tested; the GPU path is held to the goldens on the
    workstation.
 
-   *Begun 2026-11-12, the workstation's second day* (`mcdonald.gpu`, `docs/method.md` §52, `tests/test_gpu.py`). The
+   *Begun 2026-11-12, the workstation's second day, and released in 0.5.3 that day* (`mcdonald.gpu`, `docs/method.md` §52, `tests/test_gpu.py`). The
    three array versions are built and held: the band-pass (the CPU's to the last bit), the correlation shift field
    (the same templates, a pair's agreed shift within 0.0001 px on PR113) and the spot detector's matched filter.
    `layers` and `integrity`'s background passes run on the card, in one process with the frames read ahead by threads:

@@ -10,7 +10,7 @@ object in a single-camera video.
 >
 > — James E. McDonald
 
-**Status:** early test version (0.5.2), tried on Linux and macOS, and on Windows so far only by its automatic tests.
+**Status:** early test version (0.5.3), tried on Linux and macOS, and on Windows so far only by its automatic tests.
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23652954.svg)](https://doi.org/10.5281/zenodo.23652954)
 
@@ -34,6 +34,10 @@ object in a single-camera video.
 When a newer version is out, `mcdonald-gui` offers to update itself when it starts. The command
 line prints the command to update with. To check at any time, use **Help → Check for updates** in
 the window, or `mcdonald setup` on the command line.
+
+A graphics card is never needed. If the computer has one from NVIDIA, an optional add-on runs the slowest steps
+on it. They finish several times sooner and give the same measurement. See
+[A graphics card (optional)](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md#a-graphics-card-optional).
 
 New to Python or the terminal? [docs/install.md](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md) walks through each step in
 detail.

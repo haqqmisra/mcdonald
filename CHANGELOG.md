@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.3 (2026-11-12)
 
 **The slow steps can run on a graphics card** (ROADMAP 0.6, objective 3; built 2026-11-12, the day the development
 workstation had one). Never required: with no card, or without the add-on, every step runs on the CPU as before, and
@@ -44,7 +44,12 @@ the CPU's arithmetic is the reference.
 - Also there and held, not yet used by a stage: the spot detector's response on the card
   (`forensics._spot_response_on`). Find and Follow still run on pools of CPUs.
 
-## 0.5.2 (2026-11-10)
+Also in 0.5.3 (2026-11-10, a2bf7ed): the noise figure's legend is in two columns, not three; with conda-forge's
+matplotlib and FreeType it ran off `one_noise.png` and `beat_noise.png`. For whoever runs the tests:
+`tests/test_measurement.py` and `tests/test_reduction.py` take `--part K/N`, so the two long suites can run side by
+side in parts.
+
+## 0.5.2 (2026-11-10; on main that day, no tag of its own: on PyPI with 0.5.3)
 
 A correctness patch for `mcdonald tether`: four defects found on 2026-11-09/10 by running the released stage on AARO's
 known cases, on the reference case files and on three PURSUE clips with something under the object (IDEAS.md, H1-H4;
