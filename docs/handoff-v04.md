@@ -36,6 +36,19 @@ seven tables byte for byte the same.
 
 **The suites**: `tools/suites.sbatch golden` twice on the tree as committed but for the documents' last words (snapshot `final2`): job 125 with no card given and job 126 with `--gres=gpu:1`. **Both: ALL SUITES PASS.** In each: measurement 603, reduction 671, published 32, tether 45, audio 62, cli 139, share 28, sweep 20, stabilize 13, aspect 10, waves 14, slew 95, zoom 37, horizon 25, focus 19, haze 9, streak 20, camera 151, the window's suite 774 with 1 skip, golden 228, none failing; test_gpu 70 with NumPy standing in for the card (125) and 89 on the card (126). The golden suite's own PR144 command (frames 300-500) by hand, both ways: 17 s on the card, 67 s on eight CPUs; every printed number the same, the medians equal to eight digits (599.08806, 501.19659, 507.24485 px/s), one cell of the table's 200 rows apart in its third decimal, and the card named among the envelope's notes.
 
+### Jacob's answers so far (2026-11-12, put to him as choices)
+
+- **The short README**: "Add it at the release." The sentence goes in with the version commit, so that the front
+  page and PyPI change together. Drafted, to go under Install after the paragraph on updating:
+
+  > A graphics card is never needed. If the computer has one from NVIDIA, an optional add-on runs the slowest steps
+  > on it. They finish several times sooner and give the same measurement. See
+  > [A graphics card (optional)](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md#a-graphics-card-optional).
+
+- **The Mac and Windows runs**: "Not yet." Nothing is pushed, to `main` or to the two CI branches.
+- **Which cards, the default, `rerun`'s rule and the `gpu` extra** (1, 2, 4 and 5 below): he wanted to clarify the
+  questions before answering. Open.
+
 ### What I decided on the way, for Jacob to confirm or change
 
 1. **CuPy, so NVIDIA cards only.** It answers to NumPy's and SciPy's names, so the card's routines are short and the
@@ -57,6 +70,7 @@ seven tables byte for byte the same.
 5. **The add-on is CUDA 12's CuPy** (`mcdonald[gpu]`), because CUDA 13 dropped the GTX 900 and 1000 series; arthur's
    own venv has `cupy-cuda13x`, which uses the CUDA 13.5 toolkit already installed (`/camelot/arthur/log.md`).
 6. **The short README is unchanged.** `docs/install.md` has the section, and the technical README the numbers.
+   (Answered: its sentence goes in at the release; above.)
 
 ### Found on the way, not fixed
 
