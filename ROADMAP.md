@@ -621,9 +621,9 @@ knowing what the search could not have found.
    stage says so. A case says what computed it, and `rerun` measures it again the same way. On GitHub's runners the
    card's code is run with NumPy standing in for it. *Still to do for "complete":* Find and Follow on the card (the
    spot detector's routine is there, the stages still run on pools), `flicker`'s camera-shake pass, `stabilize`, the
-   third pass of `layers`; a Mac's card (Metal has no double precision: the routines that sum in double need
-   another way there); and the work the card is for -- the plants, the dense field, the error models (objective 4,
-   A14).
+   third pass of `layers`; and the work the card is for -- the plants, the dense field, the error models (objective 4,
+   A14). *Not owed* (the maintainer, 2026-11-12): other makers' cards. The card is optional, NVIDIA on CuPy is enough
+   for now, and there is no obligation to support every GPU platform; a Mac's card is parked (IDEAS.md, G4).
 4. **Planted objects at scale.** `plant`: synthetic objects and synthetic look-alikes written
    into frames and re-encoded with the clip's own settings, through the whole chain (Find,
    link, flicker, report), thousands per clip -- completeness and reliability per video, the

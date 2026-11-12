@@ -46,8 +46,13 @@ seven tables byte for byte the same.
   > [A graphics card (optional)](https://github.com/haqqmisra/mcdonald/blob/main/docs/install.md#a-graphics-card-optional).
 
 - **The Mac and Windows runs**: "Not yet." Nothing is pushed, to `main` or to the two CI branches.
-- **Which cards, the default, `rerun`'s rule and the `gpu` extra** (1, 2, 4 and 5 below): he wanted to clarify the
-  questions before answering. Open.
+- **Which cards** (1 below): "NVIDIA on CuPy is good for now. It is optional anyway, so there is no obligation for
+  mcdonald to support every GPU platform on the market." He had asked whether PyTorch was worth doing now, as one
+  library for every platform. What I answered: not as a replacement. The routines are one set written against a
+  plug-in library, so a Mac would be another plug-in, not a second copy; what makes a Mac hard is that its GPU has no
+  double precision in any library, and there is no Mac here to hold it to the CPU on. PyTorch is the likely second
+  backend if a Mac's card is ever wanted. So G4 is parked, and nothing is owed to AMD, Intel or Apple cards.
+- **The default, `rerun`'s rule and the `gpu` extra** (2, 4 and 5 below): open.
 
 ### What I decided on the way, for Jacob to confirm or change
 
