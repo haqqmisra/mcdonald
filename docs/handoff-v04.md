@@ -1,4 +1,140 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 22's brief on top (2026-11-13: the card's remaining work, all of it, and the window's CPU default measured), then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 22 (2026-11-13): what was built from the brief below, and what was measured and left
+
+**Jacob:** "Start session 22 from the brief at the top of docs/handoff-v04.md. Use /slurm."
+
+### Where it stands (read this first)
+
+**On `main` locally, not versioned, not pushed.** The CHANGELOG's entries are under `## Unreleased`; the version is
+0.5.3. Four commits of this session, then a merge by another session the same afternoon:
+
+| commit | what |
+|---|---|
+| 4ef5f57 | G6: `share rerun` holds every sentence to the letter; only a file's path is compared by its file name |
+| 284fe41 | a long track in two thirds of the time: `flicker`'s judging, `tether`'s passes and `camera`'s shapes on threads |
+| 1696096 | `flicker`'s camera-shake pass and `layers`' third pass on the card; G2 measured, not built |
+| 380a9d7 | merge of `g5-addon` (8b30d35, an agent's worktree): the add-on installed from the window, `mcdonald setup --install-gpu` |
+| 3459561 | *not this session's*: the "GP Triangulation" session merged `nevada-fixes` on top (Jacob asked it to; `docs/handoff-nevada.md`) |
+
+The working folders: `/scratch/mcdonald/g6-2026-11-13/` (G6: the reruns, `hidden.py`, `caught.py`, `twice.py`),
+`/scratch/mcdonald/s22-2026-11-13/` (profiles, timings, the gate, `dev/` the probes) and `/scratch/mcdonald/g5-2026-11-13/`
+(the agent's: two venvs of 5.8 GB, screenshots in `look/`). All safe to delete; nothing was deleted.
+
+### 1. G6, `rerun`'s slash rule: fixed, and what it had hidden
+
+`rerun.is_path`: a path is an absolute one, or a string with no space and a file's ending; two paths are the same
+where their file names are; every other string must be the same string. The fourteen reference cases were rerun on
+arthur (job 836, 30 min). Their files were made on merlin, so numbers differ in their last digits here, as the
+benchmark found: 4,739 differences by the old rule, 4,760 by the new.
+
+- **The 21 the old rule hid** are on 11 of the 31 objects, each a printed number moved by one in its last digit.
+  Fifteen repeat a number field that differs too. Six do not: `integrity`'s shake test prints both axes' slopes and
+  keeps only the stronger axis's `r` and `sigma`, so PR135 objects 1, 2 and 4 had "-646.24" against "-646.25" held by
+  nothing. **No object's verdict changes**: each of the 31 already differed in a number field.
+- **The control:** two reruns of all 31 objects on arthur, a day and five commits apart and in different folders,
+  differ in nothing at one part in a billion. So nothing since 0.5.2 has moved a number the CPU gives on these files.
+- Left: the shake test's second axis has no fields. Whether a case file is remade is still Jacob's.
+
+### 2. "Look first at what no number of workers shortens": it was one process, not the card's work
+
+PR088 object 2's run under py-spy (`dev/spy.py`): the main thread was busy 338 of 458 s. `tether` 143 s (each frame's
+noise 60, the stack's sums 28, the followers 21, the background's step 18); `flicker` 110 s, nearly all of it `judge`
+(four background apertures judged as the object 53 s, the object's own nulls 38, steadiness 10; the pooled aperture
+pass is a few seconds of the step); `camera` 24 s reading frames one after another. So the fix was threads, not the
+card: `progress.Beside`, `Frames.each(also=)`, `flicker.controls_started`, `camera.shapes`. Each piece is the same
+function on the same arguments, so no number moves.
+
+Whole runs, seconds (80-CPU jobs, `MCDONALD_CPUS` the workers; "before" is this morning's sweep):
+
+| object | workers, card | before | after |
+|---|---|---:|---:|
+| PR088 object 2 (3,678 frames) | 32, card | 405.9 | 279.9 |
+| | 32, no card | 426.4 | 295.3 |
+| | 8, card | 467.8 | 349.1 |
+| PR135 object 2 (270 frames) | 32, card | 59.5 | 54.3 |
+| | 32, no card | 65.5 | 61.8 |
+| PR149 (158 frames) | 32, card | 49.6 | 49.3 |
+| | 32, no card | 63.7 | 61.5 |
+
+PR088 by step at 32 workers: Flicker 106.7 to 43.1 s, Stack 24.7 to 15.1, Frames 96.8 to 50.2, zoom and rate steps
+22.2 to 10.6.
+
+**The gate that no number moves:** the fourteen case files measured again with the finished code (job 909, snapshot
+`snap7`) against the morning's reruns with the code before: **31 objects, 0 differences at 1e-9**
+(`gate/same.sh r7`; an earlier snapshot, job 876, the same). Each threaded pass is also held to the pass in one thread,
+to the last bit, in test_tether, test_camera and test_measurement.
+
+Still one process, for another day: kinematics' speed band and model set (28 s on PR088), `flicker`'s own drift and
+steadiness (23 s), `tether`'s followers' own arithmetic, `layers`' consensus (10 s). With the card, `Layers` (50 s)
+is bound by the card's own thread, which is G3's subject.
+
+### 3. The card: two passes built, Find and Follow measured and left
+
+- **`flicker`'s camera-shake pass** (`_shift_job_on`, `_lk_shift_on`, `_fshift_on`). On the card a frame is registered in
+  2.5 ms against 69 ms on one core (1280 x 720), the shifts 6e-8 px apart. In a run: 16.8 s on the card at 8 workers
+  where the pool of 8 took 40.4; at 32 workers the same as the pool (17 s).
+- **`layers`' third pass** (`_mean_out` through `pooled_or_on_card`, `_mean_sd_on`). On the card 13 to 15 s on PR088;
+  the pool takes 19.6 s at 8 workers and 9.2 s at 32. **So on this workstation the card is 6 s slower here**: a
+  block is about a fifth of a second in one process, and 32 workers take the blocks side by side. A choice for Jacob,
+  below.
+- **test_gpu on the real card: 101 PASS, 0 FAIL** (job 910); 79 with NumPy standing in.
+- **G2, Find and Follow: measured, not built** (`dev/spots1.py`, `spots2.py`; IDEAS.md's row; method section 52).
+  Find does not call the spot detector. Follow does, and the response is 3 to 4 ms on the card against 35 to 85, but
+  the picking and centroids are 100 to 260 ms of a busy frame in Python, so one process beside the card is slower
+  than a pool of eight; and the card's list is the CPU's on 41 of 240 frame readings (the same spots on 201). It
+  would need the picking on the card as one batch, and `tools/find_rank.py --link` on both.
+- **`stabilize`**: not looked at beyond its code. Its pools run an ECC alignment (`align`), not the shift field; a
+  card version is a new routine, and `stabilize` is not part of `run`.
+
+### 4. G5, the add-on installed from the window (an agent in a worktree, merged as 380a9d7)
+
+`mcdonald.addon`; Preferences' **Install the add-on** with its wait in the right column (teal until done, the oval
+"setup", a Cancel, no dialog); `mcdonald setup --install-gpu`; `gpu.cuda()` reads the driver's CUDA and each card's
+compute capability. pip is given the add-on's own requirement and a constraints file that pins every installed
+package, so it adds and never replaces, and the window stays open. Tried for real in fresh venvs: CUDA 13's add-on
+1,353 MB and 22 s, CUDA 12's 1,823 MB and 34 s, the card computing with each. Its suites on its own snapshot (jobs
+892 on CPUs, 893 with the card): all passing, the window's 791 with 1 skip. **Not tried on Windows, on a slow line,
+or by a person at the window.** Its twelve choices are in the commit's message and in the report of this session.
+
+### Not done from the brief, and why
+
+- **G3, the fused pass:** the brief says ask first. Not asked while Jacob was away; it is the first question below.
+  What this session adds to it: with the card, `Layers` on a long track is bound by the card's own thread (50 s of
+  PR088's 280), so G3 is now the largest single gain left on a long run with a card.
+- **Item 5, the work the card is for** (the dense field, the plants at scale, the error models): not begun; each part
+  wants Jacob's choices first.
+- **Item 6, the card out of memory:** watched; it did not happen.
+
+### For Jacob to decide
+
+1. **G3:** build the fused pass, as the card's own code, tested on arthur only (NumPy cannot stand in for it)?
+2. **The third pass of `layers` on the card:** keep it (one arithmetic for the whole stage; faster under about 16
+   workers, 6 s slower at 32 on a long track), or give it back to the pool where the pool is large?
+3. **G2:** build the spot detector's picking on the card as a batch (it changes Find's and Follow's lists in their
+   last digits, so the proposer's gate runs on both), or leave Find and Follow on pools?
+4. **Item 5:** which first, the dense flow field (A14), the plants at scale, or the error models, and for each the
+   choices the brief names.
+5. **G5's twelve choices** (the window stays open; CUDA 13's build only where every card still runs it; the oval
+   says "setup"; the wait stays until Close; no pip cache; the words).
+6. **The clip's own sound among `flicker`'s look-alikes** has never been read: `judge` asks
+   `audio.heard(str(clip.video), fps)` and has no `clip`, and the error is caught. Fixing it can change what a report
+   says of a beat: fix it as a report-changer, or take the lines out?
+
+### Found on the way, not fixed
+
+- The sound's look-alikes, as above (6).
+- `integrity`'s shake test keeps one axis's numbers and prints both (G6).
+- From the agent: `gpu.installed()` only checks that a `cupy` can be found, so a half-installed one shows Preferences
+  as ready; Help's "Check for updates" still uses message boxes; the download sizes on the add-on's bar are Linux's;
+  the maintainer's editable install records 0.5.2 and no `gpu` extra until `pip install -e .` is run again.
+
+### Slurm jobs of the session (arthur)
+
+836 (G6's fourteen cases); 852, 861, 874 (PR088 under cProfile and py-spy, before and after); 876 and 909 (the gate,
+first and final snapshots); 904 (the timings); 910 (test_gpu and timings on the card); 927 and 928 (all suites with
+the goldens on the merged tree 3459561, on CPUs and with the card: **both ALL SUITES PASS** -- measurement 608, reduction 691, drift 145, published 32, tether 47, audio 62, cli 139, share 31, sweep 20, stabilize 13, aspect 10, waves 14, slew 95, zoom 37, horizon 25, focus 19, haze 9, streak 20, camera 152, the window's suite 791 with 1 skip, golden 228, none failing; test_gpu 117 with NumPy standing in (927) and 139 on the card (928)). The agent's: 860, 864-873, 892, 893.
+Everything else was `srun`, a few minutes each.
 
 ## Session 22's brief (written 2026-11-13): the card's remaining work, all of it
 
