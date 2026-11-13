@@ -31,6 +31,11 @@ one part in a billion.
   1280 x 720 (5.7 against 198 ms at 1920 x 1028), and the two shifts lie under a millionth of a pixel apart.
 - *`layers`' third pass* (the scene under a sensor's pattern): a block's mean and its pairs' templates on the card.
 
+*The card's own code for the matches* (IDEAS.md G3, the maintainer's choice of 2026-11-13). On an NVIDIA card the
+templates' matches are read without making each template's map of matches (`forensics._peaks_fused`). Every number
+is the earlier card pass's to the last bit, and a frame pair takes about a fifth less (11.2 ms against 14.1 at
+1280 x 720). With NumPy standing in, or on a card that will not take the code, the earlier pass runs.
+
 Measured and not built: the spot detector on the card for Find and Follow (IDEAS.md G2). The response is ten to
 twenty times sooner there, but most of a frame's time is the picking of the spots, which one process would do more
 slowly than the pool does, and the card's list is not the CPU's list (the same spots on 201 of 240 frames tried).

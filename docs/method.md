@@ -6076,6 +6076,21 @@ against 69 ms on one CPU core, and the two shifts lie 6e-8 px apart; on PR149's 
 `tests/test_gpu.py` holds both on drawn clips: the shake at the beat within 0.0001 px and the same verdict, the scene's
 velocity under the pattern within 0.01 px a frame with the same blocks and pairs read.
 
+**The card's own code for the matches (G3, 2026-11-13).** The batch above makes each template's map of matches and
+goes over the maps about a dozen times in double. On a real card the matches are now read by two small kernels of
+the card's own (`forensics._peaks_fused`, `_FUSED_SOURCE`) that never make the maps: one thread a row of a map reads
+the correlation, divides by the normalisation, leaves out what the masks, the reach, the zone and the peak's square
+leave out, and keeps the row's best match and where it is. The arithmetic of a match is the batch's own (one
+multiplication and one division in double, compiled with nothing fused), and a tie goes to the first placement, so
+the six arrays that come back are the batch's to the last bit: 4,105 template rows over 60 pairs of PR088, PR149 and
+PR113, and every case of the suite's drawn pairs. A pair takes about a fifth less: 11.2 ms against 14.1 on PR088
+(1280 x 720), 29.0 against 35.6 on PR149, 24.4 against 29.9 on PR113 (frames in memory, `shift_field_auto`). Not the
+half first estimated: of what is left of a 1080p pair about half is the card's (the transforms, the filters, the
+kernels), a quarter is each peak read on the CPU in Python by the one function both ways call (`_peak_read`), and the
+rest is the frames sent up and each template's mean. NumPy cannot stand in for the card's own code, so the stand-in
+runs the batch as before, and so does a card that will not take the code (said once; the card stays in use).
+`forensics.FUSED = False` is the way back.
+
 **What it is not.** Not every step: Find, Follow, `stabilize`, `groups` and `tether` are the CPU's, on pools or on
 threads, as before. For Find and Follow the reason is measured (2026-11-13): the spot detector's response takes 3 to
 4 ms a frame on the card against 35 to 85 on a CPU core, but on a busy frame two thirds of the time is the picking

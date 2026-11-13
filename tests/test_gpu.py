@@ -665,6 +665,79 @@ def test_the_cards_shift_field_is_the_cpus():
         check(truths >= 3, f"{c.name}: and it is the drawn shift", f"{truths} of the cases with one")
 
 
+def test_the_fused_pass_is_the_plain_pass_to_the_bit():
+    """G3 (2026-11-13): on a real card the templates' matches are read by the card's own code, which never makes the
+    maps of matches (`forensics._peaks_fused`), where the plain pass makes them and goes over them a dozen times. The
+    arithmetic of a match is the same and a tie goes to the same placement, so every field is the plain pass's to the
+    last bit: on cloud and on streaks, with masks, near the edges, with the zone left out and allowed, with a reach
+    larger than the frame, small templates, some rows only. NumPy cannot stand in for the card's own code: the
+    stand-in takes the plain pass, and so does a card that will not take the code."""
+    print("\nthe fused pass (the card's own code)")
+    check(vf._fused_kernels(gpu.stand_in()) is None, "the stand-in takes the plain pass: NumPy cannot run the card's own code")
+    real = [c for c in the_cards() if c.real]
+    if not real:
+        print("  NOTE  no graphics card in this process: the fused pass runs on a real card only, and is not checked here")
+        return
+    h, w = 420, 640
+    scenes = {"cloud": isotropic(h + 80, w + 80), "streaks": striated(h + 80, w + 80)}
+    bad_a = np.zeros((h, w), bool)
+    bad_a[150:190, 300:420] = True
+    bad_b = bad_a.copy()
+    bad_b[:6], bad_b[-6:], bad_b[:, :6], bad_b[:, -6:] = True, True, True, True
+    cases = [("the usual search", dict(reach=60), (17, -9)), ("a shift near the reach", dict(reach=40), (38, 12)),
+             ("a shift past the reach", dict(reach=24), (40, 0)), ("a reach larger than the frame", dict(reach=900, stride=144), (-31, 22)),
+             ("64-px templates", dict(reach=60, tpl=64, stride=48), (11, 7)), ("two rows of templates only", dict(reach=60, only=[16, 208]), (17, -9)),
+             ("a scene held still", dict(reach=60), (0, 0)), ("a flat frame", dict(reach=60), None)]
+    was = vf.FUSED
+    try:
+        for c in real:
+            apart, rows = [], 0
+            for name, scene in scenes.items():
+                for what, kw, shift in cases:
+                    if shift is None:                              # nothing to match: every template flat
+                        ga = gb = np.full((h, w), 90.0, np.float32)
+                    else:
+                        dx, dy = shift
+                        ga = scene[40:40 + h, 40:40 + w] + RNG.normal(0, 2, (h, w)).astype(np.float32)
+                        gb = scene[40 - dy:40 - dy + h, 40 - dx:40 - dx + w] + RNG.normal(0, 2, (h, w)).astype(np.float32)
+                    got = {}
+                    for fused in (True, False):
+                        vf.FUSED = fused
+                        with on(c):
+                            got[fused] = vf.shift_field(ga, gb, bad_a, bad_b, a=7, zeros=(4, -1), **kw)
+                    rows += sum(len(f) for f in got[True])
+                    if not all(np.array_equal(x, y, equal_nan=True) for x, y in zip(got[True], got[False])):
+                        apart.append(f"{name}, {what}")
+            vf.FUSED = True
+            check(not isinstance(vf._fused.get(id(c)), str) and vf._fused_kernels(c) is not None,
+                  f"{c.name} takes the card's own code", str(vf._fused.get(id(c)))[:160])
+            check(not apart and rows > 300, f"{c.name}: every field of the fused pass is the plain pass's to the last bit ({rows} rows)",
+                  "; ".join(apart[:4]))
+            # a card that will not take the code: said once, the plain pass does the work, the same field
+            source, kept = vf._FUSED_SOURCE, dict(vf._fused)
+            ga = scenes["cloud"][40:40 + h, 40:40 + w].copy()
+            gb = scenes["cloud"][49:49 + h, 23:23 + w].copy()
+            with on(c):
+                ref = vf.shift_field(ga, gb, bad_a, bad_b, a=7, reach=60)
+            err = io.StringIO()
+            try:
+                vf._FUSED_SOURCE, sys.stderr = "this is not the card's language", err
+                vf._fused.clear()
+                with on(c):
+                    plain = vf.shift_field(ga, gb, bad_a, bad_b, a=7, reach=60)
+                    again = vf.shift_field(ga, gb, bad_a, bad_b, a=7, reach=60)
+            finally:
+                vf._FUSED_SOURCE, sys.stderr = source, sys.__stderr__
+                vf._fused.clear()
+                vf._fused.update(kept)
+            check(np.array_equal(ref, plain) and np.array_equal(ref, again) and err.getvalue().count("would not take the fused pass") == 1
+                  and not c.stopped,
+                  f"{c.name}: code the card refuses is said once, the plain pass does the work with the same field, and the card is still in use",
+                  err.getvalue().strip()[:120])
+    finally:
+        vf.FUSED = was
+
+
 def test_the_card_takes_the_filtered_frames_it_left_there():
     """`shift_field` given the two frames band-passed already (`ha`, `hb`) -- the CPU's arrays, or the card's own left by
     `bandpass_kept` -- reads the same field as when it filters them itself; `shift_field_auto` and its verdict too."""
