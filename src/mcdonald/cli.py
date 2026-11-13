@@ -68,7 +68,8 @@ fails; `mcdonald readme agents` for doing the whole job from here with no window
 
 --cpus N (before or after the command) lets it use at most N of this computer's
 CPU cores; the default is all of them (a batch job's allocation, not the
-machine). MCDONALD_CPUS=N in the environment says the same.
+machine), to 32 on a larger computer, since more measure no sooner (a larger N
+is used as given). MCDONALD_CPUS=N in the environment says the same.
 
 --gpu CARD says which graphics card computes, where a step can use one: a
 card's name or part of it, its number, or `none` for the CPU only. The default

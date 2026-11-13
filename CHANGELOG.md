@@ -3,6 +3,17 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+**No more than 32 worker processes unless asked** (the maintainer, 2026-11-13: "is there an optimal number of CPUs
+for mcDonald GUI to use? Right now the default is the system maximum"). Measured on the 96-thread workstation: whole
+`mcdonald run`s of PR149 (158 frames, 1080p), PR135's object 2 (270 frames, 720p) and PR088's object 2 (3,678
+frames) at 8 to 88 workers, with the graphics card and without, were fastest at 32 to 48 workers and up to 15 %
+slower at 64 and 88. Under 32, a worker for each hardware thread stays the default: in a job of 4 or 8 whole cores,
+two workers a core beat one a core by 5 to 20 %. So nothing changes on a computer with 32 CPUs or fewer. A larger
+number from `--cpus`, `MCDONALD_CPUS`, Preferences or `--procs` is used as given. The answers are the same at any
+count (`progress.MOST_WORKERS`, `default_workers`; Preferences says the default; test_measurement, test_gui).
+
 ## 0.5.3 (2026-11-12)
 
 **The slow steps can run on a graphics card** (ROADMAP 0.6, objective 3; built 2026-11-12, the day the development

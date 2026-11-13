@@ -158,7 +158,8 @@ done. The cost line says where the frames will go and whether that directory
 is in memory.
 
 **What computes.** Every command uses the CPUs it may (`--cpus N` or
-`MCDONALD_CPUS` for fewer; in a batch job, the job's allocation). Where the
+`MCDONALD_CPUS` for fewer; in a batch job, the job's allocation), to 32 worker
+processes: more measure no sooner (`--cpus N` with a larger N is used as given). Where the
 computer has an NVIDIA graphics card and CuPy is installed, the steps that match
 one frame against another (`layers`, `integrity`'s background passes) run on the
 card, several times sooner, and give the CPU's measurement to about one part in
