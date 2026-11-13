@@ -852,7 +852,10 @@ windows; its spread across windows says whether it is steady. The lines are then
   AC-130J of AARO's description.
 - *where each folds*: every heard rhythm folded through the frame rate (`flicker.alias`) into the beat band, in
   `flicker.lookalikes`' form; `flicker` adds them to its table when the clip has sound (`audio.heard`). PR117's
-  67.75 Hz at 30 frames a second is 7.75 Hz, where birds beat.
+  67.75 Hz at 30 frames a second is 7.75 Hz, where birds beat. (Until 2026-11-13 `flicker` did not: its judging asked
+  for the sound by a name it did not have, and the error was taken for a clip with no sound, so no report before
+  that day marks a beat with a heard rhythm. Of the reference-data folder's 145 videos the sound of eight carries
+  one in the beat band: PR106, PR107, PR111, PR113's per-file copy, PR117, PR118, PR119 and NASA-UAP-D008's tape.)
 
 **What it cannot do, and the traps.** On the ground a propeller turns slower -- C-130Js loading and taxiing hummed at
 65.75-75 Hz -- so a match says "in flight" and the report says that a phase of flight decides; the T56 match on

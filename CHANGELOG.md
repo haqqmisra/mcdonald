@@ -5,6 +5,21 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**A beat is now held against the clip's own sound** (a change to reports; the maintainer's choice of 2026-11-13).
+`flicker` lists the rhythms a supply, a codec or the sampling can put into a brightness curve, its look-alikes, and
+marks a beat that sits at one. Since 0.3.0 that list was meant to hold the rhythms the clip's own sound carries too
+(`mcdonald audio`: a propeller's blade-pass, an aircraft's 400-Hz power, folded through the frame rate). It never
+did: the stage asked for the sound by a name its judging did not have, and the error was taken for a clip with no
+sound. Now the video is handed to the judging (`flicker.judge(video=)`), and a beat at a heard rhythm is marked with
+it. A mark, not a verdict: whether a beat stands is decided as before.
+
+Where a report can change, measured: of the 145 videos of the reference-data folder, the sound of eight carries a
+rhythm that lands in the band a beat is looked for in (PR106, PR107, PR111, PR113's per-file copy, PR117, PR118,
+PR119 and NASA-UAP-D008's tape). None of them is a reference case with a beat: all fourteen case files, measured
+again with and without the change, differ in nothing (31 objects). Reading the sound takes half a second a video at
+the median, seven at the most. Held by test_audio (a drawn clip with a propeller's 68-Hz series and an object
+beating at 8 Hz, where 68 Hz folds at 30 frames a second).
+
 **A long track is measured in two thirds of the time, with the same numbers** (2026-11-13). The whole run of a
 3,678-frame track (PR088's object 2) took the same 406 s at 32 worker processes as at 88: more than half of it was
 one process doing arithmetic that no pool had a share of. Three such places now share it out among threads of that

@@ -472,6 +472,44 @@ def test_the_command():
         check(r.returncode == 5 and e.get("no_power"), "silence is NO POWER, exit 5", f"exit {r.returncode}, {e.get('no_power')}")
 
 
+def test_the_clips_own_sound_is_among_flickers_lookalikes():
+    """2026-11-13: `flicker` lists the rhythms the clip's own sound carries among a beat's look-alikes (`audio.heard`;
+    item 9 of 2026-10-16). From the day the two were merged it never had: the stage asked for the sound by a name its
+    judging did not have, and the error was taken for a clip with no sound. A drawn clip whose sound is a propeller's
+    68-Hz series, with an object that beats at 8 Hz, where 68 Hz folds at 30 frames a second: the beat is marked as
+    sitting at the sound's rhythm; with a silent clip, and with no video, it is not."""
+    print("the clip's own sound among flicker's look-alikes")
+    from mcdonald import flicker
+    fps, n = 30.0, 300
+    with tempfile.TemporaryDirectory() as d:
+        t = np.arange(int(12 * 48000)) / 48000
+        x = RNG.normal(0, 1, len(t)) + sum(a * np.sin(2 * np.pi * k * 68.0 * t) for k, a in ((1, 0.3), (2, 0.2), (3, 0.12)))
+        _wav(os.path.join(d, "s.wav"), x)
+        _wav(os.path.join(d, "z.wav"), np.zeros(int(12 * 48000)))
+        for name, wav in (("prop.mp4", "s.wav"), ("quiet.mp4", "z.wav")):
+            subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x120:rate=30:d=12",
+                            "-i", os.path.join(d, wav), "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                            os.path.join(d, name)], check=True)
+
+        def judged(video):
+            rng = np.random.default_rng(4)
+            raw = {"object": list(1000 + rng.normal(0, 20, n) + 300 * np.sin(2 * np.pi * 8.0 * np.arange(n) / fps))}
+            for dx, dy in flicker.BACKGROUND:
+                raw[f"background {dx:+d},{dy:+d}"] = list(rng.normal(0, 40, n))
+            fields = dict(frames=n, first=1, last=n, codec=None, aperture_px=4.0, tracks=["object"], spans={"object": (1, n)})
+            return flicker.judge(raw, list(range(1, n + 1)), fps, [], fields, "object", say=lambda *a: None, video=video).fields
+        heard = lambda f: [L for L in f["lookalikes"] if "(sound)" in str(L.get("source"))]
+        prop, quiet, none = judged(os.path.join(d, "prop.mp4")), judged(os.path.join(d, "quiet.mp4")), judged(None)
+        at = [L for L in (prop["beat"]["object"].get("lookalike") or []) if "(sound)" in str(L.get("source"))]
+        check(any(abs(L["hz"] - 8.0) < 0.05 for L in heard(prop)) and abs(prop["beat"]["object"]["hz"] - 8.0) < 0.1 and at,
+              "a propeller's 68 Hz in the clip's sound is a look-alike at 8 Hz, and a beat there is marked with it",
+              f"heard {[L['hz'] for L in heard(prop)]}; the beat {prop['beat']['object']['hz']:.2f} Hz at {[L['source'] for L in at]}")
+        check(not heard(quiet) and not heard(none) and quiet["lookalikes"] == none["lookalikes"],
+              "a silent clip, and a measurement with no video, have none: the table is what it was")
+        check(prop["beats"] == none["beats"] and prop["beat"]["object"]["hz"] == none["beat"]["object"]["hz"],
+              "a mark, not a verdict: the beat and whether it stands are the same with the sound and without")
+
+
 def main():
     for t in (test_a_four_bladed_propeller_in_flight, test_a_six_bladed_propeller_heard_alone,
               test_the_codecs_frames_are_the_codec, test_a_supply_is_a_clock, test_what_wanders_is_neither,
@@ -479,7 +517,8 @@ def main():
               test_what_looks_like_an_airframe_but_is_not, test_a_blade_pass_alone_identifies_nothing,
               test_the_field_rate_is_not_the_mains, test_two_supplies_and_the_pulldown,
               test_a_bus_on_the_field_comb_is_only_possible, test_a_pass_gives_speed_and_range,
-              test_what_the_window_says, test_the_platform_names_the_engine, test_the_command):
+              test_what_the_window_says, test_the_platform_names_the_engine, test_the_command,
+              test_the_clips_own_sound_is_among_flickers_lookalikes):
         t()
     if traffic.WARNS:
         print(f"\n{len(traffic.WARNS)} WARN (a count on drawn data in the yellow, not failed): " + "; ".join(traffic.WARNS))

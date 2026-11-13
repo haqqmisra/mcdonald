@@ -3928,7 +3928,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         return planted.at_beat(planted_once["dots"], hz, amp, clip.fps, top=top)
     fields["rule"] = active_rule()
     found = judge(raw, ns, clip.fps, lines, fields, first, out=out, say=say, positions=pos, stamps=stamps, thumbs=thumbs, nulls=nulls,
-                  encoding=encoding if getattr(clip, "video", None) else None, lit=lit, each=each)
+                  encoding=encoding if getattr(clip, "video", None) else None, lit=lit, each=each, video=getattr(clip, "video", None))
     try:                                                 # tau, from its size along the track (and its light, conditionally)
         taus = tau_reading(each, raw, ns, clip.fps, spans, beating=found.fields.get("strong") or ())
         found.fields["tau"] = taus
@@ -4017,7 +4017,7 @@ def tau_said(name, r, line=False):
 
 
 def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=None, stamps=None, thumbs=None, nulls=False,
-          encoding=None, lit=None, each=None):
+          encoding=None, lit=None, each=None, video=None):
     """The stage from the curves on (`measure` reads them): `raw` is {name: brightness on each frame of
     ns, None where it was not measured} for each track in fields["tracks"] and for the background
     apertures, which go with the track `first`; fields has the codec, the tracks' spans and the stretch.
@@ -4031,12 +4031,14 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     light on every frame (`curves(lit=)`, item 13), written beside the brightness as "<name> white" and "<name> red"
     (the red only for a colour video; "<name> hot", the darkest pixels, in place of white on a black-hot display). `each`,
     where given, is each track's size and its ring's level on every frame (`curves(each=)`), written as "<name> size" and
-    "<name> level"."""
+    "<name> level". `video`, where given, is the video file itself: the rhythms its own sound carries are put among the
+    look-alikes (`audio.heard`). Until 2026-11-13 they never were: the stage asked for them by a name this function did
+    not have, and the error was taken for a clip with no sound."""
     with Beside() as beside:
-        return _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thumbs, nulls, encoding, lit, each, beside)
+        return _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thumbs, nulls, encoding, lit, each, beside, video)
 
 
-def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thumbs, nulls, encoding, lit, each, beside):
+def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thumbs, nulls, encoding, lit, each, beside, video=None):
     """`judge`'s work. `beside` (a `progress.Beside`) does two things beside it, each the same function on the same
     arguments as when it was done in line, so the same numbers: an object's windows along the track while its whole
     track is read (`beats_pass`), and the background apertures judged as the object (`controls_started`) from the
@@ -4271,11 +4273,13 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
     # the background apertures judged as the object, begun now and read where they are written into the fields below
     ctrl_job = controls_started(beside, use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
     # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
-    try:                                                   # the clip's own sound, where it has any (`mcdonald audio`)
-        from .audio import heard
-        sound = heard(str(clip.video), fps)
-    except Exception:                                      # the sound is never worth the stage
-        sound = []
+    sound = []
+    if video:                                              # the clip's own sound, where it has any (`mcdonald audio`)
+        try:
+            from .audio import heard
+            sound = list(heard(str(video), fps))
+        except Exception:                                  # the sound is never worth the stage: no ffmpeg, a track it cannot read
+            sound = []
     table = lookalikes(fps, pic, top, heard=sound)
     fields["lookalikes"] = table
     for n in obj:
