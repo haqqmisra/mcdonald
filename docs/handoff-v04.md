@@ -106,7 +106,20 @@ or by a person at the window.** Its twelve choices are in the commit's message a
   wants Jacob's choices first.
 - **Item 6, the card out of memory:** watched; it did not happen.
 
-### For Jacob to decide
+### Jacob's answers (2026-11-13, afternoon, put to him as choices)
+
+1. **G3: "Build, keep fallback."** The fused pass is built as the card's own code, today's pass kept beside it for the
+   runners and for a card that refuses the new code; test_gpu holds the fused pass to it on arthur.
+2. **The third pass of `layers`: "Keep on the card."** One arithmetic for the whole stage; the 6 s on arthur is accepted.
+3. **G2: "Revisit with the plants."** Find and Follow stay on pools until the planted objects at scale are designed.
+4. **Item 5: "Planted objects at scale"** first (then the dense field and the error models). He did not say which
+   session builds it; the "mcDonald: development" session had asked for `plant`'s CPU side.
+5. **G5: "Confirm all as built."** All twelve choices stand, the window's words included.
+6. **The clip's own sound among the look-alikes: "Fix as a report-changer."** Pass the clip in, rerun the fourteen
+   reference cases and the goldens, and list every report whose look-alikes or wording change, for him to see before
+   it is kept.
+
+### What was put to Jacob (answered above)
 
 1. **G3:** build the fused pass, as the card's own code, tested on arthur only (NumPy cannot stand in for it)?
 2. **The third pass of `layers` on the card:** keep it (one arithmetic for the whole stage; faster under about 16
