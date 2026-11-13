@@ -48,7 +48,9 @@ With k2 0, no model wind, a whole-track beat or a size given, every number is as
 known answers before anything is built; N5's order kept as built (the length only in place of the default spot).
 
 **N2 measured (2026-11-13):** IDEAS.md N2 has the numbers. A strict rule costs the Puerto Rico lanterns their pass;
-a comparative one (drifting needs less airspeed than holding still, at every wind) keeps it. Neither is built.
+a comparative one (drifting needs less airspeed than holding still, at every wind) keeps it. **Jacob chose the
+comparative rule; built 2026-11-13** (`drift.test_wind_track`: `hold_still_m_s`, `drift_beats_hold`;
+`test_drift.test_track_t2_holding_still_against_drifting`).
 
 **Merge to main: waiting.** `nevada-fixes` has main's 4ef5f57 merged in (0f61868; all suites pass on Cannon), but the
 shared tree at /models/mcdonald holds session 22's uncommitted work in `flicker.py`, which this branch changes too:

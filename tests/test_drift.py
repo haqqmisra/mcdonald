@@ -302,6 +302,35 @@ def test_track_t2_a_models_own_error():
           str([w["source"] for w in tw]))
 
 
+def test_track_t2_holding_still_against_drifting():
+    print("\nT2 from the aircraft's own track: drifting must fit better than holding still (2026-11-13)")
+    # A body holding still over the ground needs the wind's own speed through the air. In a light wind that is within
+    # T2's tolerance, and it passed as a drifter (IDEAS.md N2). The comparative rule asks every drifter's airspeed to be
+    # under the weakest wind's: the Puerto Rico lanterns (1.4-3.6 m/s against 4.5-9.5) keep their pass.
+    light = np.array([2.4, -1.8])                             # 3 m/s
+    winds = [dict(label=f"model {i}", w=light + d, counts=True, note="model", source="model")
+             for i, d in enumerate((np.zeros(2), np.array([0.3, 0.2])))]
+    platform, los, _ = orbit(v_obj=(0.0, 0.0), climb=0.0)
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    out = drift.test_wind_track(p, winds)
+    check(out["outcome"] == drift.CANNOT and "holding still fits as well" in out["reading"] and not out["drift_beats_hold"],
+          "a body holding still in a 3 m/s wind: cannot say, where it passed before", out["reading"][:110])
+    platform, los, _ = orbit(v_obj=tuple(light), climb=0.0)
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    out = drift.test_wind_track(p, winds)
+    check(out["outcome"] == drift.PASS and out["drift_beats_hold"],
+          "a drifter in that light wind still passes: it needs well under the 3 m/s holding still would", out["reading"][-90:])
+    strong = [dict(w, w=w["w"] * 6.0) for w in winds]       # 18 m/s
+    platform, los, _ = orbit(v_obj=tuple(strong[0]["w"]), climb=0.0)
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    out = drift.test_wind_track(p, strong)
+    check(out["outcome"] == drift.PASS and out["drift_beats_hold"] and "holding still would need" in out["reading"],
+          "a drifter in an 18 m/s wind: passes, holding still needing more at every wind", out["reading"][-90:])
+    platform, los, _ = orbit(v_obj=(0.0, 0.0), climb=0.0)
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    check(drift.test_wind_track(p, strong)["outcome"] == drift.FAIL, "holding still in that 18 m/s wind: fails, as before")
+
+
 def test_track_winds_at_the_objects_height():
     print("\nT2 from the aircraft's own track: which winds bear on its height")
     with tempfile.TemporaryDirectory() as td:

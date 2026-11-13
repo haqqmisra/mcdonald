@@ -3711,8 +3711,15 @@ depression below the horizontal.
   reading: with a model's winds, a body flying a few metres a second through the air is not told from a drifter.
   Observed winds (a sounding, a weather report, the aircraft's own) keep the rule before, since nothing here has
   measured their error. Two things the clouds also showed: on windy days clouds lag the wind (0.6-0.7 of its speed,
-  as standing wave clouds do), so a cloud is not always a drifter; and T2 never asks whether holding still would fit
-  as well, which it does wherever the wind is weaker than the tolerance (IDEAS.md N2).
+  as standing wave clouds do), so a cloud is not always a drifter.
+- *Drifting against holding still* (2026-11-13, IDEAS.md N2). A body holding still over the ground needs the wind's own
+  speed through the air. Wherever the wind is weaker than T2's tolerance, that fit as well, and a hovering body passed
+  as a drifter. T2 now passes only where every airspeed drifting needs is under the weakest counted wind's speed, so
+  drifting fits better than holding still at every wind; otherwise it cannot say, and the reading says why. Measured on
+  the Galileo clouds' T2 passes before it was built: this rule keeps 62 of 69 and 20 of 31 false low points (two
+  different clouds matched; a stricter rule, every wind over the tolerance, keeps 45 and 2). The Puerto Rico lanterns
+  keep their pass: they need 1.4-3.6 m/s through the air, and holding still would need 4.5-9.5. A drifter in a light
+  wind still passes where it needs far less than the wind (0.1-0.5 m/s in a 3-m/s wind, in the tests).
 - *Whether the rays fix a path at all* (`drift.unfixed`; 2026-11-02, after the single-camera survey's Part 5). The
   bearings-only problem: from an aircraft flying straight, any path scaled along the rays fits as well, so only a turn
   ranges what it sees (Nardone & Aidala 1981; Fogel & Gavish 1988; Park et al. 2015, Result 2). Until 2026-11-02 the

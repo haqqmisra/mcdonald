@@ -1029,7 +1029,10 @@ def test_wind_track(path, winds, readings=None):
     airspeed it would need against each wind that counts is |V - W|. The tolerance is the winds' own spread plus two
     errors of the fitted velocity, plus MODEL_WIND_ERR where a model's wind is among those counted (`source` "model",
     as `track_winds` marks it; since 2026-11-13, from the Galileo Project's clouds: a model's wind misses the air's own
-    motion by 3-4 m/s, more than its hour-to-hour spread). Passes when every one is within the tolerance; fails when
+    motion by 3-4 m/s, more than its hour-to-hour spread). Passes when every one is within the tolerance and drifting
+    fits better than holding still: a body holding still over the ground needs the wind's own speed through the air,
+    and every drifter's airspeed must be under the weakest wind's (since 2026-11-13, IDEAS.md N2; else cannot say:
+    in a light wind the two are not told apart, as a hovering body was not before); fails when
     even the smallest is FLIER_MIN or more beyond it; cannot say when the rays fix no path (`unfixed`: too few
     readings, a straight-flying aircraft, a range the bound leaves open), when they do not fix the velocity (two
     errors over VELOCITY_FIX) or between. So with a model's winds a body flying a few metres a second through the air
@@ -1077,10 +1080,17 @@ def test_wind_track(path, winds, readings=None):
                winds_counted=len(need), model_wind_err_m_s=err, tolerance_m_s=round(tol, 2))
     allows = (f"their own spread ({spread:.1f} m/s), two errors of the fit ({2 * ev:.1f}) and a model's own error "
               f"({err:g})") if model else f"their own spread ({spread:.1f} m/s) and two errors of the fit ({2 * ev:.1f})"
+    still = [float(np.hypot(*w)) for w in W]               # the airspeed a body holding still over the ground would need
+    out.update(hold_still_m_s=[round(min(still), 2), round(max(still), 2)], drift_beats_hold=bool(max(need) < min(still)))
+    if max(need) <= tol and not out["drift_beats_hold"]:
+        return dict(out, outcome=CANNOT, reading=(
+            f"holding still fits as well as drifting: the winds at its height are {min(still):.1f}-{max(still):.1f} m/s, and "
+            f"drifting leaves it {min(need):.1f}-{max(need):.1f} m/s through the air, both within {allows}"))
     if max(need) <= tol:
         return dict(out, outcome=PASS, reading=(
             f"it moved over the ground at {path['speed_m_s']:.1f} m/s toward {path['toward_deg']:.0f} deg; the {len(need)} "
-            f"winds at its height leave it {min(need):.1f}-{max(need):.1f} m/s through the air, within {allows}"))
+            f"winds at its height leave it {min(need):.1f}-{max(need):.1f} m/s through the air, within {allows}; holding "
+            f"still would need {min(still):.1f}-{max(still):.1f} m/s, more than drifting does at every wind"))
     if min(need) - tol >= FLIER_MIN:
         return dict(out, outcome=FAIL, reading=(
             f"it moved over the ground at {path['speed_m_s']:.0f} m/s toward {path['toward_deg']:.0f} deg; even the "

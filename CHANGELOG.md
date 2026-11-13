@@ -40,7 +40,10 @@ that the measurements do not support (IDEAS.md N1-N6). Each changes what some re
   against Open-Meteo's winds, more than the winds' hour-to-hour spread, so T2 said "cannot say" for most of them. With
   the allowance it passes 80-94 % of clouds and none of 44 aircraft. Only model winds carry it (each wind now says its
   `source`). The reading says what it costs: with a model's winds, a body flying a few metres a second through the air
-  is not told from a drifter. The Puerto Rico lanterns still pass.
+  is not told from a drifter. **And T2 now weighs holding still** (N2): a body holding still needs the wind's own speed
+  through the air, so T2 passes only where drifting needs less than that at every wind, and otherwise cannot say. In a
+  light wind a hovering body passed as a drifter before. The Puerto Rico lanterns still pass (1.4-3.6 m/s against
+  4.5-9.5).
 - **A beat comes back by windows apart only beyond chance** (N3; `flicker.CHANCE_P`, `windows_chance`). On a long track
   two passing windows apart are what chance gives: 14 of 16 beats on clouds and aircraft were. Such a beat is now held to
   the one-stretch rule, and `drift` weighs envelopes made before this from their own windows. **T3 with two cameras**
