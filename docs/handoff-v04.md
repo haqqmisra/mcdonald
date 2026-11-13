@@ -1,4 +1,29 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 21 (2026-11-12) on top: the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.3 released (2026-11-12) on top, then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## 0.5.3 released (2026-11-12, evening): the graphics card, and 0.5.2 on PyPI at last
+
+**Jacob:** "Let's merge any completed worktrees, push, and do the next version release" (after the arthur-vs-merlin
+benchmark of 2026-11-11/12, `/scratch/mcdonald/bench-2026-11-11/RESULTS.md`).
+
+- **Worktrees.** The one left, `jais-link` (`/hugespace/models/mcdonald-jais`), was already in `main` (its tip 13c702f an
+  ancestor): removed with its branch; its ignored `logs/` kept in `/scratch/mcdonald/jais-link-logs-2026-11-09/`. Left
+  alone: `diag-dump`, `windows-asbefore`, `wobble-experimental` (none of them for main).
+- **0.5.3, a patch** (the card is one objective of 0.6's theme, not the theme): version commit aea606e, dated 2026-11-12
+  -- `__init__.py`, both READMEs' status lines, README's sentence on the card (session 21's draft, under Install),
+  `CITATION.cff`, the CHANGELOG (Unreleased became 0.5.3; 0.5.2's heading says it had no tag of its own and reaches
+  PyPI with 0.5.3, as 0.4.1's and 0.4.2's did; one line for a2bf7ed, which the entry lacked), ROADMAP.
+- **Tested on aea606e:** `mcdonald-test --on arthur` (the harvard skill, now also for camelot; 12 lanes, 48 CPUs): all
+  pass in 158 s -- reduction 671, the window 774 + 1 skip, cli 139, test_gpu 70 with NumPy standing in. The same code
+  (4a826b5) with test_golden: CPU 16:50 and 16:07, with the card 14:08 (about 12 %, all of it golden's), all pass; and on
+  Cannon and merlin (run 20261112-140445-main-4a826b5). **Mac run 110 and Windows run 111 on aea606e: green**, 14 suites
+  each, test_gpu 70/70 on both, the Mac's Homebrew install "Ready" with "graphics card none found", the window at 0.5.3.
+- **Then:** main pushed (cb0e21d..this commit), tag v0.5.3 on aea606e, the GitHub release with the CHANGELOG's 0.5.3 and
+  0.5.2 entries as its notes; PyPI, the site and Zenodo's version DOI follow from the tag (the DOI into CITATION.cff in a
+  commit of its own).
+- **Still the maintainer's:** the reference case files remade for the record after 0.5.2's `tether` (session 20's recipe
+  and folder, `/scratch/mcdonald/tether-052/cases052/`); whether `share rerun --strict` (1e-9) should hold across CPUs
+  (the benchmark: no label moves between arthur and merlin, but no case reruns to 1e-9 on another CPU); session 21's
+  G2-G6.
 
 ## Session 21 (2026-11-12): the graphics card -- `layers` and `integrity`'s passes on it, held to the CPU's
 
