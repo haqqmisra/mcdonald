@@ -1,0 +1,108 @@
+mcDonald UAP Toolkit — computing on a graphics card
+
+a batch job's allocation, not the machine
+  PASS  outside a batch job a card may be used, and inside one that was given a card
+  PASS  inside a job that was given none, no card is opened, and `why` says what to ask the scheduler for  this batch job was not given a graphics card (for Slurm: --gres=gpu:1)
+  PASS  the stand-in is no card: it runs anywhere
+
+a card computes only where a stage says so
+  PASS  a process with a card, outside a stage's pass: the shift field, the band-pass and the spot detector are the CPU's, to the bit
+  PASS  inside `gpu.on(card)` the card is the one computing; `gpu.on(None)` inside it is the CPU again; after it, the CPU
+  PASS  and inside it the field is the card's: the CPU's within the tolerance, by other arithmetic
+  PASS  `computed_on` names the card once it has done arithmetic, for a case to keep; None while the CPU did it all  stand-in (NumPy on the CPU) (NumPy 2.5.4)
+
+a card that stops
+  PASS  the field is the CPU's, to the bit, then and afterwards
+  PASS  from then on this process computes on the CPU, and `why` says the card stopped  the card stopped (RuntimeError: cuFFT_INTERNAL_ERROR (a drawn one))
+  PASS  the spot detector likewise
+  PASS  said once on stderr, in a sentence  mcdonald: the graphics card stopped while matching two frames (RuntimeError: cuFFT_INTERNAL_ERROR (a drawn one)). The CPU does the rest: the
+  PASS  and the band-pass
+
+a case says what computed it
+  PASS  a case keeps the card that took part in it, and None where the CPU measured alone; it is read back with the case
+  PASS  its report says so under the heading: which card, how far a card agrees with the CPU, and how to measure on the CPU  The steps that compare one frame with another were computed on a graphics card, NVIDIA GeForce RTX 5070 Ti (CuPy 14.2.0,
+  PASS  what computed a case is the case's own, not a measurement to compare
+  PASS  a command's own --json says so too, among its notes, where a card took part; the envelope's fields are the same either way  ["computed on a graphics card, stand-in (NumPy on the CPU) (NumPy 2.5.4): its numbers agree with the CPU's to about one 
+  PASS  two cases the CPU measured are held to one part in a billion, as ever (a case from before this had no such line); where a card took part in either, to the card's agreement  1e-09, 0.0001
+  PASS  PR135's own differences between the CPU and the card (1.3 parts in 100,000 at the most) fail one part in a billion and pass the card's agreement  ['fields.median', 'fields.rate', 'fields.tiny']
+  PASS  a count, a sentence or a rate that moved by more is a difference still  ['fields.pairs', 'fields.rate', 'fields.said']
+  PASS  a case that the CPU measured is measured again on the CPU, whatever card this computer has  MCDONALD_GPU for the run: none
+  PASS  a case that a card measured is measured again by this computer's own choice of card  MCDONALD_GPU for the run: <unset>
+
+a pool's worker computes on the CPU
+  PASS  this process has the card it asked for; its pool's worker has none  a pool's worker computes on the CPU
+
+a stage on a card, and when the card stops
+  PASS  the same results in the same order from the pool and in this process, the progress counted to the end
+  PASS  a card that stops at the sixth job: the other six come from the pool, and the count goes on to the end  ('', 12, 12)
+  PASS  and it stops when asked, between jobs
+
+reading ahead
+  PASS  every asking gets its frame, in the loop's order
+  PASS  each frame is read once however often it is asked for; one nobody foresaw is read there and then  47 reads for 80 askings
+  PASS  and nothing is held once the last asking is answered  0
+  PASS  no more than `depth` frames are read ahead of the loop  4
+  PASS  frames held for a second asking do not count against the reads ahead  2 ahead, 7 held
+  PASS  after `close`, a frame is read where it is asked for
+
+layers and integrity, whole
+  NOTE  no graphics card in this process (CuPy is not installed (pip install "mcdonald[gpu]")): the card's arithmetic is checked with the stand-in only
+  PASS  stand-in (NumPy on the CPU), layers, a scene sliding 3 px a frame: the same templates of the same pairs, read the same way (moved, again or still)  2604 rows, worst shift difference 4.2e-06 px; held still in 0% of pairs
+  PASS  stand-in (NumPy on the CPU), layers, a scene sliding 3 px a frame: the same share held still, and the scene's rate within 0.01 px/s  94.868 and 94.868 px/s
+  PASS  stand-in (NumPy on the CPU), integrity, a scene sliding 3 px a frame: the same pairs read on the same layer, each shift within 0.001 px  35 pairs, worst 8.1e-07 px
+  PASS  stand-in (NumPy on the CPU), layers, a scene sliding 0.3 px a frame: the same templates of the same pairs, read the same way (moved, again or still)  5797 rows, worst shift difference 7.9e-07 px; held still in 100% of pairs
+  PASS  stand-in (NumPy on the CPU), layers, a scene sliding 0.3 px a frame: the same share held still, and the scene's rate within 0.01 px/s  9.487 and 9.487 px/s
+  PASS  stand-in (NumPy on the CPU), integrity, a scene sliding 0.3 px a frame: the same pairs read on the same layer, each shift within 0.001 px  35 pairs, worst 1.1e-06 px
+  PASS  and the rate is the drawn one  94.9 px/s against 94.9
+  PASS  nothing of the card's round is left behind: no reading threads, no frames kept on the card
+  PASS  the card's templates are kept beside the frames apart from the CPU's: a run on the CPU reads its own back, a run on the card its own, and that one still says a card took part  ['bg_layers_k5_s1_1_36_11db9c2781.npz', 'bg_layers_k5_s1_1_36_4f40e9ec1a.npz']; stand-in (NumPy on the CPU) (NumPy 2.5.4)
+
+one thread talks to the card
+  PASS  stand-in (NumPy on the CPU): two passes, each in a thread of its own that then ends
+  PASS  stand-in (NumPy on the CPU): the arithmetic is done in the asking thread (NumPy needs no thread of its own)  ['a-stage', 'a-stage']
+  PASS  stand-in (NumPy on the CPU): and the cycle collector ran in no thread but the main one, through the passes, the plans let go and the threads' ends  []
+
+filtered frames handed over
+  PASS  stand-in (NumPy on the CPU): the same field whoever filtered the frames
+  PASS  stand-in (NumPy on the CPU): `shift_field_auto` reads the CPU's field and its verdict  12 rows, worst 1.5e-06 px, held still False
+
+the band-pass
+  PASS  stand-in (NumPy on the CPU): the CPU's, to the last bit in all but a few pixels of a million  0 of 172800 pixels differ, by at most 0.0e+00
+  PASS  stand-in (NumPy on the CPU): `bandpass_kept` is the same frame, left on the card for `shift_field`
+
+batches
+  PASS  several batches give each template the numbers one batch does, to the bit  batches of [15, 9, 4, 4, 4, 3]
+  PASS  out of memory halves what is sent at once, and the card is kept  room now 0.25 of what it was
+
+which cards mcdonald can compute on
+  PASS  an NVIDIA card with CUDA's library is one mcdonald can use; an AMD card computes, but not for mcdonald  [{'name': 'AMD Radeon RX 7900 XT', 'vendor': '1002', 'device': '744c', 'compute': True, 'cuda': False, 'slot': '0000_04_00.0'}, {'name': 'NVIDIA GeForce RTX 5070 Ti', 'vendor': '10de', 'device': '2c05', 'compute': True, 'cuda': True, 'slot': '0000_62_00.0'}]
+  PASS  `usable` is the NVIDIA card with CUDA, and nothing where CUDA's library is not there
+  PASS  a card keeps where it sits, to be matched with CUDA's list
+  PASS  a Mac's card computes and is not yet one mcdonald can use; an NVIDIA card on Windows with CUDA's library is
+  PASS  whether CuPy is installed is asked without importing it  False
+
+the shift field
+  PASS  stand-in (NumPy on the CPU): the same templates keep their rows, in every case (494 rows)
+  PASS  stand-in (NumPy on the CPU): each template's shift within 0.01 px and 0.01 of its own error  worst 4.4e-05 px, 1.3e-03 of its error; peaks within 4.5e-07
+  PASS  stand-in (NumPy on the CPU): a pair's agreed shift within 0.001 px  worst 5.9e-06 px
+  PASS  stand-in (NumPy on the CPU): and it is the drawn shift  4 of the cases with one
+
+the spot detector
+  PASS  stand-in (NumPy on the CPU): the response is the direct sum's, in the frame's precision  worst 3.7e-06 of a grey level
+  PASS  stand-in (NumPy on the CPU): the same spots, in the same order, at the same places  worst 0.0e+00 px
+
+the choice of a card
+  PASS  none, off, cpu and no all mean the CPU only, and no card is opened  {'none': 'none', 'OFF': 'none', 'cpu': 'none', 'No': 'none'}
+  PASS  unset or auto is the first card; a name is kept, in lower case  '', '', 'geforce rtx 5070'
+  PASS  of the cards CUDA lists: the first; a number; a name; "name (2)" the second so named; part of a name; and none for a name that is not there -- 5070 is part of a name, not the 5,071st card  [0, 1, 0, 1, 2, 0, None, None]
+  PASS  with no cards there is none to pick
+  PASS  stand-in puts NumPy in the card's place, and `said` names it  graphics card: stand-in (NumPy on the CPU) (NumPy 2.5.4)
+  PASS  `choose` puts the choice in the environment, for this process and those it starts, and an empty choice takes it out again  ('none', None), None
+
+--gpu on the command line
+  PASS  --gpu X and --gpu=X are taken out wherever they are, and put in the environment  ['layers', 'PR113', '--k', '5'], 'none', 'RTX 5070'
+  PASS  with no card named, it says what it needs  ["--gpu needs a graphics card's name or number, or `none` for the CPU only"]
+  PASS  `mcdonald --gpu stand-in setup` says which card computes  ok  graphics card stand-in (NumPy on the CPU) (NumPy 2.5.4): the steps that can use it do
+  PASS  and with --gpu none, that the CPU only was chosen  --  graphics card not used: the CPU only was chosen (--gpu none, MCDONALD_GPU or Preferences)
+
+ALL PASS
