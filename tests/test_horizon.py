@@ -5,6 +5,8 @@ Rendered scenes and closed forms only, small and quick:
 - the geometry: the dip from 7,000 ft with and without refraction, the range at which a ray just under the horizon
   meets the sea (the horizon's own distance) and one steeply down (h / sin of the depression, curvature a small part),
   the lowest height of a ray just over the horizon (zero), and a ray's height at its lowest point;
+- refraction outside the band (W8): which bound it breaks and by how much, both bounds growing with kappa, and a kappa
+  of 1 or more (a duct) refused with its reason by the geometry, the stage (no power) and the command (its error);
 - a sea under a sky, the horizon tilted 1.5 deg, the point given 5 px off it: the line to a fraction of a pixel and
   its tilt to a tenth of a degree; followed over 40 frames while it drifts down and turns, under an overlay;
 - an object below the line and one above it: the range bound and the height bound, each the conservative corner of
@@ -94,6 +96,101 @@ def test_geometry():
           "a ray's height at its closest approach is its lowest", f"{hz.lowest_height(H7000, e):.0f} m at {rs / 1000:.0f} km")
 
 
+def test_refraction_outside_the_band():
+    """W8 (the air-and-sea survey's finding, rebuilt 2026-11-13 with these functions): refraction outside the band breaks
+    one bound each way, and only that way, because the range to the sea and a ray's lowest height both grow with kappa;
+    a kappa of 1 or more is a duct, with no horizon, and every function of the geometry refuses it with that reason
+    (radius(1.0) divided by zero, and above 1 a range came back negative)."""
+    print("\nhorizon: refraction outside the band, and a duct (W8)")
+
+    def rng(d, kap, h=H7000):                      # the sea's range along a ray d deg below the line the camera sees
+        return hz.surface_range(h, hz.dip(h, kap) + math.radians(d), kap)
+
+    def low(d, kap, h=H7000):                      # the lowest height of a ray d deg above it
+        return hz.lowest_height(h, -hz.dip(h, kap) + math.radians(d), kap)
+
+    top, floor = rng(2.0, hz.KAPPA_HI), low(0.5, hz.KAPPA_LO)
+    got = [100 * (rng(2.0, kap) / top - 1) for kap in (0.5, 0.75)] + [100 * (low(0.5, kap) / floor - 1) for kap in (-0.25, -0.5)]
+    check(all(abs(g - w) < 0.2 for g, w in zip(got, (6.7, 17.2, -8.6, -15.3))),
+          "from 7,000 ft: the sea 2 deg below the line is farther than the band's top at kappa 0.5 and 0.75, and a ray 0.5 "
+          "deg above it lower than the band's bottom at -0.25 and -0.5", "  ".join(f"{g:+.1f} %" for g in got)
+          + f"  (of {top / 1000:.2f} km and {floor:.0f} m)")
+    ks = [-1.0 + 0.02 * i for i in range(100)]     # -1 to 0.98
+    rise = all(all(b >= a for a, b in zip(v, v[1:]))
+               for h in (10.0, 100.0, H7000, 12000.0) for d in (0.05, 0.5, 2.0, 10.0)
+               for v in ([rng(d, kap, h) for kap in ks], [low(d, kap, h) for kap in ks]))
+    check(rise, "both grow with kappa from -1 to 0.98, at four heights and four angles: the band's two ends are its corners, "
+                "and each bound breaks one way only")
+    said = []
+    for kap in (1.0, 1.2, 1.5, math.inf, math.nan):
+        for fn in (lambda: hz.radius(kap), lambda: hz.dip(H7000, kap), lambda: hz.surface_range(H7000, 0.05, kap),
+                   lambda: hz.lowest_height(H7000, -0.01, kap), lambda: hz.height_at(H7000, -0.01, 1e4, kap)):
+            try:
+                said.append(repr(fn()))
+            except ValueError as e:                # a ZeroDivisionError, or a number, fails the check
+                said.append(str(e))
+    check(all("is a duct" in s for s in said[:15]) and all("must be a number" in s for s in said[15:]),
+          "a kappa of 1 or more is refused as a duct by every function of the geometry, and one that is no number as that",
+          said[0])
+    bad = []
+    for band in ((0.0, 1.0), (0.3, 0.1), "wide", (0.0, math.nan)):
+        try:
+            bad.append(repr(hz.band_of(band)))
+        except ValueError as e:
+            bad.append(str(e))
+    texts = []
+    for text in ("0,1.2", "1", "0,0.2,0.4", "warm", ""):
+        try:
+            texts.append(repr(hz.parse_kappa(text)))
+        except ValueError as e:
+            texts.append(str(e))
+    check("is a duct" in bad[0] and "is above" in bad[1] and "two numbers" in bad[2] and "two numbers" in bad[3]
+          and "is a duct" in texts[0] and "is a duct" in texts[1] and all("LOW,HIGH" in t for t in texts[2:])
+          and hz.band_of() == (0.0, hz.KAPPA, hz.KAPPA_HI) and hz.band_of((-0.5, 0.75)) == (-0.5, hz.KAPPA, 0.75)
+          and hz.band_of(0.5) == (0.5, 0.5, 0.5) and hz.band_of((0.3, 0.5))[1] == 0.4
+          and hz.parse_kappa("-0.5,0.25") == (-0.5, 0.25) and hz.parse_kappa("0.17") == (0.17, 0.17),
+          "a band is read as LOW,HIGH or one value, its nominal 0.13 where it holds it; one that reaches 1, runs the wrong "
+          "way or cannot be read is refused with its reason", " / ".join(bad[:2] + texts[2:3])[:200])
+    wide, own = (-0.5, 0.75), hz.bounds(2.0, 0.0, H7000, 0.0, 0.0)
+    b = hz.bounds(2.0, 0.0, H7000, 0.0, 0.0, kappa=wide)
+    a = hz.bounds(-0.5, 0.0, H7000, 0.0, 0.0, kappa=wide)
+    a0 = hz.bounds(-0.5, 0.0, H7000, 0.0, 0.0)
+    check(b["range_max_m"] == rng(2.0, 0.75) and b["breaks_if_kappa_above"] == 0.75 and "breaks_if_kappa_below" not in b
+          and a["height_min_m"] == low(0.5, -0.5) and a["breaks_if_kappa_below"] == -0.5 and "breaks_if_kappa_above" not in a
+          and own["range_max_m"] == top and own["breaks_if_kappa_above"] == hz.KAPPA_HI
+          and a0["height_min_m"] == floor and a0["breaks_if_kappa_below"] == 0.0
+          and own == hz.bounds(2.0, 0.0, H7000, 0.0, 0.0, kappa=(0.0, hz.KAPPA_HI)),
+          "a band given moves each bound to its own end, and says where it breaks: the range above its top, the height "
+          "below its bottom; with none given the stage's 0 to 0.25, as before",
+          f"at most {b['range_max_m'] / 1000:.2f} km (the stage's band {own['range_max_m'] / 1000:.2f}); at least "
+          f"{a['height_min_m']:.0f} m ({a0['height_min_m']:.0f})")
+
+
+def test_the_command_refuses_a_duct():
+    """`--kappa` typed with 1 or more is the command's error, with the reason, before anything is read or measured: exit 2
+    (the command line was wrong), and with --json the envelope every command prints."""
+    print("\nhorizon: --kappa of 1 or more on the command line")
+    import json
+    import os
+    import shutil
+    import subprocess
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"))
+    p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "horizon", "no-such-video.mp4", "--track", "no-such.csv",
+                        "--horizon", "1,300,160", "--height", "7000ft", "--fov", "12.8", "--kappa=0,1.2", "--json"],
+                       capture_output=True, env=env, encoding="utf-8", errors="replace")
+    try:
+        d = json.loads(p.stdout)
+    except ValueError:
+        d = None
+    check(p.returncode == 2 and d is not None and d["exit"] == 2 and "--kappa 0,1.2" in (d["error"] or "")
+          and "is a duct" in d["error"] and "Traceback" not in p.stderr,
+          "refused before the video is looked for: exit 2, the reason on stderr and in the envelope",
+          f"exit {p.returncode}; {(d or {}).get('error') or p.stderr[-200:]}")
+
+
 def test_the_line_is_found_and_followed():
     print("\nhorizon: a sea under a sky, tilted 1.5 deg, the point given 5 px off it")
     g = scene(170.0, 1.5)
@@ -133,13 +230,44 @@ def test_bounds_below_above_and_on_the_line():
                   f"against {want / 1000:.2f}; nominal {b['range_nominal_m'] / 1000:.2f}")
             check("range" in f.result and "IF it is seen against the sea" in f.result["range"], "said with its condition",
                   f.result.get("range", ""))
+            way = [n for n in f.notes if n.startswith("The horizon's limit on range")]
+            check(abs(b["range_max_m"] / 1000 - 42.40) < 0.1 and abs(b["range_nominal_m"] / 1000 - 37.81) < 0.1
+                  and f.fields["kappa"] == [0.0, hz.KAPPA, hz.KAPPA_HI] and b["breaks_if_kappa_above"] == hz.KAPPA_HI
+                  and len(way) == 1 and "no more than 0.25" in way[0] and "farther than that limit" in way[0]
+                  and any("kappa 0.25" in s and "puts the sea farther" in s for s in hz.said(f.fields)),
+                  "the bound is what it was before W8 (42.4 km, nominal 37.8), and a note and the command's lines say which "
+                  "way refraction breaks it", way and way[0])
+            g = hz.measure(clip, track, (1, 300.0, 160.0), H7000, k, 0.10, h_err=30.0, kappa=(0.0, 0.75))
+            gb = g.fields["bounds"]
+            check(gb["range_max_m"] > 1.1 * b["range_max_m"] and gb["breaks_if_kappa_above"] == 0.75
+                  and g.fields["kappa"] == [0.0, hz.KAPPA, 0.75] and g.fields["kappa_from"] == "given"
+                  and any("no more than 0.75" in n for n in g.notes) and "at 0.75" in g.result["dip"],
+                  "with a wider band given (to kappa 0.75) the range bound is farther, and the words follow the band",
+                  f"at most {gb['range_max_m'] / 1000:.2f} km against {b['range_max_m'] / 1000:.2f}")
+            for duct in ((0.0, 1.0), (0.0, 1.5), 1.2):
+                g = hz.measure(clip, track, (1, 300.0, 160.0), H7000, k, 0.10, h_err=30.0, kappa=duct)
+                check(g.fields["bounds"] is None and g.fields["kappa"] is None and len(g.no_power) == 1
+                      and "is a duct" in g.no_power[0][1] and "horizon line" in g.result and "range" not in g.result,
+                      f"a band that reaches 1 ({duct}): no power with the reason, the line still found, no bound and no failure",
+                      g.no_power and g.no_power[0][1])
         elif what == "above":
             check(b and not b["below"] and 0 < b["height_min_m"] < b["height_nominal_m"],
                   f"{-dy:.0f} px above (1.2 deg): a height at least, under the nominal",
                   b and f"{b['height_min_m']:.0f} m (nominal {b['height_nominal_m']:.0f})")
+            way = [n for n in f.notes if n.startswith("The horizon's limit on height")]
+            g = hz.measure(clip, track, (1, 300.0, 160.0), H7000, k, 0.10, h_err=30.0, kappa=(-0.5, 0.25))
+            gb = g.fields["bounds"]
+            check(abs(b["height_min_m"] - 1935) < 2 and abs(b["height_nominal_m"] - 2096) < 2
+                  and b["breaks_if_kappa_below"] == 0.0 and len(way) == 1 and "0 or more" in way[0]
+                  and "lower than that limit" in way[0] and gb["height_min_m"] < b["height_min_m"] - 50
+                  and gb["breaks_if_kappa_below"] == -0.5 and any("-0.5 or more" in n for n in g.notes),
+                  "the bound is what it was before W8 (1,935 m, nominal 2,096), a note says a sea warmer than the air breaks "
+                  "it, and a band given down to kappa -0.5 lowers it", f"{gb['height_min_m']:.0f} m against "
+                  f"{b['height_min_m']:.0f}; {way and way[0][:90]}")
         else:
             check(b and b["within_band"] and f.no_power, "on the line: within its band, no bound",
                   f.no_power and f.no_power[0][1])
+            check(not any(n.startswith("The horizon's limit on") for n in f.notes), "and no word on a bound that is not given")
     f = hz.measure(clip, {1: (300.0, 260.0)}, (1, 300.0, 160.0), None, k, 0.1)
     check(f.no_power and "height" in f.no_power[0][1], "no height given: no power, and it says what is missing",
           f.no_power and f.no_power[0][1])
@@ -219,6 +347,10 @@ def test_a_step_of_run():
               and {"height", "horizon"}.isdisjoint(stages.known_of(gone)),
               "given afterwards, the three steps are done on the track already followed, to the same numbers; forgotten, the "
               "horizon's and the focus's go with their notes and the haze's stays, its note once", f"same {same}; {sorted(gone.stages)}")
+        ways = [[n for n in c.notes if n.startswith("The horizon's limit on height")] for c in (case, got, gone)]
+        check([len(w) for w in ways] == [1, 1, 0] and ways[0] == ways[1],
+              "which way refraction breaks the height's bound is among the case's notes, once, and goes with the step",
+              ways[0] and ways[0][0][:100])
         ms = MarkSet("sea", str(mkv), 30.0)
         ms.add("horizon", 3, 310.0, 161.0)
         ms.save(f"{td}/sea_marks.json")

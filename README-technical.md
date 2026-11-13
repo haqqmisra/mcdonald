@@ -276,6 +276,10 @@ mcdonald phone IMG_0001.MOV --out CASE
 # height and k needed; the line is found through the point and followed)
 mcdonald horizon CLIP.mp4 --track track.csv --horizon 1,640,212 --height 7000ft --fov 2.1
 mcdonald horizon CLIP.mp4 --track track.csv --marks CASE/clip_marks.json --height 2100m --graticule 300 --range 9000
+# Each bound holds for air that bends light as the stage assumes (a refraction coefficient, kappa, of 0 to 0.25), and
+# says which way it breaks outside that: --kappa=LOW,HIGH gives another band (a sea warmer than the air: below 0;
+# warm air over a cold sea: toward 1; 1 or more is a duct, with no horizon, and is refused)
+mcdonald horizon CLIP.mp4 --track track.csv --horizon 1,640,212 --height 7000ft --fov 2.1 --kappa=-0.5,0.25
 
 # Sharp means far: an object as sharp as the scene's own points is at least D / (its defocus disc) away, focused far;
 # with no pupil given, the optics' diffraction bounds it (the band's shortest wavelength)

@@ -2586,8 +2586,49 @@ distance across it in square pixels (`--pixel-aspect`) over k.
 **The band.** Each bound is the conservative corner of the box of what is not known exactly: the line's and the
 object's place (the frame-to-frame scatter of the object's distance from the line, at least a pixel, and a pixel for
 the object), k's share (10 % for an assumed field of view, `--k-share`), h's error (`--height-err`), and kappa from 0 to
-0.25. A range bound takes the farthest range in the box, a height bound the lowest height. A thing whose band reaches
-the line is neither below nor above it, and gets no bound.
+0.25 (`--kappa=LOW,HIGH` gives another band; `fields.kappa` is the band used, low, nominal and high). A range bound
+takes the farthest range in the box, a height bound the lowest height. A thing whose band reaches the line is neither
+below nor above it, and gets no bound.
+
+**Refraction outside the band, and a duct (W8, added 2026-11-13).** The real air does not keep to 0-0.25. For sight
+lines near the surface the effective kappa "varies from moderate negative values (on sunny days) to values considerably
+larger than 1 (at night, or for sight-lines over cold water)" (A. T. Young, "Dip of the Horizon", San Diego State
+University's pages on atmospheric refraction), and the dip depends almost wholly on the air's temperature at the camera
+against that at the horizon (Young and Kattawar 1998, Applied Optics 37, 3785). So no band both covers the air and
+leaves a bound, and the stage says instead which way each bound breaks. Both quantities grow with kappa, at every
+height and angle (held from kappa -1 to 0.98 in `tests/test_horizon.py`), so each bound breaks one way only:
+
+- *The range's "at most" is too short where the air bends light more than the band's top* (warm air over a cold sea;
+  at its limit a duct). The dip shrinks and the sea lies farther along the same ray. From 7,000 ft, 2 deg below the
+  line: 38.8 km at kappa 0.25, 41.4 at 0.5 (+7 %), 45.5 at 0.75 (+17 %), 57.0 at 0.99 (+47 %). A sea warmer than the
+  air only shortens it (35.4 km at -0.25), and the bound holds.
+- *The height's "at least" is too high where kappa is below the band's bottom* (a sea warmer than the air: light bends
+  away from the sea, the dip grows -- 1.82 deg at kappa -0.5 against 1.48 at 0 -- and a ray a given angle over the line
+  starts steeper and runs lower). From 7,000 ft, 0.5 deg above the line: 1,196 m at kappa 0, 1,093 at -0.25 (-9 %),
+  1,013 at -0.5 (-15 %); 1.2 deg above, -4 and -8 %. Stronger bending only raises it, and the bound holds.
+
+Every run that gives a bound says this: `fields.bounds.breaks_if_kappa_above` (a range bound: the band's top) or
+`breaks_if_kappa_below` (a height bound: its bottom), a line under the bound in what the command prints, and a note in
+the case ("The horizon's limit on range assumes the air bends light toward the sea by no more than 0.25 of the Earth's
+curvature ... the object can be farther than that limit."). Someone who knows the air gives the band:
+`--kappa=-0.5,0.25` lowers a height bound to what a warm sea allows (1.2 deg above from 7,000 ft, k 50 px/deg: at least
+1,742 m against 1,935), `--kappa=0,0.75` lengthens a range bound (2 deg below: 50.3 km against 42.4). The words follow
+the band given.
+
+*A duct.* At kappa 1 a level ray follows the Earth's curve, and above 1 it is bent back down: R' = R/(1 - kappa) is
+infinite or negative and there is no horizon. Before 2026-11-13 `radius(1.0)` divided by zero, and above 1 `dip` failed
+inside `acos` while `surface_range` handed back a negative range (-3,374 km for a ray 3 deg down at kappa 1.2). Now
+`radius`, which every
+function of the geometry calls, refuses a kappa of 1 or more with the reason; the stage gives NO POWER for a band that
+reaches 1 (the line is still found and the object set against it; no bound), and the command exits 2 with the reason
+for a `--kappa` typed so, before it looks for the video. None of this was reachable with the stage's own band.
+
+*Traps.* (1) The constant-kappa Earth is a model of the whole path. A surface or evaporation duct fills the lowest
+tens of metres to about 300 m, not the 2 km under an aircraft, so from height the effective kappa moves far less than
+near the surface, and from a ship's deck or a low drone far more; the stage's band does not know the camera's height.
+(2) The band 0-0.25 is the stage's choice (a standard atmosphere and a cold sea), not a measured range of the air:
+the notes say what it assumes, not that the air obeyed. (3) `run` and the window's form take no band: they use the
+stage's, and a wider one reaches a case only through `mcdonald horizon ... --kappa=... --case CASE_JSON`.
 
 **What it assumes, and says on every run.** (1) The line is the sea's horizon: not a haze top (which lies above it), a
 coastline or a cloud deck (nearer, and at heights of their own), nor a skyline over land, which is terrain at a range of
@@ -2600,6 +2641,10 @@ steeply down at h / sin(depression); a ray's lowest height is zero when it graze
 the horizon tilted 1.5 deg, the point given 5 px off it: the line to 0.07 px and its tilt to 0.01 deg; followed over 40
 frames while it drifts 48 px and turns 0.8 deg, under an overlay, within 0.5 px on every frame. An object 2 deg below
 the line from 7,000 ft at k 50 px/deg: at most 42.4 km (nominal 37.8); 1.2 deg above: at least 1,935 m (nominal 2,096).
+Refraction (W8): the four shares above (+6.7, +17.2, -8.6, -15.3 %); both bounds growing with kappa; a kappa of 1, 1.2,
+1.5 or infinity refused as a duct by all five functions of the geometry, by the stage (no power, the line still found)
+and by the command (exit 2, the reason in the `--json` envelope); a band given moving each bound to its own end; and
+the two published bounds unchanged with no band given.
 **Not yet on a real clip with a known answer**: one needs a sea horizon, the camera's height and a surface target at a
 known range. PR43 shows a horizon, over land; PR149's ship and sea are the nearest candidate if its altitude can be had.
 

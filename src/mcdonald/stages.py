@@ -278,7 +278,7 @@ AFTER = ("fov", "fov_px", "graticule", "lens_k1", "lens_k2", "pixel_aspect", "ra
 LATER = ("height", "horizon", "visibility", "haze_reference", "band", "pupil", "focus_at", "ground_scale")
 # each of those steps' notes, told apart: done again (`add_known`), its old ones go and the others' stay
 NOTES_OF = dict(
-    horizon=lambda n: n.startswith("Assumes the line is the sea's horizon") or (
+    horizon=lambda n: n.startswith(("Assumes the line is the sea's horizon", "The horizon's limit on ")) or (
         n.startswith("k comes from an assumed field of view") and n.endswith("is in the band.")),
     haze=lambda n: n.startswith("Assumes a daytime visible-light picture"),
     focus=lambda n: n.startswith(("Assumes the sensor is focused far", "A soft edge bounds nothing", "No floor on range in metres"))

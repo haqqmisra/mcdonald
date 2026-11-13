@@ -1,6 +1,7 @@
 """`mcdonald horizon` — what the horizon says about range and height, with no motion and no known size.
 
-  mcdonald horizon VIDEO --track CSV --horizon N,X,Y --height 7000ft (--fov DEG | --graticule PX_DEG) [--json]
+  mcdonald horizon VIDEO --track CSV --horizon N,X,Y --height 7000ft (--fov DEG | --graticule PX_DEG) [--kappa LOW,HIGH]
+                   [--json]
 
 Over the sea the visible horizon lies below the camera's level by the **dip**, the angle a ray from height h makes
 grazing the curved surface: cos(dip) = R' / (R' + h), about sqrt(2 h / R'), with R' the Earth's radius as refraction
@@ -26,7 +27,20 @@ line. The distance across the line is measured in square pixels (`--pixel-aspect
 
 The band is the conservative corner of everything that is not known exactly: the line's and the object's place
 (each frame's scatter, at least a pixel), k's share (10 % for an assumed field of view), h's, and kappa from 0 to
-KAPPA_HI. A range bound takes the largest range in that box, a height bound the lowest height.
+KAPPA_HI (`--kappa LOW,HIGH` gives another band). A range bound takes the largest range in that box, a height bound
+the lowest height.
+
+Refraction outside the band breaks one bound each way, and the stage says which on every run (W8). The range to the
+sea grows with kappa, so stronger bending than the band's top (warm air over a cold sea; a duct at its limit) puts
+the sea farther than the "at most": from 7,000 ft, 2 deg below the line, +7 % at kappa 0.5 and +17 % at 0.75. A
+ray's lowest height grows with kappa too, so a sea warmer than the air (kappa below 0) puts a ray lower than the "at
+least": 0.5 deg above the line, -9 % at kappa -0.25 and -15 % at -0.5. The real air's kappa is not held to 0-0.25:
+for sight lines near the surface it runs from moderate negative values on sunny days to well over 1 over cold water
+(A. T. Young, "Dip of the Horizon"), and the dip depends almost wholly on the air's temperature at the camera
+against that at the horizon (Young and Kattawar 1998, Applied Optics 37, 3785), so the lower the camera the more a
+few degrees matter. At kappa of 1 a level ray follows the Earth's curve, and above it the air is a duct: R' is
+infinite or negative and there is no horizon. `radius` refuses such a kappa with that reason, the stage gives NO
+POWER, and the command an error for a `--kappa` typed so.
 
 What it assumes, and says on every run: (1) the line is the sea's horizon -- not a haze top (which lies above it in
 a hazy sky), a coastline or the top of a cloud deck (nearer, and at a height of its own); over land a skyline is
@@ -49,6 +63,11 @@ from .report import Found
 R_EARTH = 6_371_000.0   # m, the mean radius
 KAPPA = 0.13            # refraction's share of the Earth's curvature in a standard atmosphere
 KAPPA_HI = 0.25         # the band's other end: a cold sea bends rays more (ducting can exceed it; it is said so)
+KAPPA_LO = 0.0          # and its near end: no refraction (a sea warmer than the air goes below it; it is said so)
+# kappa of 1 bends a level ray as the Earth curves, and more than 1 brings it back down: a duct. R / (1 - kappa) is
+# then infinite or negative, and there is no horizon to measure from. Said where a kappa is refused.
+DUCT = ("a refraction coefficient of 1 or more is a duct: the air bends light as much as the Earth curves, or more. "
+        "A duct has no horizon to measure from, so no bound is given")
 REACH = 12.0            # px either side of the given point (or the last frame's line) searched for the line
 TILT_DEG = 10.0         # the line's tilt from the image's level searched, deg either side
 TILT_STEP = 0.25        # deg
@@ -62,8 +81,46 @@ K_SHARE_ASSUMED = 0.10  # an assumed field of view's share of error
 
 # ---- the geometry -------------------------------------------------------------------------
 def radius(kappa=KAPPA):
-    """The Earth's radius as a ray refracted by kappa sees it."""
+    """The Earth's radius as a ray refracted by kappa sees it. ValueError, with the reason, for a kappa of 1 or more
+    (a duct: no horizon) or one that is no number: every function of the geometry comes through here, so none
+    divides by zero or hands back a negative range."""
+    if not math.isfinite(kappa):
+        raise ValueError(f"the refraction coefficient must be a number, not {kappa!r}")
+    if kappa >= 1.0:
+        raise ValueError(DUCT)
     return R_EARTH / (1.0 - kappa)
+
+
+def band_of(kappa=None):
+    """(low, nominal, high): the band of kappa the bounds must cover. None is the stage's own, 0 to KAPPA_HI about
+    KAPPA; else one number (no band about it) or (low, high), the nominal KAPPA where the band holds it and the
+    band's middle where not. ValueError, with the reason, for a band that reaches 1 (`DUCT`), is no pair of numbers,
+    or is given the wrong way round."""
+    if kappa is None:
+        return KAPPA_LO, KAPPA, KAPPA_HI
+    try:
+        lo, hi = (float(kappa), float(kappa)) if isinstance(kappa, (int, float)) else (float(v) for v in kappa)
+    except (TypeError, ValueError):
+        raise ValueError(f"the refraction coefficient's band is two numbers, low and high, not {kappa!r}") from None
+    if not (math.isfinite(lo) and math.isfinite(hi)):
+        raise ValueError(f"the refraction coefficient's band is two numbers, low and high, not {kappa!r}")
+    if lo > hi:
+        raise ValueError(f"the refraction coefficient's band is low then high, and {lo:g} is above {hi:g}")
+    if hi >= 1.0:
+        raise ValueError(DUCT)
+    return lo, (KAPPA if lo <= KAPPA <= hi else 0.5 * (lo + hi)), hi
+
+
+def parse_kappa(text):
+    """'-0.5,0.25' (low, high) or '0.17' (one value, no band about it) -> what `band_of` takes. ValueError, with the
+    reason, for what cannot be read or reaches 1."""
+    try:
+        v = [float(t) for t in str(text).split(",")]
+    except ValueError:
+        v = []
+    if len(v) not in (1, 2):
+        raise ValueError("give the refraction coefficient's band as LOW,HIGH, such as -0.5,0.25, or one value")
+    return band_of((v[0], v[-1]))[::2]
 
 
 def dip(h, kappa=KAPPA):
@@ -196,44 +253,73 @@ def across(line, x, y, pixel_aspect=1.0):
 
 
 # ---- the bounds -------------------------------------------------------------------------
-def bounds(delta_deg, delta_err_deg, h, h_err, k_share, range_m=None):
+def bounds(delta_deg, delta_err_deg, h, h_err, k_share, range_m=None, kappa=None):
     """From the angle below (+) or above (-) the horizon line and its error, h and its error, and k's share of error:
     dict(below, range_max_m, range_nominal_m, height_min_m, height_nominal_m, height_at_range_m, ...), each bound the
-    conservative corner of the box (the angle +- its error, scaled by 1 -+ k's share; h +- its error; kappa 0 to
-    KAPPA_HI)."""
+    conservative corner of the box (the angle +- its error, scaled by 1 -+ k's share; h +- its error; kappa over its
+    band, `band_of(kappa)`: 0 to KAPPA_HI unless another is given).
+
+    Which way refraction outside the band breaks the bound is in it too (W8): the range to the sea grows with kappa,
+    so a range bound holds only up to the band's top (`breaks_if_kappa_above`); a ray's lowest height grows with kappa
+    too, so a height bound holds only down to the band's bottom (`breaks_if_kappa_below`). Both are monotone in
+    kappa (test_horizon holds them to it), so the band's two ends are its corners."""
+    lo, nom, hi = band_of(kappa)
     corners = []
     for dd in (-1, 1):
         for kk in (-1, 1):
             for hh in (-1, 1):
-                for kap in (0.0, KAPPA, KAPPA_HI):
+                for kap in (lo, nom, hi):
                     d = (delta_deg + dd * delta_err_deg) * (1 + kk * k_share)
                     corners.append((math.radians(d), max(h + hh * h_err, 0.0), kap))
-    nominal = (math.radians(delta_deg), h, KAPPA)
+    nominal = (math.radians(delta_deg), h, nom)
     out = dict(below=bool(delta_deg > 0), delta_deg=delta_deg, delta_err_deg=delta_err_deg)
     if delta_deg > 0:
         rs = [surface_range(hh, dip(hh, kap) + d, kap) for d, hh, kap in corners]
-        out.update(range_max_m=max(rs), range_nominal_m=surface_range(h, dip(h, KAPPA) + nominal[0], KAPPA),
-                   horizon_m=math.sqrt(2 * h * radius(KAPPA)),
-                   within_band=bool(not math.isfinite(max(rs))))
+        out.update(range_max_m=max(rs), range_nominal_m=surface_range(h, dip(h, nom) + nominal[0], nom),
+                   horizon_m=math.sqrt(2 * h * radius(nom)),
+                   within_band=bool(not math.isfinite(max(rs))), breaks_if_kappa_above=hi)
     else:
         zs = [lowest_height(hh, -dip(hh, kap) - d, kap) if -dip(hh, kap) - d > -dip(hh, kap) else -math.inf
               for d, hh, kap in corners]
-        out.update(height_min_m=min(zs), height_nominal_m=lowest_height(h, -dip(h, KAPPA) - nominal[0], KAPPA),
-                   within_band=bool(not math.isfinite(min(zs))))
+        out.update(height_min_m=min(zs), height_nominal_m=lowest_height(h, -dip(h, nom) - nominal[0], nom),
+                   within_band=bool(not math.isfinite(min(zs))), breaks_if_kappa_below=lo)
         if range_m:
             hs = [height_at(hh, -dip(hh, kap) - d, range_m, kap) for d, hh, kap in corners]
             out.update(height_at_range_m=[min(hs), max(hs)],
-                       height_at_range_nominal_m=height_at(h, -dip(h, KAPPA) - nominal[0], range_m, KAPPA))
+                       height_at_range_nominal_m=height_at(h, -dip(h, nom) - nominal[0], range_m, nom))
     return out
 
 
+def direction(b, band):
+    """Which way refraction outside the band breaks the bound `b`, as sentences for the report (W8); None for no
+    bound. `band` is (low, nominal, high). `stages.NOTES_OF` knows the note by its first words."""
+    lo, _, hi = band
+    if not b or b["within_band"]:
+        return None
+    if b["below"]:
+        return (f"The horizon's limit on range assumes the air bends light toward the sea by no more than {hi:g} of the "
+                "Earth's curvature (its refraction coefficient). Warm air over a cold sea can bend light more. The sea then "
+                "lies farther along the line of sight, and the object can be farther than that limit.")
+    held = ("the air bends light toward the sea, or not at all (a refraction coefficient of 0 or more)" if lo == 0 else
+            f"a refraction coefficient of {lo:g} or more (the share of the Earth's curvature by which the air bends light "
+            "toward the sea)")
+    return (f"The horizon's limit on height assumes {held}. Over a sea warmer than the air, light can bend away from the "
+            "sea. The line of sight then runs lower, and the object can be lower than that limit.")
+
+
 def measure(clip, track, start, h, k, k_share, h_err=0.0, pixel_aspect=1.0, line=None, range_m=None, mask=None,
-            out=None, name="clip", k_from="given"):
+            out=None, name="clip", k_from="given", kappa=None):
     """The stage: the line on every tracked frame (followed from `start`, or `line` given as (x0, y0, x1, y1) for a
-    camera that holds still), the object's angle from it, and the bounds on the median frame's angle. A Found."""
+    camera that holds still), the object's angle from it, and the bounds on the median frame's angle. A Found.
+    `kappa` is the band of refraction the bounds cover (`band_of`: None for 0 to KAPPA_HI); one that reaches 1 is NO
+    POWER with the reason, not a failure."""
     res, npw, needs, notes = {}, [], [], []
     if not track:
         return Found("horizon", no_power=[("horizon", "no track: nothing to set against the horizon")])
+    try:
+        band, why_not = band_of(kappa), None
+    except ValueError as e:
+        band, why_not = None, str(e)
     if line is not None:
         x0, y0, x1, y1 = line
         fixed = dict(y0=float(y0), x0=float(x0), slope=float((y1 - y0) / (x1 - x0)) if x1 != x0 else 0.0,
@@ -253,7 +339,8 @@ def measure(clip, track, start, h, k, k_share, h_err=0.0, pixel_aspect=1.0, line
                          tilt_deg=math.degrees(math.atan(ln["slope"] * pixel_aspect)),
                          across_px=across(ln, x, y, pixel_aspect), prominence=ln.get("prominence")))
     fields = dict(frames=len(track), frames_with_line=len(rows), line_from=found_how, k_px_per_deg=k, k_from=k_from,
-                  k_share=k_share, height_m=h, height_err_m=h_err, kappa=[0.0, KAPPA, KAPPA_HI], pixel_aspect=pixel_aspect,
+                  k_share=k_share, height_m=h, height_err_m=h_err, kappa=None if band is None else list(band),
+                  kappa_from="the stage's band" if kappa is None else "given", pixel_aspect=pixel_aspect,
                   rows=rows, bounds=None)
     if not rows:
         npw.append(("horizon", f"no horizon line stood out ({PROMINENCE:g} MADs over the other candidates) near "
@@ -272,14 +359,17 @@ def measure(clip, track, start, h, k, k_share, h_err=0.0, pixel_aspect=1.0, line
         npw.append(("horizon", "no angular scale: --fov (with --fov-px) or --graticule, or k from `mcdonald slew`"))
     if h is None:
         npw.append(("horizon", "the camera's height over the sea is not given: --height (7000ft, 2100m)"))
+    if band is None:
+        npw.append(("horizon", why_not))
     if npw:
         return Found("horizon", res, fields, no_power=npw, needs=needs)
     d = med / k
-    b = bounds(d, err_px / k, h, h_err, k_share, range_m)
+    b = bounds(d, err_px / k, h, h_err, k_share, range_m, band[::2])
     fields["bounds"] = b
-    dp = math.degrees(dip(h, KAPPA))
-    res["dip"] = f"the sea's horizon {dp:.3f} deg below level from {h:.0f} m (kappa {KAPPA:g}; {math.degrees(dip(h, 0)):.3f} " \
-                 f"with no refraction, {math.degrees(dip(h, KAPPA_HI)):.3f} at {KAPPA_HI:g})"
+    lo, nom, hi = band
+    dp = math.degrees(dip(h, nom))
+    res["dip"] = f"the sea's horizon {dp:.3f} deg below level from {h:.0f} m (kappa {nom:g}; {math.degrees(dip(h, lo)):.3f} " \
+                 f"{'with no refraction' if lo == 0 else f'at {lo:g}'}, {math.degrees(dip(h, hi)):.3f} at {hi:g})"
     if b["within_band"]:
         npw.append(("horizon", f"the object is {abs(d):.3f} +- {err_px / k:.3f} deg from the line: within its band, so "
                                "neither below nor above it for certain"))
@@ -294,6 +384,9 @@ def measure(clip, track, start, h, k, k_share, h_err=0.0, pixel_aspect=1.0, line
             res["height at the range given"] = f"{lo:.0f}-{hi:.0f} m at {range_m / 1000:.2f} km"
     notes.append("Assumes the line is the sea's horizon: not a haze top, a coastline, a cloud deck or a skyline over "
                  "land; h is the camera's height over the sea; k is the scale across the line, in square pixels.")
+    way = direction(b, band)
+    if way:
+        notes.append(way)
     if k_from == "assumed":
         notes.append(f"k comes from an assumed field of view: its {k_share:.0%} share of error is in the band.")
     files = []
@@ -353,9 +446,16 @@ def said(f):
         elif b["below"]:
             L.append(f"range at most {b['range_max_m'] / 1000:.2f} km (nominal {b['range_nominal_m'] / 1000:.2f}; the "
                      f"horizon itself {b['horizon_m'] / 1000:.1f} km off)")
+            if b.get("breaks_if_kappa_above") is not None:
+                L.append(f"    for refraction up to kappa {b['breaks_if_kappa_above']:g}: stronger bending (warm air over a "
+                         "cold sea) puts the sea farther, and the range can pass this bound (--kappa LOW,HIGH for another band)")
         else:
             L.append(f"height at least {b['height_min_m']:.0f} m over the sea at any range (nominal "
                      f"{b['height_nominal_m']:.0f})")
+            if b.get("breaks_if_kappa_below") is not None:
+                L.append(f"    for refraction down to kappa {b['breaks_if_kappa_below']:g}: over a sea warmer than the air "
+                         "it is less, the ray runs lower, and the height can be under this bound (--kappa LOW,HIGH for another "
+                         "band)")
             if b.get("height_at_range_m"):
                 L.append(f"at the range given: {b['height_at_range_m'][0]:.0f}-{b['height_at_range_m'][1]:.0f} m")
     return L
@@ -396,6 +496,10 @@ def main():
     ap.add_argument("--pixel-aspect", type=float, default=1.0, help="how much wider the video draws a pixel than it is "
                     "tall (a 4:3 picture shown full-height in 16:9: 1.333)")
     ap.add_argument("--range", type=float, metavar="M", help="the range to the object from elsewhere, m: its height there")
+    ap.add_argument("--kappa", metavar="LOW,HIGH", help="the band of the air's refraction coefficient the bounds must cover "
+                    f"(default {KAPPA_LO:g},{KAPPA_HI:g}; {KAPPA:g} is a standard atmosphere). Give it as --kappa=LOW,HIGH. Warm "
+                    "air over a cold sea goes above the band and puts the sea farther; a sea warmer than the air goes below 0 "
+                    "and lowers a line of sight. 1 or more is a duct, with no horizon, and is refused")
     ap.add_argument("--n0", type=int)
     ap.add_argument("--n1", type=int)
     ap.add_argument("--workdir")
@@ -405,6 +509,12 @@ def main():
     args = ap.parse_args()
     if not (args.horizon or args.marks or args.line):
         ap.error("say where the horizon is: --horizon N,X,Y, --marks JSON (a horizon mark), or --line X0,Y0,X1,Y1")
+    kappa = None
+    if args.kappa is not None:                        # refused before anything is measured
+        try:
+            kappa = parse_kappa(args.kappa)
+        except ValueError as e:
+            raise vclip.Stop(f"--kappa {args.kappa}: {e}", vclip.EXIT_USAGE) from None
     with said_to_stderr(args.json) as lines:
         video, tag, _ = vf.resolve(args.video)
         track = vf.read_track(args.track)
@@ -437,7 +547,7 @@ def main():
         masks = vf.static_masks(clip) if line is None else None
         mask = None if masks is None else (masks["blocks"] | masks["graphics"])
         found = measure(clip, track, start, h, k, share, he, args.pixel_aspect, line, args.range, mask, out, tag,
-                        k_from or "none")
+                        k_from or "none", kappa)
         print("\n".join(said(found.fields)))
         for w in found.no_power:
             print(f"no power: {w[1]}")
