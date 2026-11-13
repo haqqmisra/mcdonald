@@ -175,6 +175,17 @@ def test_zoom_found_and_placed():
     fr, truth = zoom_scene()
     trk = track_of(fr, truth)
     shp = camera.shapes(fr, trk)
+    import os
+    from mcdonald import progress
+    was = os.environ.get(progress.CPUS_VAR)
+    os.environ[progress.CPUS_VAR] = "1"                   # one CPU allowed: the frames one after another, as before 2026-11-13
+    try:
+        one = camera.shapes(fr, trk)
+    finally:
+        os.environ.pop(progress.CPUS_VAR) if was is None else os.environ.update({progress.CPUS_VAR: was})
+    check(one == shp and list(one) == list(shp) and len(shp) == len(trk),
+          "the object's shape on every frame is the same read on threads as one frame after another, and in the frames' order",
+          f"{len(shp)} frames, {progress.workers(None, W * H)} workers allowed")
     st = camera.zoom_steps(trk, shp, W, H)
     check(len(st) == 1, "one zoom step", f"{len(st)}")
     if not st:

@@ -5,6 +5,36 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**A long track is measured in two thirds of the time, with the same numbers** (2026-11-13). The whole run of a
+3,678-frame track (PR088's object 2) took the same 406 s at 32 worker processes as at 88: more than half of it was
+one process doing arithmetic that no pool had a share of. Three such places now share it out among threads of that
+process, each piece the same function on the same numbers as before, so nothing a report says changes:
+
+- *`flicker`'s judging.* Each background aperture judged as the object, and the object's own windows along the
+  track, are read beside the stage's other work (`progress.Beside`, `flicker.controls_started`): the step went from
+  107 to 43 s.
+- *`tether`'s two passes over the frames.* Each frame's own arithmetic (its noise, its weights) is done in the thread
+  that read the frame (`Frames.each(also=)`), the two stacks are filled beside each other, the background's steps are
+  read beside the pass and the followers look at a frame beside each other: 121 to 65 s.
+- *`camera`'s look at the object's shape on every frame* reads the frames on threads: 22 to 11 s.
+
+PR088's object 2 at 32 workers: 406 to 280 s with the graphics card, 426 to 295 s without; at 8 workers with the
+card, 468 to 349 s. A short track gains little (PR135's 270 frames: 60 to 54 s with the card). Held three ways: each
+threaded pass against the same pass in one thread, to the last bit (test_tether, test_camera, test_measurement); and
+all fourteen reference case files measured again before and after, 31 objects, no number or sentence different at
+one part in a billion.
+
+**Two more steps on a graphics card** (ROADMAP 0.6, objective 3; 2026-11-13), each held to the CPU's in test_gpu:
+
+- *`flicker`'s camera-shake pass* (`scene_shift`): every frame registered against the stretch's mean frame, or the
+  frame before, on the card (`flicker._lk_shift_on`). A frame takes 2.5 ms there against 69 ms on one CPU core at
+  1280 x 720 (5.7 against 198 ms at 1920 x 1028), and the two shifts lie under a millionth of a pixel apart.
+- *`layers`' third pass* (the scene under a sensor's pattern): a block's mean and its pairs' templates on the card.
+
+Measured and not built: the spot detector on the card for Find and Follow (IDEAS.md G2). The response is ten to
+twenty times sooner there, but most of a frame's time is the picking of the spots, which one process would do more
+slowly than the pool does, and the card's list is not the CPU's list (the same spots on 201 of 240 frames tried).
+
 **`share rerun` holds every sentence to the letter** (IDEAS.md G6, found 2026-11-12, fixed 2026-11-13). A rerun is
 made in another folder, so a string that is a file's path is compared by its file name. Until now any two strings
 that both held a slash were taken for paths: "median 103 px/s (...)" and "median 250 px/s (...)" were the same

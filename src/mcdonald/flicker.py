@@ -244,7 +244,7 @@ from scipy import ndimage
 
 from . import forensics as vf
 from .clip import gop as read_gop, picture_types
-from .progress import PROCS_HELP, pooled, to_stderr
+from .progress import PROCS_HELP, Beside, pooled, to_stderr
 from .report import Found, bird_beats, emit, inputs_of, said_to_stderr
 
 APERTURE = 4.0       # px, radius
@@ -2522,44 +2522,65 @@ def disagreements(strong, astro, far):
     return off
 
 
-def controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=(), windows_too=False):
+def _control(b, use, seg, bgs, ns, fps, lines, scale, top, gone, windows_too):
+    """One background aperture judged as the object (`controls_judged`): its row, or None where it cannot be judged."""
+    others = [c for c in bgs if c != b and c in seg]
+    if not others or b not in seg:
+        return None
+    s0, s1 = seg[b]
+    f = use[b][s0:s1]
+    if any(v is None for v in f) or s1 - s0 < MIN_FRAMES:
+        return None
+    amps = [peak(use[c][s0:s1], fps, (), scale)["amplitude"] for c in others if not any(v is None for v in use[c][s0:s1])]
+    if not amps:
+        return None
+    floor = float(np.median(amps))
+    p = peak(f, fps, lines, scale)
+    d = drift(f, fps, scale=scale)
+    ok, read = whole_passes(f, p, fps, top, [use[c][s0:s1] for c in others if not any(v is None for v in use[c][s0:s1])],
+                            floor, scale, scale, d)
+    ok = bool(ok and p["at_the_codec_line_hz"] is None)
+    row = dict(passes=ok, hz=p["hz"], amplitude=p["amplitude"], over_drift=d["over"], drift_needed=d["needed"],
+               windows_passing=None, windows=None, **{k: v for k, v in read.items() if k not in ("over_drift", "drift_needed")})
+    if windows_too:
+        own = {m: use[m][s0:s1] for m in [b] + others}
+        W = windows(own, b, others, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone if s0 <= k < s1], top=top, scale=scale)
+        row.update(windows_passing=sum(1 for w in W if w["passes"]), windows=len(W))
+    return row
+
+
+def controls_started(beside, use, seg, bgs, ns, fps, lines, scale, top, gone=(), windows_too=False):
+    """`controls_judged`, begun: each background aperture's judging started beside the caller's own work (`beside`, a
+    `progress.Beside`), for `controls_read` to gather. An aperture's drawn nulls are seconds of a long track each, and
+    no aperture's depend on another's (2026-11-13: PR088's 3,559 frames, four apertures, 53 s one after another)."""
+    gone = list(gone)
+    return [(b, beside.call(_control, b, use, seg, bgs, ns, fps, lines, scale, top, gone, windows_too)) for b in bgs]
+
+
+def controls_read(started):
+    """What `controls_started` began, gathered in the apertures' own order: `controls_judged`'s two answers."""
+    out, whole, wins = {}, [0, 0], [0, 0]
+    for b, job in started:
+        row = job.result()
+        if row is None:
+            continue
+        if row["windows"] is not None:
+            wins[0] += row["windows_passing"]
+            wins[1] += row["windows"]
+        out[b] = row
+        whole[0] += int(row["passes"])
+        whole[1] += 1
+    return out, dict(whole=whole, windows=wins)
+
+
+def controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=(), windows_too=False, beside=None):
     """Each background aperture put through the object's own tests, as if it were the object -- held against the others
     -- so that what passes is a false alarm by construction (the Robovetter's inverted and scrambled runs, Thompson et
     al. 2018: data known to hold no signal, through the whole pipeline): ({name: {passes, hz, amplitude, over_drift,
     drift_needed, windows_passing, windows}}, {whole: [passing, judged], windows: [passing, all]}). The windows take
-    as long again as the object's did, and are run only with `windows_too`."""
-    out, whole, wins = {}, [0, 0], [0, 0]
-    gone = list(gone)
-    for b in bgs:
-        others = [c for c in bgs if c != b and c in seg]
-        if not others or b not in seg:
-            continue
-        s0, s1 = seg[b]
-        f = use[b][s0:s1]
-        if any(v is None for v in f) or s1 - s0 < MIN_FRAMES:
-            continue
-        amps = [peak(use[c][s0:s1], fps, (), scale)["amplitude"] for c in others if not any(v is None for v in use[c][s0:s1])]
-        if not amps:
-            continue
-        floor = float(np.median(amps))
-        p = peak(f, fps, lines, scale)
-        d = drift(f, fps, scale=scale)
-        ok, read = whole_passes(f, p, fps, top, [use[c][s0:s1] for c in others if not any(v is None for v in use[c][s0:s1])],
-                                floor, scale, scale, d)
-        ok = bool(ok and p["at_the_codec_line_hz"] is None)
-        row = dict(passes=ok, hz=p["hz"], amplitude=p["amplitude"], over_drift=d["over"], drift_needed=d["needed"],
-                   windows_passing=None, windows=None, **{k: v for k, v in read.items() if k not in ("over_drift", "drift_needed")})
-        if windows_too:
-            own = {m: use[m][s0:s1] for m in [b] + others}
-            W = windows(own, b, others, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone if s0 <= k < s1], top=top, scale=scale)
-            kw = sum(1 for w in W if w["passes"])
-            row.update(windows_passing=kw, windows=len(W))
-            wins[0] += kw
-            wins[1] += len(W)
-        out[b] = row
-        whole[0] += int(ok)
-        whole[1] += 1
-    return out, dict(whole=whole, windows=wins)
+    as long again as the object's did, and are run only with `windows_too`. One after another here; with `beside` (a
+    `progress.Beside`) each aperture beside the others, the same answers (`controls_started`, `controls_read`)."""
+    return controls_read(controls_started(beside or Beside(0), use, seg, bgs, ns, fps, lines, scale, top, gone, windows_too))
 
 
 def injected(use, seg, bgs, fps, lines, scale, top, amplitudes=INJECT_AMPL, n_hz=INJECT_N, seed=0):
@@ -3891,6 +3912,17 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     (the red only for a colour video; "<name> hot", the darkest pixels, in place of white on a black-hot display). `each`,
     where given, is each track's size and its ring's level on every frame (`curves(each=)`), written as "<name> size" and
     "<name> level"."""
+    with Beside() as beside:
+        return _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thumbs, nulls, encoding, lit, each, beside)
+
+
+def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thumbs, nulls, encoding, lit, each, beside):
+    """`judge`'s work. `beside` (a `progress.Beside`) does two things beside it, each the same function on the same
+    arguments as when it was done in line, so the same numbers: an object's windows along the track while its whole
+    track is read (`beats_pass`), and the background apertures judged as the object (`controls_started`) from the
+    moment the beats stand, while the look-alikes, the astronomer's tests and the steadiness are read. Measured
+    2026-11-13 on PR088's object 2 (3,559 frames, four apertures): the stage's judging was 106 of a run's 406 s, one
+    drawn null after another in this process, whatever the number of workers."""
     names, lo = fields["tracks"], ns[0]
     k0 = {name: (a - lo, b - lo + 1) for name, (a, b) in fields["spans"].items()}
     for name in names:                                     # outside its own span a track's position is its end's held: not measured
@@ -4056,6 +4088,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             if mine[n]:
                 F["floors"][n] = floor_n
             own = {m: use[m][s0:s1] for m in [n] + beside_n}
+            wins_job = beside.call(windows, own, n, beside_n, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
             d = drift(own[n], fps)
             per[n].update(over_drift=d["over"], drift_needed=d["needed"])
             per[n]["above_top"] = per[n]["hz"] > top
@@ -4065,7 +4098,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in beside_n], floor_n, None, level[n] if mine[n] else scale, d, bg_at=bg_at)
             per[n].update(read)
             whole_ok[n] = ok
-            wins = windows(own, n, beside_n, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
+            wins = wins_job.result()
             F["windows"][n] = wins
             passing = [w for w in wins if w["passes"]]
             best = max(passing, key=lambda w: w["stands"]) if passing else None
@@ -4112,6 +4145,8 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
     seg, use, gone, too_lost, spectra, per = st["seg"], st["use"], st["gone"], st["too_lost"], st["spectra"], st["per"]
     obj, bgs, scale, floor, whole_ok, strong, res = st["obj"], st["bgs"], st["scale"], st["floor"], st["whole_ok"], st["strong"], st["res"]
     mine = st["mine"]
+    # the background apertures judged as the object, begun now and read where they are written into the fields below
+    ctrl_job = controls_started(beside, use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
     # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
     try:                                                   # the clip's own sound, where it has any (`mcdonald audio`)
         from .audio import heard
@@ -4236,7 +4271,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
         gated_s = [n for n in strong if not passes_seis(seis[n])]
         strong = [n for n in strong if n not in gated_s]
         fields["strong"], fields["gated_seis"] = strong, gated_s
-    ctrl, far = controls_judged(use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
+    ctrl, far = controls_read(ctrl_job)
     fields["controls"], fields["false_alarm"] = ctrl, far
     if nulls:
         fields["injection"] = injected(use, seg, bgs, fps, lines, scale, top)

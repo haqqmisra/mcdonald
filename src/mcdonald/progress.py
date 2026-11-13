@@ -417,6 +417,51 @@ class Ahead:
         return False
 
 
+BESIDE = 8          # the most threads that work beside a stage's own: its side jobs are few (a control aperture each)
+
+
+class Beside:
+    """A stage's own side jobs, done beside its main work in threads of this process: `call(fn, ...)` starts one and
+    gives back what will hold its answer, `.result()` waits for it (and raises what it raised).
+
+    For arithmetic that is one job's worth of NumPy or SciPy on a whole track or a whole frame -- a drawn null of
+    thousands of spectra, a frame's filters -- where the libraries let the interpreter go while they work, so two such
+    jobs take the time of one (measured 2026-11-13: SciPy's filters, a median and NumPy's larger loops run 3.3 to 4.7
+    times sooner on 8 threads of 4 cores). Not a pool: nothing is pickled or sent, no process starts, and each job is
+    the same function on the same arguments as it would have been in line, so its numbers are the same to the bit.
+    Each job runs in a copy of the caller's context (a measurement's own settings: `flicker`'s rule). With `threads`
+    0, or where this process has one CPU, a job is done there and then, in line. As many threads as `cpus()` allows,
+    to BESIDE."""
+
+    def __init__(self, threads=None):
+        from concurrent.futures import ThreadPoolExecutor
+        n = min(cpus(), BESIDE) if threads is None else int(threads)
+        self.pool = ThreadPoolExecutor(n, thread_name_prefix="mcdonald-beside") if n > 1 else None
+
+    def call(self, fn, *args, **kw):
+        import contextvars
+        from concurrent.futures import Future
+        if self.pool is not None:
+            return self.pool.submit(contextvars.copy_context().run, fn, *args, **kw)
+        f = Future()
+        try:
+            f.set_result(fn(*args, **kw))
+        except Exception as e:                        # kept for `.result()`, as a thread's would be
+            f.set_exception(e)
+        return f
+
+    def close(self):
+        if self.pool is not None:
+            self.pool.shutdown(wait=False, cancel_futures=True)
+            self.pool = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
 def counted(items, progress=None, stop=None, what=""):
     """A plain loop's items, with the same two courtesies."""
     items = list(items)
