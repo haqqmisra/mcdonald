@@ -17,6 +17,9 @@ desktop it also puts mcdonald in the applications menu (Jacob, 2026-09-25: setup
 Help item), unless `--no-desktop`; `--offline` leaves out the download check and the version's;
 `--json` prints the checks as one object.
 Exit 0 when what the command line needs is there (ffmpeg, Python), 3 when it is not.
+
+`mcdonald setup --install-gpu` does one thing instead, and none of the above: it installs the add-on
+for an NVIDIA graphics card (`mcdonald.addon`), as the window's Preferences does with a button.
 """
 import argparse
 import json
@@ -127,13 +130,65 @@ def _graphics_card():
     cards = gpu.found()
     ours = gpu.usable(cards)
     if ours and not gpu.installed():
-        return None, f"{ours[0]['name']}, not used: CuPy is not installed", 'to use it: pip install "mcdonald[gpu]"'
+        from . import addon, update
+        o = addon.offer(cards)
+        found = f"{ours[0]['name']}, not used: the add-on for graphics cards (CuPy) is not installed"
+        if o["cannot"]:
+            return None, found, f"it cannot be installed from here. {o['cannot']}"
+        return None, found, f"to install it: mcdonald setup --install-gpu (by hand: {update.said(o['command'])})"
     if ours:
         return None, f"{ours[0]['name']}, not used: {gpu.why()}", ""
     if cards:
         return None, (f"{', '.join(c['name'] for c in cards)}: not one mcdonald can compute on "
                       "(it uses NVIDIA cards, through CUDA)"), "nothing to do: every step runs on the CPU"
     return None, "none found", "nothing to do: every step runs on the CPU"
+
+
+def install_gpu(as_json=False):
+    """`mcdonald setup --install-gpu`: the add-on for graphics cards, installed (`addon.install`) and tried
+    (`addon.use_now`), for an agent or a person at a terminal; the window's Preferences does the same with a button.
+    What pip prints goes to stderr. Exit 0 when the card computes, or CuPy was here already; 3 when there is nothing
+    to install it for, or it could not be installed, or the card does not answer."""
+    from . import addon, gpu, update
+    say = lambda *a: print(*a, file=sys.stderr, flush=True)
+
+    def end(ok, **more):
+        if as_json:
+            print(json.dumps(dict(command="setup", mcdonald=__version__, install_gpu=dict(ok=ok, **more)), indent=1))
+        return 0 if ok else EXIT_MISSING
+    say(f"mcdonald {__version__}: the add-on for graphics cards\n")
+    if gpu.installed():
+        c, found = gpu.card(), _graphics_card()[1]
+        say(f"  already installed (CuPy). graphics card: {found}")
+        return end(True, installed=False, card=f"{c.name} ({c.library})" if c is not None else None, found=found)
+    cards = gpu.found()
+    o = addon.offer(cards)
+    if o is None:
+        why = (f"{', '.join(c['name'] for c in cards)}: not one mcdonald can compute on (it uses NVIDIA cards, through CUDA)"
+               if cards else "no graphics card was found")
+        say(f"  nothing to install it for: {why}. Every step runs on the CPU.")
+        return end(False, installed=False, why=why)
+    cuda = f"its driver runs CUDA {o['cuda'][0]}.{o['cuda'][1]}" if o["cuda"] else "its driver did not say which CUDA it runs"
+    say(f"  {o['card']}: {cuda}")
+    if o["cannot"]:
+        say(f"  not installed. {o['cannot']}")
+        return end(False, installed=False, card=o["card"], why=o["cannot"])
+    say(f"  installing {' '.join(o['requires'])}: CuPy with CUDA {addon.CUDA[o['extra']]}'s libraries, about "
+        f"{o['download_mb'] / 1000:.1f} GB to download and {o['disk_mb'] / 1000:.1f} GB on disk\n")
+    r = addon.install(o["extra"], said=lambda line: say(f"    {line}"))
+    if not r["ok"]:
+        say(f"\nmcdonald: the add-on was not installed. {r['why']}\n  by hand: {update.said(r['command'])}")
+        return end(False, installed=False, card=o["card"], why=r["why"], pip=r["pip"], command=r["command"])
+    card, why, again = addon.use_now()
+    took = f"{r['seconds'] / 60:.1f} min, {r['mb']:,.0f} MB downloaded"
+    if again:                                         # pip chose a folder this process was not reading: the next one does
+        say(f"\n  installed ({took}). `mcdonald setup` says, from its next run on, whether the card is in use")
+        return end(True, installed=True, card=None, seconds=round(r["seconds"], 1), mb=round(r["mb"], 1))
+    if card is None:
+        say(f"\n  installed ({took}), but the card is not in use: {why}")
+        return end(False, installed=True, card=None, why=why, seconds=round(r["seconds"], 1), mb=round(r["mb"], 1))
+    say(f"\n  installed ({took}). graphics card: {card}: the steps that can use it do")
+    return end(True, installed=True, card=card, seconds=round(r["seconds"], 1), mb=round(r["mb"], 1))
 
 
 def _newest():
@@ -176,7 +231,13 @@ def main(argv=None):
     ap.add_argument("--desktop", action="store_true", help=argparse.SUPPRESS)     # what 0.2.1-0.2.5 asked for: now what it does anyway
     ap.add_argument("--offline", action="store_true", help="leave out the download check, and asking whether a newer mcdonald is out")
     ap.add_argument("--json", action="store_true", help="the checks as one JSON object on stdout")
+    ap.add_argument("--install-gpu", action="store_true",
+                    help="install the add-on for an NVIDIA graphics card (CuPy, 1 to 2 GB from PyPI) into this Python, and "
+                         "nothing else of setup: the build for this computer's driver, with nothing already installed "
+                         "replaced. What the window's Preferences does with its Install button")
     args = ap.parse_args(argv)
+    if args.install_gpu:
+        return install_gpu(args.json)
 
     got = checks(args.offline)
     desktop = None

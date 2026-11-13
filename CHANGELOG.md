@@ -5,6 +5,36 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**The add-on for graphics cards, installed from the window** (IDEAS.md G5; built 2026-11-13). Where the computer has
+an NVIDIA card and CuPy is not installed, Preferences could only say which command to type in a terminal, which a
+person at the window has not got.
+
+- **Edit → Preferences… has a button, Install the add-on**, beside the graphics card's row, where a card waits for
+  it. The line under it says what it downloads: about 1.4 GB for CUDA 13's build and 1.8 GB for CUDA 12's, 1.9 and
+  2.8 GB once in place. pip runs behind a wait's card at the top of the right column, with a bar that counts the
+  megabytes and a Cancel. mcDonald stays open and usable meanwhile, and the card computes from the next step that
+  starts: the window is not opened again. When it is over the card says so, with a tick, and stays until it is
+  closed. Nothing pops up.
+- **`mcdonald setup --install-gpu`** does the same from a terminal, for an agent (`--json` for one object; exit 0
+  when the card computes, 3 when there is nothing to install it for or it failed). `mcdonald setup`'s "graphics card"
+  line names it, and the pip command for this computer's driver.
+- **Which build**: CUDA 13's where the card's driver runs CUDA 13 and every card here is one CUDA 13's libraries
+  still run (the GTX 1600 and RTX 2000 series on), else CUDA 12's. The driver is asked directly, with nothing
+  installed for it (`gpu.cuda`). The driver alone does not decide: NVIDIA's 580 drivers report CUDA 13 on a GTX 1080,
+  which CUDA 13's libraries dropped. A driver older than CUDA 12 is said before anything is downloaded.
+- **pip touches nothing that is installed** (`mcdonald.addon`). It is given CuPy's own requirement, never
+  `mcdonald[gpu]`, so a working copy (`pip install -e`) or a copy from GitHub stays what it is. It is also given a
+  constraints file that pins every installed package at its version, so it can add packages and replace none; that
+  is why the window can stay open, on Windows too, where a running program's files are locked. Wheels only, nothing
+  left in pip's cache, no questions asked.
+- **A failure is said on the page in plain words**: no network, no room on the disk (checked before the download),
+  no build for this Python, a package that would have to be replaced. Under it, what pip said and the command to
+  type by hand, which can be copied.
+- Tried for real on the workstation, in fresh venvs: CUDA 13's add-on in 22 s (1,353 MB), CUDA 12's in 34 s
+  (1,823 MB), each with the card computing in the process that installed it, and test_gpu's comparisons passing on
+  the card after. Not tried on Windows. Tests use a stand-in for pip: none installs anything or uses the network
+  (test_gpu, test_gui's `drive_the_add_on`).
+
 **No more than 32 worker processes unless asked** (the maintainer, 2026-11-13: "is there an optimal number of CPUs
 for mcDonald GUI to use? Right now the default is the system maximum"). Measured on the 96-thread workstation: whole
 `mcdonald run`s of PR149 (158 frames, 1080p), PR135's object 2 (270 frames, 720p) and PR088's object 2 (3,678

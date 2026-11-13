@@ -23,7 +23,7 @@ merlin's FirePro 2270 (TeraScale 2, on the old radeon driver) cannot compute at 
 llvmpipe, which is the CPU. No toolkit is imported to find the cards.
 
 **Computing on one.** The rules, each with its reason:
-- *Never required.* With no card, no CuPy (`pip install "mcdonald[gpu]"`), or a card that fails part-way, every stage
+- *Never required.* With no card, no CuPy (the add-on: `mcdonald.addon` installs it), or a card that fails part-way, every stage
   computes on the CPU as it always has. The CPU's arithmetic is the reference, and its code is not touched by any
   of this: the card's version of a routine stands beside it and is held to it (tests/test_gpu.py; the goldens run
   on both).
@@ -225,6 +225,61 @@ def vulkan():
         return None
     return [dict(vendor=g["vendor"], device=g["device"], name=g["name"]) for g in got
             if isinstance(g, dict) and g.get("kind") in GPU_KINDS]
+
+
+_CUDA = r"""
+import ctypes, json, sys
+lib = None
+for name in sys.argv[1:]:
+    try:
+        lib = ctypes.CDLL(name)
+        break
+    except OSError:
+        pass
+if lib is None:
+    print("null")
+    sys.exit()
+v, out = ctypes.c_int(0), {"driver": None, "cards": []}
+if lib.cuDriverGetVersion(ctypes.byref(v)) == 0:        # needs no cuInit: the newest CUDA this driver runs, 13050 for 13.5
+    out["driver"] = v.value
+if lib.cuInit(0) == 0:
+    n = ctypes.c_int(0)
+    lib.cuDeviceGetCount(ctypes.byref(n))
+    for i in range(n.value):
+        dev, major, minor = ctypes.c_int(0), ctypes.c_int(0), ctypes.c_int(0)
+        ok = [lib.cuDeviceGet(ctypes.byref(dev), i), lib.cuDeviceGetAttribute(ctypes.byref(major), 75, dev),
+              lib.cuDeviceGetAttribute(ctypes.byref(minor), 76, dev)]     # CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, _MINOR
+        if not any(ok):
+            out["cards"].append([major.value, minor.value])
+print(json.dumps(out))
+"""
+
+
+def cuda(ask=None):
+    """{"driver": (13, 5), "cards": [(12, 0)]}: the newest CUDA that NVIDIA's driver here runs, and each card's compute
+    capability (its generation as CUDA counts it: 6.1 a GTX 1080, 7.5 an RTX 2080, 12.0 an RTX 5070 Ti), read from the
+    driver's own library with nothing installed for it; "driver" is None where it did not say. None where CUDA's
+    library is not here or does not answer. It is what says which build of CuPy this computer takes (`addon.which`).
+    Asked in a Python of its own, as `vulkan` is: a driver that hangs or crashes takes only that with it, and no card
+    is opened in this process. `ask` stands in for the asking (a test's)."""
+    if ask is not None:
+        got = ask()
+    else:
+        names = ["nvcuda.dll"] if sys.platform == "win32" else ["libcuda.so.1", "libcuda.so"]
+        try:
+            r = subprocess.run([sys.executable, "-I", "-c", _CUDA, *names], capture_output=True, encoding="utf-8",
+                               errors="replace", timeout=30, creationflags=NO_WINDOW)
+            got = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 and r.stdout.strip() else None
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+            return None
+    if not isinstance(got, dict):
+        return None
+    v = got.get("driver")
+    try:
+        return dict(driver=(int(v) // 1000, int(v) % 1000 // 10) if v else None,
+                    cards=[(int(a), int(b)) for a, b in got.get("cards") or ()])
+    except (TypeError, ValueError):
+        return None
 
 
 def pci_names(vendor, device, ids=PCI_IDS):
@@ -588,7 +643,7 @@ def _open():
     if not given():
         return None, "this batch job was not given a graphics card (for Slurm: --gres=gpu:1)"
     if not installed():
-        return None, 'CuPy is not installed (pip install "mcdonald[gpu]")'
+        return None, "CuPy is not installed (`mcdonald setup --install-gpu` installs it)"
     return _the_thread().run(_open_cupy, choice)          # CuPy is loaded and asked in the thread that will use it
 
 

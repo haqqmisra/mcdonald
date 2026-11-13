@@ -569,6 +569,14 @@ What it checks:
   or number. Inside a Slurm job a card is used only if the job was given one. A pool's worker never computes on the
   card. `mcdonald setup` says which card computes. `found`'s cards say which mcdonald can use (an NVIDIA card with
   CUDA's library), which is what Preferences offers.
+- **The add-on, installed for the person** (`mcdonald.addon`, 2026-11-13; Preferences' button and `mcdonald setup
+  --install-gpu`). Which build a computer takes, from what its driver says: CUDA 13's only where the driver runs
+  CUDA 13 and every card is one its libraries still run. pip is given CuPy's own requirement and a constraints file
+  that pins what is installed: no upgrade, nothing of mcdonald's. Its progress is counted in megabytes; no network, a
+  package that would have to be replaced and a full disk are each said in a plain sentence; a stop while it downloads
+  ends pip. The process that installed it finds the package without starting again. pip is stood in for
+  (`pip_stand_in`): no check installs anything or uses the network. test_gui's `drive_the_add_on` holds the window's
+  side with the same stand-in.
 - **The band-pass** on the card is the CPU's to the last bit: it does SciPy's own arithmetic there.
 - **The shift field**, every template of a pair in one batch: the same templates keep their rows as on the CPU; each
   shift is within 0.01 px and a hundredth of the template's own error; a pair's agreed shift is within 0.001 px. On

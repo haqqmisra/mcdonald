@@ -1196,11 +1196,13 @@ class BusyCard(QtWidgets.QFrame):
     right column, not in the middle"). It was a QProgressDialog, and is shaped like one, so that the loop
     that drives it is unchanged: `setValue`, `value`, `maximum`, `wasCanceled`, `cancel`. Shown alone, with
     no window, it is a small window of its own. `command` is the command that does the same from a terminal,
-    named beside the bar (`Command`)."""
+    named beside the bar (`Command`). `stays` marks a wait that is no part of opening a video (the add-on for graphics
+    cards being installed): the home page goes on inviting a video, the cards of an opening come and go without it
+    (`QtMarker.end_waits`, `Opening.cancel`), and when it is over it has a Close, since nothing else takes it away."""
 
-    def __init__(self, window, title, text, total, fmt=None, command=None):
+    def __init__(self, window, title, text, total, fmt=None, command=None, stays=False):
         super().__init__()
-        self.window_, self.title_, self._cancelled = window, title, False
+        self.window_, self.title_, self._cancelled, self.stays = window, title, False, stays
         self.setObjectName("busy")
         self.setStyleSheet(f"QFrame#busy {{ border: 1px solid {ACCENT}; border-radius: 8px; background: #16262a; }}")
         # only as tall as what it holds: alone in the column, while a video opens, it was the column's whole height
@@ -1264,8 +1266,26 @@ class BusyCard(QtWidgets.QFrame):
         self.command.say(None)
         self.cancel_button.hide()
         self.setStyleSheet("QFrame#busy { border: 1px solid #34343a; border-radius: 8px; background: transparent; }")
-        if self.window_ is not None:
+        if self.stays:
+            self._closes()
+        elif self.window_ is not None:
             self.window_.home.busy(False)
+
+    def stopped(self, title, text):
+        """Over, and not done (the add-on could not be installed): quiet as a finished card is, with no tick, and what
+        went wrong in its line. For a card that `stays`: it has a Close."""
+        self.finish(title, text)
+        self.head.setText(title)
+
+    def _closes(self):
+        """Cancel becomes Close: the wait is over, and the person puts its card away."""
+        b = self.cancel_button
+        b.clicked.disconnect()
+        b.clicked.connect(self.close)
+        b.setText("Close")
+        b.setToolTip("put this away")
+        b.setEnabled(True)
+        b.show()
 
     def closeEvent(self, e):
         super().closeEvent(e)
@@ -1274,7 +1294,8 @@ class BusyCard(QtWidgets.QFrame):
             w.busy_slot.removeWidget(self)
             self.setParent(None)
             w.say_column()
-            w.home.busy(False)
+            if not self.stays:
+                w.home.busy(False)
 
 
 class Overview(Page):
@@ -1678,7 +1699,7 @@ class QtMarker(QtWidgets.QMainWindow):
     link_progress = QtCore.Signal(int, object)                # a class and its autolink.Link, from the linking thread
     link_finished = QtCore.Signal()                           # every class has been linked, or it was stopped
     strip_ready = QtCore.Signal(object)                       # [(class, the track strip's path, its frames)]
-    devices_found = QtCore.Signal(object, object)             # the sound outputs and the graphics cards, from the thread that looks
+    devices_found = QtCore.Signal(object, object, object)     # the sound outputs, the graphics cards and the add-on to offer, from the thread that looks
     sound_tried = QtCore.Signal(str, object)                  # an output ("" the system default), and whether the test tone played
 
     def __init__(self, clip=None, ms=None, out_prefix=None, cases=None, workdir=None):
@@ -1721,6 +1742,10 @@ class QtMarker(QtWidgets.QMainWindow):
         # Preferences' sound outputs and graphics cards, looked for in a thread each time the page opens
         self._outputs = self._cards = None
         self._trying = False                          # a test tone playing
+        self._offer = None                            # the add-on for graphics cards, where there is one to install (`addon.offer`)
+        self._addon = None                            # ... being installed now (`AddOn`)
+        self._addon_said = ""                         # ... and how the last try ended, where that is not "in use": Preferences' line
+        self._addon_here = False                      # ... installed since the window opened: not offered again
         self.devices_found.connect(self._devices_found)
         self.sound_tried.connect(self._sound_tried)
         self._reset()
@@ -2296,9 +2321,10 @@ class QtMarker(QtWidgets.QMainWindow):
         QtWidgets.QApplication.processEvents(QtCore.QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
 
     def end_waits(self):
-        """Every wait's card in the right column goes, the done ones with the last: what they waited for is over."""
+        """Every wait's card in the right column goes, the done ones with the last: what they waited for is over.
+        One that is no part of an opening stays (`BusyCard.stays`: the add-on being installed)."""
         for card in [self.busy_slot.itemAt(i).widget() for i in range(self.busy_slot.count())]:
-            if card is not None:
+            if card is not None and not getattr(card, "stays", False):
                 card.close()
 
     def back_text(self):
@@ -3719,7 +3745,8 @@ class QtMarker(QtWidgets.QMainWindow):
         - the graphics card (GPU) (the same day: "greyed out if no GPU is available; we will add actual GPU features
           later", and "only show devices with real GPU features"): the cards found that mcdonald can compute on
           (`gpu.found`, `gpu.usable`), remembered (`use_remembered_gpu`) and, since 2026-11-12, used: the steps with a
-          card version of their arithmetic run on it (`gpu.card`) from the next one that starts.
+          card version of their arithmetic run on it (`gpu.card`) from the next one that starts. Where a card waits
+          for CuPy, the row has a button that installs it (2026-11-13: `install_addon`, `AddOn`).
         The outputs and the cards are looked for in a thread each time the page opens, and filled in when found."""
         if getattr(self, "prefs_page", None) is not None:
             self.prefs_page.close()
@@ -3802,10 +3829,19 @@ class QtMarker(QtWidgets.QMainWindow):
         box.setToolTip("the graphics card the slow steps run on; they give the same measurement on the CPU")
         box.activated.connect(self.choose_gpu)
         row.addWidget(box)
+        d.gpu_install = QtWidgets.QPushButton("Install the add-on")      # there only where a card waits for it (`_say_gpu`)
+        d.gpu_install.setAutoDefault(False)
+        d.gpu_install.setStyleSheet(SECONDARY)        # a job still to do, beside the main one: teal, quietly
+        d.gpu_install.setToolTip("download the add-on for this graphics card and put it in place; nothing already on "
+                                 "this computer is replaced")
+        d.gpu_install.clicked.connect(lambda _=False: self.install_addon())
+        d.gpu_install.hide()
+        row.addWidget(d.gpu_install)
         row.addStretch(1)
         d.body.addLayout(row)
         d.gpu_said = muted()
         d.gpu_said.setMaximumWidth(760)
+        d.gpu_said.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)     # a command in it can be copied
         d.body.addWidget(d.gpu_said)
         d.body.addStretch(1)
         self._say_sound(d)
@@ -3817,18 +3853,23 @@ class QtMarker(QtWidgets.QMainWindow):
         """The sound outputs and the graphics cards, looked for in a thread (system_profiler, PowerShell and SDL's own
         list take a moment): each time Preferences opens, so that headphones plugged in since are in the list."""
         def job(say=self.devices_found):
-            from . import gpu, speaker
+            from . import addon, gpu, speaker
             outputs, cards = speaker.outputs(), gpu.found()
             try:
-                say.emit(outputs, cards)
+                offer = addon.offer(cards)            # asks the card's driver which add-on it takes, where one is missing
+            except Exception:                         # a driver that answers in a way not foreseen: nothing is offered
+                offer = None
+            try:
+                say.emit(outputs, cards, offer)
             except RuntimeError:                       # the window went meanwhile
                 pass
         threading.Thread(target=job, daemon=True, name="mcdonald-devices").start()
 
-    @QtCore.Slot(object, object)
-    def _devices_found(self, outputs, cards):
+    @QtCore.Slot(object, object, object)
+    def _devices_found(self, outputs, cards, offer):
         from . import speaker
         self._outputs, self._cards = list(outputs), list(cards)
+        self._offer = None if self._addon_here else offer
         if sound_device() in self._outputs:
             speaker.refused.discard(sound_device())   # there again: played to again
         d = getattr(self, "prefs_page", None)
@@ -3904,8 +3945,13 @@ class QtMarker(QtWidgets.QMainWindow):
         those mcdonald can compute on are offered (Jacob, 2026-10-19: "only show devices with real GPU features",
         `gpu.usable`: since 2026-11-12 an NVIDIA card with CUDA), and the row is greyed out when there is none, naming
         the cards that are not it and saying why. It is greyed out too where the card is there and CuPy is not
-        (`gpu.installed`: the line says how to install it), and where MCDONALD_GPU was set before the window opened.
-        Before anything is chosen, the first card is the choice."""
+        (`gpu.installed`), and where MCDONALD_GPU was set before the window opened. Before anything is chosen, the
+        first card is the choice.
+
+        Where the card is there and CuPy is not, the row has a button, Install the add-on (`install_addon`, IDEAS.md
+        G5: a person at the window has no terminal to type pip's command in), and the line says what it downloads; or
+        why it cannot be installed from here (`addon.offer`'s "cannot"). While it installs, the line points at the
+        wait's card; after a try that did not end with the card in use, it says how the try ended (`_addon_said`)."""
         from . import gpu
         box, cards, chosen = d.gpu, self._cards, gpu_setting()
         offered = gpu.usable(cards or [])
@@ -3925,13 +3971,21 @@ class QtMarker(QtWidgets.QMainWindow):
             box.setCurrentIndex(max(0, box.findData(chosen)) if chosen else 0)
         box.blockSignals(False)
         box.setEnabled(bool(offered) and ready and not fixed)
+        o, busy, last = self._offer, self._addon is not None, self._addon_said
+        can = bool(offered) and not ready and not fixed and o is not None and not o["cannot"]
+        d.gpu_install.setVisible(can or busy)
+        d.gpu_install.setEnabled(can and not busy)
         why = ("is not one mcDonald can compute on yet (it uses NVIDIA cards)" if computing else "cannot be used for computing",
                "are not ones mcDonald can compute on yet (it uses NVIDIA cards)" if computing else "cannot be used for computing")
         d.gpu_said.setText(
             "Looking for graphics cards…" if cards is None else
             f"This was set to {fixed} before the window opened ({gpu.GPU_VAR}), and cannot be changed here." if offered and fixed else
+            GPU_INSTALLING.format(card=offered[0]["name"]) if offered and busy else
+            last if offered and last else
             GPU_USED if offered and ready else
-            GPU_INSTALL.format(card=offered[0]["name"]) if offered else
+            GPU_CANNOT.format(card=offered[0]["name"], why=o["cannot"]) if offered and o is not None and o["cannot"] else
+            GPU_INSTALL.format(card=offered[0]["name"], gb=o["download_mb"] / 1000, disk=o["disk_mb"] / 1000) if can else
+            GPU_BY_HAND.format(card=offered[0]["name"]) if offered else
             f"The graphics card here, {others[0]}, {why[0]}, so there is none to choose." if len(others) == 1 else
             f"The graphics cards here ({', '.join(others)}) {why[1]}, so there is none to choose." if others else
             "No graphics card (GPU) was found on this computer.")
@@ -3940,6 +3994,22 @@ class QtMarker(QtWidgets.QMainWindow):
         d = getattr(self, "prefs_page", None)
         if d is not None:
             choose_gpu(d.gpu.itemData(i) or "")
+            if self._addon_said:                      # "Choose the card in Preferences to use it": chosen
+                self._addon_said = ""
+                self._say_gpu(d)
+
+    def install_addon(self):
+        """Preferences' Install the add-on: pip in a thread, behind a wait's card at the top of the right column
+        (`AddOn`). The window stays open and usable; the card is used from the next step that starts."""
+        o = self._offer
+        if self._addon is not None or not o or o["cannot"]:
+            return
+        self._addon_said = ""
+        self._addon = AddOn(self, o)
+        self._addon.start()
+        d = getattr(self, "prefs_page", None)
+        if d is not None:
+            self._say_gpu(d)
 
     def _frame_typed(self, n):
         self.goto(n)
@@ -4004,6 +4074,8 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         if self.clip is not None:
             self._stop_all()
+        if self._addon is not None:
+            self._addon.leave()
         s = settings()                                # where and how large, and the panel: as they are now, next time
         s.setValue("window/geometry", self.saveGeometry())
         s.setValue("window/state", self.saveState())
@@ -4057,7 +4129,8 @@ def show_busy(parent, box):
         parent.busy_slot.addWidget(box)
         box.show()
         parent.say_column()
-        parent.home.busy(True, box.title_)
+        if not box.stays:
+            parent.home.busy(True, box.title_)
     else:
         box.show()
     application().processEvents()
@@ -4205,8 +4278,25 @@ GPU_FROM_OUTSIDE = "_MCDONALD_GPU_FROM_OUTSIDE"     # said by `use_remembered_gp
 GPU_USED = ("The steps that compare one frame with another run on this card, and finish many times sooner. "
             "They give the same measurement as on the CPU. A step already under way keeps what it has; the next one uses this.")
 GPU_INSTALL = ("{card} can do the slow steps many times sooner, once the add-on for graphics cards is installed. "
-               "In a terminal, type: pip install \"mcdonald[gpu]\" and open mcDonald again. "
+               "Press Install the add-on to download it: about {gb:.1f} GB, and {disk:.1f} GB once it is in place. "
+               "That takes a few minutes, or longer on a slow connection. "
+               "mcDonald stays open meanwhile, and uses the card from the next step on. "
                "Until then every step runs on the CPU, with the same measurement.")
+GPU_INSTALLING = ("The add-on for {card} is being installed. The bar on the right says how far it has got. "
+                  "mcDonald can be used meanwhile.")
+GPU_CANNOT = ("{card} can do the slow steps many times sooner with the add-on for graphics cards, but mcDonald cannot "
+              "install it here. {why} Until then every step runs on the CPU, with the same measurement.")
+# ... and where there is a card, no add-on, and nothing known of what to install (the card's driver was not asked)
+GPU_BY_HAND = ("{card} can do the slow steps many times sooner, once the add-on for graphics cards is installed. "
+               "In a terminal, type: mcdonald setup --install-gpu and open mcDonald again. "
+               "Until then every step runs on the CPU, with the same measurement.")
+ADDON_TITLE = "Installing the add-on for graphics cards"
+ADDON_WORDS = {"looking": "Downloading the add-on for {card}: about {gb:.1f} GB, once. mcDonald can be used meanwhile.",
+               "downloading": "Downloading the add-on for {card}: about {gb:.1f} GB, once. mcDonald can be used meanwhile.",
+               "installing": "The download is done. Putting the add-on in place takes a minute or two more.",
+               "trying": "The add-on is in place. Starting {card} for the first time takes some seconds."}
+ADDON_FAILED = ("The add-on was not installed. {why}\n\nWhat pip, the program that installs it, said:\n{pip}\n\n"
+                "To install it by hand, close mcDonald and type in a terminal:\n{command}")
 
 
 def gpu_setting():
@@ -4234,6 +4324,111 @@ def choose_gpu(name):
     settings().setValue("gpu", name or "")
     if not os.environ.get(GPU_FROM_OUTSIDE, ""):
         gpu.choose(name)
+
+
+class AddOn(QtCore.QObject):
+    """The add-on for graphics cards being installed (`addon.install`), from Preferences' button to the card's first
+    answer (`addon.use_now`): pip in a thread, behind a wait's card at the top of the right column that counts the
+    download, with the oval of the command that does the same (`mcdonald setup --install-gpu`). The window stays open
+    and usable, because the add-on replaces nothing mcDonald has loaded (`addon`'s rules). Cancel stops the download;
+    once pip is putting the add-on in place it is left to finish, since half of it is worse than none. When it is
+    over the card says how it went and stays, quiet, until it is closed (`BusyCard.stays`), and Preferences' row says
+    the same. Nothing pops up."""
+    ended = QtCore.Signal(object, object)             # addon.install's result, and addon.use_now's answer where it installed
+
+    def __init__(self, window, offer):
+        super().__init__()
+        self.window_, self.offer, self.stop, self.thread = window, offer, threading.Event(), None
+        self.shared = {}                              # "state": addon.install's last, written by its thread and read by `_tick`
+        self.words = dict(card=offer["card"], gb=offer["download_mb"] / 1000)
+        self.card = BusyCard(window, ADDON_TITLE, ADDON_WORDS["looking"].format(**self.words), int(offer["download_mb"]),
+                             fmt="%v of %m MB", command="setup", stays=True)
+        self.card.command.setToolTip("what the window is doing now is what “mcdonald setup --install-gpu” does, typed in a terminal")
+        self.card.cancel_button.setToolTip("stop the download, and install nothing")
+        self.card.cancel_button.clicked.connect(self.drop)
+        self.ended.connect(self._ended)
+        self.timer = QtCore.QTimer(self)              # the bar is told ten times a second, however often pip counts
+        self.timer.setInterval(100)
+        self.timer.timeout.connect(self._tick)
+
+    def start(self):
+        show_busy(self.window_, self.card)
+        extra, by_hand, stop, ended, shared = self.offer["extra"], self.offer["command"], self.stop, self.ended, self.shared
+
+        def job():
+            from . import addon
+            try:
+                r = addon.install(extra, progress=lambda state: shared.update(state=state), stop=stop)
+                now = None
+                if r["ok"]:
+                    shared.update(state=dict(phase="trying"))
+                    now = addon.use_now()
+            except BaseException as e:                # whatever it is goes to the window, not to a dead thread
+                r, now = dict(ok=False, stopped=False, why="mcDonald could not run pip.", pip=[f"{type(e).__name__}: {e}"],
+                              command=by_hand), None
+            try:
+                ended.emit(r, now)
+            except RuntimeError:                       # the window went meanwhile
+                pass
+        self.thread = threading.Thread(target=job, daemon=True, name="mcdonald-addon")
+        self.thread.start()
+        self.timer.start()
+
+    def drop(self):
+        """Cancel: pip is stopped if it is still downloading, and the card goes when it has ended."""
+        self.stop.set()
+        self.card.label.setText("Stopping the download…")
+
+    def leave(self):
+        """The window is closing: a download is stopped with it; an add-on being put in place is left to finish."""
+        self.stop.set()
+        if self.thread is not None:
+            self.thread.join(2)
+
+    def _tick(self):
+        card, state = self.card, self.shared.get("state")
+        if state is None or (card.wasCanceled() and state["phase"] != "installing"):
+            return
+        phase = state["phase"]
+        card.label.setText(ADDON_WORDS[phase].format(**self.words))
+        if phase in ("installing", "trying"):
+            card.bar.setRange(0, 0)                   # no count now: the bar moves to say it is working
+            card.cancel_button.setEnabled(False)
+            card.cancel_button.setToolTip("the add-on is being put in place, and that is not stopped half-way")
+        else:
+            card.bar.setRange(0, max(1, round(state["of"])))
+            card.bar.setValue(round(state["mb"]))
+
+    @QtCore.Slot(object, object)
+    def _ended(self, r, now):
+        w, card, name = self.window_, self.card, self.offer["card"]
+        self.timer.stop()
+        if self.thread is not None:                   # it holds this object's signal: it ends before the window lets go of
+            self.thread.join(5)                       # this object, which then goes in the window's thread, not in its
+        w._addon = None
+        if r["stopped"]:
+            card.close()
+        elif not r["ok"]:
+            from . import update
+            w._addon_said = ADDON_FAILED.format(why=r["why"], pip="\n".join(line[:300] for line in r["pip"][-4:]) or "nothing",
+                                                command=update.said(r["command"]))
+            card.stopped("The add-on was not installed",
+                         f"{r['why']} Preferences has what pip said, and the command to type by hand.")
+        else:
+            from . import gpu
+            in_use, why, again = now
+            w._addon_here, w._offer = True, None
+            rest = ("" if in_use else
+                    f"Close mcDonald and open it again to use {name}." if again else
+                    f"Choose {name} in Preferences to use it." if gpu.asked() == gpu.NONE else
+                    f"{name} is not in use yet: {why}.")
+            w._addon_said = f"The add-on is installed. {rest}" if rest else ""
+            card.finish("The add-on is installed",
+                        rest or f"{name} does the slow steps from the next step on, with the same measurement.")
+        self.thread = None
+        d = getattr(w, "prefs_page", None)
+        if d is not None:
+            w._say_gpu(d)
 
 
 def choose_storage(parent=None):
@@ -5212,7 +5407,7 @@ class Opening:
             w.chooser.reject()
         for i in range(w.busy_slot.count()):
             card = w.busy_slot.itemAt(i).widget()
-            if isinstance(card, BusyCard) and not card.done:
+            if isinstance(card, BusyCard) and not card.done and not card.stays:
                 card.cancel()
 
 

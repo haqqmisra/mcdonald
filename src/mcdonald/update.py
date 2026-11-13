@@ -47,7 +47,9 @@ def command(python=None, source=None):
 
 
 def said(cmd):
-    return " ".join(f'"{a}"' if " " in a else a for a in cmd)
+    """A command as a person types it: in quotes what a shell would otherwise read as its own (a space, and the
+    brackets and the > of "cupy-cuda12x[ctk]>=14")."""
+    return " ".join(f'"{a}"' if re.search(r"[\s\[\]<>|&;*?()$]", a) else a for a in cmd)
 
 
 def installed_from():
