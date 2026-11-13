@@ -51,7 +51,7 @@ SPEED_WORD = {"m/s": "meters a second", "mps": "meters a second", "kt": "knots",
               "kmh": "kilometers an hour"}
 # the names this form asks for, of stages.AFTER and LATER; the rest (the camera's angle marks, the range ratio, the
 # object's length on the screen, a dark reference for the haze) are the Measure form's, in the trade's terms
-ASKED = ("fov", "lens_k1", "range_m", "range_max_m", "ref_m", "ref_px", "ground_speed", "own_ship", "height", "horizon", "visibility", "band")
+ASKED = ("fov", "lens_k1", "lens_k2", "range_m", "range_max_m", "ref_m", "ref_px", "ground_speed", "own_ship", "height", "horizon", "visibility", "band")
 
 
 def remembered(clip_or_video):
@@ -97,7 +97,10 @@ def describe(known):
     if known.get("graticule") is not None:
         said.append(f"its angle marks are {number(known['graticule'])} pixels a degree apart")
     if known.get("lens_k1"):
-        said.append(f"a lens that bends straight lines by {number(known['lens_k1'])}")
+        said.append(f"a lens that bends straight lines by {number(known['lens_k1'])}"
+                    + (f", with a second term of {number(known['lens_k2'])}" if known.get("lens_k2") else ""))
+    elif known.get("lens_k2"):
+        said.append(f"a lens whose second bending term is {number(known['lens_k2'])}")
     if known.get("range_m") is not None:
         u = unit("range", UNITS["range"])
         said.append(f"a distance to the object of {number(known['range_m'] / LENGTHS.get(u, 1.0))} {u if u in LENGTHS else 'meters'}")
@@ -149,6 +152,9 @@ class KnownForm(QtWidgets.QWidget):
                        "it: its k1, counted as calibration tools count it, in the lens's focal length. Below 0 for a wide lens, "
                        "which bows lines outward, such as -0.43. It needs the horizontal field of view. The path is then drawn "
                        "back through the lens before it is tested for a straight line at a steady speed",
+            "lens_k2": "the lens's second bending term, if a calibration of the camera gives one: its k2, counted as k1 is. "
+                       "Wide lenses often have one of the other sign from k1, such as k1 -0.55 with k2 +0.73. Without it, a "
+                       "rate near the picture's edge can read about an eighth too high. It needs the horizontal field of view",
             "range_m": "the distance from the camera to the object, if a source gives it. With the horizontal field of view, "
                        "the report gives the object's speed and its size",
             "range_max_m": "the farthest the object can be, if you know a limit and not its distance: the ground behind it, "
@@ -177,6 +183,7 @@ class KnownForm(QtWidgets.QWidget):
         self.edits, self.units = {}, {}
         self.narrow = narrow                          # in the right column: each question over its box, not beside it
         for name, unit, key, default in (("fov", "degrees", None, None), ("lens_k1", "(k1, from a calibration)", None, None),
+                                         ("lens_k2", "(k2, from a calibration)", None, None),
                                          ("range_m", LENGTHS, "range", UNITS["range"]),
                                          ("range_max_m", LENGTHS, "range_max", UNITS["range_max"]),
                                          ("ref_m", {k: LENGTHS[k] for k in ("feet", "meters")}, "ref", UNITS["ref"]),
@@ -237,7 +244,7 @@ class KnownForm(QtWidgets.QWidget):
         edit.setFixedWidth(84)
         if name not in ("ground_speed", "own_ship"):  # a speed may be typed with its unit, as `run` takes it
             v = QtGui.QDoubleValidator(self)
-            if name != "lens_k1":                     # a wide lens's is below 0
+            if name not in ("lens_k1", "lens_k2"):    # a wide lens's k1 is below 0; its k2 may be either
                 v.setBottom(0.0)
             v.setLocale(QtCore.QLocale.c())           # a point is a point: what the command line reads
             edit.setValidator(v)
@@ -279,7 +286,7 @@ class KnownForm(QtWidgets.QWidget):
         e = self.edits
         for parts in (("The camera sees", e["fov"], "from left to right.", 28, "The object is", e["range_m"], "away."),
                       ("Or, if you know only a limit: nothing beyond", e["range_max_m"]),
-                      ("The lens bends straight lines by", e["lens_k1"]),
+                      ("The lens bends straight lines by", e["lens_k1"], "with a second term of", e["lens_k2"]),
                       ("Something in the picture is", e["ref_m"], "long, and", e["ref_px"], "on the screen.", self.ruler),
                       ("A report gave the object's speed as", e["ground_speed"], 28, "and the aircraft's as", e["own_ship"])):
             lay.addLayout(self._row(*parts))
@@ -288,6 +295,7 @@ class KnownForm(QtWidgets.QWidget):
         """In the right column, narrow: each question over its box."""
         e = self.edits
         for text, name in (("Horizontal field of view (FOV)", "fov"), ("How much the lens bends straight lines", "lens_k1"),
+                           ("and its second bending term, if given", "lens_k2"),
                            ("Distance to the object", "range_m"),
                            ("Or, if you know only a limit: nothing beyond", "range_max_m"),
                            ("Physical length of a reference in the picture", "ref_m"),
@@ -416,7 +424,7 @@ class KnownForm(QtWidgets.QWidget):
                 v = float(text)
             except ValueError:
                 raise ValueError(f"“{text}” is not a number.") from None
-            if name == "lens_k1":
+            if name in ("lens_k1", "lens_k2"):
                 out[name] = v or None                 # 0 is no bend at all: a pinhole, as if it were not given
                 continue
             if v <= 0:
@@ -429,7 +437,7 @@ class KnownForm(QtWidgets.QWidget):
         if (out["ref_m"] is None) != (out["ref_px"] is None):
             raise ValueError("For a reference in the picture, give both: its physical length, and its length in pixels on the "
                              "screen.")
-        if out["lens_k1"] is not None and out["fov"] is None:
+        if (out["lens_k1"] is not None or out["lens_k2"] is not None) and out["fov"] is None:
             raise ValueError("How much the lens bends is counted in its focal length: give the horizontal field of view too.")
         out["horizon"] = self.horizon
         out["band"] = CAMERAS[self.camera.currentText()]

@@ -1109,6 +1109,19 @@ beat that does not come back now stands only where it is a line against the cont
 over 8). Otherwise it is no beat of its own, the finding says why, and the light route to tau is open again
 (`flicker.once_held`, `fields["unheld"]`). A beat that comes back is not asked: section 7's and 8's gates stay off.
 
+**Windows apart, against chance (added 2026-11-13; IDEAS.md N3).** Two passing windows apart were the rule's second
+road, and on a long track chance takes it. A track of a minute holds about 30 windows that do not overlap, each passing
+the drift test's line 4-9 times in 100 on real empty apertures (§39). So two or three of them pass by chance alone. On the
+Galileo Project's clouds and aircraft (the uap repository's `galileo/nevada/README.md`), 14 of the 16 beats T3 failed
+came back this way, in as many windows as chance gives: 2 of 50, 2 of 41, 5 of 32. A beat now comes back by windows
+apart only where that many passing is rarer than 1 in 100 by chance (`CHANCE_P`). The chance is binomial: `k` windows
+apart of the `n` its track holds without overlap (`independent_windows`), each at the drift test's measured false rate
+for its frequency (`drift_rate`, from `DRIFT_RATE`). That rate is generous to chance, since a window must pass more than
+the drift test, and chance's windows would also have to agree in frequency. A real beat that returns along its track is
+far beyond it: 12 of 40 windows give 1.9 in 10,000. Each beat records `windows_independent` and `windows_chance_p`, and
+the finding says when windows apart were no more than chance. A whole track that beats is not asked. A beat that fails
+this falls to the one-stretch rule above.
+
 The rate is stated and then held to a null. Drawn with no line, in 100 cells at 30 and 60 frames a second: coloured noise,
 bursts of it, hops, steps, and a level that flips. Of 11,400 tracks 1,800 (15.8 %) come out as one stretch, and 93 keep
 it (0.82 % of the tracks, 5.2 % of the calls; the worst family, stationary noise with the object three to five times the
@@ -3685,9 +3698,21 @@ depression below the horizontal.
   the object. A model file counts within its levels, and beyond them, held at its nearest level, only within a factor
   of 4 of the object's height above the model's own ground, as an observed level does (until 2026-11-02 a model wind
   counted at any height: a file with only a 100-m level counted at 3,960 m, and T2 passed or failed on it). T2 passes
-  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity; fails when
-  even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, or when two errors of the
-  velocity exceed 5 m/s (T2 cannot then tell a drifter from a slow flier).
+  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity, plus a model's
+  own error where a model's wind is among them; fails when even the smallest is 10 m/s or more beyond that (it
+  flies); and cannot say between, or when two errors of the velocity exceed 5 m/s (T2 cannot then tell a drifter from
+  a slow flier).
+- *A model's own error* (`MODEL_WIND_ERR`, 3 m/s; 2026-11-13). The spread of a model's hours says how much its wind
+  changes from hour to hour, not how far it misses the air's own motion. The Galileo Project's three camera sites near
+  Las Vegas triangulate clouds 2-5 km up, so their motion over the ground is known (the uap repository's
+  `galileo/nevada/README.md`). Against Open-Meteo's hourly winds, those clouds need 3-4 m/s through the air (median;
+  90th percentile 5-9), more than the hours' spread of about 1-2 m/s. On the spread alone T2 passed 36-54 % of them.
+  With 3 m/s added it passes 80-94 %, and none of 44 aircraft with known tracks (ADS-B). The price is said in the
+  reading: with a model's winds, a body flying a few metres a second through the air is not told from a drifter.
+  Observed winds (a sounding, a weather report, the aircraft's own) keep the rule before, since nothing here has
+  measured their error. Two things the clouds also showed: on windy days clouds lag the wind (0.6-0.7 of its speed,
+  as standing wave clouds do), so a cloud is not always a drifter; and T2 never asks whether holding still would fit
+  as well, which it does wherever the wind is weaker than the tolerance (IDEAS.md N2).
 - *Whether the rays fix a path at all* (`drift.unfixed`; 2026-11-02, after the single-camera survey's Part 5). The
   bearings-only problem: from an aircraft flying straight, any path scaled along the rays fits as well, so only a turn
   ranges what it sees (Nardone & Aidala 1981; Fogel & Gavish 1988; Park et al. 2015, Result 2). Until 2026-11-02 the
@@ -3718,10 +3743,17 @@ depression below the horizontal.
   readings (`READINGS_MIN`, computed from the two by `boot_kept`) and says so below that.
 - *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
   of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
-  `comes_back`): the whole track beats, or passing windows that do not overlap agree. A beat in one stretch of many is
-  not counted, since a lantern's or a candle's flame, or chance over many windows, can make one, and the test passes on
-  the whole stretch (until 2026-10-22 it could not say); an envelope without the record is read from its finding ("that
-  is one stretch"). No beat passes, with the smallest beat the clip could have shown (the injections' floor, else the
+  `comes_back`): the whole track beats, or passing windows that do not overlap agree, more of them than chance gives
+  (§13; since 2026-11-13, and an envelope made before then is weighed against chance here, from its own windows). A beat
+  in one stretch of many is not counted, since a lantern's or a candle's flame, or chance over many windows, can make
+  one, and the test passes on the whole stretch (until 2026-10-22 it could not say); an envelope without the record is
+  read from its finding ("that is one stretch"). *Two cameras* (`--flicker a.json,b.json`, `test_beat_cameras`;
+  2026-11-13, IDEAS.md N4): a beat of the object's own shows from every side. Where one camera's beat holds, another
+  camera watching at the same time keeps the failure if it sees the beat too (within 0.5 Hz, at a third of its strength
+  or more), or if it could not have seen a beat a third as strong. Where it could have and does not, the beat is the first
+  camera's view, and T3 passes on it. On the Galileo clouds, Hideout's 7 % beat at 1.94 Hz went where Sphere, able to see
+  1 %, saw none; a 5 % beat at 2.44 Hz stayed, the other camera seeing 0.8 % where only 2 % would have shown. The
+  envelopes must be of the same moments; nothing here can check it. No beat passes, with the smallest beat the clip could have shown (the injections' floor, else the
   rule's own threshold, three times the background's).
 - *T4, other evidence.* Does other evidence in the video, where there is any, agree with drift? Few videos show a strike
   or anything shed, so this test runs only on whichever of its parts the inputs allow. It fails when a part fails,
@@ -4118,6 +4150,15 @@ straight and steady in the picture only if the lens draws straight lines straigh
 missed by 1.4-1.8 px on approaches and 1.5-6 px on crossings when drawn through the camera's fitted barrel, and fitted
 exactly through a pinhole, while the report could only say "the camera's motion, or the object's own". This section gives
 the lens to the test where it is known, and asks of a miss where it is not whether a lens alone would account for it.
+
+**The second term** (`--lens-k2`, added 2026-11-13; IDEAS.md N6). Where a calibration has it, x_d - c = (x_u - c)
+(1 + k1 r² + k2 r⁴), counted as k1 is. The Galileo Project's ring cameras have k1 -0.51 to -0.58 and k2 +0.5 to +0.95.
+Read through k1 alone, a rate near their frame's edge came out 12 % high against the aircraft's triangulated speeds
+(more than 300 pixels from the centre; section 53), and a drawn crossing 14-21° off the axis is 4.0 % off in scale; with
+k2 it is right to 0.02 %. The fold is where 1 + 3 k1 r² + 5 k2 r⁴ first reaches 0: a second term of the other sign, as
+these lenses have, may keep the lens from folding at all. With k2 0 every number is the one-term lens's, to the last bit.
+Everything below is written for k1 alone, and holds for both terms with `lens.radial` and `lens.slope` in place of the
+brackets.
 
 **The model** (`lens.py`). One radial term, the first of the usual calibration (Brown's; OpenCV's k1):
 
@@ -6024,3 +6065,41 @@ different measurement: nothing here adds a number a CPU does not give. And not a
 batch is bound by the memory it moves, about ten passes over a pair's maps in double, and the peak's reading and
 the frames' decoding are still the CPU's, in Python. On the workstation the card does `layers` in a little over half
 the time all 88 threads do; on four cores, in a ninth.
+
+## 53. Known answers from three cameras: the Galileo Project's triangulated objects (added 2026-11-13)
+
+**What it is.** The Galileo Project runs three sites of infrared cameras near Las Vegas, 2 and 10 km apart. Its pipeline
+matches what two or three sites see at the same moment and finds where the object is: its range, its height and its
+velocity, from the crossing lines of sight. That turns the sites' video into known answers for mcDonald, which sees one
+camera at a time. The data, the samples and every number below are in the uap repository's `galileo/nevada/README.md`:
+40,785 objects over 42 days of 2026, of which 13,697 are aircraft with known tracks (ADS-B) and about 3,000 are clouds
+moving with the wind. The lines of sight were rebuilt from each camera's own detections with the project's calibration,
+and they triangulate to the pipeline's positions within 0.5 %.
+
+**What it found** (IDEAS.md N1-N7), each built into this version:
+- *Drift, T2* (section 34). Clouds 2-5 km up need 3-4 m/s through the air against a model's winds, more than the
+  winds' hour-to-hour spread. T2 now allows a model's own error, 3 m/s (`MODEL_WIND_ERR`). With lines of sight from two
+  or three sites, `drift` finds the clouds' height to 0.3-2.5 % and their speed to 0.1 m/s; from one camera it says it
+  cannot range them, every time, as it should. No aircraft was called a drifter.
+- *Drift, T3* (sections 13 and 34). The rule for a beat that comes back took two windows apart on any track. On a long
+  track chance gives two: 14 of the 16 beats on clouds and aircraft were no more than chance. Windows apart now count
+  only beyond chance, and a beat seen from two cameras at once is held to the second camera too.
+- *Size* (`report.extent`). With a track file and no size, the report turned the tracker's default 9-pixel spot into
+  metres. In place of that default it now uses the object's length at half its peak brightness, measured on every
+  tracked frame by the camera stage, and never turns the default into a size. A spot the marks or `--size` set is what
+  someone said the object is, and is read as before. On 170 clips of aircraft of known size, set against the larger of their
+  span and length across the line of sight: the spot read 2.80 times their size (0.57-5.6, ten to ninety in a hundred),
+  the length 1.29 times (0.94-1.67), the width at half the peak 0.72 times (0.42-0.99). The length and the width bracket
+  the true size in 74 % of clips. In infrared the bright parts of an aircraft are smaller than the aircraft: a width that
+  matches the camera's blur is not an upper limit on its size.
+- *Speed* (`kinematics`, the report's words). The speed across the line of sight, at the given range, matched the
+  aircraft's to a median of 1.00. It came within 5 % half the time and within 20 % nine times in ten, and above the truth
+  in 30 % of clips: "the least its speed can be" is so only up to the errors of the range and the scale, and the report
+  now says so. Near the frame's edge it read 12 % high through k1 alone; `--lens-k2` (section 37) takes the rest of the lens.
+- *Pictures* (`flicker.pictures`). It reads 70 % of a Dalek clip's frames as held. The object's own steps show a fresh
+  picture every frame: the encoder copies a still sky. The band stays at the frame rate, so no number changes.
+
+**What it could not do.** No bird was triangulated by the pipeline: a bird near one site is under a pixel at another,
+2 km away. A search of the second site's detections found two candidates seen from both sites, too briefly to hear a
+wingbeat. A search of its pixels cannot work on these files: the encoder copies a still sky unchanged, and a far bird
+would be half a grey level.

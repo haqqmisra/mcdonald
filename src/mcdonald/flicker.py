@@ -276,6 +276,9 @@ SLICE_HZ = (0.1, 0.25, 0.4, 1.0)   # Hz either side of a codec line where beats 
 SLICE_AMPL = (0.1, 0.2)            # the planted beats' amplitudes there, shares of the object's brightness
 COMPLETE = 0.75      # the completeness the closed-form amplitude is for (`analytic`), as the planted beats' `complete_from` is
 HEADLINE_NEAR = 0.5  # Hz: passing windows that do not overlap and agree this closely are one beat come back (`apart_windows`)
+CHANCE_P = 0.01      # windows apart are a beat come back only where that many passing is rarer than this by chance
+#                      (`windows_chance`, 2026-11-13): on the Galileo Project's clouds and aircraft, 14 of 16 beats came
+#                      back in as many windows as the drift test's measured false rate gives over a long track
 SHARED = 0.5         # a background aperture that beats this strongly at the object's frequency shares its beat
 WINDOW_S = 2.0       # s: the windows a beat is looked for in along the track, an eighth of a window apart, the last one always
 HALF = 0.5           # a peak at half the strongest's frequency, this share of it or more, makes the strongest a double
@@ -1659,6 +1662,41 @@ def window_test(f, others, fps, lines, top, scale=None, harmonic=True):
                 fundamental_err=half_err(fund, p["hz"], p["hz_err"]) if p["hz"] else p["hz_err"], double_hz=dbl,
                 above_top=bool(p["hz"] > top), passes=bool(rest and p["at_the_codec_line_hz"] is None),
                 passes_by_resolution=bool(rest and old is None))
+
+
+def drift_rate(hz):
+    """The drift test's measured false rate for a beat at `hz` (DRIFT_RATE): what empty apertures in real frames pass."""
+    for top, rate in DRIFT_RATE:
+        if top is None or hz < top:
+            return rate
+
+
+def independent_windows(wins):
+    """How many of the windows `wins` do not overlap one another (the greedy count; the windows are one length)."""
+    n, last = 0, -1
+    for w in sorted(wins, key=lambda w: w["first"]):
+        if w["first"] > last:
+            n, last = n + 1, w["last"]
+    return n
+
+
+def windows_chance(k, n, hz):
+    """The chance that `k` or more of `n` windows that do not overlap pass by chance, each at the drift test's measured
+    false rate for `hz` (`drift_rate`). Generous to chance: a window passes on more than the drift test's line, and
+    chance's windows would also have to agree in frequency. So a beat this rules out is surely no more than chance,
+    and a real one that returns along its track (PR135's, a bird's) is far beyond it."""
+    from scipy.stats import binom
+    if k <= 0 or n <= 0:
+        return 1.0
+    return float(binom.sf(k - 1, n, drift_rate(hz)))
+
+
+def back_said(b):
+    """The finding's words for a beat that does not come back: one stretch, or windows apart no more often than chance."""
+    if (b.get("windows_apart") or 0) >= 2 and b.get("windows_chance_p") is not None:
+        return (f"; it beats in {b['windows_apart']} windows apart of the {b['windows_independent']} its track holds, as "
+                f"often as chance gives ({b['windows_chance_p']:.0%}), and the whole track does not beat")
+    return "; that is one stretch: the whole track does not beat, and no window apart from it does"
 
 
 def apart_windows(passing, near=HEADLINE_NEAR):
@@ -4091,8 +4129,11 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
             # does the beat come back (the headline rule, 2026-10-17): the whole track beats, or windows that do not
             # overlap agree -- one stretch is the weakest evidence the stage gives, dozens of windows a track at a nominal 1 in 100
             pick["whole_passes"] = bool(whole_ok[n])
-            pick["windows_apart"] = apart_windows(passing)[0]
-            pick["comes_back"] = bool(whole_ok[n] or pick["windows_apart"] >= 2)
+            apart, apart_hz = apart_windows(passing)
+            pick["windows_apart"] = apart
+            pick["windows_independent"] = independent_windows(wins)
+            pick["windows_chance_p"] = windows_chance(apart, pick["windows_independent"], apart_hz) if apart >= 2 else None
+            pick["comes_back"] = bool(whole_ok[n] or (apart >= 2 and pick["windows_chance_p"] <= CHANCE_P))
             F["beat"][n] = pick
             # what amplitude a beat would need in this track's own noise, in closed form (D6): how faint a beat it can hear
             F.setdefault("analytic", {})[n] = analytic(per[n]["noise_rms"], s1 - s0, fps, top, floor=floor_n)
@@ -4369,8 +4410,7 @@ def judge(raw, ns, fps, lines, fields, first, out=None, say=print, positions=Non
                             + f", {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']}"
                             + (f" ({b['source']})" if b["source"] != "the whole track" else "")
                             + ", clear of the codec's rhythm and not shared by the background beside it" + drift_said(fields, strong[0])
-                            + ("" if b.get("comes_back", True) else
-                               "; that is one stretch: the whole track does not beat, and no window apart from it does"))
+                            + ("" if b.get("comes_back", True) else back_said(b)))
     if fields.get("lost_at_beat"):
         for n, d in fields["lost_at_beat"].items():
             why += (f"; on {d['frames']} frames{' (' + n + ')' if len(names) > 1 else ''} its brightness over the ring fell under "

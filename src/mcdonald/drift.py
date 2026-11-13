@@ -542,6 +542,11 @@ def test_wind(line, heading_deg, winds, speeds=(10.0, 25.0, 50.0), air_min_kn=No
 # bearings-only problem), and the bootstrap says so. AARO's Puerto Rico lanterns (2026-10-21) are the known answer.
 WGS_A, WGS_E2 = 6378137.0, 6.69437999014e-3
 FLIER_MIN = 10.0        # m/s: T2 here fails only when the airspeed it needs is this much beyond the winds and the fit
+MODEL_WIND_ERR = 3.0    # m/s: how far a model's wind may miss the air's own motion at the object's height. Measured on the
+#                         Galileo Project's Las Vegas clouds, triangulated from three sites 2-5 km up (2026-11-13; the uap
+#                         repository's galileo/nevada/README.md): against Open-Meteo's hourly pressure levels they need 3-4
+#                         m/s through the air (median; 90th percentile 5-9), so T2 passed 36-54 % of them on the winds'
+#                         hour-to-hour spread alone. With 3 m/s added it passes 80-94 % and none of 44 ADS-B aircraft.
 VELOCITY_FIX = 5.0      # m/s: two errors of the fitted velocity over this, and T2 cannot tell a drifter from a slow flier
 NEAR_LEVEL = 4.0        # a single level (observed, or a model file's outermost) within this factor of the object's height
                         # (above the ground; a model's, above its own ground) counts
@@ -953,13 +958,13 @@ def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own
                 if dt > timedelta(hours=1):
                     continue
             if zs[0] <= height_m <= zs[-1]:
-                out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=True,
+                out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=True, source="model",
                                 note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, interpolated"))
                 continue
             k = 0 if height_m < zs[0] else -1
             ratio = max(hm(zs[k]), hm(height_m)) / min(hm(zs[k]), hm(height_m))
             out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=ratio <= NEAR_LEVEL,
-                            note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, held at its "
+                            source="model", note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, held at its "
                                  f"{'lowest' if k == 0 else 'top'} level, {ratio:.1f} times the object's height above the "
                                  f"model's ground ({gm:.0f} m)"))
     srcs = {}
@@ -973,23 +978,25 @@ def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own
         if zs[0] <= height_m <= zs[-1] and len(zs) > 1:
             lz = np.log([hz(z) for z in zs]) if ground_m is not None else zs
             w = _at(lz, us, math.log(hz(height_m)) if ground_m is not None else height_m)
-            out.append(dict(label=s, w=w, counts=True, note=f"observed, interpolated between {zs[0]:.0f}-{zs[-1]:.0f} m"))
+            out.append(dict(label=s, w=w, counts=True, source="observed",
+                            note=f"observed, interpolated between {zs[0]:.0f}-{zs[-1]:.0f} m"))
             continue
         k = int(np.argmin(np.abs(zs - height_m)))
         ratio = max(hz(zs[k]), hz(height_m)) / min(hz(zs[k]), hz(height_m))
-        out.append(dict(label=s, w=us[k], counts=ratio <= NEAR_LEVEL,
+        out.append(dict(label=s, w=us[k], counts=ratio <= NEAR_LEVEL, source="observed",
                         note=f"observed at {zs[k]:.0f} m, {ratio:.1f} times the object's height"))
         if zs[-1] < height_m:
             below[s] = (zs[-1], us[-1])
     if own is not None:
         ratio = max(hz(own["height_m"]), hz(height_m)) / min(hz(own["height_m"]), hz(height_m))
-        out.append(dict(label="the aircraft's own", w=own["w"], counts=ratio <= NEAR_LEVEL,
+        out.append(dict(label="the aircraft's own", w=own["w"], counts=ratio <= NEAR_LEVEL, source="own",
                         note=f"from its turn, {own['heights_m'][0]:.0f}-{own['heights_m'][1]:.0f} m, {ratio:.1f} times "
                              "the object's height"))
         if own["height_m"] > height_m:
             for s, (z, w) in below.items():
                 f = (math.log(hz(height_m)) - math.log(hz(z))) / (math.log(hz(own["height_m"])) - math.log(hz(z)))
                 out.append(dict(label=f"between {s} and the aircraft's own", w=w + f * (own["w"] - w), counts=True,
+                                source="profile",
                                 note="measured profile, interpolated in the logarithm of height"))
     return out
 
@@ -1019,11 +1026,14 @@ def test_vertical_track(path, readings=None):
 
 def test_wind_track(path, winds, readings=None):
     """T2 from the aircraft's own track: a drifter moves over the ground at the wind's velocity at its height, so the
-    airspeed it would need against each wind that counts is |V - W|. Passes when every one is within the winds' own
-    spread plus two errors of the fitted velocity; fails when even the smallest is FLIER_MIN or more beyond them;
-    cannot say when the rays fix no path (`unfixed`: too few readings, a straight-flying aircraft, a range the bound
-    leaves open), when they do not fix the velocity (two errors over VELOCITY_FIX) or between. `readings` as in
-    test_vertical_track."""
+    airspeed it would need against each wind that counts is |V - W|. The tolerance is the winds' own spread plus two
+    errors of the fitted velocity, plus MODEL_WIND_ERR where a model's wind is among those counted (`source` "model",
+    as `track_winds` marks it; since 2026-11-13, from the Galileo Project's clouds: a model's wind misses the air's own
+    motion by 3-4 m/s, more than its hour-to-hour spread). Passes when every one is within the tolerance; fails when
+    even the smallest is FLIER_MIN or more beyond it; cannot say when the rays fix no path (`unfixed`: too few
+    readings, a straight-flying aircraft, a range the bound leaves open), when they do not fix the velocity (two
+    errors over VELOCITY_FIX) or between. So with a model's winds a body flying a few metres a second through the air
+    is not told from a drifter: the model's error is that large. `readings` as in test_vertical_track."""
     out = dict(test="T2", question="does its motion over the ground fit the winds at its height?", source="lines of sight")
     if path is None:
         return dict(out, outcome=CANNOT, reading=too_few(readings) if readings is not None and readings < READINGS_MIN
@@ -1060,31 +1070,52 @@ def test_wind_track(path, winds, readings=None):
             + "; ".join(f"{k}: {v}" for k, v in far.items())))
     need = [r["needs_m_s"] for r in rows if r["counts"]]
     spread = max(0.25, float(np.max(np.linalg.norm(W[:, None] - W[None], axis=-1))))
+    model = any(w.get("source") == "model" for w in winds if w["counts"])
+    err = MODEL_WIND_ERR if model else 0.0
+    tol = spread + 2 * ev + err
     out.update(needs_m_s=[round(min(need), 2), round(max(need), 2)], winds_spread_m_s=round(spread, 2),
-               winds_counted=len(need))
-    if max(need) <= spread + 2 * ev:
+               winds_counted=len(need), model_wind_err_m_s=err, tolerance_m_s=round(tol, 2))
+    allows = (f"their own spread ({spread:.1f} m/s), two errors of the fit ({2 * ev:.1f}) and a model's own error "
+              f"({err:g})") if model else f"their own spread ({spread:.1f} m/s) and two errors of the fit ({2 * ev:.1f})"
+    if max(need) <= tol:
         return dict(out, outcome=PASS, reading=(
             f"it moved over the ground at {path['speed_m_s']:.1f} m/s toward {path['toward_deg']:.0f} deg; the {len(need)} "
-            f"winds at its height leave it {min(need):.1f}-{max(need):.1f} m/s through the air, within their own spread "
-            f"({spread:.1f} m/s) and two errors of the fit ({2 * ev:.1f})"))
-    if min(need) - spread - 2 * ev >= FLIER_MIN:
+            f"winds at its height leave it {min(need):.1f}-{max(need):.1f} m/s through the air, within {allows}"))
+    if min(need) - tol >= FLIER_MIN:
         return dict(out, outcome=FAIL, reading=(
             f"it moved over the ground at {path['speed_m_s']:.0f} m/s toward {path['toward_deg']:.0f} deg; even the "
-            f"nearest wind at its height leaves it {min(need):.0f} m/s through the air, {min(need) - spread - 2 * ev:.0f} "
-            "beyond the winds' spread and the fit's errors: it flies"))
+            f"nearest wind at its height leaves it {min(need):.0f} m/s through the air, {min(need) - tol:.0f} "
+            f"beyond {allows}: it flies"))
     return dict(out, outcome=CANNOT, reading=(
-        f"the winds at its height leave it {min(need):.1f}-{max(need):.1f} m/s through the air, beyond their spread "
-        f"({spread:.1f}) but not by a flier's {FLIER_MIN:g} m/s"))
+        f"the winds at its height leave it {min(need):.1f}-{max(need):.1f} m/s through the air, beyond {allows} "
+        f"({tol:.1f} m/s in all) but not by a flier's {FLIER_MIN:g} m/s"))
 
 
 # ---- T3: the beat -------------------------------------------------------------------------------
+def _flickers(arg):
+    """`--flicker`: one envelope, or a list of them where several paths are given, comma-separated."""
+    if not arg:
+        return None
+    envs = [json.loads(Path(p).read_text(encoding="utf-8")) for p in arg.split(",") if p]
+    return envs[0] if len(envs) == 1 else envs
+
+
 def held_beat(r):
     """Whether the flicker envelope's beat holds across the video: the whole track beats, or it comes back in windows
-    apart (flicker's headline rule, `comes_back`). An envelope without it: not where its finding says the beat is one
+    apart more often than chance gives (flicker's headline rule, `comes_back`). An envelope from before 2026-11-13 has
+    no `windows_chance_p`: its windows apart are weighed against chance here, from its own windows, as `flicker` now
+    does (`flicker.windows_chance`). An envelope without `comes_back`: not where its finding says the beat is one
     stretch."""
-    for b in (r.get("beat") or {}).values():
+    from .flicker import CHANCE_P, independent_windows, windows_chance
+    for name, b in (r.get("beat") or {}).items():
         if isinstance(b, dict) and "comes_back" in b:
-            return bool(b["comes_back"]), b
+            back = bool(b["comes_back"])
+            if back and not b.get("whole_passes") and "windows_chance_p" not in b and (b.get("windows_apart") or 0) >= 2:
+                n = independent_windows((r.get("windows") or {}).get(name) or [])
+                if n:
+                    p = windows_chance(b["windows_apart"], n, b.get("hz") or 0.0)
+                    b, back = dict(b, windows_independent=n, windows_chance_p=p), p <= CHANCE_P
+            return back, b
     return "that is one stretch" not in (r.get("finding") or ""), None
 
 
@@ -1113,10 +1144,16 @@ def test_beat(env):
         held, b = held_beat(r)
         if b is not None:
             out.update(whole_track_beats=b.get("whole_passes"), windows_passing=b.get("windows_passing"),
-                       windows=b.get("windows"), windows_apart=b.get("windows_apart"))
+                       windows=b.get("windows"), windows_apart=b.get("windows_apart"),
+                       windows_independent=b.get("windows_independent"), windows_chance_p=b.get("windows_chance_p"))
         out["held"] = held
         if held:
             return dict(out, outcome=FAIL, reading=f"its brightness beats across the video: {r.get('finding')}")
+        if b and (b.get("windows_apart") or 0) >= 2 and b.get("windows_chance_p") is not None:
+            return dict(out, outcome=PASS, reading=(
+                f"no beat across the video: it beats in {b['windows_apart']} windows apart of the "
+                f"{b['windows_independent']} its track holds, as often as chance gives ({b['windows_chance_p']:.0%}), "
+                f"and the whole track does not beat{seen} ({r.get('finding')})"))
         where = (f" ({b['windows_passing']} of {b['windows']} windows)" if b and b.get("windows") else "")
         return dict(out, outcome=PASS, reading=(
             f"no beat across the video: a beat in one stretch only{where} is not counted, since a flame or chance over "
@@ -1124,6 +1161,81 @@ def test_beat(env):
     if beats is False:
         return dict(out, outcome=PASS, reading=f"no beat of its own{seen}")
     return dict(out, outcome=CANNOT, reading="the flicker test had no power on this clip")
+
+
+AGREE = 3.0             # another camera agrees with a beat when it sees one within flicker's HEADLINE_NEAR Hz of it, at a
+#                         third of its strength or more; one that could have seen a third of it and does not refutes it
+
+
+def _strongest(env):
+    """The beat a flicker envelope reports for the object (its first object), or None."""
+    r = env.get("results", env)
+    for b in (r.get("beat") or {}).values():
+        if isinstance(b, dict) and b.get("hz") and b.get("amplitude") is not None:
+            return b
+    return None
+
+
+def _camera(env, i):
+    v = ((env.get("clip") or {}).get("video")) if isinstance(env, dict) else None
+    return f"camera {i + 1} ({Path(v).stem})" if v else f"camera {i + 1}"
+
+
+def test_beat_cameras(envs):
+    """T3 from several cameras watching the object at the same time (`--flicker a.json,b.json`; 2026-11-13, IDEAS.md
+    N4). A beat that is the object's own (a wingbeat, a rotor) shows from every side, so another camera that could have
+    seen it must see it too. Each envelope is judged alone (`test_beat`). A beat that holds across one camera's video
+    still fails T3 where another camera agrees (within flicker's HEADLINE_NEAR Hz, at 1/AGREE of its strength or more)
+    or where no other camera could have seen a beat 1/AGREE as strong (its smallest beat seen). Where another camera
+    could have and does not, the beat is the first camera's view, not the object's, and T3 passes on it. On the Galileo
+    Project's clouds: 2.44 Hz at 5 % of the brightness in one camera, 0.8 % in another watching at the same time.
+    That the envelopes are of the same moments is the caller's to make sure of: nothing here can check it."""
+    envs = [e for e in envs if e is not None]
+    if len(envs) <= 1:
+        return test_beat(envs[0] if envs else None)
+    from .flicker import HEADLINE_NEAR
+    each = [test_beat(e) for e in envs]
+    names = [_camera(e, i) for i, e in enumerate(envs)]
+    held, views = [], []
+    for i, t in enumerate(each):
+        if t["outcome"] != FAIL:
+            continue
+        b = _strongest(envs[i])
+        if b is None:
+            held.append((i, "", []))
+            continue
+        agree, refute = [], []
+        for j, e in enumerate(envs):
+            if j == i:
+                continue
+            o, floor = _strongest(e), each[j].get("smallest_beat_seen")
+            if o is not None and abs(o["hz"] - b["hz"]) <= HEADLINE_NEAR and o["amplitude"] >= b["amplitude"] / AGREE:
+                agree.append(f"{names[j]} sees {o['hz']:.2f} Hz at {o['amplitude']:.0%}")
+            elif floor is not None and floor <= b["amplitude"] / AGREE:
+                at = (f"{o['amplitude']:.1%} at {o['hz']:.2f} Hz" if o is not None and abs(o["hz"] - b["hz"]) <= HEADLINE_NEAR
+                      else "no beat at that rate")
+                refute.append(f"{names[j]}, watching at the same time, sees {at} where a beat of {100 * floor:.1f}% "
+                              "would have shown")
+        if agree or not refute:
+            held.append((i, "; ".join(agree) if agree else "no other camera could have seen a beat a third as strong",
+                         refute))
+        else:
+            views.append(f"{names[i]}'s beat at {b['hz']:.2f} Hz ({b['amplitude']:.0%} of its brightness) is its own "
+                         f"view: " + "; ".join(refute))
+    base = dict(test="T3", question="is its brightness free of a beat at a wingbeat's or a rotor's rate?",
+                cameras=len(envs), each=[dict(camera=n, outcome=t["outcome"], reading=t["reading"]) for n, t in zip(names, each)])
+    if held:
+        i, why, _ = held[0]
+        return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]}, outcome=FAIL,
+                    reading=f"{each[i]['reading']} ({names[i]}; {why})")
+    if views:
+        return dict(base, outcome=PASS, reading="no beat of its own: " + "; ".join(views))
+    passing = [i for i, t in enumerate(each) if t["outcome"] == PASS]
+    if passing:
+        i = passing[0]
+        return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]},
+                    reading=f"{each[i]['reading']} ({names[i]}, of {len(envs)} cameras)")
+    return dict(base, outcome=CANNOT, reading="the flicker test had no power on any camera's clip")
 
 
 # ---- the verdict --------------------------------------------------------------------------------
@@ -1208,7 +1320,8 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
                       reading="it needs the aircraft's heading, its height (sea readings) and archived winds as well")
         else:
             tw = test_wind(None, 0.0, [])
-    tests = [t1, tw, test_beat(flicker), test_other([t4a, t4b])]
+    tests = [t1, tw, test_beat_cameras(flicker) if isinstance(flicker, (list, tuple)) else test_beat(flicker),
+             test_other([t4a, t4b])]
     v, why = verdict(tests)
     fields = dict(tests=tests, verdict=v, why=why, depression_deg=delta_deg)
     if track is not None:
@@ -1285,7 +1398,8 @@ def main():
                                         "speed_m_s), e.g. a METAR, a sounding")
     ap.add_argument("--ground-m", type=float, help="the ground's height above the sea under the object, m")
     ap.add_argument("--when", help="the time of the clip (ISO, UTC): the model winds' hours within one of it")
-    ap.add_argument("--flicker", help="T3: the --json envelope of `mcdonald flicker` on the object")
+    ap.add_argument("--flicker", help="T3: the --json envelope of `mcdonald flicker` on the object; several, "
+                                      "comma-separated, from cameras watching it at the same time")
     ap.add_argument("--fps", type=float, help="frames per second (default: the video's)")
     ap.add_argument("--out", metavar="PREFIX", help="write <PREFIX>_drift.json")
     ap.add_argument("--json", action="store_true", help="print the envelope as JSON on stdout")
@@ -1331,7 +1445,7 @@ def _main(args):
     found = measure(fps, L, remains, pieces, args.depression, comot, args.tracer_depth, _series(args.slant),
                     _series(args.horizontal), own, bearings, args.heading, winds,
                     tuple(float(x) for x in args.speeds.split(",")), amin, amax,
-                    json.loads(Path(args.flicker).read_text(encoding="utf-8")) if args.flicker else None, out=args.out,
+                    _flickers(args.flicker), out=args.out,
                     platform=read_platform(args.platform) if args.platform else None,
                     los=read_los(args.los) if args.los else None,
                     los_sigma=tuple(float(x) for x in args.los_sigma.split(",")), observed_winds=observed,

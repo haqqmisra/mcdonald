@@ -266,6 +266,42 @@ def test_track_t2_a_drifter_fits_the_winds_and_a_flier_does_not():
     check(drift.test_wind_track(p, winds)["outcome"] == drift.CANNOT, "5 m/s through the air: a slow flier's, cannot say")
 
 
+def test_track_t2_a_models_own_error():
+    print("\nT2 from the aircraft's own track: a model's winds carry their own error (2026-11-13)")
+    # The Galileo Project's clouds, triangulated from three sites 2-5 km up, needed 3-4 m/s through the air against
+    # Open-Meteo's winds: more than the winds' hour-to-hour spread. So a model's winds now carry MODEL_WIND_ERR as well.
+    wind = np.array([-6.0, -3.5])
+    rng = np.random.default_rng(7)
+    winds = [dict(label=f"model {i}", w=wind + rng.normal(0, 0.3, 2), counts=True, note="model", source="model")
+             for i in range(2)]
+    obs = [dict(w, source="observed", note="observed") for w in winds]
+    off = wind + 3.5 * np.array([0.6, 0.8])                   # a cloud that drifts, 3.5 m/s off the model's wind
+    platform, los, _ = orbit(v_obj=tuple(off))
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    out = drift.test_wind_track(p, winds)
+    check(out["outcome"] == drift.PASS and out["model_wind_err_m_s"] == drift.MODEL_WIND_ERR
+          and "a model's own error" in out["reading"],
+          "3.5 m/s off a model's winds: within the model's own error, passes", out["reading"][:120])
+    out = drift.test_wind_track(p, obs)
+    check(out["outcome"] == drift.CANNOT and out["model_wind_err_m_s"] == 0.0,
+          "the same off observed winds: no model's error allowed, cannot say (the rule before 2026-11-13)",
+          out["reading"][:120])
+    flier = wind + 25.0 * np.array([0.5, -0.866])
+    platform, los, _ = orbit(v_obj=tuple(flier))
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    check(drift.test_wind_track(p, winds)["outcome"] == drift.FAIL, "a flier at 25 m/s through the air still fails")
+    f = Path(tempfile.mkdtemp()) / "w.json"
+    f.write_text(json.dumps(dict(elevation=0.0, hourly=dict(
+        time=["2026-01-01T00:00"], wind_speed_850hPa=[10.0], wind_direction_850hPa=[270.0],
+        geopotential_height_850hPa=[1500.0], wind_speed_700hPa=[20.0], wind_direction_700hPa=[270.0],
+        geopotential_height_700hPa=[3000.0]))))
+    tw = drift.track_winds(2000.0, model=[str(f)],
+                           observed=[dict(source="sonde", height_m=1800.0, from_deg=270.0, speed_m_s=10.0),
+                                     dict(source="sonde", height_m=2500.0, from_deg=270.0, speed_m_s=12.0)])
+    check([w["source"] for w in tw] == ["model", "observed"], "each wind says where it came from",
+          str([w["source"] for w in tw]))
+
+
 def test_track_winds_at_the_objects_height():
     print("\nT2 from the aircraft's own track: which winds bear on its height")
     with tempfile.TemporaryDirectory() as td:
@@ -475,6 +511,62 @@ def test_t3_the_flicker_stages_answers():
           "without injections, the smallest is the flicker rule's own threshold", f"{out['smallest_beat_seen']}")
     check(drift.test_beat({"results": {"beats": None}})["outcome"] == drift.CANNOT, "no power: cannot say")
     check(drift.test_beat(None)["outcome"] == drift.CANNOT, "no flicker run: cannot say")
+
+
+def _windows(n, passing_at=(), hz=2.4, frames=120):
+    """n windows of `frames` that do not overlap, those indexed in `passing_at` passing at `hz`."""
+    return [dict(first=1 + i * (frames + 1), last=1 + i * (frames + 1) + frames - 1, fundamental_hz=hz, hz=hz,
+                 passes=i in passing_at) for i in range(n)]
+
+
+def test_t3_windows_apart_against_chance():
+    print("\nT3: windows apart weighed against chance (2026-11-13)")
+    from mcdonald import flicker
+    check(flicker.independent_windows(_windows(40)) == 40, "40 windows that do not overlap: 40")
+    overlapping = [dict(first=1 + 15 * i, last=120 + 15 * i) for i in range(50)]
+    check(flicker.independent_windows(overlapping) == 7, "50 windows an eighth apart over 855 frames: 7 that do not overlap",
+          str(flicker.independent_windows(overlapping)))
+    p2, p12 = flicker.windows_chance(2, 40, 2.4), flicker.windows_chance(12, 40, 2.4)
+    check(p2 > 0.5 and p12 < 1e-3, "2 of 40 at the drift test's 9 % is chance; 12 of 40 is not", f"{p2:.2f}, {p12:.1e}")
+
+    def env(apart, n=40, whole=False, new=False):
+        b = dict(hz=2.4, amplitude=0.05, whole_passes=whole, comes_back=True, windows_passing=apart, windows=n,
+                 windows_apart=apart)
+        if new:
+            b.update(windows_independent=n, windows_chance_p=flicker.windows_chance(apart, n, 2.4),
+                     comes_back=whole or flicker.windows_chance(apart, n, 2.4) <= flicker.CHANCE_P)
+        return {"results": {"beats": True, "finding": "it beats at 2.40 Hz", "noise_floor": 0.004,
+                            "beat": {"object": b}, "windows": {"object": _windows(n, range(0, 2 * apart, 2))}}}
+    out = drift.test_beat(env(2))
+    check(out["outcome"] == drift.PASS and "as often as chance gives" in out["reading"] and out["windows_independent"] == 40,
+          "an envelope from before: 2 windows apart of 40 is chance, passes (the Galileo clouds' case)", out["reading"][:110])
+    check(drift.test_beat(env(12))["outcome"] == drift.FAIL, "12 windows apart of 40: beyond chance, fails")
+    check(drift.test_beat(env(2, whole=True))["outcome"] == drift.FAIL, "a whole track that beats: fails, as before")
+    check(drift.test_beat(env(2, new=True))["outcome"] == drift.PASS
+          and drift.test_beat(env(12, new=True))["outcome"] == drift.FAIL, "the same from flicker's own new fields")
+
+
+def test_t3_two_cameras():
+    print("\nT3 from two cameras watching at the same time (2026-11-13)")
+
+    def env(hz, amp, floor, held=True, beats=True, video="cam.mp4"):
+        b = dict(hz=hz, amplitude=amp, whole_passes=held, comes_back=held, windows_passing=10, windows=40,
+                 windows_apart=5 if held else 1)
+        return {"clip": {"video": video}, "results": {"beats": beats, "finding": f"it beats at {hz:.2f} Hz",
+                                                      "noise_floor": floor / 3.0, "beat": {"object": b}}}
+    a = env(2.44, 0.05, 0.01, video="hideout-cam-1.mp4")
+    out = drift.test_beat_cameras([a, env(3.2, 0.006, 0.01, held=False, beats=False, video="sphere-cam-2.mp4")])
+    check(out["outcome"] == drift.PASS and "its own view" in out["reading"] and out["cameras"] == 2,
+          "a beat one camera sees and another, able to see a third of it, does not: that camera's view, passes",
+          out["reading"][:130])
+    out = drift.test_beat_cameras([a, env(2.47, 0.03, 0.01, held=False, video="w.mp4")])
+    check(out["outcome"] == drift.FAIL and "sees 2.47 Hz" in out["reading"], "another camera agrees: fails",
+          out["reading"][-80:])
+    out = drift.test_beat_cameras([a, env(2.45, 0.008, 0.02, held=False, video="w.mp4")])
+    check(out["outcome"] == drift.FAIL and "could have seen" in out["reading"],
+          "another camera too noisy to see a third of it (the Galileo cloud at 5 % and 0.8 %, floor 2 %): fails as before",
+          out["reading"][-80:])
+    check(drift.test_beat_cameras([a])["outcome"] == drift.test_beat(a)["outcome"], "one envelope: test_beat's own answer")
 
 
 # ---------------------------------------------------------------- T4, other evidence: T4a, a tracer

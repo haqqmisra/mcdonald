@@ -29,6 +29,7 @@ import json
 import math
 import platform
 import re
+import statistics
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -131,6 +132,10 @@ ISOTROPIC = ("With its direction drawn isotropically (nothing favouring one), th
 # default), not a width measured. Good enough for "about"; a limit is not to be built on it (PR051's drift, `run --track`
 # with no size: 9 px, where the thing is 53 wide at half its peak, gave "at most 0.36 m", five times too small).
 SPOT_SIZE = "the spot size the track was followed at"
+SPOT_DEFAULT = "the tracker's default spot size"          # SPOT_SIZE where nothing set it: no marks, no --size (2026-11-13)
+SPOT_NOT_MEASURED = "an assumption, not a measurement"   # what is said of SPOT_DEFAULT wherever it would stand for a size
+SPOTS = (SPOT_SIZE, SPOT_DEFAULT)
+LENGTH_SIZE = "measured: its length at half its peak brightness, the median over its track"
 
 # The checklist under the conclusion (Ravi Kopparapu, 2026-11-01: a report "that even an undergraduate student can
 # understand"; Jacob: "a checklist form that lists off each test, in a nicely formatted table, with a simple answer of the
@@ -565,13 +570,16 @@ class Case:
         if sf.get("lens"):
             rows.append(("the lens's radial term", "k1", f"{sf['lens']['k1']:g}",
                          f"given: x_d = x_u (1 + k1 r²), r in units of the focal length ({sf['lens']['f_px']:.0f} px/rad at the axis)"))
+            if sf["lens"].get("k2"):
+                rows.append(("the lens's second radial term", "k2", f"{sf['lens']['k2']:g}", "given: x_d = x_u (1 + k1 r² + k2 r⁴)"))
         rows.append(("angular rate", "ω = v_px f / k", None if om is None else f"{om:.2f} rad/s ({math.degrees(om):.0f}°/s)" if om >= 0.01
                      else f"{om:.2g} rad/s ({math.degrees(om):.2g}°/s)",
                      ("from v_px, f and k" if a == 1.0 else
                       f"from v_px in square pixels along the track ({kf.get('v_square_px_per_s') or 0:.0f} px/s), f and k") if om is not None
                      else "needs k"))
         p, p_how = self.extent()
-        rows.append(("image extent", "p", None if p is None else f"{p:.0f} px" + (f" ({p / a:.0f}–{p:.0f} square px)" if a != 1.0 else ""), p_how))
+        rows.append(("image extent", "p", None if p is None else f"{p:.0f} px" + (f" ({p / a:.0f}–{p:.0f} square px)" if a != 1.0 else ""),
+                     f"{p_how}: {SPOT_NOT_MEASURED}" if p_how == SPOT_DEFAULT else p_how))
         R_ratio, R_by, _ = self.ranged() if R is None else (None, None, False)
         R_max = None if R is not None or R_ratio is not None else kf.get("range_max_m")    # a limit, where nothing gives a value
         rows.append(("range", "R", f"{R:,.0f} m" if R is not None else f"{R_ratio:,.0f} m" if R_ratio is not None else
@@ -595,7 +603,8 @@ class Case:
         top = kf.get("upper_bound_m_per_s") if R_max else None
         if lb is not None:
             rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", f"{lb:.0f} m/s",
-                         "from ω and R: the least the speed can be. " + ISOTROPIC))
+                         "from ω and R: the least the speed can be, give or take the errors in R and k (on aircraft of "
+                         "known speed, within 20 % nine times in ten). " + ISOTROPIC))
         elif top is not None:
             fast = kf.get("upper_bound_fastest_m_per_s")
             rows.append(("transverse relative speed", "ωR", f"at most {_two(top):,g} m/s" + (f" ({_two(fast):,g} at its fastest)" if fast else ""),
@@ -611,7 +620,7 @@ class Case:
                          "from the reference object: k cancels, the range ratio remains; no more than this where R_obj ≤ R_ref"))
         else:
             rows.append(("transverse relative speed", "ωR = |v_obj − v_own| sin θ", None, needs(k=k, R=R)))
-        S = p * R / k if (p and R and k) else None
+        S = p * R / k if (p and R and k and p_how != SPOT_DEFAULT) else None
         ref = sf.get("reference") or {}
         if S is None and p and kf.get("range_ratio") and ref.get("px") and ref.get("length_m"):
             # beside a thing of known length at a known ratio of its distance, k cancels: S = p (R_obj / R_ref) L / l
@@ -619,11 +628,13 @@ class Case:
             rows.append(("object size", "S = p (R_obj/R_ref) L / l", f"{S:.1f} m",
                          f"from p and the reference of known length ({ref['length_m']:g} m over {ref['px']:g} px) at the range ratio "
                          f"given ({kf['range_ratio']:g}): k cancels"))
-        elif S is None and p and k and R_max and p_how != SPOT_SIZE:
+        elif S is None and p and k and R_max and p_how not in SPOTS:
             rows.append(("object size", "S = pR/k", f"at most {_two(p * R_max / k):,g} m", "from p, k and the farthest range given"))
         elif S is None and p and k and R_max:
             rows.append(("object size", "S = pR/k", None, "needs its width in pixels: a limit is not built on the spot size the track "
                                                           "was followed at"))
+        elif S is None and p and R and k and p_how == SPOT_DEFAULT:
+            rows.append(("object size", "S = pR/k", None, f"needs its size in the picture: {SPOT_DEFAULT} is {SPOT_NOT_MEASURED}"))
         else:
             rows.append(("object size", "S = pR/k", None if S is None else f"{S:.1f} m", "from p, R and k" if S else needs(p=p, R=R, k=k)))
         rel = kf.get("relative_speed_m_per_s") if th is not None else None
@@ -712,7 +723,12 @@ class Case:
             rows.append(("brightness beat", "f_b", f"{beat['hz']:.1f} Hz" + (f" (and {beat['double_hz']:.1f} Hz, {_double_said(beat['hz'], beat['double_hz'])})" if beat.get("double_hz") else ""),
                          f"the object's own, over frames {beat['first']}–{beat['last']}: clear of the codec's rhythm, not shared by the "
                          "background beside it" + ("" if beat.get("comes_back", True) else
-                                                  ". One stretch only: the whole track does not beat, and no window apart from it does")
+                                                  (f". It beats in {beat['windows_apart']} windows apart of the "
+                                                   f"{beat['windows_independent']} its track holds, as often as chance gives, "
+                                                   "and the whole track does not beat"
+                                                   if (beat.get("windows_apart") or 0) >= 2 and beat.get("windows_independent")
+                                                   else ". One stretch only: the whole track does not beat, and no window apart "
+                                                        "from it does"))
                          + (f". The whole picture shakes at that rate by {beat['shaken']['px']:.2g} pixels, so the camera may make it"
                             if beat.get("shaken") else "")
                          + ". A wingbeat, a tumbling body and a blinking light all beat"))
@@ -735,17 +751,34 @@ class Case:
         return rows
 
     def extent(self):
-        """(p, how): the object's image extent in pixels -- the length given, else its measured width at
-        half its peak, else the spot size the track was followed at -- or (None, what would give it)."""
+        """(p, how): the object's image extent in pixels -- the length given, else its measured width at half its
+        peak, else the spot size the track was followed at where the marks or --size set it, else -- in place of the
+        tracker's default spot only -- its length at half its peak as the camera stage measured it on every tracked
+        frame (the median of `size_trend`'s stretches; since 2026-11-13), else that default -- or (None, what would
+        give it). Whether the measured length should also come before a spot the marks set is the maintainer's to
+        decide (IDEAS.md N5): it would move hand-marked reports' sizes. A spot the marks or --size set is what someone said the object is, and is read as before. One
+        nothing set (a track file, no marks and no --size: the track stage's `object_size_from` "default") is the
+        tracker's default (`SPOT_DEFAULT`), no measurement, and nothing turns it into metres, a kind of object or a
+        distance (`SPOT_NOT_MEASURED`; IDEAS.md N5: an A320 at 8.0 km was "about 98 m across, larger than a fighter
+        jet"). Cases made before 2026-11-13 do not say where their spot came from, and are read as before. On the Galileo Project's aircraft of known size the
+        length read 1.29 times the larger of their span and length across the line of sight (0.94-1.67, 10-90 %), the
+        spot 2.80 times (method section 53)."""
         kf = self.stages.get("kinematics", {}).get("fields") or {}
         tf = self.stages.get("track", {}).get("fields") or {}
+        cf = self.stages.get("camera", {}).get("fields") or {}
         res = kf.get("resolution") or {}
         if kf.get("size_px"):
             return kf["size_px"], "given"
         if res.get("object_fwhm_px"):
             return res["object_fwhm_px"], "measured: the object's width at half its peak"
-        if tf.get("object_size_px"):
+        default = tf.get("object_size_from") == "default"
+        if tf.get("object_size_px") and not default:          # a spot the marks or --size set: read first, as before
             return tf["object_size_px"], SPOT_SIZE
+        lengths = (cf.get("size_trend") or {}).get("stretches_px")
+        if lengths and default:                               # only in place of the tracker's default (IDEAS.md N5)
+            return float(statistics.median(lengths)), LENGTH_SIZE
+        if tf.get("object_size_px"):
+            return tf["object_size_px"], SPOT_DEFAULT if default else SPOT_SIZE
         return None, "needs a track, or the object's length given"
 
     # what the first line and the bottom line say of a rate read over a picture that held still on screen
@@ -859,7 +892,9 @@ class Case:
         tau = (self.tau() or {}).get("tau_s")
         if tau is not None and self.omega_last() is not None:      # tau is the last frame's: so is omega, with it
             om = self.omega_last()
-        return admissible_region(om, k=k, p_px=self.extent()[0], R_min=lo, R_max=hi, tau_s=tau, rate_max=self.depth_rate_max(),
+        p, how = self.extent()
+        return admissible_region(om, k=k, p_px=None if how == SPOT_DEFAULT else p, R_min=lo, R_max=hi, tau_s=tau,
+                                 rate_max=self.depth_rate_max(),
                                  ceiling="farthest range given" if hi is not None and hi == kf.get("range_max_m") else "range ceiling")
 
     def depth_rate_max(self):
@@ -1130,7 +1165,7 @@ class Case:
         the size-and-speed figure marks too). An object no wider than a point here is no bigger than that in the picture,
         so each would be at least that far away; one the camera held in view has no speed here, only where each would be.
         Written to sciencespeak since 2026-11-07 (Jacob: "make /sciencespeak the new standard"): one finding a sentence."""
-        omega, k, p, _, held, point, a = self._scaled()
+        omega, k, p, how, held, point, a = self._scaled()
         still = not held and self.behind_held_still()
         if held:
             S = ["The camera kept the object in view, so how fast it crossed the view is the camera's turning, not measured here."]
@@ -1139,7 +1174,10 @@ class Case:
             if still:
                 S.append(self.HELD_STILL_SAID)
         no_speed = held or still                    # a speed across the line of sight needs the rate against the world
-        if not p or not k:
+        if p and how == SPOT_DEFAULT:               # the tracker's default is no measurement: no kind placed by it (IDEAS.md N5)
+            S.append(f"Its size in the picture is not measured: the track was followed at a {p:.0f}-pixel spot, "
+                     f"{SPOT_NOT_MEASURED}.")
+        if not p or not k or how == SPOT_DEFAULT:
             if not no_speed:
                 S.append(f"At 100 m away that is at least {_num(omega * 100)} m/s across the line of sight, and at 1 km "
                          f"{_num(omega * 1000)} m/s.")
@@ -1172,13 +1210,13 @@ class Case:
         camera not measured. The speed itself only where an angle is given too (theta, or a range rate). None where
         the case has no turn rate or no distance (one put together by hand, with only a speed)."""
         kf = self.stages.get("kinematics", {}).get("fields") or {}
-        omega, k, p, _, held, point, a = self._scaled()
+        omega, k, p, how, held, point, a = self._scaled()
         R, theta = kf.get("range_m"), kf.get("theta_deg")
         if omega is None or R is None:
             return None
         where = f"At the given distance of {_far(R, two=False)}" + (f", moving at {theta:.0f}° to the line of sight" if theta is not None else "")
         size = None
-        if p and k:
+        if p and k and how != SPOT_DEFAULT:               # the tracker's default is no measurement: no size from it (N5)
             S_m = p * R / k
             size = ("no more than " if point else "") + (f"about {_two(S_m):g} m across" if a == 1.0 else
                                                           f"about {_two(S_m / a):g}–{_two(S_m):g} m across") + f", {_like(S_m)}"
@@ -1208,7 +1246,7 @@ class Case:
         if omega is None or R is None or self.ranged()[0] is not None:
             return None
         where = f"No farther than the given {_far(R, two=False)}"
-        size = f"at most about {_two(p * R / k):g} m across" if p and k and how != SPOT_SIZE else None
+        size = f"at most about {_two(p * R / k):g} m across" if p and k and how not in SPOTS else None
         top, fast = kf.get("upper_bound_m_per_s"), kf.get("upper_bound_fastest_m_per_s")
         S = [f"{where}, it is {size}."] if size else []
         if top is None:
@@ -1704,7 +1742,10 @@ class Case:
         if here is not None and here[1] is not None and here[2] is None:   # no angle: omega R is the least it can be
             L += [f"With the given scale and range, it moves {here[1]:.0f} m/s across the line of sight (Mach {here[1] / A_SOUND:.2f}).",
                   "That is the least its speed as the camera held it can be, because its motion toward or away from the "
-                  "camera is not measured.", "An angle or a range rate would give it.", RELATIVE]
+                  "camera is not measured.", "An angle or a range rate would give it.",
+                  "The number carries the errors of the range and the scale given.",
+                  "With both well known, it came within 5 % of aircraft's known speeds half the time, and within 20 % "
+                  "nine times in ten.", RELATIVE]
         elif speed is not None:
             L += [f"With the given scale and range, that is {speed:.0f} m/s relative to the camera.", RELATIVE]
         if here is not None and max(here[1] or 0, here[2] or 0) >= A_SOUND:
@@ -1713,8 +1754,8 @@ class Case:
         elif limit is not None:                      # the conclusion's words as a limit: what it bounds, and what it does not
             _, k, p, how, *_ = self._scaled()
             R = kf["range_max_m"]
-            firm = p and k and how != SPOT_SIZE
-            size = f"at most {_two(p * R / k):g} m across ({p:.0f} pixels: {how})"
+            firm = p and k and how not in SPOTS
+            size = f"at most {_two(p * R / k):g} m across ({p:.0f} pixels: {how})" if firm else None
             if limit[1] is None:
                 L.append("The camera kept it in view, so its speed is not measured here.")
                 if firm:
@@ -1766,7 +1807,9 @@ class Case:
                 else:
                     L.append(f"At a distance of R meters, it would move at least {w} × R meters a second across the line "
                              "of sight, as the camera held it.")
-                L.append(f"It would be {p:.0f}/{k:.0f} × R meters across ({p:.0f} pixels: {how})." if p and k and a == 1.0 else
+                L.append(f"Its size in the picture is not measured: the track was followed at a {p:.0f}-pixel spot, "
+                         f"{SPOT_NOT_MEASURED}." if p and how == SPOT_DEFAULT else
+                         f"It would be {p:.0f}/{k:.0f} × R meters across ({p:.0f} pixels: {how})." if p and k and a == 1.0 else
                          f"It would be {p / a:.0f}–{p:.0f}/{k:.0f} × R meters across ({p:.0f} pixels in the file: {how})." if p and k else
                          "Its size in the picture is not known.")
                 L += ["The conclusion places each kind of object where its size would put it.",
@@ -2101,8 +2144,8 @@ class Case:
             top, om, R = kf.get("upper_bound_m_per_s"), kf.get("omega_rad_per_s"), kf.get("range_m")
             ledger = {r["symbol"]: r for r in self.ledger()}
             guess = " (the field of view is a guess, so this is too)" if (ledger.get("k") or {}).get("status") == "assumed" else ""
-            p, k = self.extent()[0], st("scale").get("k_px_per_rad")
-            size = f", and about {p * R / k:.1f} m across" if speed is not None and p and k and R else ""
+            (p, how), k = self.extent(), st("scale").get("k_px_per_rad")
+            size = f", and about {p * R / k:.1f} m across" if speed is not None and p and k and R and how != SPOT_DEFAULT else ""
             if speed is not None:
                 add("real", "kinematics", YES, f"about {speed:.0f} m/s relative to the camera, with the distance and the scale given" + size + guess)
             elif lb is not None:

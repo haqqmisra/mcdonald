@@ -3,6 +3,38 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased: four corrections from the Galileo Project's triangulated objects (branch nevada-fixes, 2026-11-13)
+
+The Galileo Project's three infrared camera sites near Las Vegas triangulate what they see together, so its objects
+have known ranges, heights and speeds: aircraft with known tracks (ADS-B) and clouds moving with the wind. Run as known
+answers (method section 53; the uap repository's `galileo/nevada/README.md`), they found four things the reports said
+that the measurements do not support (IDEAS.md N1-N6). Each changes what some reports say; no measurement changes.
+
+- **Drift's T2 allows a model's own error** (N1; `drift.MODEL_WIND_ERR`, 3 m/s). Clouds need 3-4 m/s through the air
+  against Open-Meteo's winds, more than the winds' hour-to-hour spread, so T2 said "cannot say" for most of them. With
+  the allowance it passes 80-94 % of clouds and none of 44 aircraft. Only model winds carry it (each wind now says its
+  `source`). The reading says what it costs: with a model's winds, a body flying a few metres a second through the air
+  is not told from a drifter. The Puerto Rico lanterns still pass.
+- **A beat comes back by windows apart only beyond chance** (N3; `flicker.CHANCE_P`, `windows_chance`). On a long track
+  two passing windows apart are what chance gives: 14 of 16 beats on clouds and aircraft were. Such a beat is now held to
+  the one-stretch rule, and `drift` weighs envelopes made before this from their own windows. **T3 with two cameras**
+  (N4; `--flicker a.json,b.json`): a beat that one camera sees and another, watching at the same time and able to see a
+  third of it, does not, is the first camera's view, and T3 passes on it.
+- **No size from the default spot** (N5; `report.extent`). With a track file and no size, the report turned the
+  tracker's default 9-pixel spot into metres and kinds of object ("an A320 at 8.0 km: about 98 m across"). It now uses
+  the camera stage's length at half the object's peak, measured on every tracked frame (the A320: 45 m, its projected
+  length 36 m), and says the size is not measured where only that default is known. A spot the marks or `--size` set
+  is read as before. Reports made from a track file with no marks and no size change their size, their kinds and their
+  distances; the rest do not (the track stage now records `object_size_from`; older cases are read as before).
+- **The speed's errors, and the lens's second term** (N6). "The least its speed can be" carries the range's and the
+  scale's errors: on aircraft it came within 5 % half the time and 20 % nine times in ten, and the report now says so.
+  `--lens-k2` (`run`, `report`, `kinematics`; `lens.Lens.k2`) takes a calibration's second radial term: the Galileo
+  lenses' k2 +0.73 had left rates near the frame's edge 12 % high. With no k2 every number is as before. The window's
+  card asks for it beside k1 ("and its second bending term, if given").
+
+For whoever runs the tests: `tests/test_drift.py` is now in `tools/suites.sbatch` and both workflows' lists; it was in
+none.
+
 ## 0.5.3 (2026-11-12)
 
 **The slow steps can run on a graphics card** (ROADMAP 0.6, objective 3; built 2026-11-12, the day the development

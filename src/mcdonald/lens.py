@@ -32,65 +32,93 @@ REACH = 4.0 / 27.0
 SEGMENTS = 20        # the stretches a track is read in for the lens's scale along it
 
 class Lens(NamedTuple):
-    """The lens a scale was read through: its radial term and its focal length, px/rad at the axis."""
+    """The lens a scale was read through: its radial terms and its focal length, px/rad at the axis. `k2`, the second
+    radial term (x_d = x_u (1 + k1 r² + k2 r⁴), Brown's and OpenCV's; since 2026-11-13), 0 where only k1 is given."""
     k1: float
     f: float
+    k2: float = 0.0
 
 
-def fold(k1):
-    """The r (tangent of the angle off the axis) at which a barrel's radial function turns back, inf for a pincushion
-    or a pinhole: r (1 + k1 r²) peaks at r² = 1 / (3 |k1|)."""
-    return math.sqrt(1.0 / (3.0 * -k1)) if k1 < 0 else math.inf
+def radial(r2, k1, k2=0.0):
+    """The radial factor x_d / x_u at r² = `r2`: 1 + k1 r² + k2 r⁴."""
+    return 1.0 + k1 * r2 + k2 * r2 * r2
 
 
-def focal_px(k1, fov_deg, across):
-    """f, px/rad at the axis, of a lens of radial term k1 whose field of view `fov_deg` spans `across` pixels, centred:
-    across / 2 = f t (1 + k1 t²), t = tan(fov / 2). ValueError where that field reaches past the model's fold."""
+def slope(r2, k1, k2=0.0):
+    """d(r x radial)/dr at r² = `r2`: 1 + 3 k1 r² + 5 k2 r⁴, the scale across a radius over the axis's."""
+    return 1.0 + 3.0 * k1 * r2 + 5.0 * k2 * r2 * r2
+
+
+def fold(k1, k2=0.0):
+    """The r (tangent of the angle off the axis) at which the radial function r (1 + k1 r² + k2 r⁴) turns back: where
+    1 + 3 k1 r² + 5 k2 r⁴ first reaches 0, inf where it never does (a pincushion, a pinhole, or a barrel whose second
+    term turns it back up first, as the Galileo Project's Boson lenses do: k1 -0.55, k2 +0.73). With k2 0, r² = 1 / (3 |k1|)."""
+    if k2 == 0.0:
+        return math.sqrt(1.0 / (3.0 * -k1)) if k1 < 0 else math.inf
+    a, b = 5.0 * k2, 3.0 * k1                       # a u² + b u + 1 = 0, u = r²
+    disc = b * b - 4.0 * a
+    if disc < 0:
+        return math.inf
+    pos = [u for u in ((-b - math.sqrt(disc)) / (2 * a), (-b + math.sqrt(disc)) / (2 * a)) if u > 0]
+    return math.sqrt(min(pos)) if pos else math.inf
+
+
+def _terms(k1, k2):
+    return f"--lens-k1 {k1:g}" + (f" --lens-k2 {k2:g}" if k2 else "")
+
+
+def focal_px(k1, fov_deg, across, k2=0.0):
+    """f, px/rad at the axis, of a lens of radial terms k1 (and k2) whose field of view `fov_deg` spans `across` pixels,
+    centred: across / 2 = f t (1 + k1 t² + k2 t⁴), t = tan(fov / 2). ValueError where that field reaches past the
+    model's fold."""
     t = math.tan(math.radians(fov_deg) / 2.0)
-    if t >= fold(k1):
-        raise ValueError(f"--lens-k1 {k1:g}: a lens with that term folds back {math.degrees(math.atan(fold(k1))):.0f} degrees off "
+    if t >= fold(k1, k2):
+        raise ValueError(f"{_terms(k1, k2)}: a lens with that term folds back {math.degrees(math.atan(fold(k1, k2))):.0f} degrees off "
                          f"its axis, inside the field of view given ({fov_deg:g} degrees across)")
-    return (across / 2.0) / (t * (1.0 + k1 * t * t))
+    return (across / 2.0) / (t * radial(t * t, k1, k2))
 
 
-def distort(p, k1, f, centre):
+def distort(p, k1, f, centre, k2=0.0):
     """Where the lens draws points a pinhole of focal length f would put at p (n x 2, px)."""
     q = (np.asarray(p, float) - np.asarray(centre, float)) / f
-    return np.asarray(centre, float) + f * q * (1.0 + k1 * np.sum(q * q, axis=-1, keepdims=True))
+    return np.asarray(centre, float) + f * q * radial(np.sum(q * q, axis=-1, keepdims=True), k1, k2)
 
 
-def undistort(p, k1, f, centre):
-    """Where a pinhole of focal length f would have put points the lens drew at p (n x 2, px): r (1 + k1 r²) = r_d solved
-    by Newton's method, which approaches the root from one side only (the function is monotonic and concave for a barrel,
-    convex for a pincushion, up to the fold), to a billionth of a pixel. NaN for a point past what the lens can reach."""
+def undistort(p, k1, f, centre, k2=0.0):
+    """Where a pinhole of focal length f would have put points the lens drew at p (n x 2, px): r (1 + k1 r² + k2 r⁴) =
+    r_d solved by Newton's method to a billionth of a pixel. With k1 alone it approaches the root from one side only (the
+    function is monotonic and concave for a barrel, convex for a pincushion, up to the fold). NaN for a point past what
+    the lens can reach."""
     p, c = np.asarray(p, float), np.asarray(centre, float)
     d = (p - c) / f
     rd = np.sqrt(np.sum(d * d, axis=-1))
     r = rd.copy()
     for _ in range(60):
-        step = (r * (1.0 + k1 * r * r) - rd) / (1.0 + 3.0 * k1 * r * r)
-        r = r - step
+        step = (r * radial(r * r, k1, k2) - rd) / slope(r * r, k1, k2)
+        r = np.maximum(r - step, 0.0)
         if not np.nanmax(np.abs(step), initial=0.0) * f > 1e-9:
             break
     with np.errstate(invalid="ignore", divide="ignore"):
         gain = np.where(rd > 0, r / rd, 1.0)
-    if k1 < 0:
-        gain = np.where(rd > (2.0 / 3.0) * fold(k1), np.nan, gain)
+    rf = fold(k1, k2)
+    if math.isfinite(rf):                           # past what the lens can draw at all: k2 0 gives (2/3) of the fold
+        gain = np.where(rd > rf * radial(rf * rf, k1, k2), np.nan, gain)
     return c + (p - c) * gain[..., None]
 
 
-def drawn(track, k1, f, centre):
+def drawn(track, k1, f, centre, k2=0.0):
     """A track {frame: (x, y)} as a pinhole of focal length f would have drawn it: {frame: (x, y)}, NaN where it cannot
     be (past the fold; as any other point a track lost)."""
     ns = sorted(track)
-    p = undistort(np.array([track[n] for n in ns], float), k1, f, centre)
+    p = undistort(np.array([track[n] for n in ns], float), k1, f, centre, k2)
     return {n: (float(x), float(y)) for n, (x, y) in zip(ns, p)}
 
 
-def along(track, k1, f, centre):
+def along(track, k1, f, centre, k2=0.0):
     """The lens's own scale along a track, px/rad: its length in the picture over the angle the line of sight swept.
     Across a radius a barrel's scale falls away from the axis as f (1 + 3 k1 r²)(1 + r²), around it as
-    f (1 + k1 r²) √(1 + r²) (which can be above f), so one number for the frame is out by as much as the lens bends:
+    f (1 + k1 r²) √(1 + r²) (which can be above f; with k2, `slope` and `radial` in place of the brackets), so one number
+    for the frame is out by as much as the lens bends:
     this is the scale that turns the track's rate in pixels into an angular rate. Read on the means of SEGMENTS stretches
     of the track, not frame to frame: a frame's step can be mostly jitter, which goes every way and would mix the two
     scales (on a drawn crossing near the frame's edge, by 2 %). f where the track has no length."""
@@ -99,7 +127,7 @@ def along(track, k1, f, centre):
         return float(f)
     p = np.array([track[n] for n in ns], float)
     p = np.array([s.mean(axis=0) for s in np.array_split(p, min(SEGMENTS, len(p)))])
-    q = (undistort(p, k1, f, centre) - np.asarray(centre, float)) / f
+    q = (undistort(p, k1, f, centre, k2) - np.asarray(centre, float)) / f
     keep = np.all(np.isfinite(q), axis=1)
     p, q = p[keep], q[keep]
     if len(p) < 2:
@@ -110,7 +138,7 @@ def along(track, k1, f, centre):
     return long / swept if swept > 0 else float(f)
 
 
-def carried(line_band, picture_band, track, k1, f, centre):
+def carried(line_band, picture_band, track, k1, f, centre, k2=0.0):
     """The band of a track drawn back (`line_band`) with its nugget read in the picture and carried through the lens. The
     jitter lives in the picture, the same each way; drawn back it is stretched, across a radius by 1 / (1 + 3 k1 r²) and
     around it by 1 / (1 + k1 r²), so that near the frame's edge one coordinate of the drawn track can hold most of it,
@@ -121,10 +149,10 @@ def carried(line_band, picture_band, track, k1, f, centre):
     if not line_band or not (picture_band or {}).get("nugget_px"):
         return line_band
     p = np.array([v for v in track.values() if np.all(np.isfinite(v))], float)
-    q = (undistort(p, k1, f, centre) - np.asarray(centre, float)) / f
+    q = (undistort(p, k1, f, centre, k2) - np.asarray(centre, float)) / f
     r2 = np.sum(q * q, axis=1)
     r2 = r2[np.isfinite(r2)]
-    share = float(np.mean(1.0 / (1.0 + 3.0 * k1 * r2) ** 2 + 1.0 / (1.0 + k1 * r2) ** 2))     # 2 where there is no bend
+    share = float(np.mean(1.0 / slope(r2, k1, k2) ** 2 + 1.0 / radial(r2, k1, k2) ** 2))     # 2 where there is no bend
     sx, sy = picture_band["nugget_px"]
     each = math.sqrt(share * (sx * sx + sy * sy) / 4.0)
     return dict(line_band, nugget_px=(each, each))

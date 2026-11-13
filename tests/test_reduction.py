@@ -1125,6 +1125,59 @@ def test_what_survives_the_missing_variables():
           "each has its sentence")
 
 
+def test_the_lens_second_term():
+    """The lens's second radial term (2026-11-13, IDEAS.md N6): x_d = x_u (1 + k1 r² + k2 r⁴). The Galileo Project's
+    infrared lenses have k1 -0.55 and k2 +0.73, and read through k1 alone a rate near the frame's edge came out about
+    12 % high against their aircraft's triangulated speeds. With k2 0 nothing changes."""
+    print("\nthe lens's second radial term")
+    from mcdonald import lens, stages
+    c, rng = (320.0, 256.0), np.random.default_rng(11)
+    pts = rng.uniform((0, 0), (640, 512), (400, 2))
+    f1 = lens.focal_px(-0.43, 50.2, 640)
+    check(lens.focal_px(-0.43, 50.2, 640, 0.0) == f1 and lens.fold(-0.43, 0.0) == lens.fold(-0.43)
+          and np.array_equal(lens.undistort(pts, -0.43, f1, c, 0.0), lens.undistort(pts, -0.43, f1, c)),
+          "k2 0: the focal length, the fold and the points drawn back are the one-term lens's to the last bit")
+    k1, k2, fx = -0.55, 0.73, 760.5                                   # a Galileo ring camera's calibration
+    back = lens.distort(lens.undistort(pts, k1, fx, c, k2), k1, fx, c, k2)
+    check(lens.fold(k1, k2) == math.inf and np.abs(back - pts).max() < 1e-6,
+          "the Galileo lens: its second term keeps it from folding, and drawing back is drawing's exact inverse",
+          f"{np.abs(back - pts).max():.1e} px")
+    t = 320.0 / fx                                                    # the field of view that lens spans across 640 px
+    lo, hi = 0.05, 1.0
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if fx * mid * lens.radial(mid * mid, k1, k2) < 320.0 else (lo, mid)
+    fov = 2 * math.degrees(math.atan(lo))
+    check(close(lens.focal_px(k1, fov, 640, k2), fx, 1e-6), "the field of view through both terms gives the calibration's focal length",
+          f"{fov:.2f} deg -> {lens.focal_px(k1, fov, 640, k2):.2f} px/rad")
+    check(lens.fold(-0.4, -0.1) < lens.fold(-0.4), "a second term of the same sign folds the lens sooner", f"{lens.fold(-0.4, -0.1):.3f}")
+    try:
+        lens.focal_px(-0.4, 100.0, 640, -0.1)
+        check(False, "a field past the two-term fold is refused")
+    except ValueError as e:
+        check("--lens-k2 -0.1" in str(e), "a field past the two-term fold is refused, naming both terms", str(e)[:60])
+    # a straight crossing near the frame's edge, drawn through the Galileo lens: its angle is known, so its scale is
+    ang = np.radians(np.linspace(14.0, 21.0, 60))                     # 14-21 deg off the axis, across the frame's lower edge
+    pin = np.c_[c[0] + fx * np.tan(ang), np.full(60, c[1] + fx * math.tan(math.radians(13.0)))]
+    pic = lens.distort(pin, k1, fx, c, k2)
+    track = {i + 1: (float(x), float(y)) for i, (x, y) in enumerate(pic)}
+    rays = np.c_[(pin - np.array(c)) / fx, np.ones(60)]
+    rays /= np.linalg.norm(rays, axis=1)[:, None]
+    swept = float(np.sum(np.arccos(np.clip(np.sum(rays[1:] * rays[:-1], axis=1), -1, 1))))
+    true_k = float(np.sum(np.hypot(*np.diff(pic, axis=0).T))) / swept
+    both = stages.through_lens(kin.AngularScale.from_fov(640, fov), k1, 640, 512, track, fov, None, None, k2)
+    one = stages.through_lens(kin.AngularScale.from_fov(640, fov), k1, 640, 512, track, fov)
+    check(abs(both.k / true_k - 1) < 1e-3 and abs(one.k / true_k - 1) > 0.03 and both.lens.k2 == k2,
+          "a crossing near the edge: through both terms its scale is the true one; through k1 alone it is off by percents",
+          f"k {both.k:.1f} and {one.k:.1f} against {true_k:.1f} px/rad ({100 * (one.k / true_k - 1):+.1f} %)")
+    stages.check_known(lens_k2=0.73, fov=fov)
+    try:
+        stages.check_known(lens_k2=0.73)
+        check(False, "k2 alone needs a field of view")
+    except ValueError as e:
+        check("--lens-k2" in str(e) and "--fov" in str(e), "--lens-k2 needs a field of view or angle marks, as --lens-k1 does", str(e)[:60])
+
+
 def test_the_lens_known():
     """The lens's radial term as a known (Jacob, 2026-10-30, on the Galileo aircraft): a straight path at a steady speed
     is straight and steady in the picture only through a pinhole. k1 is counted as a calibration counts it, in focal
@@ -2598,6 +2651,52 @@ def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
     label, head = case(115.0, relative_speed_m_per_s=500.0).conclusion()
     check(label == "Tentative conclusion" and "500 m/s as the camera held it" in head,
           "a relative speed from the range and the field of view is the headline's, and not a bound", f"{label}: {head[:90]}")
+
+
+def test_a_spot_size_is_no_size_at_a_given_range():
+    """A track file with no size (2026-11-13, IDEAS.md N5): the report turned the tracker's default 9-px spot into metres
+    at a given range and compared it with aircraft -- an A320 at 8.0 km was "about 98 m across, larger than a fighter
+    jet", its span 34-36 m. The spot is no measurement: no size, no kind and no distance from it. The camera stage's
+    length at half its peak, measured on every tracked frame, is (the Galileo Project's aircraft: 1.29 times their size)."""
+    print("\nreport: a spot size is no size, at a given range too")
+    from mcdonald import kinematics as kin, stages
+    track = {n: (100.0 + 3.0 * n, 200.0 + 0.1 * (-1) ** n) for n in range(1, 61)}
+    scale = lambda: kin.AngularScale.from_graticule(30.0, 0.0)                         # 1719 px/rad
+
+    def case(size_px=None, length=None, range_m=5000.0):
+        c = report.Case("t", "/tmp/x.mp4")
+        stages.kinematics(track, 30.0, 1920, "t", scale(), extent_px=9.0, height=1080, range_m=range_m,
+                          size_px=size_px).into(c)
+        report.Found("scale", {"k": "1719 px/rad"}, fields=dict(k_px_per_rad=scale().k, k_from="a graticule")).into(c)
+        report.Found("track", dict(frames=60), fields=dict(object_size_px=9.0, object_size_from="default")).into(c)
+        if length:
+            report.Found("camera", {}, fields=dict(size_trend=dict(kind="holds", stretches_px=[length - 0.2, length, length + 0.2]))).into(c)
+        return c
+    spot = case()
+    label, head = spot.conclusion()
+    rows = {n: (v, how) for n, _, v, how in spot.summary()}
+    check(spot.extent() == (9.0, report.SPOT_DEFAULT) and "m across" not in head and rows["object size"][0] is None
+          and report.SPOT_NOT_MEASURED in rows["object size"][1] and report.SPOT_NOT_MEASURED in rows["image extent"][1],
+          "the spot alone: no size in metres, and the rows say the spot is an assumption", head[:90])
+    check("Its size in the picture is not measured" in spot.bottom_line() and "would be 9/" not in spot.bottom_line(),
+          "the paragraph says the size is not measured, not what 9 pixels would be", spot.bottom_line()[:80])
+    long = case(length=4.0)
+    label, head = long.conclusion()
+    S = 4.0 * 5000.0 / scale().k
+    check(long.extent() == (4.0, report.LENGTH_SIZE) and f"about {report._two(S):g} m across" in head,
+          "the camera stage's length gives the size", head[:90])
+    given = case(size_px=12.0, length=4.0)
+    check(given.extent() == (12.0, "given"), "a size given still comes first")
+    near = case(range_m=None)
+    check("would be" not in near.at_each_distance() and "not measured" in near.at_each_distance(),
+          "no range: no kind of object is placed by the spot either", near.at_each_distance()[:90])
+    marked = case()
+    marked.stages["track"]["fields"]["object_size_from"] = "the marks"
+    check(marked.extent() == (9.0, report.SPOT_SIZE) and "m across" in marked.conclusion()[1],
+          "a spot the marks set is what someone said the object is: read as before", marked.conclusion()[1][:90])
+    old = case()
+    del old.stages["track"]["fields"]["object_size_from"]
+    check(old.extent() == (9.0, report.SPOT_SIZE), "a case made before 2026-11-13 does not say: read as before")
 
 
 def test_a_farthest_range_is_a_limit_through_the_paths_a_range_takes():
