@@ -3748,6 +3748,27 @@ depression below the horizontal.
   (the stage admitted 6 and crashed on them until 2026-11-02), 8 keep 4.8 on average and 9 keep 69; the bootstrap's
   errors (its 5th and 95th percentiles among them) are read from 20 resamples at the least, so the stage needs 9
   readings (`READINGS_MIN`, computed from the two by `boot_kept`) and says so below that.
+- *Whose errors the path carries* (`drift.own_scatter`; 2026-11-13, IDEAS.md DR3). The fit weighs each ray by the errors
+  given for it (`--los-sigma`, 0.3° in azimuth and 0.1° in depression by default), and its covariance was scaled up by
+  the rays' misfit and never down. A display that prints its ground point to a metre was then judged at the default:
+  PR051's 23 rays (a reading by an agent, not yet checked by a person) scatter by 0.017° and 0.003° about their path,
+  a reduced chi-square of 0.0024, and the climb read +0.08 +- 2.74 m/s where the rays' own scatter gives 0.16. The rule
+  now has three cases. Rays that fit worse than the errors given scale them up, as before. Rays that fit as well as the
+  errors given allow leave them standing, as before: under them the fit's summed squares are chi-square on 2n - 6
+  degrees of freedom, and the errors given stand unless the sum lies in the lowest 1 % of that distribution (`OWN_P`;
+  the Puerto Rico lanterns' lies at 9 %, so their errors do not move). Rays that fit better than that reject the errors
+  given, and the rays' own scatter takes their place: the azimuths' mean square about the fit and the depressions',
+  each its own (over n - 3), widened by Student's t at 95 % for the fit's degrees of freedom over the normal's 1.96,
+  since a scatter estimated from few rays is itself uncertain (1.11 at 9 rays, 1.03 at 23). The path is not fitted
+  again; its covariance is read with the new errors (the sandwich form), so no fitted number moves, only the errors
+  and the range's bound. The scatter is never read as under a hundredth of the errors given (`OWN_LEAST`, a guard for
+  rays that were drawn or copied, a judgement) nor over them. The bootstrap over the readings is unchanged, and the
+  larger of the two errors is reported as before. On 400 drawn orbits whose rays scatter by a sixth of the errors given,
+  two such errors hold the true east and north velocity and the true climb 94.5, 95.3 and 94.5 times in 100; with the
+  errors given equal to the scatter drawn, 95.5, 96.0 and 95.0, and the rule then takes the rays' own scatter on 7 of
+  the 400 (its level is 4). What it does not see: an error the
+  rays share. Readings that were smoothed or interpolated scatter less than they err, and a constant error of the
+  display's own angles moves every ray alike (the next point).
 - *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
   of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
   `comes_back`): the whole track beats, or passing windows that do not overlap agree, more of them than chance gives

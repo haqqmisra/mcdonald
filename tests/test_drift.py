@@ -243,6 +243,70 @@ def test_track_the_path_from_the_lines_of_sight():
           t2["reading"][:90])
 
 
+def test_track_errors_from_the_rays_own_scatter():
+    """DR3 (IDEAS.md; 2026-11-13). The covariance was scaled up by the rays' misfit and never down, so rays that fit far
+    better than the errors given for them (`--los-sigma`, 0.3 and 0.1 deg by default) were judged at those: PR051's 23
+    rays scatter by 0.017 and 0.003 deg, and its climb read +0.08 +- 2.74 m/s where their own scatter gives 0.16. Rays
+    drawn with a known scatter and fitted with errors given three times too wide must come back with the scatter they
+    were drawn with, and with errors that hold the truth as often as two errors should."""
+    print("\nT1/T2 from the aircraft's own track: errors from the rays' own scatter where they fit better than the errors given")
+    drawn = (0.09, 0.03)                         # azimuth to depression as the default errors weigh them, 3 to 1
+    platform, los, truth = orbit(noise=drawn)
+    R = drift.rays(platform, los, FPS)
+    told = drift.fit_track(R, drawn, nboot=0)
+    wide = drift.fit_track(R, (0.3, 0.1), nboot=0)
+    check(told["errors_from"] == "the errors given" and told["chi2_p_low"] > drift.OWN_P and told["sigma_deg"] == list(drawn),
+          "rays fitted with the scatter they were drawn with: the errors given stand",
+          f"reduced chi-square {told['chi2_dof']:.2f}, lower tail {told['chi2_p_low']:.2f}")
+    check(wide["errors_from"] == "the rays' own scatter" and wide["chi2_p_low"] < 1e-6
+          and all(0.75 < s / d < 1.35 for s, d in zip(wide["sigma_deg"], drawn)),
+          "the same rays with errors given three times too wide: the rays' own scatter takes their place, and it is the "
+          "scatter they were drawn with", f"{wide['sigma_deg'][0]:.3f} and {wide['sigma_deg'][1]:.3f} deg of {drawn}")
+    check(0.7 < wide["velocity_err_m_s"] / told["velocity_err_m_s"] < 1.4 and 0.7 < wide["climb_err_m_s"] / told["climb_err_m_s"] < 1.4,
+          "and the path's errors are those of the right errors given, not three times them",
+          f"velocity {wide['velocity_err_m_s']:.3f} against {told['velocity_err_m_s']:.3f} m/s, climb "
+          f"{wide['climb_err_m_s']:.3f} against {told['climb_err_m_s']:.3f}")
+    check(np.allclose(wide["v_m_s"], told["v_m_s"], atol=1e-2) and wide["range_bound"] < told["range_bound"] * 1.5,
+          "the path itself is unchanged (the errors given weigh azimuth against depression as before); only its errors, "
+          "and the range's bound, are read anew", f"bound {wide['range_bound']:.4f} against {told['range_bound']:.4f}")
+    # coverage: 40 orbits drawn with a scatter a sixth of the errors given; the truth within two errors. Over 400 such
+    # orbits (session 23's notes, job 1125) two errors held the east and north velocity and the climb 94.5, 95.3 and
+    # 94.5 times in 100, as they do where the errors given are the scatter drawn (95.5, 96.0, 95.0); the 40 here are a
+    # guard on that, not the measurement (their three numbers a draw err together, so 120 hits scatter as 40 do)
+    hit, total, used = 0, 0, 0
+    for seed in range(40):
+        pl, lo, tr = orbit(noise=(0.05, 0.02), seed=100 + seed)
+        f = drift.fit_track(drift.rays(pl, lo, FPS), (0.3, 0.1), nboot=0)
+        used += f["errors_from"] == "the rays' own scatter"
+        e = f["v_err_m_s"]
+        for got, want, err in ((f["v_m_s"][0], tr["v"][0], e[0]), (f["v_m_s"][1], tr["v"][1], e[1]),
+                               (f["climb_m_s"], tr["climb"], f["climb_err_m_s"])):
+            total += 1
+            hit += abs(got - want) <= 2 * err
+    check(used == 40 and 0.85 * total <= hit, "over 40 drawn orbits two such errors hold the truth as often as two errors "
+          "should (95 times in 100 over 400 orbits; 85 at the least over these 40)",
+          f"{hit} of {total} velocities and climbs, the rays' own scatter used on {used} of 40")
+    loose = drift.fit_track(R, (0.03, 0.01), nboot=0)
+    check(loose["errors_from"].startswith("the errors given, scaled up") and loose["chi2_dof"] > 5 and loose["chi2_p_low"] is None
+          and abs(loose["velocity_err_m_s"] / told["velocity_err_m_s"] - 1) < 0.35,
+          "errors given three times too tight: scaled up by the misfit, as before",
+          f"reduced chi-square {loose['chi2_dof']:.1f}, velocity {loose['velocity_err_m_s']:.3f} m/s")
+    pl, lo, _ = orbit(noise=(0.0, 0.0))
+    exact = drift.fit_track(drift.rays(pl, lo, FPS), (0.3, 0.1), nboot=0)
+    check(exact["errors_from"] == "the rays' own scatter" and np.allclose(exact["sigma_deg"], [0.3 * drift.OWN_LEAST, 0.1 * drift.OWN_LEAST])
+          and exact["velocity_err_m_s"] > 0, "rays with no scatter at all (drawn, not read): their errors are held at a "
+          "hundredth of those given, not at nothing", f"{exact['sigma_deg']}")
+    sp, sl, _ = orbit(turn=False, noise=(0.02, 0.01))
+    ps = drift.fit_track(drift.rays(sp, sl, FPS), (0.3, 0.1), nboot=100)
+    t2 = drift.test_wind_track(ps, [dict(label="w", w=truth["v"], counts=True, note="")])
+    check(not ps["path_gate"] and t2["outcome"] == drift.CANNOT and "flew straight" in t2["reading"],
+          "a straight flight whose rays fit tightly is refused all the same: the refusal reads the aircraft's path, not "
+          "the errors", t2["reading"][:80])
+    said = "\n".join(drift.said(dict(tests=[], verdict="", why="", ground_path=dict(wide, above_ground_m=None))))
+    check("fit better than the errors given for them allow" in said and "the rays' own scatter" in said,
+          "and the command's own words say where the errors came from")
+
+
 def test_track_t2_a_drifter_fits_the_winds_and_a_flier_does_not():
     print("\nT2 from the aircraft's own track: the winds")
     rng = np.random.default_rng(6)

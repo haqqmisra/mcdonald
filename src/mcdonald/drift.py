@@ -568,6 +568,15 @@ PATH_GATE = 2.0         # the aircraft's path must leave a straight line at a st
                         # larger POSITION_ERR (c042 notes, 2026-11-02)
 RANGE_FIX = 1.0         # the Cramer-Rao bound on the logarithm of the range at the fit over this, and the range is known
                         # to no better than a factor e: the rays did not fix it (the survey's R_power definition)
+OWN_P = 0.01            # the errors given for the lines of sight (`--los-sigma`) stand unless the rays fit better than
+                        # they allow: under them the fit's summed squares are chi-square on 2n - 6 degrees of freedom,
+                        # and a sum this far down its lower tail (1 fit in 100 where the errors given are right) says
+                        # they are too wide. The errors then come from the rays' own scatter (`own_scatter`; IDEAS.md
+                        # DR3, 2026-11-13). A test's level, set by convention and stated, not tuned: on the Puerto Rico
+                        # lanterns the tail is 0.09 and the errors given stand; on PR051's data bar it is 2e-45
+OWN_LEAST = 0.01        # the rays' own scatter is read as no less than this share of the errors given: a guard for rays
+                        # that were drawn or copied rather than read (their scatter is no measurement), a judgement.
+                        # PR051's rays, the tightest read so far, scatter at 0.036-0.06 of the errors given
 BOOT_DISTINCT = 8       # a resample of the readings is fitted only where it holds this many distinct ones
 BOOT_MIN = 20           # the fewest resamples the bootstrap's errors are read from: its 5th and 95th percentiles each
                         # need one draw in twenty. READINGS_MIN follows from the two (`boot_kept`): until 2026-11-02 the
@@ -806,11 +815,51 @@ def _geodetic(x):
     return math.degrees(la), math.degrees(math.atan2(x[1], x[0])), p / math.cos(la) - n
 
 
+def own_scatter(fun, n):
+    """Whose errors the fit's covariance is read with, from its weighted residuals `fun` (n azimuths, then n depressions,
+    each over the error given for it). Returns (scale, source, p): `scale` multiplies the squared errors given, one
+    number for each residual; `source` says where it came from; `p` is the chance of a fit this close or closer if the
+    errors given were right (the lower tail of chi-square on 2n - 6 degrees of freedom).
+    - The rays fit worse than the errors given (reduced chi-square over 1): every error is scaled up by it, as before.
+    - They fit as well as the errors given allow (p at or over OWN_P): the errors given stand, as before.
+    - They fit better than the errors given allow (p under OWN_P): the errors given are too wide, and the rays' own
+      scatter takes their place, each axis its own (the azimuths' mean square about the fit and the depressions', each
+      over n - 3, half of the six parameters to an axis). A scatter estimated from few readings is itself uncertain, so
+      it is widened by Student's t at 95 % for the fit's degrees of freedom over the normal's 1.96 (1.11 at 9 readings,
+      1.03 at 23). It is never read as under OWN_LEAST of the errors given, nor over them.
+    Until 2026-11-13 the covariance was scaled up and never down, so a display that prints its ground point to a metre
+    was judged at the 0.3 and 0.1 deg given by default: PR051's 23 rays scatter by 0.017 and 0.003 deg, and its climb
+    read +0.08 +- 2.74 m/s where the rays' own scatter gives 0.16 (IDEAS.md DR3)."""
+    from scipy.stats import chi2 as chi2_dist, norm, t as t_dist
+    dof = max(1, 2 * n - 6)
+    chi2 = float(fun @ fun) / dof
+    if chi2 >= 1.0:
+        return np.full(2 * n, chi2), "the errors given, scaled up by the rays' misfit", None
+    p = float(chi2_dist.cdf(chi2 * dof, dof))
+    if p >= OWN_P:
+        return np.ones(2 * n), "the errors given", p
+    tq = float(t_dist.ppf(0.975, dof) / norm.ppf(0.975))
+    v = [min(1.0, max(float(r @ r) / max(1, n - 3) * tq ** 2, OWN_LEAST ** 2)) for r in (fun[:n], fun[n:])]
+    return np.r_[np.full(n, v[0]), np.full(n, v[1])], "the rays' own scatter", p
+
+
+def _covariance(jac, scale):
+    """The fit's covariance with each residual's squared error multiplied by `scale`: the usual inverse where the scale
+    is one number (the errors given, or all of them scaled up), else the fit as it stands read with other errors than
+    it was weighted by (the sandwich: the path is the one the errors given chose, its errors the rays' own)."""
+    A = np.linalg.inv(jac.T @ jac)
+    if np.all(scale == scale[0]):
+        return A * float(scale[0])
+    return A @ (jac.T * scale) @ jac @ A
+
+
 def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
     """The object's straight, steady path through the rays `R` (from `rays`): east, north and height at the readings'
     mean time on a map about the aircraft's mean position, and their rates; least squares in angle (azimuth weighted by
-    the cosine of the depression; `sig`, deg, a priori), errors scaled by the reduced chi-square, and a bootstrap over
-    the readings started from the solution. With them, whether the rays fix the path at all (`unfixed` reads these
+    the cosine of the depression; `sig`, deg, the errors given), its errors from the covariance read with the errors
+    given or, where the rays fit better than those allow, with the rays' own scatter (`own_scatter`: `errors_from`,
+    `sigma_deg`), and a bootstrap over the readings started from the solution; the larger of the two is reported.
+    With them, whether the rays fix the path at all (`unfixed` reads these
     before any number is trusted): how far the aircraft's own path leaves a straight line (`path_off_line_m`, against
     PATH_GATE x POSITION_ERR: `path_gate`), the bound on the log range at the fit (`range_bound`, against RANGE_FIX),
     the model gate's F test of an accelerating path over the straight one (`model_F`, `model_p`), and how many of
@@ -824,10 +873,12 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
     if fit is None:
         return None
     p = fit.x
+    n = len(R["t"])
     dof = max(1, len(fit.fun) - 6)
     chi2 = float(np.sum(fit.fun ** 2)) / dof
+    scale, errors_from, p_low = own_scatter(fit.fun, n)
     try:
-        cov = np.linalg.inv(fit.jac.T @ fit.jac) * max(1.0, chi2)
+        cov = _covariance(fit.jac, scale)
         err = np.sqrt(np.diag(cov))
     except np.linalg.LinAlgError:
         cov, err = None, np.full(6, np.inf)
@@ -835,7 +886,6 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
     bound = range_bound(cov, p, R, plane, tm)
     mF, mp = model_test(fit, R, sig, plane, tm)
     boots = []
-    n = len(R["t"])
     for _ in range(nboot):
         i = np.sort(rng.integers(0, n, n))
         if len(set(i.tolist())) < BOOT_DISTINCT:
@@ -855,9 +905,11 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
     out = dict(frames=[int(R["frames"][0]), int(R["frames"][-1])], mean_time_s=tm, lat=float(lat), lon=float(lon),
                height_m=float(p[2]), height_err_m=float(err[2]),
                above_ground_m=float(p[2] - ground_m) if ground_m is not None else None,
-               v_m_s=[float(p[3]), float(p[4])], speed_m_s=sp, toward_deg=tw,
+               v_m_s=[float(p[3]), float(p[4])], v_err_m_s=[float(err[3]), float(err[4])], speed_m_s=sp, toward_deg=tw,
                speed_sd_m_s=None, toward_sd_deg=None, velocity_err_m_s=float(math.hypot(err[3], err[4])),
                speed_p05_p95=None, climb_m_s=float(p[5]), climb_err_m_s=float(err[5]), chi2_dof=chi2,
+               errors_from=errors_from, chi2_p_low=p_low,
+               sigma_deg=[float(sig[0] * math.sqrt(scale[0])), float(sig[1] * math.sqrt(scale[-1]))],
                rms_az_deg=float(np.sqrt(np.mean(((a - R["az"] + 180) % 360 - 180) ** 2))),
                rms_dep_deg=float(np.sqrt(np.mean((e - R["dep"]) ** 2))), range_m=[float(rr.min()), float(rr.max())],
                depression_deg=float(np.mean(e)), los_turn_deg=float(np.degrees(turn.max() - turn.min())),
@@ -1352,6 +1404,13 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
     return Found("drift", result, fields, no_power=no_power, files=files)
 
 
+def _one_in(p):
+    """A small chance as "1 in N", N in words a reader can take in (a million, or more than a million)."""
+    if not p or p < 1e-6:
+        return "more than a million"
+    return f"{round(1 / p):,}"
+
+
 def said(fields):
     L = ["\n| test | question | outcome |", "|---|---|---|"]
     for t in flat(fields["tests"]):
@@ -1362,6 +1421,10 @@ def said(fields):
     g = fields.get("ground_path")
     if g:
         above = f", {g['above_ground_m']:.0f} m above the ground" if g.get("above_ground_m") is not None else ""
+        if g.get("errors_from") == "the rays' own scatter":
+            L.append(f"\nthe lines of sight fit better than the errors given for them allow (1 fit in "
+                     f"{_one_in(g['chi2_p_low'])} would, by chance), so the errors below come from the rays' own scatter about "
+                     f"the path: {g['sigma_deg'][0]:.3f} deg in azimuth, {g['sigma_deg'][1]:.3f} in depression")
         L.append(f"\nthe path from {g['readings']} lines of sight (the line of sight turned {g['los_turn_deg']:.0f} deg): "
                  f"{g['speed_m_s']:.2f} m/s toward {g['toward_deg']:.1f} deg (two errors {2 * g['velocity_err_m_s']:.2f}), "
                  f"climb {g['climb_m_s']:+.2f} +- {g['climb_err_m_s']:.2f} m/s, {g['height_m']:.0f} m above the sea{above}; "
