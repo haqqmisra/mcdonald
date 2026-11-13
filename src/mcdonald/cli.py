@@ -73,10 +73,10 @@ is used as given). MCDONALD_CPUS=N in the environment says the same.
 
 --gpu CARD says which graphics card computes, where a step can use one: a
 card's name or part of it, its number, or `none` for the CPU only. The default
-is the first NVIDIA card found, if CuPy is installed (pip install
-"mcdonald[gpu]"); with no card every step runs on the CPU and gives the same
-measurement. MCDONALD_GPU in the environment says the same; `mcdonald setup`
-says which card is in use.
+is the first NVIDIA card found, if the add-on for it (CuPy) is installed:
+`mcdonald setup --install-gpu` installs it. With no card every step runs on
+the CPU and gives the same measurement. MCDONALD_GPU in the environment says
+the same; `mcdonald setup` says which card is in use.
 
 Every command takes --json: one object on stdout (command, inputs, clip, files,
 results, no_power, needs, exit, error), and everything else on stderr. `results`

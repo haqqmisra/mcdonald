@@ -3419,6 +3419,7 @@ def drive(target):
             drive_segments(td)
             drive_the_first_screen_and_memory(td)
             drive_preferences()
+            drive_the_add_on(td)
             drive_measuring(td)
             drive_several(td)
             drive_sharing(td)
@@ -3738,10 +3739,11 @@ def drive_preferences():
         w.do("preferences")
         d = w.prefs_page
         QtTest_wait(lambda: w._cards is not None and d.gpu.count() == 3, 10)
-        check(not d.gpu.isEnabled() and items(d.gpu)[0] == "Test Graphics One"
-              and d.gpu_said.text() == mark_qt.GPU_INSTALL.format(card="Test Graphics One") and "mcdonald[gpu]" in d.gpu_said.text(),
-              "a card mcDonald could use, with the add-on for it not installed: named, greyed out, and the page says how "
-              "to install it and that every step runs on the CPU until then", d.gpu_said.text()[:90])
+        check(not d.gpu.isEnabled() and items(d.gpu)[0] == "Test Graphics One" and "Test Graphics One can do the slow steps" in d.gpu_said.text()
+              and "add-on for graphics cards" in d.gpu_said.text() and "every step runs on the CPU" in d.gpu_said.text(),
+              "a card mcDonald could use, with the add-on for it not installed: named, greyed out, and the page says that "
+              "the add-on is what it waits for and that every step runs on the CPU until then (drive_the_add_on has the "
+              "button that installs it)", d.gpu_said.text()[:90])
         d.close()
         gpu.installed = lambda: True
 
@@ -3805,6 +3807,179 @@ def drive_preferences():
                 mark_qt.settings().remove(k)
             else:
                 mark_qt.settings().setValue(k, v)
+
+
+def drive_the_add_on(td):
+    """Edit -> Preferences, the graphics card's "Install the add-on" (IDEAS.md G5, 2026-11-13): where an NVIDIA card is
+    found and CuPy is not, a person with no terminal installs it from the page. pip runs in a thread behind a wait's
+    card at the top of the right column, with a bar that counts the download and the oval of the command that does the
+    same; the window stays open and usable, and the card computes from the next step without the window being opened
+    again. A failure is said on the page in plain words, with what pip said and the command to type by hand. Nothing
+    pops up. pip is stood in for (test_gpu's stand-in): nothing is installed, and the network is not used."""
+    print("\nfinder: the add-on for graphics cards, installed from Preferences")
+    import re
+    from PySide6 import QtWidgets
+    from mcdonald import addon, gpu, mark_qt, speaker
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from test_gpu import pip_stand_in
+    home = Path(td) / "addon"
+    home.mkdir()
+    keep = gpu.found, gpu.installed, gpu.cuda, addon.PIP, addon.room, speaker.outputs
+    kept = mark_qt.settings().value("gpu")
+    kept_env = {k: os.environ.pop(k, None) for k in (gpu.GPU_VAR, mark_qt.GPU_FROM_OUTSIDE)}
+    name, seen = "Test Graphics One", dict(driver=(13, 5), cards=[(12, 0)])
+    items = lambda box: [box.itemText(i) for i in range(box.count())]
+    dialogs = lambda: [x for x in QtWidgets.QApplication.topLevelWidgets() if isinstance(x, QtWidgets.QDialog) and x.isVisible()]
+
+    def preferences(window):
+        window.do("preferences")
+        QtTest_wait(lambda: window._cards is not None and window.prefs_page.gpu.itemText(0) == name, 10)
+        return window.prefs_page
+    try:
+        mark_qt.settings().remove("gpu")
+        gpu.found = lambda: [dict(name=name, vendor="10de", compute=True, cuda=True),
+                             dict(name="Test Graphics Two", vendor="8086", compute=True, cuda=False)]
+        gpu.installed = lambda: (home / "installed").exists()
+        gpu.cuda = lambda: dict(seen)
+        addon.room = lambda extra, **k: ""
+        speaker.outputs = lambda program=None: []
+        addon.PIP = pip_stand_in(home, "offline")
+        offer_words = mark_qt.GPU_INSTALL.format(card=name, gb=1.35, disk=addon.DISK_MB["gpu-cuda13"] / 1000)
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        d = preferences(w)
+        check(not d.gpu.isEnabled() and not d.gpu_install.isHidden() and d.gpu_install.isEnabled()
+              and d.gpu_install.text() == "Install the add-on" and d.gpu_said.text() == offer_words
+              and "1.4 GB" in offer_words and "terminal" not in offer_words and "pip" not in offer_words,
+              "a card mcDonald could use, with the add-on for it not installed: named, greyed out, with a button that installs "
+              "it and a line that says how much it downloads; no command to type", d.gpu_said.text()[:120])
+
+        # no network: said on the page, with pip's own words and the command by hand
+        d.gpu_install.click()
+        job = w._addon
+        card = job.card if job is not None else None
+        check(card is not None and w.busy_slot.indexOf(card) >= 0 and not card.isHidden() and card.objectName() == "busy"
+              and card.head.text() == mark_qt.ADDON_TITLE and card.command.text() == "setup" and not card.command.isHidden()
+              and "setup --install-gpu" in card.command.toolTip() and not card.cancel_button.isHidden(),
+              "pressed, the install is a wait's card at the top of the right column: its bar, a Cancel, and the oval of the "
+              "command that does the same from a terminal", card.head.text() if card is not None else "no card")
+        check(not d.gpu_install.isEnabled() and d.gpu_said.text() == mark_qt.GPU_INSTALLING.format(card=name)
+              and not any(b.isHidden() for b in w.home.buttons) and w.home.hint.text() == w.home.HINT and not dialogs(),
+              "the page says it is being installed and where its bar is; the window stays usable (the first screen still "
+              "invites a video), and nothing pops up", d.gpu_said.text())
+        QtTest_wait(lambda: w._addon is None, 20)
+        said = d.gpu_said.text()
+        check(card.done and card.head.text() == "The add-on was not installed" and card.bar.isHidden() and "internet" in card.label.text()
+              and card.cancel_button.text() == "Close" and not card.cancel_button.isHidden() and card.cancel_button.isEnabled()
+              and not too_tall(w),
+              "with no network the card says so in plain words, quiet and with no tick, and has a Close", card.label.text())
+        check(said.startswith("The add-on was not installed. pip could not reach") and "internet" in said and "What pip" in said
+              and "ERROR: No matching distribution found" in said and '-m pip install "cupy-cuda13x[ctk]>=14"' in said
+              and "mcdonald[" not in said and d.gpu_install.isEnabled() and not d.gpu_install.isHidden() and not dialogs()
+              and bool(d.gpu_said.textInteractionFlags() & mark_qt.Qt.TextInteractionFlag.TextSelectableByMouse),
+              "and the page says it too, with what pip said and the command to type by hand (the build for this "
+              "computer's driver, never mcdonald itself), which can be copied; the button is there to try again; no pop-up",
+              said.replace("\n", " | ")[:200])
+        w.end_waits()
+        stayed = w.busy_slot.indexOf(card) >= 0
+        card.cancel_button.click()
+        QtTest_wait(lambda: w.busy_slot.count() == 0, 5)
+        check(stayed and w.busy_slot.count() == 0 and not w.dock.isVisible(),
+              "its card is no part of opening a video, so it stays when those go; Close puts it away")
+
+        # Cancel while it downloads: pip is stopped, nothing is installed
+        addon.PIP = pip_stand_in(home, "slow")
+        d.gpu_install.click()
+        card = w._addon.card
+        QtTest_wait(lambda: card.bar.value() > 0, 20)
+        counting = (card.bar.value(), card.bar.maximum(), card.bar.format(), card.label.text())
+        w.end_waits()                                 # as a video opened meanwhile would
+        check(counting == (75, 1350, "%v of %m MB", mark_qt.ADDON_WORDS["downloading"].format(card=name, gb=1.35))
+              and w.busy_slot.indexOf(card) >= 0 and not card.done and w._addon is not None,
+              "while it downloads, the bar counts megabytes of the add-on's size, and the card says the window can be used "
+              "meanwhile; a video opened meanwhile leaves the card where it is", str(counting[:3]))
+        card.cancel_button.click()
+        QtTest_wait(lambda: w._addon is None, 20)
+        check(w._addon is None and w.busy_slot.count() == 0 and not (home / "installed").exists() and d.gpu_said.text() == offer_words
+              and d.gpu_install.isEnabled(), "Cancel stops the download: the card goes, nothing is installed, and the page "
+              "offers it again", d.gpu_said.text()[:60])
+
+        # installed: the card computes from the next step, the window not opened again
+        addon.PIP = pip_stand_in(home, "ok")
+        gpu.choose(gpu.STAND_IN)                      # the card that answers once the add-on is in place
+        d.gpu_install.click()
+        card = w._addon.card
+        QtTest_wait(lambda: card.bar.maximum() == 0 or w._addon is None, 20)
+        placing = (card.bar.maximum(), card.cancel_button.isEnabled(), card.label.text())
+        QtTest_wait(lambda: w._addon is None, 30)
+        check(placing[:2] == (0, False) and placing[2] in (mark_qt.ADDON_WORDS["installing"], mark_qt.ADDON_WORDS["trying"].format(card=name, gb=1.35)),
+              "once the download is done the add-on is put in place: the bar moves without a count, and Cancel is greyed "
+              "out, since half an add-on is worse than none", str(placing))
+        args = json.loads((home / "args.json").read_text(encoding="utf-8"))
+        check(card.done and card.head.text() == "✓ The add-on is installed" and card.bar.isHidden() and card.command.isHidden()
+              and card.label.text() == f"{name} does the slow steps from the next step on, with the same measurement."
+              and card.cancel_button.text() == "Close" and not too_tall(w) and args[-1] == "cupy-cuda13x[ctk]>=14",
+              "installed, the card has a tick and turns grey, and says the graphics card does the slow steps from the next "
+              "step on; pip was given the build for this computer's driver", card.label.text())
+        c = gpu.card()
+        check(d.gpu.isEnabled() and items(d.gpu) == [name, "None: the CPU only"] and d.gpu_install.isHidden()
+              and d.gpu_said.text() == mark_qt.GPU_USED and c is not None and c.name.startswith("stand-in") and not dialogs(),
+              "and on the page the choice of card is live at once, the button gone: this window computes on the card "
+              "without being opened again", f"{d.gpu_said.text()[:50]}; {c}")
+        d.close()
+        d = preferences(w)
+        check(d.gpu.isEnabled() and d.gpu_install.isHidden() and d.gpu_said.text() == mark_qt.GPU_USED,
+              "Preferences opened again offers nothing more to install")
+        card.cancel_button.click()
+        d.close()
+        w.close()
+
+        # the window closed while it downloads: pip is stopped with it
+        (home / "installed").unlink()
+        gpu.forget()
+        addon.PIP = pip_stand_in(home, "slow")
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        d = preferences(w)
+        d.gpu_install.click()
+        job = w._addon
+        QtTest_wait(lambda: job.card.bar.value() > 0, 20)
+        w.close()
+        check(job.stop.is_set() and (job.thread is None or not job.thread.is_alive()) and not (home / "installed").exists(),
+              "a window closed while the add-on downloads stops the download with it")
+
+        # a driver too old for the add-on: said, with no button
+        seen.update(driver=(11, 4), cards=[(6, 1)])
+        w = mark_qt.QtMarker(cases=tempfile.gettempdir())
+        w.show()
+        d = preferences(w)
+        old = d.gpu_said.text()
+        check(not d.gpu.isEnabled() and d.gpu_install.isHidden() and "driver" in old and "11.4" in old
+              and old == mark_qt.GPU_CANNOT.format(card=name, why=addon.offer(gpu.found())["cannot"]),
+              "where the card's driver is too old for the add-on, the page says so and what to do, and offers no button", old)
+        d.close()
+        w.close()
+
+        # the words, as sciencespeak has them: none of the trade's, and no sentence over 40 words
+        words = [offer_words, mark_qt.GPU_INSTALLING.format(card=name), old, mark_qt.GPU_BY_HAND.format(card=name), mark_qt.ADDON_TITLE,
+                 *(t.format(card=name, gb=1.35) for t in mark_qt.ADDON_WORDS.values()),
+                 mark_qt.ADDON_FAILED.format(why=addon.explain(["Network is unreachable"]), pip="", command="")]
+        trade = [(pat, t[:50]) for t in words for pat in TRADE_WORDS if re.search(pat, t, re.I if pat != r"\bDN\b" else 0)]
+        longest = max(len(re.findall(r"[A-Za-z0-9][\w'’.-]*", x)) for t in words for x in re.split(r"(?<=[.!?:])\s+", t))
+        check(not trade and longest <= 40 and all("mcdonald " not in t.replace("mcdonald setup", "") for t in words),
+              "what the page and the card say is in plain words, in sentences of 40 words or fewer, and the program is mcDonald",
+              f"{trade[:2]}; the longest sentence {longest} words")
+    finally:
+        gpu.found, gpu.installed, gpu.cuda, addon.PIP, addon.room, speaker.outputs = keep
+        for k, v in kept_env.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+        gpu.forget()
+        if kept is None:
+            mark_qt.settings().remove("gpu")
+        else:
+            mark_qt.settings().setValue("gpu", kept)
 
 
 def drive_what_is_known(td):
