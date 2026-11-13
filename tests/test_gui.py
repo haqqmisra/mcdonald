@@ -2237,7 +2237,7 @@ def drive_measuring(td):
     # the stop is looked for as each pair comes back, and on twelve the drawn clip's 19 pairs come back in one wave
     # (2026-10-10), before the stop -- which then lands in the second pass, and the first is not seen to be cut.
     from mcdonald import progress as _pg
-    keep_cpus, _pg.cpus = _pg.cpus, (lambda: 2)
+    keep_cpus, _pg.cpus = _pg.cpus, (lambda allowed=True: 2)
     p.whole.setChecked(True)
     p.slow["layers"].setChecked(True)
     del steps[:]
@@ -3527,8 +3527,27 @@ def drive_preferences():
         w.do("preferences")
         d = w.prefs_page
         check(d is not None and w.stack.currentWidget() is d and d.cores.isEnabled() and d.cores.value() == 0
-              and d.cores.text() == f"all {have}" and progress.cpus() == have,
+              and d.cores.text() == mark_qt.cores_by_default(have) and progress.cpus() == have,
               "Edit -> Preferences: CPU cores, a page over the video, at first allows all of them", d.cores.text())
+        most = progress.MOST_WORKERS
+        check(mark_qt.cores_by_default(most) == f"all {most}"
+              and mark_qt.cores_by_default(most + 64) == f"{most} of {most + 64}, the default",
+              "its default said: all of them, or on a larger computer MOST_WORKERS (more measure no sooner)",
+              mark_qt.cores_by_default(most + 64))
+        if have >= 2:                                 # as on a computer with more than MOST_WORKERS
+            try:
+                progress.MOST_WORKERS = 1
+                mark_qt.choose_cpus(have)
+                above = os.environ.get(progress.CPUS_VAR)
+                mark_qt.choose_cpus(1)
+                at = os.environ.get(progress.CPUS_VAR)
+            finally:
+                progress.MOST_WORKERS = most
+                progress.limit_cpus(None)
+                mark_qt.settings().remove("cpus")
+            check(above == str(have) and at is None,
+                  "more than the default chosen is used as chosen; the default chosen is the default",
+                  f"{above!r}, {at!r}")
         d.cores.setValue(1)
         check(mark_qt.settings().value("cpus") in (1, "1") and progress.cpus() == 1 and progress.workers(None) == 1
               and autolink.default_procs() == 1,

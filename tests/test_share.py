@@ -187,6 +187,26 @@ def main():
         other["stages"]["track"]["fields"]["source"] = "elsewhere/object-1/y_autotrack.csv"
         B.write_text(json.dumps(other), encoding="utf-8")
         check(any(d[0] == "stages.track.fields.source" for d in rerun.compare_cases(A, B)), "a path to a different file is one too")
+        # a sentence is held to the letter, slash or no slash (IDEAS.md G6: until 2026-11-13 two strings that both held a
+        # slash were compared by what followed the last one, so a sentence with "px/s" in it was held by its tail only)
+        d = []
+        rerun._same({"rate": "median 103 px/s (16-84 %: 90-110; 133 one-second windows)", "fps": "30000/1001", "jitter": "0.35/0.32 px x/y"},
+                    {"rate": "median 250 px/s (16-84 %: 90-110; 133 one-second windows)", "fps": "30000/1001", "jitter": "0.36/0.32 px x/y"}, "result", d)
+        check([w for w, _, _ in d] == ["result.jitter", "result.rate"],
+              "a sentence with a slash in it (px/s, x/y) whose number moved is a difference: only a path is compared by its tail",
+              str(d)[:160])
+        paths = ["/scratch/a/object-1/x_track.csv", "~/cases/x_case.json", "C:\\Users\\a b\\x_track.csv", "out/object-1/x_track.csv",
+                 "x_track.csv", "D:/videos/PR 113.mp4"]
+        said = ["median 103 px/s", "30000/1001", "0.35/0.32", "fps/6", "object-2/pr097_track", "about 1.5x the object's size",
+                "theta or Rdot (aspect angle / range rate)", "see x_track.csv for the rest", "36.2 px/deg up the picture, 48.3 across", ""]
+        check(all(rerun.is_path(x) for x in paths) and not any(rerun.is_path(x) for x in said) and not rerun.is_path(None),
+              "a path is an absolute one, or a string with no space and a file's ending; a rate, a ratio and a sentence are not",
+              str([x for x in paths if not rerun.is_path(x)] + [x for x in said if rerun.is_path(x)]))
+        d = []
+        rerun._same(["C:\\Users\\a b\\object-1\\x_track.csv", "out/x_sheet.jpg", "/a/x_layers.csv", "/a/x.png"],
+                    ["/tmp/rerun/object-1/x_track.csv", "x_sheet.jpg", "/b/c/x_layers.csv", "/a/y.png"], "files", d)
+        check([w for w, _, _ in d] == ["files[3]"],
+              "the same file in another folder, on another system or named with no folder, is the same file; another file is not", str(d)[:160])
         # the review state: a person said they looked at the track sheet (stages.confirm_sheet). A run made again cannot
         # say that (2026-11-09: the Technical Note's two files gave back every number and "did not rerun" on it)
         from mcdonald.stages import SHEET_NEEDED, SHEET_PROVISIONAL

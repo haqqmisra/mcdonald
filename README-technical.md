@@ -80,7 +80,9 @@ for updates in the window, and the `version` line of `mcdonald setup` (`--json`:
   On four CPUs (a laptop) count on about twice these: a 2-second segment of PR113 measured with
   every check took 8 minutes there. The long steps use every CPU there is, as far as the memory
   free allows (about half a gigabyte a CPU for 1080p video), so a machine with more cores is
-  faster. To leave some of the computer for other work, `mcdonald --cpus N <command> ...` (or
+  faster -- up to 32: on a 96-thread workstation, whole runs at 8 to 88 worker processes were
+  fastest at 32 to 48 and up to 15 % slower at 88, so a computer with more than 32 uses 32
+  unless told otherwise (`--cpus N` with a larger N is used as given). To leave some of the computer for other work, `mcdonald --cpus N <command> ...` (or
   `MCDONALD_CPUS=N` in the environment) lets every step use at most N CPU cores, and in the
   window **Edit → Preferences…** (on a Mac, mcDonald → Settings) does the same and is remembered; `--procs N` on a
   command sets one step's worker processes within that.
@@ -702,8 +704,10 @@ carries the thread on with the new note last.
 
 Does a shared file give back its own numbers? `mcdonald share rerun FILE.mcdonald` opens it as anyone does,
 measures every object again by the command its report records, and holds the new report against the file's, number
-for number (exit 1 where it does not): the check every reference case of the data folder is held to (ROADMAP.md,
-0.3), and in the window the shared card's **Measure it again**. Minutes per object; needs the video (beside the file,
+for number and sentence for sentence (exit 1 where it does not): a number may differ by one part in a billion, a
+file's path is compared by its file name, and every other string has to be the same to the letter. It is the check
+every reference case of the data folder is held to (ROADMAP.md, 0.3), and in the window the shared card's **Measure
+it again**. Minutes per object; needs the video (beside the file,
 in the storage folder, in `$MCDONALD_DATA`, in a `--video-dir`, or by its catalog name). `tools/rerun_cases.py` in
 the repository is the same, with the reference-data folder looked in as well.
 

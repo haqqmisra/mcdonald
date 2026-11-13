@@ -797,12 +797,12 @@ def test_a_case_says_what_computed_it_and_is_measured_again_that_way():
           and rerun.held_to(cpu, card)[:2] == (rerun.CARD_REL, rerun.CARD_ABS) and rerun.held_to(card, cpu)[2] == card["computed_on"],
           "two cases the CPU measured are held to one part in a billion, as ever (a case from before this had no such "
           "line); where a card took part in either, to the card's agreement", f"{rerun.REL:g}, {rerun.CARD_REL:g}")
-    old = dict(median=0.002164694845058817, rate=2.5843046420297098, pairs=265, said="median 103 pixels a second", tiny=3.1e-9)
-    new = dict(median=0.002164666917630358, rate=2.584304664447357, pairs=265, said="median 103 pixels a second", tiny=2.2e-9)
+    old = dict(median=0.002164694845058817, rate=2.5843046420297098, pairs=265, said="median 103 px/s (16-84 %: 90-110)", tiny=3.1e-9)
+    new = dict(median=0.002164666917630358, rate=2.584304664447357, pairs=265, said="median 103 px/s (16-84 %: 90-110)", tiny=2.2e-9)
     strict, loose, other = [], [], []
     rerun._same(old, new, "fields", strict)
     rerun._same(old, new, "fields", loose, rerun.CARD_REL, rerun.CARD_ABS)
-    rerun._same(dict(old, pairs=266, said="median 104 pixels a second", rate=2.59), new, "fields", other, rerun.CARD_REL, rerun.CARD_ABS)
+    rerun._same(dict(old, pairs=266, said="median 104 px/s (16-84 %: 90-110)", rate=2.59), new, "fields", other, rerun.CARD_REL, rerun.CARD_ABS)
     check(sorted(w for w, _, _ in strict) == ["fields.median", "fields.rate", "fields.tiny"] and loose == [],
           "PR135's own differences between the CPU and the card (1.3 parts in 100,000 at the most) fail one part in a "
           "billion and pass the card's agreement", str([w for w, _, _ in strict]))

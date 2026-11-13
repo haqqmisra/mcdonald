@@ -18,9 +18,9 @@ shown as busy, never as a bar that does not move.
 asked between items. When it says yes the pool is ended and `Stopped` is raised:
 a stage stops inside itself, not only between stages.
 
-A pool has a worker for every CPU this process may use, as far as memory allows
-(`workers`), unless a caller asks for fewer; `procs=0` runs the same work in this
-process, which is how a test holds the pooled result against the plain one.
+A pool has a worker for every CPU this process may use, to MOST_WORKERS and as far as
+memory allows (`workers`), unless a caller asks for fewer; `procs=0` runs the same work in
+this process, which is how a test holds the pooled result against the plain one.
 """
 import contextlib
 import multiprocessing
@@ -160,14 +160,31 @@ WORKER_PER_PIXEL = 200
 SPARE = 0.8         # of the memory free when a pool starts, the share its workers may take
 
 
+# The most worker processes a pool has when nobody has said how many. Measured on arthur (48 cores, 96 threads),
+# 2026-11-13, whole `mcdonald run`s of three reference objects at 8 to 88 workers, with the graphics card and
+# without: 32 to 48 workers were the fastest on every one, and 64 or 88 slower by up to 15 % (each worker's start
+# and its own reading of the frames, at every pool of a Measure, for no more arithmetic done at once). Under 32 a
+# worker for each hardware thread is the right count: in a job of 4 or 8 whole cores, two workers a core beat one a
+# core by 5 to 20 %. A person's own number (`--cpus`, MCDONALD_CPUS, Preferences, `--procs`) is not held to it.
+MOST_WORKERS = 32
+
+
+def default_workers(allowed=True):
+    """How many worker processes a pool has when no caller says: one for every CPU this process may run on (`cpus`),
+    to MOST_WORKERS unless a person allowed more (MCDONALD_CPUS: theirs is the count). With `allowed` False, what it
+    is when no person has said, which is what Preferences shows as its default."""
+    n = cpus(allowed)
+    return n if allowed and os.environ.get(CPUS_VAR, "").strip() else min(n, MOST_WORKERS)
+
+
 def workers(procs=None, pixels=None):
-    """How many worker processes a pool gets: one for every CPU this process may run on (`cpus`),
-    or `procs` if that is fewer -- and never more than the memory free has room for, at what a
-    worker holds for frames of `pixels` (1920 x 1080 if not said). At least one; and 0 when `procs`
-    is 0, which callers take to mean "in this process, no pool"."""
+    """How many worker processes a pool gets: `default_workers`, or `procs` if a caller says (never more than
+    there are CPUs to run them on) -- and never more than the memory free has room for, at what a worker holds
+    for frames of `pixels` (1920 x 1080 if not said). At least one; and 0 when `procs` is 0, which callers take
+    to mean "in this process, no pool"."""
     if procs == 0:
         return 0
-    n = cpus() if procs is None else max(1, min(int(procs), cpus()))
+    n = default_workers() if procs is None else max(1, min(int(procs), cpus()))
     free = free_memory()
     if free is not None:
         each = WORKER_BASE + WORKER_PER_PIXEL * (pixels or 1920 * 1080)
@@ -176,7 +193,7 @@ def workers(procs=None, pixels=None):
 
 
 PROCS_HELP = ("worker processes (default: one for each CPU this process may use -- a batch job's allocation, not the "
-              "machine, and no more than `mcdonald --cpus` allows -- as far as memory allows)")
+              f"machine -- to {MOST_WORKERS} unless `mcdonald --cpus` allows more, and as far as memory allows)")
 
 
 def chunk(jobs, size, most=1):

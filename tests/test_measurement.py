@@ -33,10 +33,10 @@ def check(cond, label, detail=""):
     return cond
 
 
-def isotropic(h, w, scale=3.0):
-    """Cloud-like texture: smoothed noise, no preferred direction."""
+def isotropic(h, w, scale=3.0, rng=None):
+    """Cloud-like texture: smoothed noise, no preferred direction. From the module's RNG unless a test gives its own."""
     from scipy import ndimage
-    return ndimage.gaussian_filter(RNG.normal(0, 1, (h, w)), scale) * 400 + 128
+    return ndimage.gaussian_filter((rng or RNG).normal(0, 1, (h, w)), scale) * 400 + 128
 
 
 def striated(h, w):
@@ -253,8 +253,11 @@ def test_each_template_weighed_by_its_own_error():
     bad = np.zeros((h, w), bool)
     truth = np.array([12.3, -4.7])
     rstd = lambda x: 1.4826 * np.median(np.abs(x - np.median(x)))
+    # Its own draws, not the module's RNG: that one is shared with every test before this one in the same part, so
+    # adding a test anywhere drew this one afresh, and check 1's median sits near its floor on 2 of 40 draws (2026-11-13)
+    own = np.random.default_rng(1)
 
-    def pair(big, noise=8.0, mixed=None, rng=RNG):
+    def pair(big, noise=8.0, mixed=None, rng=own):
         a = big[40:40 + h, 40:40 + w] + rng.normal(0, noise, (h, w))
         b = ndimage.shift(big, (truth[1], truth[0]), order=3)[40:40 + h, 40:40 + w]
         if mixed:                                          # the right half moved `mixed` px further along x
@@ -263,7 +266,7 @@ def test_each_template_weighed_by_its_own_error():
         return a, b + rng.normal(0, noise, (h, w))
 
     # 1. an isotropic texture, white noise in both frames: the error each peak gives is about the residual
-    a, b = pair(isotropic(h + 80, w + 80))
+    a, b = pair(isotropic(h + 80, w + 80, rng=own))
     f = vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120)
     g = vf.good(f)
     d = g[:, 3:5] - truth
@@ -278,7 +281,7 @@ def test_each_template_weighed_by_its_own_error():
           "the pair's weighted shift is the truth, with its covariance",
           f"({c[0][0]:+.3f}, {c[0][1]:+.3f}) +/- ({rigid[0]:.3f}, {rigid[1]:.3f}) from {c[1]}" if c else "no consensus")
     # 2. the same, the right half moved 1.5 px further: the error grows to what the members' scatter supports
-    a, b = pair(isotropic(h + 80, w + 80), mixed=1.5)
+    a, b = pair(isotropic(h + 80, w + 80, rng=own), mixed=1.5)
     c = vf.layers_of(vf.shift_field(a, b, bad, bad, tpl=128, stride=96, reach=120))["all"]
     loose = np.sqrt(np.diag(c[2])) if c else None
     check(c is not None and loose[0] > 5 * rigid[0] and 0.05 < loose[0] < 0.5,
@@ -334,7 +337,7 @@ def test_each_template_weighed_by_its_own_error():
           "the chain weighs each pair's shift by its error, and carries the path's own",
           f"path {X[-1]:.2f} px over {len(frames) - 1} steps, +/-{E[-1, 0]:.3f}")
     # 5. end to end: `layers` writes the error, `slew.read_layers` reads it, the chain is within its error of the truth
-    scene = isotropic(h + 40, w + 400, scale=4.0)
+    scene = isotropic(h + 40, w + 400, scale=4.0, rng=own)
     with tempfile.TemporaryDirectory() as td:
         src = Path(td) / "frames"
         src.mkdir()
@@ -4437,6 +4440,37 @@ def test_a_person_can_say_how_many_cpus_to_use():
         progress.limit_cpus(None)
         check(progress.CPUS_VAR not in os.environ and progress.cpus() == here, "and the limit can be lifted")
     finally:
+        os.environ.pop(progress.CPUS_VAR, None)
+        if keep is not None:
+            os.environ[progress.CPUS_VAR] = keep
+
+
+def test_a_large_machine_runs_no_more_than_most_workers():
+    """Jacob, 2026-11-13: "is there an optimal number of CPUs for mcDonald GUI to use? Right now the default is the
+    system maximum". Measured on arthur (48 cores, 96 threads): whole runs were fastest at 32 to 48 worker processes
+    and slower at 64 and 88; under 32, a worker for each hardware thread was best. So nobody's choice is every CPU to
+    MOST_WORKERS, the link's included; a caller's count and a person's (`--cpus`, Preferences) are used as given, to
+    what there are. Held here with MOST_WORKERS lowered to 2."""
+    print("\nprogress: no more than MOST_WORKERS unless someone says")
+    import os
+    from mcdonald import autolink, progress
+    keep, most = os.environ.pop(progress.CPUS_VAR, None), progress.MOST_WORKERS
+    here = progress.cpus()
+    try:
+        progress.MOST_WORKERS = 2
+        check(progress.default_workers() == min(2, here) == progress.default_workers(allowed=False)
+              and progress.workers(None) <= 2 and autolink.default_procs() <= 2,
+              "nobody's choice: every CPU, to MOST_WORKERS, the link's too", f"{progress.workers(None)} of {here}")
+        pids = set(progress.pooled(None, _pid, range(24)))
+        check(len(pids) <= 2, "a pool nobody sized has that many", f"{len(pids)} worker processes")
+        if here >= 3:
+            check(progress.workers(3) == 3, "a caller's own count is not held to it", f"{progress.workers(3)}")
+            progress.limit_cpus(3)
+            check(progress.default_workers() == 3 and progress.workers(None) == 3 and autolink.default_procs() == 3
+                  and progress.default_workers(allowed=False) == 2,
+                  "nor is a person's (--cpus, Preferences)", f"{progress.default_workers()}")
+    finally:
+        progress.MOST_WORKERS = most
         os.environ.pop(progress.CPUS_VAR, None)
         if keep is not None:
             os.environ[progress.CPUS_VAR] = keep

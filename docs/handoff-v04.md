@@ -1,4 +1,112 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.3 released (2026-11-12) on top, then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- session 22's brief on top (2026-11-13: the card's remaining work, all of it, and the window's CPU default measured), then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 22's brief (written 2026-11-13): the card's remaining work, all of it
+
+**Jacob, 2026-11-13**, after session 21's "Not done" list was read back to him: "Trying it now in the GUI with PR149,
+seems to work, I can see the GPU being used during layers" (session 21's item 5, a person at the window: done, no
+fault seen). Then: "For 2-5: Let's do all of these" -- `rerun`'s slash rule (G6), the stages still on the CPU, the
+work the card is for (ROADMAP 0.6 objective 4), and the smaller items (G5, G3, the card out of memory). He also asked
+whether the window's default of every CPU is the best one; that was measured in this session (below, "The CPU count").
+
+### The order, and why
+
+1. **G6 first: `rerun` holds a sentence with a slash by its tail only** (IDEAS.md G6; session 21's "Found on the
+   way"). It is a report-changer and small. Compare as a path only what is one (absolute, or no space and a file's
+   ending). Then find what the old rule hid: rerun the fourteen reference cases on arthur on the CPU
+   (`tools/rerun_cases.py`, the pattern of `/scratch/mcdonald/bench-2026-11-11/kit/cases.sbatch`, 4 CPUs and
+   `--mem=8G` each, an array `%11`) and list every sentence the new rule flags that the old one passed. The case files
+   were made on merlin and no case reruns to 1e-9 on another CPU (the benchmark), so judge the new rule by the
+   sentences it adds, not by `--strict` passing. Whether a case file is remade is Jacob's.
+2. **The stages still on the CPU** (ROADMAP 0.6 objective 3's "Still to do for complete"), each held to the CPU's in
+   `test_gpu` and on the goldens with the card:
+   - **G2, Find and Follow.** `forensics._spot_response_on` is built and held (the direct sum's numbers in double) and
+     no stage calls it. Left on the CPU after the response: the picking (25 maxima a frame, each cleared in turn) and
+     the centroids. Find's ranking can turn on a near tie, so a card's spot list must give the same proposals: after
+     any change to `propose`, `tools/find_rank.py --link` from a snapshot (~45 min; memory "Proposer held against
+     recorded tracks"), once on the CPU and once with `--gres=gpu:1`.
+   - **`flicker`'s camera-shake pass** (`flicker.py` ~2842 `_shift_sums`, ~2856 `_shift_job`, "Camera shake"): a
+     shift field, so `_shift_field_on`'s batch may serve it.
+   - **`stabilize`'s two pools** (`stabilize.py` ~563 `_warped_struct`, ~804 `_pass2`).
+   - **`layers`' third pass** (`layers.py` ~325, B3: a block's still pairs read again with the mean taken out).
+   - **Look first at what no number of workers shortens** (measured 2026-11-13, below): with the card, PR088
+     object 2's whole run (3,678 frames) took 404-468 s at 8 to 88 workers, and most of it does not move with them.
+     `flicker`'s aperture pass ("Flicker", `flicker.py` ~1906) is pooled yet took 106-110 s at every count, so
+     something serial bounds it (the frames read in this process? results sent back?); find out before moving it to
+     the card. `tether`'s two frame passes ("Stack" 24 s, "Frames" 97 s; `tether.py` ~315, ~663) read the frames
+     one after another in this process. `camera`'s "Zoom steps and rate steps" (22 s) the same at every count.
+   Rules that cost session 21 a wrong turn each (memory "GPU card path, session 21"; `gpu.py`'s docstring): the card
+   only inside the stage's `gpu.on(card)`, never in a helper; every CuPy call in `Card.run`'s one thread; write
+   against `card.xp`, `card.fft`, `card.ndimage` so NumPy can stand in on GitHub's runners; a pass through
+   `forensics.pooled_or_on_card` with frames read ahead by `progress.Ahead`.
+3. **G5, the add-on installed from the window.** Preferences says "In a terminal, type: pip install "mcdonald[gpu]""
+   (`mark_qt.GPU_INSTALL`), which a person with no terminal cannot do. `update.py` already runs pip for the window
+   (`update.py` ~46). Choose `gpu` (CUDA 12) or `gpu-cuda13` by the driver's CUDA version; offer it only where an
+   NVIDIA card is found. Jacob's window rules apply (no pop-ups; the card teal until done; the command oval).
+4. **G3, one fused pass for the card's batch** (about half a pair's 25 ms). **Ask Jacob before building it:** a fused
+   kernel is the card's own code, so NumPy can no longer stand in for it on the runners, and it would be tested on
+   arthur only. Measure first whether the dense field (5) needs the speed.
+5. **The work the card is for (ROADMAP 0.6 objective 4, and the "dense motion fields, error models" of the standing
+   rule):** none of it is begun, and each part wants Jacob's choices before it is built (put them as multiple choices,
+   which he asked for in session 21). The dense flow field with a validity mask (IDEAS.md A14; `layers`, `comotion`)
+   first: the shift field at stride 16 is 36 times the templates and about 0.4 s a 1080p pair on the card. Then the
+   planted objects at scale (`plant`: thousands a clip, re-encoded with the clip's own settings, through Find, link,
+   flicker and report; IDEAS.md K8's conditioning on a recorded path, F35's spot through the codec), and the error
+   models. Every threshold set against a null (memory "Thresholds from a null").
+6. **The card truly out of memory** (session 21's item 6): watch only; CuPy's allocator runs the cycle collector once
+   in the card's thread before it gives up.
+
+**How to split it.** Items 1-4 are one session's work (call it 22), item 5 its own session or more. Items 2 and 4
+all touch `forensics.py` and `test_gpu.py`, so they go one after another, not to agents side by side. G6 (`rerun.py`)
+and G5 (`mark_qt`, `update`) touch nothing of theirs and could each go to an agent in a worktree. One card: jobs that
+ask for it with `--gres=gpu:1` queue behind each other, so take timings between suite runs. Test with
+`sbatch --gres=gpu:1 tools/suites.sbatch golden` and once without the card; never edit the checkout a job imports.
+Commit to `main` locally; pushing and versioning are Jacob's.
+
+### The CPU count (measured 2026-11-13, built the same day, not pushed)
+
+Jacob asked: "is there an optimal number of CPUs for mcDonald GUI to use? Right now the default is the system
+maximum, but if that is not optimal, then we should set the default accordingly." Whole `mcdonald run`s of three
+reference objects, each run as its case file records it (`--track`), with `MCDONALD_CPUS` set to the count, in 88-CPU
+jobs on arthur (seconds; two numbers are a repeat):
+
+| object | card | 8 | 16 | 24 | 32 | 48 | 64 | 88 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| PR149, frames 1-158, 1920x1028 | yes | 49.8 | 49.7 | 49.6 | 49.6, 50.0 | 50.0, 50.1 | 50.1 | 50.9, 51.1 |
+| | no | 87.4 | 68.7 | 65.4 | 63.7 | 64.5 | 68.8 | 74.2 |
+| PR135 object 2, 1180-1449, 1280x720 | yes | 60.0 | 59.9 | 59.5 | 59.5, 60.2 | 59.7, 60.7 | 61.3 | 62.2, 62.6 |
+| | no | 82.1 | 69.7 | 65.7 | 65.5 | 63.9 | 67.0 | 71.1 |
+| PR088 object 2, 5240-8917 (3,678 frames) | yes | 467.8 | 419.5 | | 405.9 | 403.9 | | 412.4 |
+| | no | | 481.2 | 441.1 | 426.4 | 424.3, 422.5 | | 446.1 |
+
+- **32 to 48 workers are the fastest on every row; 64 and 88 are slower** by up to 15 % on the CPU alone, and 24 is
+  4 % slower than 32 on PR088's long run without the card: 32 is where it stops gaining, so `MOST_WORKERS = 32`. The steps
+  that lose are those whose pools have little work each: every worker's start and its own reading of frames, at each
+  of a Measure's dozen pools (the track sheet 2.7 s at 8 workers, 5.3 s at 88). Even `layers` on the CPU alone is
+  slower at 88 than at 48 on PR088 (80 s against 66.5 s).
+- **With the card, the count hardly matters**: PR149 and PR135 the same from 8 to 88.
+- **Under 32 a worker for each hardware thread is right.** In jobs of 4 and of 8 whole cores (both threads of each,
+  checked from the job), two workers a core beat one a core on both short objects, by 5 to 20 % (4 cores: PR149 165
+  and 147 s against 130 and 124; 8 cores: 114 and 96 against 89.5 and 89). So it is not "one a core".
+- **Built:** `progress.MOST_WORKERS = 32` and `progress.default_workers()`: a pool nobody sized has a worker for every
+  CPU, to 32 (the link's `autolink.default_procs` too). A person's number (`--cpus`, `MCDONALD_CPUS`, Preferences) and a
+  caller's (`--procs`) are used as given, to what there are. Preferences says "32 of 96, the default" on a larger
+  computer and "all N" on one of 32 or fewer, where nothing changes; choosing more than 32 there is used as chosen.
+  CHANGELOG (Unreleased), README-technical, docs/agents.md, `mcdonald --help`; test_measurement
+  (`test_a_large_machine_runs_no_more_than_most_workers`), test_gui (the Preferences words and choices).
+- **Two tests the change touched.** test_gui's "Stop during layers" put `lambda: 2` in for `progress.cpus`, which
+  `default_workers` calls with an argument: now `lambda allowed=True: 2`. And adding a test to test_measurement moved
+  every later test into another of its four parts, which drew `test_each_template_weighed_by_its_own_error`'s texture
+  afresh from the module's shared RNG; its first check failed (median chi2 ratio 0.23 against a floor of 0.25). Over 40
+  seeds that check fails on 2 (median 0.38, 5-95 % 0.26-0.54), so it had passed on the order the tests happened to run
+  in. It now draws from its own generator (`default_rng(1)`, as its part 3 already had `default_rng(2)`; 0.337), so no
+  other test moves it. The floor is still near its own 5th percentile; whether to widen it is a separate question.
+- Tested: `mcdonald-test` on Cannon, run 20261113-114923-main-0e98820-wip, all suites pass (test_measurement 605,
+  test_gui 674 + Cannon's 4 skips, test_gpu 70 with NumPy standing in).
+  And on arthur with the card (`--on arthur --gpu`, run 20261113-115453-main-601bd78-wip): all pass, test_measurement 607 (its new
+  test's last two checks need 3 CPUs), the window's suite 776 + 1 skip, test_gpu 89 on the card.
+- Not measured: Find and Follow (the runs start from recorded tracks) and the window itself; the desktop has 96
+  threads to a job's 88. Files: `/scratch/mcdonald/cpus-2026-11-13/` (`results.tsv`, `smt.tsv`, `analyze.py` for the
+  table by step, `runs/*/out.log` each run's lines timed, `sweep*.sbatch`, `smt.sbatch`; jobs 815, 817, 829-831; 816 and 825 were another session's).
 
 ## 0.5.3 released (2026-11-12, evening): the graphics card, and 0.5.2 on PyPI at last
 

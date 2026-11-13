@@ -3752,11 +3752,13 @@ class QtMarker(QtWidgets.QMainWindow):
         row.addWidget(QtWidgets.QLabel("How many the measuring may use:"))
         box = d.cores = QtWidgets.QSpinBox()
         box.setRange(0, have)
-        box.setSpecialValueText(f"all {have}")
+        box.setSpecialValueText(cores_by_default(have))
         box.setSuffix(f" of {have}")
         box.setKeyboardTracking(False)
         box.setToolTip("Fewer leaves more of the computer for other work while a video is measured, and the "
-                       "measuring takes longer. The answers are the same either way.")
+                       "measuring takes longer. The answers are the same either way."
+                       + (f" More than {progress.MOST_WORKERS} measure no sooner: each one takes time to start."
+                          if have > progress.MOST_WORKERS else ""))
         chosen = int(os.environ.get(progress.CPUS_VAR, "0") or 0)
         box.setValue(0 if chosen >= have else chosen)
         fixed = bool(os.environ.get(CPUS_FROM_OUTSIDE, ""))
@@ -4168,10 +4170,18 @@ def use_remembered_cpus():
         progress.limit_cpus(None)
 
 
+def cores_by_default(have):
+    """Preferences' words for its default, 0: every CPU core, or on a computer with more than
+    `progress.MOST_WORKERS` that many (more measure no sooner)."""
+    usual = min(have, progress.MOST_WORKERS)
+    return f"all {have}" if usual >= have else f"{usual} of {have}, the default"
+
+
 def choose_cpus(n):
-    """Preferences' choice: at most `n` CPU cores from the next step on, remembered; 0 is all of them."""
+    """Preferences' choice: at most `n` CPU cores from the next step on, remembered; 0 is the default (all of them,
+    or `progress.MOST_WORKERS` on a computer with more). A number above the default is the person's, and used."""
     n = int(n or 0)
-    progress.limit_cpus(n if 0 < n < progress.cpus(allowed=False) else None)
+    progress.limit_cpus(n if 0 < n != progress.default_workers(allowed=False) else None)
     settings().setValue("cpus", n)
 
 
