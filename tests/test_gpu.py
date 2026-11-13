@@ -761,6 +761,123 @@ def test_layers_and_integrity_on_the_card_are_the_cpus():
               "a run on the card its own, and that one still says a card took part", f"{kept}; {from_card}")
 
 
+class _Shaken:
+    """A textured scene of 150 frames, the whole picture moved `jitter` px along x at 6 Hz (a cooler's or a gimbal's
+    shake) and sliding `pan` px a frame, with one bright point on it: what `flicker.scene_shift` registers."""
+    W, H, fps, n0, n1 = 320, 240, 30.0, 1, 150
+
+    def __init__(self, jitter, pan=0.0):
+        from scipy import ndimage
+        self.jitter, self.pan = jitter, pan
+        big = ndimage.gaussian_filter(np.random.default_rng(3).normal(0, 1, (self.H, self.W + 200)), 2.5)
+        self.scene = np.clip(big * 80 + 60, 20, 110)
+        self.cache = {}
+
+    def at(self, n):
+        return 90.0 + 0.37 * n, 80.0 + 0.21 * n
+
+    def rgb(self, n):
+        if n not in self.cache:
+            from scipy import ndimage
+            dx = self.jitter * np.sin(2 * np.pi * 6.0 * n / self.fps) + self.pan * n
+            g = ndimage.shift(self.scene, (0, dx), order=3, mode="nearest")[:, :self.W] + np.random.default_rng(n).normal(0, 1.0, (self.H, self.W))
+            x, y = self.at(n)
+            yy, xx = np.mgrid[:self.H, :self.W]
+            g = g + 120 * (1 + 0.25 * np.sin(2 * np.pi * 6.0 * n / self.fps)) * np.exp(-((xx - x - dx) ** 2 + (yy - y) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.float32)
+        return self.cache[n]
+
+
+def test_flickers_shake_pass_on_the_card_is_the_cpus():
+    """`flicker`'s camera-shake pass (`scene_shift`, 2026-11-13): every frame registered against the stretch's mean
+    frame, or against the frame before where the scene pans, by least squares on the gradient with three Fourier warps
+    (`lk_shift`), and again with a small shift planted at the beat. On a card the same in this process, the frames read
+    ahead: the same way of registering, each number of the reading within a ten-thousandth of a pixel."""
+    print("\nflicker's camera-shake pass")
+    from mcdonald import flicker
+    for what, clip in (("a picture shaken 0.3 px at the beat", _Shaken(0.3)), ("the same, sliding 1.2 px a frame", _Shaken(0.3, pan=1.2))):
+        ns = list(range(1, 151))
+        tracks = {"object": {n: clip.at(n) for n in ns}}
+
+        def run(card):
+            with on(card):
+                return flicker.scene_shift(clip, ns, tracks, {"object": 6.0}, procs=0)
+        cpu = run(None)
+        check(cpu["scene"]["power"] and cpu["scene"]["registered"] == ("frame to frame" if clip.pan else "against the mean frame")
+              and 0.2 <= cpu["object"]["at_beat_px"] <= 0.4,
+              f"on the CPU, {what}: registered {cpu['scene']['registered']}, and the shake read at about its size",
+              f"{cpu['object']['at_beat_px']:.3f} px at the beat, a planted {flicker.SHIFT_PLANT} px recovered {cpu['object']['recovered']:.2f}")
+        for c in the_cards():
+            got = run(c)
+            a, b, sa, sb = cpu["object"], got["object"], cpu["scene"], got["scene"]
+            far = max(abs(a[k] - b[k]) for k in ("at_beat_px", "recovered"))
+            check(sa["registered"] == sb["registered"] and sa["power"] == sb["power"] and a["moves"] == b["moves"]
+                  and abs(sa["step_px"] - sb["step_px"]) <= 1e-4 and abs(sa["texture"] - sb["texture"]) <= 1e-4 * sa["texture"]
+                  and abs(a["at_beat_px"] - b["at_beat_px"]) <= 1e-4 and abs(a["recovered"] - b["recovered"]) <= 1e-3
+                  and abs(a["stands"] - b["stands"]) <= 1e-3 * a["stands"] and abs(a["local"] - b["local"]) <= 1e-3 * a["local"],
+                  f"{c.name}, {what}: registered the same way, the shake at the beat within 0.0001 px, the same verdict",
+                  f"{b['at_beat_px']:.6f} against {a['at_beat_px']:.6f} px; farthest of the shake and the planted share {far:.1e}")
+        check("ahead" not in flicker._S and "ref_on" not in flicker._S, f"{what}: nothing of the card's round is left behind")
+
+
+def test_the_third_pass_of_layers_on_the_card_is_the_cpus():
+    """`layers`' third pass (2026-11-13): where a pattern on the sensor holds the templates at zero, each pixel's mean
+    over a block is taken out and the block's pairs are matched again (`layers._mean_out`). On a card the same blocks
+    in the stage's own process, the pairs matched on the card and the frames read ahead: the same blocks, the same
+    pairs read, the scene's velocity within a hundredth of a pixel a frame."""
+    print("\nlayers' third pass, the scene under a sensor's pattern")
+    import json
+    import shutil
+    import subprocess
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    from PIL import Image
+    from scipy import ndimage
+    from mcdonald import clip as clipmod, layers
+    v, frames, h, w = (6.0, 1.5), 70, 480, 640
+    with tempfile.TemporaryDirectory() as td:
+        rng = np.random.default_rng(113)         # test_measurement's breathing clip: a scene behind a pattern four times as strong
+        src = Path(td) / "src"
+        src.mkdir()
+        big = ndimage.gaussian_filter(rng.normal(0, 1, (h + 80, w + 700)), 3.0)
+        big = 5.0 * big / big.std()
+        pattern = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 1.5)
+        pattern = 20.0 * pattern / pattern.std()
+        for n in range(1, frames + 1):
+            scene = ndimage.shift(big, (v[1] * n, v[0] * n), order=1, mode="wrap")[40:40 + h, 350:350 + w]
+            g = 110.0 + scene + (1.0 + 0.25 * np.sin(2 * np.pi * n / 23.0)) * pattern + rng.normal(0, 1.0, (h, w))
+            Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+        video = Path(td) / "breathes.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray", str(video)], check=True)
+        clip = clipmod.Clip(video, src)
+        none = np.zeros((clip.H, clip.W), bool)
+        masks = dict(blocks=none, graphics=none, colour=True, tinted=False)
+
+        def run(card):
+            with on(card):
+                layers.measure(clip, masks, k=5, procs=0, fresh=True, say=lambda *a: None, scene=True)
+                cache = max(clip.dir.glob("bg_scene_k5_*.npz"), key=lambda p: p.stat().st_mtime_ns)
+                z = np.load(cache)
+                return json.loads(str(z["blocks"])), z["tpl"]
+        b0, t0 = run(None)
+        read0 = [(b["start"], b["tpl_pairs_read"], b["tpl_pairs_tried"]) for b in b0]
+        check(len(t0) > 20 and any(r for _, r, _ in read0)
+              and all(np.hypot(b["tpl_vx"] - v[0], b["tpl_vy"] - v[1]) < 0.3 for b in b0 if b["tpl_vx"] is not None),
+              "on the CPU the third pass reads the drawn scene under the pattern", f"{len(t0)} rows; blocks (start, read, tried) {read0}")
+        for c in the_cards():
+            b1, t1 = run(c)
+            read1 = [(b["start"], b["tpl_pairs_read"], b["tpl_pairs_tried"]) for b in b1]
+            same = t0.shape == t1.shape and np.array_equal(t0[:, [0, 1, 2, -2, -1]], t1[:, [0, 1, 2, -2, -1]])
+            d = float(np.abs(t0[:, 3:5] - t1[:, 3:5]).max()) if same and len(t0) else np.inf
+            dv = max((np.hypot(x["tpl_vx"] - y["tpl_vx"], x["tpl_vy"] - y["tpl_vy"]) for x, y in zip(b0, b1) if x["tpl_vx"] is not None and y["tpl_vx"] is not None),
+                     default=np.inf)
+            check(read0 == read1 and same and d <= SHIFT_PX and dv <= 0.01,
+                  f"{c.name}, the third pass: the same blocks and pairs read, the same templates, the scene's velocity within 0.01 px a frame",
+                  f"{len(t1)} rows, worst shift difference {d:.1e} px, velocity {dv:.1e} px/frame")
+        check("ahead" not in layers._G, "and no reading threads are left behind")
+
+
 def test_a_case_says_what_computed_it_and_is_measured_again_that_way():
     """A card's numbers agree with the CPU's to about a part in a million, and `mcdonald share rerun` holds a case file
     to one in a billion. So a case keeps what computed it (`computed_on`), its report says so, a case the CPU measured

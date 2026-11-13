@@ -242,7 +242,7 @@ from functools import lru_cache
 import numpy as np
 from scipy import ndimage
 
-from . import forensics as vf
+from . import forensics as vf, gpu
 from .clip import gop as read_gop, picture_types
 from .progress import PROCS_HELP, Beside, pooled, to_stderr
 from .report import Found, bird_beats, emit, inputs_of, said_to_stderr
@@ -2781,17 +2781,92 @@ def _shift_sums(job):
     return s, s2, len(job)
 
 
+def _shift_read(n):
+    """Frame n's grey as the shake pass reads it."""
+    return vf.grey_of(_S["clip"].rgb(n)).astype(np.float32)
+
+
+def _shift_grey(n):
+    """`_shift_read(n)`: read here, or taken from the threads that read ahead of a loop on a graphics card (`_S["ahead"]`)."""
+    ahead = _S.get("ahead")
+    return ahead.get(n) if ahead is not None else _shift_read(n)
+
+
+def _shift_asks(jobs, ns, pan):
+    """Every frame `_shift_job` will ask for over `jobs`, in its order and as often (`progress.Ahead`)."""
+    return [ns[i] for k in jobs if not (pan and k == 0) for i in ((k, k - 1) if pan else (k,))]
+
+
+def _fshift_on(c, g, dy, dx):
+    """`_fshift` of a frame that is on the card `c`, left there."""
+    H, W = g.shape
+    ky, kx = c.xp.fft.fftfreq(H)[:, None], c.xp.fft.rfftfreq(W)[None, :]
+    return c.fft.irfft2(c.fft.rfft2(g) * c.xp.exp(-2j * np.pi * (ky * dy + kx * dx)), s=g.shape).astype(c.xp.float32)
+
+
+def _lk_shift_on(c, a, b, m, iters=3):
+    """`lk_shift` of two band-passed frames and a mask (1 where the scene is) that are on the card `c`: the same least
+    squares and the same three Fourier warps. The masked sums are made in double over the whole frame, the mask a
+    factor, where the CPU sums the masked pixels in single precision: on PR088's and PR149's frames the two shifts lie
+    6e-8 and 5e-7 px apart (2026-11-13), a frame registered in 2.5 and 5.7 ms against 69 and 198 on one CPU."""
+    xp = c.xp
+    m = (m > 0).astype(xp.float32)
+    gy, gx = xp.gradient(a)
+    gy, gx = gy * m, gx * m
+    f64 = xp.float64
+    n = float(m.sum(dtype=f64))
+    Ayy, Axx, Axy = float((gy * gy).sum(dtype=f64)), float((gx * gx).sum(dtype=f64)), float((gx * gy).sum(dtype=f64))
+    det = Ayy * Axx - Axy ** 2
+    if not n or det <= 0:
+        return float("nan"), float("nan"), 0.0
+    d = np.zeros(2)
+    for _ in range(iters):
+        it = (_fshift_on(c, b, -d[0], -d[1]) if d.any() else b) - a
+        by, bx = -float((gy * it).sum(dtype=f64)), -float((gx * it).sum(dtype=f64))
+        d += np.array([(Axx * by - Axy * bx) / det, (Ayy * bx - Axy * by) / det])
+    return float(d[0]), float(d[1]), float((Ayy + Axx) / n)
+
+
+def _shift_job_on(c, k):
+    """`_shift_job` on the card `c`: the same frames, mask, reference and planted shifts, the arithmetic there."""
+    ns, fps, hz = _S["ns"], _S["fps"], _S["hz"]
+    bp = lambda x: vf._bandpass_on(c, x, 1.0, 6.0)
+    g = c.up(_shift_grey(ns[k]))
+    m = c.up(_shift_mask(k))
+    plant = hz if _S["plant"][0] <= k < _S["plant"][1] else []
+    if _S["pan"]:
+        g0 = c.up(_shift_grey(ns[k - 1]))
+        ref = bp(g0)
+        plant0 = [bp(_fshift_on(c, g0, SHIFT_PLANT * np.sin(2 * np.pi * h * (k - 1) / fps), 0.0)) for h in plant]
+    else:
+        if _S.get("ref_on") is None or _S["ref_on"][0] is not _S["ref"]:      # the reference put on the card once a pass
+            _S["ref_on"] = (_S["ref"], c.up(_S["ref"]))
+        ref = _S["ref_on"][1]
+        plant0 = [ref] * len(plant)
+    dy, dx, tex = _lk_shift_on(c, ref, bp(g), m)
+    planted = [_lk_shift_on(c, r0, bp(_fshift_on(c, g, SHIFT_PLANT * np.sin(2 * np.pi * h * k / fps), 0.0)), m)[:2]
+               for h, r0 in zip(plant, plant0)]
+    return (dy, dx), tex, planted or [(np.nan, np.nan)] * len(hz)
+
+
 def _shift_job(k):
     """Frame k of the stretch registered -- against the mean frame, or against the frame before where the scene pans --
-    as it is and with SHIFT_PLANT planted at each beat: [(dy, dx), texture, [(dy, dx) planted, a beat]]."""
+    as it is and with SHIFT_PLANT planted at each beat: [(dy, dx), texture, [(dy, dx) planted, a beat]]. On a graphics
+    card where the stage has said so (`gpu.active`; `scene_shift`), the same there (`_shift_job_on`)."""
+    if _S["pan"] and k == 0:
+        return None
+    c = gpu.active()
+    if c is not None:
+        try:
+            return c.run(_shift_job_on, c, k)
+        except c.errors as e:
+            gpu.gave_up(e, "registering a frame against the scene")
     ns, fps, hz = _S["ns"], _S["fps"], _S["hz"]
-    grey = lambda n: vf.grey_of(_S["clip"].rgb(n)).astype(np.float32)
+    grey = _shift_grey
     g = grey(ns[k])
     m = _shift_mask(k)
     plant = hz if _S["plant"][0] <= k < _S["plant"][1] else []
     if _S["pan"]:
-        if k == 0:
-            return None
         g0 = grey(ns[k - 1])
         ref = _bandpass(g0)
         plant0 = [_bandpass(_fshift(g0, SHIFT_PLANT * np.sin(2 * np.pi * h * (k - 1) / fps), 0.0)) for h in plant]
@@ -2870,11 +2945,18 @@ def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, 
     ref = _bandpass(mean)
     probe = list(range(1, n, max(1, n // 20)))[:20]          # pan or hold? a few pairs, frame to frame
     _shift_init(clip, ns, pos, clip.fps, [], scene, ref, True)
-    steps = [np.hypot(*_shift_job(i)[0]) for i in probe]
-    pan = bool(np.nanmedian(steps) > SHIFT_PAN) if steps else False
-    a0 = max(0, (n - SHIFT_PLANT_FRAMES) // 2)
-    init = (clip, ns, pos, clip.fps, hz, scene, ref, pan, (a0, a0 + SHIFT_PLANT_FRAMES))
-    rows = pooled(procs, _shift_job, list(range(n)), _shift_init, init, 4, progress, stop, "Camera shake", pixels=clip.W * clip.H)
+    # On a graphics card (2026-11-13) the frames are registered there, in this process, the frames read ahead by
+    # threads (`forensics.pooled_or_on_card`): the probe too, which is this pass's own first look.
+    try:
+        with gpu.on(gpu.card()):
+            steps = [np.hypot(*_shift_job(i)[0]) for i in probe]
+        pan = bool(np.nanmedian(steps) > SHIFT_PAN) if steps else False
+        a0 = max(0, (n - SHIFT_PLANT_FRAMES) // 2)
+        init = (clip, ns, pos, clip.fps, hz, scene, ref, pan, (a0, a0 + SHIFT_PLANT_FRAMES))
+        rows = vf.pooled_or_on_card(_S, _shift_read, _shift_asks(range(n), ns, pan), procs, _shift_job, list(range(n)), _shift_init, init,
+                                    4, progress, stop, "Camera shake", pixels=clip.W * clip.H)
+    finally:
+        _S.pop("ref_on", None)
     rows = [r for r in rows if r is not None]
     d = np.array([r[0] for r in rows], float)
     tex = float(np.nanmedian([r[1] for r in rows])) if rows else 0.0

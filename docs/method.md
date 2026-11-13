@@ -6018,8 +6018,23 @@ same spots in the same order, and `layers` and `integrity` whole on two drawn cl
 tools/suites.sbatch golden` runs every suite with the card's arithmetic wherever a stage has it, which is how the
 goldens are held on both.
 
-**What it is not.** Not every step: Find, Follow, `flicker`, `stabilize`, `groups`, `tether` and the third pass of
-`layers` (the scene under the pattern) are the CPU's, on pools, as before. Not every card: NVIDIA's only. Not a
+**Two more passes, 2026-11-13.** `flicker`'s camera-shake pass (`scene_shift`: every frame registered against the
+stretch's mean frame, or the frame before where the scene pans, by least squares on the gradient with three Fourier
+warps) and the third pass of `layers` (a block's mean taken out, its pairs matched again). The registration is
+`flicker._lk_shift_on`: the masked sums are made in double over the whole frame with the mask as a factor, where the
+CPU sums the masked pixels in single precision. On PR088's frames (1280 x 720) a frame takes 2.5 ms on the card
+against 69 ms on one CPU core, and the two shifts lie 6e-8 px apart; on PR149's (1920 x 1028) 5.7 against 198 ms, and
+5e-7 px. The third pass sums a block's sixty frames on the card in double, in the frames' order, as the CPU does.
+`tests/test_gpu.py` holds both on drawn clips: the shake at the beat within 0.0001 px and the same verdict, the scene's
+velocity under the pattern within 0.01 px a frame with the same blocks and pairs read.
+
+**What it is not.** Not every step: Find, Follow, `stabilize`, `groups` and `tether` are the CPU's, on pools or on
+threads, as before. For Find and Follow the reason is measured (2026-11-13): the spot detector's response takes 3 to
+4 ms a frame on the card against 35 to 85 on a CPU core, but on a busy frame two thirds of the time is the picking
+of the spots and their centroids (100 to 260 ms for the 500 to 8,800 spots of a frame of sea), which one process
+beside the card would do more slowly than a pool of eight does; and the card's list is not the CPU's list. Of 240
+frame readings on four clips (475,530 spots) 201 gave the same spots, 41 of them in the same order, and 78 spots
+were in one list only, where a response a few 1e-5 of a grey level apart ties two neighbours or parts them. Not every card: NVIDIA's only. Not a
 different measurement: nothing here adds a number a CPU does not give. And not as fast as it could be: the card's
 batch is bound by the memory it moves, about ten passes over a pair's maps in double, and the peak's reading and
 the frames' decoding are still the CPU's, in Python. On the workstation the card does `layers` in a little over half

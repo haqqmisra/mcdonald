@@ -620,9 +620,10 @@ knowing what the search could not have found.
    its order, a few 1e-7 in the maps. The card is CuPy's (NVIDIA, through CUDA; the `gpu` extra), chosen by
    `--gpu`, `MCDONALD_GPU` or Preferences, used inside a batch job only where the job was given it, and only where a
    stage says so. A case says what computed it, and `rerun` measures it again the same way. On GitHub's runners the
-   card's code is run with NumPy standing in for it. *Still to do for "complete":* Find and Follow on the card (the
-   spot detector's routine is there, the stages still run on pools), `flicker`'s camera-shake pass, `stabilize`, the
-   third pass of `layers`; and the work the card is for -- the plants, the dense field, the error models (objective 4,
+   card's code is run with NumPy standing in for it. *Since 2026-11-13* `flicker`'s camera-shake pass and the third pass of
+   `layers` run on it too. *Still to do for "complete":* `stabilize`; Find and Follow, where a card version was
+   measured and would be slower than the pool and give another list of spots (IDEAS.md, G2: it needs the picking on
+   the card too, and the proposer's gate); and the work the card is for -- the plants, the dense field, the error models (objective 4,
    A14). *Not owed* (the maintainer, 2026-11-12): other makers' cards. The card is optional, NVIDIA on CuPy is enough
    for now, and there is no obligation to support every GPU platform; a Mac's card is parked (IDEAS.md, G4).
 4. **Planted objects at scale.** `plant`: synthetic objects and synthetic look-alikes written

@@ -321,6 +321,40 @@ def _thing_at(n):
     return (xx - cx) ** 2 + (yy - cy) ** 2 < 28 ** 2
 
 
+def _grey(m):
+    """Frame m's grey for a third pass: read here, or taken from the threads that read ahead of a loop on a graphics
+    card (`_G["ahead"]`, `read_scene_under`)."""
+    ahead = _G.get("ahead")
+    return ahead.get(m) if ahead is not None else _G["clip"].grey(m)
+
+
+def _grey_read(m):
+    return _G["clip"].grey(m)
+
+
+def _mean_asks(jobs, k, n1):
+    """Every frame `_mean_out` will ask for over `jobs`, in its order and as often: a block's frames for the mean, then
+    both frames of each of its pairs (`progress.Ahead`)."""
+    return [m for s, pairs in jobs for m in list(range(s, min(s + whole.BLOCK, n1 + 1))) + [n for a in pairs for n in (a, a + k)]]
+
+
+def _mean_sd_on(c, frames):
+    """Each pixel's mean and spread over `frames`, summed on the card `c` in double and in the frames' order, as
+    `_mean_out` sums them on a CPU, and brought back. (On a CPU the two sums over a block's sixty frames are a fifth of
+    a second in the stage's own thread, more than the block's three pairs take on the card.)"""
+    xp = c.xp
+    total = square = None
+    for m in frames:
+        g = c.up(_grey(m), xp.float64)
+        if total is None:
+            total, square = xp.zeros(g.shape, xp.float64), xp.zeros(g.shape, xp.float64)
+        total += g
+        square += g * g
+    mean = total / len(frames)
+    sd = xp.sqrt(xp.maximum(square / len(frames) - mean * mean, 0.0))
+    return c.down(mean), c.down(sd)
+
+
 def _mean_out(job):
     """A third pass, B3 of the survey: (s, rows, tried) for the block of frames from s and the pairs (first frames) it is given
     to read. Each pixel's mean over the block is taken out of both frames of a pair and the same templates are matched:
@@ -329,22 +363,34 @@ def _mean_out(job):
 
     The mean and the spread are running sums, 16 MB at 1080p, not the block's frames (500 MB a worker as prototyped). Where a
     scene is slow the mean takes part of it along, and a pattern that breathes with the gain leaves its breathing behind:
-    this helps some clips (10 of 24 pairs on PR099 object 3, 3 of 24 on PR41), and the block's whole reading the others."""
+    this helps some clips (10 of 24 pairs on PR099 object 3, 3 of 24 on PR41), and the block's whole reading the others.
+
+    On a graphics card (`read_scene_under`, since 2026-11-13) the same job in the stage's own process: the mean and the
+    spread are summed here as on a CPU, in the same order, the pairs' templates are matched on the card, and the frames
+    come from threads that read ahead (`_grey`)."""
     s, pairs = job
     clip, k = _G["clip"], _G["k"]
     frames = range(s, min(s + whole.BLOCK, clip.n1 + 1))
-    total, square = np.zeros((clip.H, clip.W), np.float64), np.zeros((clip.H, clip.W), np.float64)
-    for m in frames:
-        g = clip.grey(m).astype(np.float64)
-        total += g
-        square += g * g
-    mean = total / len(frames)
-    sd = np.sqrt(np.maximum(square / len(frames) - mean * mean, 0.0))
+    mean = sd = None
+    c = gpu.active()
+    if c is not None:                                      # the block's sums on the card: sixty frames' worth of passes
+        try:
+            mean, sd = c.run(_mean_sd_on, c, frames)
+        except c.errors as e:
+            gpu.gave_up(e, "taking a block's mean")
+    if mean is None:
+        total, square = np.zeros((clip.H, clip.W), np.float64), np.zeros((clip.H, clip.W), np.float64)
+        for m in frames:
+            g = _grey(m).astype(np.float64)
+            total += g
+            square += g * g
+        mean = total / len(frames)
+        sd = np.sqrt(np.maximum(square / len(frames) - mean * mean, 0.0))
     flicker = ndimage.binary_dilation((mean < 5) | (sd > whole.MASK_K * np.median(sd)), iterations=4)
     rows = []
     for a in pairs:
         ba, bb = flicker | _thing_at(a), flicker | _thing_at(a + k)
-        f, still = vf.shift_field_auto(clip.grey(a) - mean + 128.0, clip.grey(a + k) - mean + 128.0, ba, bb, a=a, reach=_G["reach"],
+        f, still = vf.shift_field_auto(_grey(a) - mean + 128.0, _grey(a + k) - mean + 128.0, ba, bb, a=a, reach=_G["reach"],
                                        tpl=_G.get("tpl", TEMPLATES[0]), stride=_G.get("stride", TEMPLATES[1]))
         if not still and len(f):
             rows.append(np.hstack([f, np.tile([MEAN_OUT, k], (len(f), 1))]))
@@ -390,8 +436,8 @@ def read_scene_under(clip, masks, rows, trk, how, k, reach, size, longer, made_f
     got = {}
     if jobs:
         args = (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, k, reach, 9.0, False, longer, size)
-        got = {s: (f, n) for s, f, n in pooled(procs, _mean_out, jobs, _init, args, progress=progress, stop=stop, what="Layers, mean out",
-                                               pixels=clip.W * clip.H)}
+        got = {s: (f, n) for s, f, n in vf.pooled_or_on_card(_G, _grey_read, _mean_asks(jobs, k, clip.n1), procs, _mean_out, jobs, _init, args,
+                                                             1, progress, stop, "Layers, mean out", pixels=clip.W * clip.H)}
     blocks = whole.read_clip(clip.video, clip.n0, clip.n1, tracks=[trk] if trk else (), starts=starts, procs=procs, progress=progress,
                              stop=stop)
     tpl = np.vstack([f for f, _ in got.values()]) if got else np.zeros((0, len(vf.SHIFT_COLS) + 2))
