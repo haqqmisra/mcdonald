@@ -123,16 +123,22 @@ def shape(grey, x, y, size=9.0, dark=False, mask=None):
 
 
 def shapes(clip, track, size=9.0, dark=False, mask=None):
-    """{frame: shape} for every tracked frame on disk."""
-    out = {}
-    for n in sorted(track):
-        if not clip.n0 <= n <= clip.n1:
-            continue
-        x, y = track[n]
-        s = shape(clip.grey(n), x, y, size, dark, mask)
-        if s:
-            out[n] = s
-    return out
+    """{frame: shape} for every tracked frame on disk. The frames are read on threads of this process, as many as
+    `progress.workers` allows, to `progress.READERS`: each frame's shape is its own, and reading them one after another
+    was all of the stage's wait on a long track (2026-11-13: PR088's 3,558 frames, 22 s at any number of workers)."""
+    from concurrent.futures import ThreadPoolExecutor
+    from .progress import READERS, workers
+    ns = [n for n in sorted(track) if clip.n0 <= n <= clip.n1]
+
+    def one(n):
+        return shape(clip.grey(n), track[n][0], track[n][1], size, dark, mask)
+    threads = min(workers(None, clip.W * clip.H), READERS, len(ns))
+    if threads > 1:
+        with ThreadPoolExecutor(threads, thread_name_prefix="mcdonald-read") as ex:
+            got = list(ex.map(one, ns))
+    else:
+        got = [one(n) for n in ns]
+    return {n: s for n, s in zip(ns, got) if s}
 
 
 # ---- zoom steps ----------------------------------------------------------------------------

@@ -2625,15 +2625,25 @@ def test_a_beat_in_one_stretch_does_not_come_back():
     fps, n = 30.0, 300
     t = np.arange(n) / fps
 
-    def planted(first, last, amp, bg):
+    def planted(first, last, amp, bg, beside=True):
         rng = np.random.default_rng(4)
         on = (np.arange(n) >= first) & (np.arange(n) < last)
         raw = {"object": list(1000 + rng.normal(0, 20, n) + amp * on * np.sin(2 * np.pi * 7.0 * t))}
         for dx, dy in flicker.BACKGROUND:
             raw[f"background {dx:+d},{dy:+d}"] = list(rng.normal(0, bg, n))
         fields = dict(frames=n, first=1, last=n, codec=None, aperture_px=4.0, tracks=["object"], spans={"object": (1, n)})
+        if not beside:                                     # one thing after another, as before 2026-11-13
+            from mcdonald.progress import Beside
+            return flicker._judge(raw, list(range(1, n + 1)), fps, [], fields, "object", None, lambda *a: None, None, None, None,
+                                  False, None, None, None, Beside(0)).fields
         return flicker.judge(raw, list(range(1, n + 1)), fps, [], fields, "object", say=lambda *a: None).fields
     f = planted(245, 290, 300, 40)
+    import json
+    in_line = planted(245, 290, 300, 40, beside=False)
+    check(json.dumps(f, sort_keys=True, default=repr) == json.dumps(in_line, sort_keys=True, default=repr)
+          and len(f["controls"]) == len(flicker.BACKGROUND),
+          "the object's windows and the background apertures judged beside the stage's own work, in threads: every field "
+          "the same to the last bit as one after another", str([k for k in f if repr(f[k]) != repr(in_line.get(k))][:6]))
     b = f["beat"]["object"]
     check(f["beats"] is True and b["whole_passes"] is False and b["windows_apart"] == 1 and b["comes_back"] is False
           and b["windows_passing"] >= 2 and "that is one stretch" in (f.get("finding") or ""),

@@ -17,11 +17,15 @@ own error and of a pixel, and the agreed shift of a pair within a thousandth of 
     python3 tests/test_gpu.py
 """
 import contextlib
+import importlib
 import io
+import json
 import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -270,6 +274,271 @@ def test_the_cards_found_say_which_mcdonald_can_use():
     check(macs and macs[0]["compute"] and not macs[0]["cuda"] and gpu.usable(macs) == [] and wins and wins[0]["cuda"],
           "a Mac's card computes and is not yet one mcdonald can use; an NVIDIA card on Windows with CUDA's library is")
     check(isinstance(gpu.installed(), bool), "whether CuPy is installed is asked without importing it", str(gpu.installed()))
+
+
+# ---------------------------------------------------------------- the add-on, installed for the person
+# pip, stood in for: no test installs anything or uses the network. It is started as pip is (`addon.PIP`), prints what
+# pip prints, and keeps the arguments it was given. Its first two arguments are the test's: how it should end, and a
+# folder to write in. "ok" leaves a file there named installed, as pip leaves a package; "slow" downloads for a minute.
+PIP_STAND_IN = r"""
+import json, sys, time
+from pathlib import Path
+mode, folder, args = sys.argv[1], Path(sys.argv[2]), sys.argv[3:]
+(folder / "args.json").write_text(json.dumps(args), encoding="utf-8")
+c = args[args.index("--constraint") + 1] if "--constraint" in args else ""
+(folder / "constraints.txt").write_text(Path(c).read_text(encoding="utf-8") if c else "", encoding="utf-8")
+say = lambda *a: print(*a, flush=True)
+say("Collecting " + args[-1])
+say("  Downloading stand_in-14.2.0-py3-none-any.whl.metadata (6.6 kB)")
+if mode == "offline":
+    say("WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by "
+        "'NewConnectionError(\"HTTPSConnection(host='pypi.org', port=443): Failed to establish a new connection: "
+        "[Errno -3] Temporary failure in name resolution\")': /simple/stand-in/")
+    say("ERROR: Could not find a version that satisfies the requirement " + args[-1] + " (from versions: none)")
+    say("ERROR: No matching distribution found for " + args[-1])
+    sys.exit(1)
+if mode == "conflict":
+    say("ERROR: Cannot install stand-in because these package versions have conflicting dependencies.")
+    say("The conflict is caused by:")
+    say("    stand-in 14.2.0 depends on numpy<2.6 and >=2.0")
+    say("    The user requested (constraint) numpy==1.26.4")
+    say("ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/en/latest/topics/dependency-resolution/")
+    sys.exit(1)
+for name, size in (("stand_in-14.2.0-py3-none-any.whl", 300_000_000), ("stand_in_libraries-13.5-py3-none-any.whl", 500_000_000)):
+    say(f"Downloading {name} ({size / 1e6:.1f} MB)")
+    for k in range(-1, 4):
+        say(f"Progress {size * (k + 1) // 4} of {size}")
+        time.sleep(15 if mode == "slow" and k >= 0 else 0.02)
+say("Installing collected packages: stand-in-libraries, stand-in")
+time.sleep(0.2)
+(folder / "installed").write_text("yes", encoding="utf-8")
+say("Successfully installed stand-in-14.2.0 stand-in-libraries-13.5")
+"""
+
+
+def pip_stand_in(folder, mode):
+    """What `addon.PIP` is set to for a test: this Python running the stand-in, which will end as `mode` says."""
+    folder = Path(folder)
+    (folder / "pip_stand_in.py").write_text(PIP_STAND_IN, encoding="utf-8")
+    return [sys.executable, str(folder / "pip_stand_in.py"), mode, str(folder)]
+
+
+def test_the_add_on_for_this_computers_driver():
+    """Which of the two add-ons a computer takes (`addon.which`), from what its driver says (`gpu.cuda`): CUDA 13's
+    only where the driver runs CUDA 13 and every card is one CUDA 13's libraries still run."""
+    print("\nthe add-on: which one this computer takes")
+    from mcdonald import addon
+    took = {name: addon.which(seen)[0] for name, seen in (
+        ("the driver did not say", None), ("an old card on CUDA 12's driver", dict(driver=(12, 4), cards=[(6, 1)])),
+        ("a GTX 1080 on a 580 driver, which reports CUDA 13", dict(driver=(13, 0), cards=[(6, 1)])),
+        ("a new card on CUDA 12's driver", dict(driver=(12, 9), cards=[(8, 9)])),
+        ("an old card beside a new one", dict(driver=(13, 5), cards=[(12, 0), (6, 1)])),
+        ("CUDA 13's driver, the cards not listed", dict(driver=(13, 0), cards=[])))}
+    check(set(took.values()) == {"gpu"}, "CUDA 12's add-on wherever CUDA 13's libraries might not run a card here: an older "
+          "driver, an older card (whatever its driver reports), or a card the driver did not list", str(took))
+    new = [addon.which(dict(driver=d, cards=c))[0] for d, c in (((13, 5), [(12, 0)]), ((13, 0), [(7, 5)]), ((14, 1), [(8, 6), (7, 5)]))]
+    check(new == ["gpu-cuda13"] * 3, "CUDA 13's add-on where the driver runs CUDA 13 and every card is of the RTX 2000 "
+          "series or later (compute capability 7.5 and up)", str(new))
+    none, why = addon.which(dict(driver=(11, 4), cards=[(6, 1)]))
+    check(none is None and "11.4" in why and "driver" in why, "a driver older than CUDA 12 takes neither, and it says so", why)
+    check(gpu.cuda(ask=lambda: dict(driver=13050, cards=[[12, 0]])) == dict(driver=(13, 5), cards=[(12, 0)])
+          and gpu.cuda(ask=lambda: dict(driver=12040, cards=[])) == dict(driver=(12, 4), cards=[])
+          and gpu.cuda(ask=lambda: dict(driver=None, cards=[])) == dict(driver=None, cards=[])
+          and gpu.cuda(ask=lambda: None) is None and gpu.cuda(ask=lambda: "?") is None,
+          "the driver's answer is read as CUDA's version and each card's compute capability, and no answer is no answer")
+    real = gpu.cuda()
+    check(real is None or (set(real) == {"driver", "cards"} and (real["driver"] is None or real["driver"] >= (1, 0))),
+          "and this computer's own driver is asked without a toolkit, in a process of its own", str(real))
+
+
+def test_the_add_on_is_installed_without_touching_what_is_here():
+    """`addon.install` runs pip for the add-on's own requirement, with every installed package pinned, and says how it
+    went; `addon.offer` is what the window and `mcdonald setup` read. pip is stood in for: nothing is installed."""
+    print("\nthe add-on: installed by pip, with nothing replaced")
+    from mcdonald import addon, update
+    nvidia = [dict(name="NVIDIA GeForce RTX 5070 Ti", vendor="10de", compute=True, cuda=True)]
+    keep = gpu.installed, gpu.found, addon.PIP, addon.shutil.disk_usage
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        try:
+            gpu.installed = lambda: False
+            addon.PIP = pip_stand_in(td, "ok")        # from here on, the pip there is to run
+            o = addon.offer(nvidia, seen=dict(driver=(13, 5), cards=[(12, 0)]))
+            o12 = addon.offer(nvidia, seen={})
+            check(o and o["extra"] == "gpu-cuda13" and o["requires"] == ["cupy-cuda13x[ctk]>=14"] and o["card"] == nvidia[0]["name"]
+                  and not o["cannot"] and o["command"] == [sys.executable, "-m", "pip", "install", "cupy-cuda13x[ctk]>=14"]
+                  and o12["extra"] == "gpu" and o12["command"][-1] == "cupy-cuda12x[ctk]>=14" and o["download_mb"] < o12["download_mb"],
+                  "where an NVIDIA card waits for CuPy, the offer names the card, the add-on for its driver, its size and "
+                  "the command to type by hand: the add-on's own requirement, never mcdonald itself", str(o and o["command"][-1]))
+            check(update.said(o["command"]).endswith(' -m pip install "cupy-cuda13x[ctk]>=14"'),
+                  "the command is said with its requirement in quotes, as a shell needs it (brackets and >)", update.said(o["command"])[-60:])
+            old = addon.offer(nvidia, seen=dict(driver=(11, 4), cards=[(6, 1)]))
+            check(old and "driver" in old["cannot"] and "11.4" in old["cannot"],
+                  "a driver too old for it is said before anything is downloaded", old and old["cannot"])
+            check(addon.offer([dict(name="AMD Radeon RX 7900", vendor="1002", compute=True, cuda=False)], seen={}) is None
+                  and addon.offer([], seen={}) is None, "nothing is offered where there is no NVIDIA card with CUDA")
+            gpu.installed = lambda: True
+            check(addon.offer(nvidia, seen={}) is None, "nor where CuPy is installed already")
+            gpu.installed = lambda: False
+
+            pins = addon.pinned()
+            check(f"numpy=={np.__version__}" in pins and all("==" in ln and " " not in ln for ln in pins) and len(pins) == len(set(pins)),
+                  "every package installed here is pinned at the version it has, each once", f"{len(pins)} packages")
+
+            states, lines = [], []
+            addon.PIP = pip_stand_in(td, "ok")
+            r = addon.install("gpu-cuda13", progress=states.append, said=lines.append)
+            args = json.loads((td / "args.json").read_text(encoding="utf-8"))
+            check(r["ok"] and r["code"] == 0 and not r["why"] and (td / "installed").exists() and abs(r["mb"] - 800) < 1,
+                  "pip is run and waited for, and the megabytes it downloaded are counted", f"{r['mb']:.0f} MB in {r['seconds']:.1f} s")
+            check(args[0] == "install" and args[-1] == "cupy-cuda13x[ctk]>=14" and not any(a.startswith("mcdonald") or a == "." for a in args)
+                  and "--upgrade" not in args and "-U" not in args and "-e" not in args
+                  and {"--no-input", "--only-binary=:all:", "--no-cache-dir", "--constraint"} <= set(args),
+                  "pip is given the add-on's own requirement and nothing of mcdonald's: no upgrade, wheels only, no "
+                  "questions, nothing kept in its cache", " ".join(a for a in args if not Path(a).exists()))
+            check(f"numpy=={np.__version__}" in (td / "constraints.txt").read_text(encoding="utf-8").split(),
+                  "and a constraints file that pins what is installed, so that pip can add packages and replace none")
+            phases = list(dict.fromkeys(s["phase"] for s in states))
+            mbs = [s["mb"] for s in states]
+            check(phases == ["looking", "downloading", "installing"] and mbs == sorted(mbs) and all(s["of"] >= s["mb"] for s in states)
+                  and states[-1]["of"] == addon.DOWNLOAD_MB["gpu-cuda13"] and any(0 < s["mb"] < 800 for s in states),
+                  "its progress is told as it goes: looking, downloading megabyte by megabyte over all the files, then "
+                  "putting it in place", f"{phases}, {len(states)} times")
+            check(lines and "pip_stand_in" in lines[0] and not any(ln.startswith("Progress") for ln in lines)
+                  and any(ln.startswith("Successfully installed") for ln in lines),
+                  "what pip prints is passed on line by line, the command first, without its counts", f"{len(lines)} lines")
+
+            addon.PIP = pip_stand_in(td, "offline")
+            r = addon.install("gpu")
+            check(not r["ok"] and r["code"] == 1 and "internet" in r["why"] and "pypi.org" in r["why"]
+                  and r["pip"] and all(ln.startswith("ERROR") for ln in r["pip"]) and r["command"][-1] == "cupy-cuda12x[ctk]>=14",
+                  "with no network it says so in plain words, keeps pip's own errors, and gives the command to type by hand",
+                  r["why"])
+            addon.PIP = pip_stand_in(td, "conflict")
+            r = addon.install("gpu")
+            check(not r["ok"] and "replaces nothing" in r["why"] and any("ResolutionImpossible" in ln for ln in r["pip"]),
+                  "where the add-on would need an installed package replaced, pip stops before it changes anything, and "
+                  "that is said", r["why"])
+            (td / "installed").unlink()
+            addon.PIP = pip_stand_in(td, "slow")
+            stop, t0 = threading.Event(), time.monotonic()
+            threading.Timer(1.0, stop.set).start()
+            r = addon.install("gpu", stop=stop)
+            check(r["stopped"] and not r["ok"] and not (td / "installed").exists() and time.monotonic() - t0 < 10 and "stopped" in r["why"],
+                  "stopped while it downloads, pip is ended at once and nothing is installed", f"{time.monotonic() - t0:.1f} s")
+            addon.PIP = [str(td / "no-such-program")]
+            r = addon.install("gpu")
+            check(not r["ok"] and r["code"] is None and "could not be started" in r["why"], "a pip that cannot be started is a "
+                  "failure said, not a crash", r["why"])
+            addon.shutil.disk_usage = lambda path: type("Usage", (), dict(free=2e9))()
+            addon.PIP = pip_stand_in(td, "ok")
+            r = addon.install("gpu")
+            check(not r["ok"] and r["code"] is None and "free disk space" in r["why"] and "2.0 GB are free" in r["why"]
+                  and not (td / "installed").exists(),
+                  "with too little room on the disk nothing is downloaded, and it says how much the add-on needs", r["why"])
+        finally:
+            gpu.installed, gpu.found, addon.PIP, addon.shutil.disk_usage = keep
+    for extra, text in (("gpu", "network is unreachable"), ("gpu", "OSError: [Errno 28] No space left on device"),
+                        ("gpu", "error: externally-managed-environment"), ("gpu", "ERROR: Could not install packages due to an OSError: [Errno 13] Permission denied"),
+                        ("gpu", "ERROR: No matching distribution found for cupy-cuda12x>=14"), ("gpu", "something else")):
+        why = addon.explain([text], extra)
+        check(why.endswith(".") and len(why.split()) <= 30 and "Errno" not in why, f"pip's failure in plain words: {text[:40]!r}", why)
+
+
+def test_the_add_on_is_used_without_starting_again():
+    """After pip, the same process finds CuPy (`gpu.installed` looks without importing) and opens the card
+    (`addon.use_now`): here a package named cupy is put where Python looks only after the process has started."""
+    print("\nthe add-on: used by the process that installed it")
+    from mcdonald import addon
+    had = gpu.installed()
+    with tempfile.TemporaryDirectory() as td, environment(MCDONALD_GPU=None):
+        sys.path.append(td)
+        try:
+            gpu.installed()                           # Python has looked in the folder, and found it empty
+            (Path(td) / "cupy").mkdir()
+            (Path(td) / "cupy" / "__init__.py").write_text("", encoding="utf-8")
+            card, why, again = addon.use_now()
+            check(gpu.installed() and not again, "a package pip has just put in place is found by the process that was "
+                  "already running" + (" (CuPy was here before: the folder made for this adds nothing)" if had else ""))
+            check((card is None) == bool(why) and (card is not None or gpu.card() is None),
+                  "and the card is asked for again: in use, or said why not", card or why)
+        finally:
+            sys.path.remove(td)
+            if not had:
+                sys.modules.pop("cupy", None)
+            importlib.invalidate_caches()
+    gpu.forget()
+    keep = gpu.installed
+    try:
+        gpu.installed = lambda: False
+        card, why, again = addon.use_now()
+        check(card is None and again and "opened again" in why, "where pip put it out of this process's sight, it says "
+              "that mcDonald has to be opened again", why)
+    finally:
+        gpu.installed = keep
+        gpu.forget()
+
+
+def test_setup_installs_the_add_on_from_the_command_line():
+    """`mcdonald setup --install-gpu`, the same install for an agent or a person at a terminal (the two audiences), and
+    setup's own "graphics card" line, which names it. pip is stood in for."""
+    print("\nthe add-on: `mcdonald setup --install-gpu`")
+    from mcdonald import addon, setup_cli
+    nvidia = [dict(name="NVIDIA GeForce RTX 5070 Ti", vendor="10de", compute=True, cuda=True)]
+    keep = gpu.installed, gpu.found, gpu.cuda, addon.PIP, addon.room
+
+    def run(*argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = setup_cli.main(list(argv))
+        return code, out.getvalue(), err.getvalue()
+    with tempfile.TemporaryDirectory() as td, environment(MCDONALD_GPU=None, XDG_DATA_HOME=td, DISPLAY=":0"):
+        td = Path(td)
+        try:
+            gpu.found, gpu.cuda, addon.room = (lambda: nvidia), (lambda: dict(driver=(13, 5), cards=[(12, 0)])), (lambda extra, **k: "")
+            gpu.installed = lambda: (td / "installed").exists()
+            addon.PIP = pip_stand_in(td, "ok")
+            ok, found, fix = setup_cli._graphics_card()
+            check(ok is None and "RTX 5070 Ti" in found and "not installed" in found and "mcdonald setup --install-gpu" in fix
+                  and 'pip install "cupy-cuda13x[ctk]>=14"' in fix and "mcdonald[gpu]" not in fix,
+                  "setup's graphics card line says how to install the add-on: its own command, and by hand the build for "
+                  "this computer's driver", fix)
+            gpu.cuda = lambda: dict(driver=(11, 4), cards=[(6, 1)])
+            ok, found, fix = setup_cli._graphics_card()
+            code, out, err = run("--install-gpu", "--json")
+            d = json.loads(out)["install_gpu"]
+            check("cannot be installed" in fix and "driver" in fix and "11.4" in fix and code == 3 and not d["ok"] and "driver" in d["why"]
+                  and not (td / "args.json").exists(),
+                  "with a driver too old for it, both say so, and pip is not run", fix)
+            gpu.cuda = lambda: dict(driver=(13, 5), cards=[(12, 0)])
+            addon.PIP = pip_stand_in(td, "offline")
+            code, out, err = run("--install-gpu")
+            check(code == 3 and not out and "was not installed" in err and "internet" in err and "by hand:" in err
+                  and 'pip install "cupy-cuda13x[ctk]>=14"' in err and "ERROR: No matching distribution" in err,
+                  "a failure exits 3, with the reason in plain words, what pip said and the command by hand on stderr",
+                  err.strip().splitlines()[-2][:120])
+            addon.PIP = pip_stand_in(td, "ok")
+            os.environ[gpu.GPU_VAR] = gpu.STAND_IN    # the card that answers once the add-on is in place
+            code, out, err = run("--install-gpu", "--json")
+            d = json.loads(out)
+            check(code == 0 and d["command"] == "setup" and d["install_gpu"]["ok"] and d["install_gpu"]["installed"]
+                  and "stand-in" in d["install_gpu"]["card"] and d["install_gpu"]["mb"] == 800.0
+                  and "CUDA 13.5" in err and "cupy-cuda13x[ctk]>=14" in err and "Successfully installed" in err,
+                  "installed, it exits 0 and says which card computes; --json is one object on stdout, pip's words on stderr",
+                  str(d["install_gpu"])[:150])
+            check(not (td / "applications").exists(), "and it does nothing else of setup: no entry in the applications menu")
+            code, out, err = run("--install-gpu")
+            check(code == 0 and "already installed" in err, "asked again, it says the add-on is installed already", err.strip()[-90:])
+            (td / "installed").unlink()
+            gpu.found = lambda: [dict(name="AMD FirePro 2270", vendor="1002", compute=False, cuda=False)]
+            code, out, err = run("--install-gpu")
+            check(code == 3 and "nothing to install it for" in err and "AMD FirePro 2270" in err and not (td / "installed").exists(),
+                  "with no NVIDIA card there is nothing to install it for, and nothing is downloaded", err.strip()[-110:])
+        finally:
+            gpu.installed, gpu.found, gpu.cuda, addon.PIP, addon.room = keep
+    r = subprocess.run([sys.executable, "-m", "mcdonald.cli", "setup", "--help"], capture_output=True, encoding="utf-8", errors="replace",
+                       env=dict(os.environ, PYTHONPATH=str(SRC) + os.pathsep + os.environ.get("PYTHONPATH", "")), timeout=300)
+    check(r.returncode == 0 and "--install-gpu" in r.stdout, "`mcdonald setup --help` lists it")
 
 
 # ---------------------------------------------------------------- the arithmetic
@@ -759,6 +1028,123 @@ def test_layers_and_integrity_on_the_card_are_the_cpus():
         check(len(kept) == 2 and sum("measured earlier" in x for x in said) == 2 and from_cpu is None and "stand-in" in str(from_card),
               "the card's templates are kept beside the frames apart from the CPU's: a run on the CPU reads its own back, "
               "a run on the card its own, and that one still says a card took part", f"{kept}; {from_card}")
+
+
+class _Shaken:
+    """A textured scene of 150 frames, the whole picture moved `jitter` px along x at 6 Hz (a cooler's or a gimbal's
+    shake) and sliding `pan` px a frame, with one bright point on it: what `flicker.scene_shift` registers."""
+    W, H, fps, n0, n1 = 320, 240, 30.0, 1, 150
+
+    def __init__(self, jitter, pan=0.0):
+        from scipy import ndimage
+        self.jitter, self.pan = jitter, pan
+        big = ndimage.gaussian_filter(np.random.default_rng(3).normal(0, 1, (self.H, self.W + 200)), 2.5)
+        self.scene = np.clip(big * 80 + 60, 20, 110)
+        self.cache = {}
+
+    def at(self, n):
+        return 90.0 + 0.37 * n, 80.0 + 0.21 * n
+
+    def rgb(self, n):
+        if n not in self.cache:
+            from scipy import ndimage
+            dx = self.jitter * np.sin(2 * np.pi * 6.0 * n / self.fps) + self.pan * n
+            g = ndimage.shift(self.scene, (0, dx), order=3, mode="nearest")[:, :self.W] + np.random.default_rng(n).normal(0, 1.0, (self.H, self.W))
+            x, y = self.at(n)
+            yy, xx = np.mgrid[:self.H, :self.W]
+            g = g + 120 * (1 + 0.25 * np.sin(2 * np.pi * 6.0 * n / self.fps)) * np.exp(-((xx - x - dx) ** 2 + (yy - y) ** 2) / 2.0)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.float32)
+        return self.cache[n]
+
+
+def test_flickers_shake_pass_on_the_card_is_the_cpus():
+    """`flicker`'s camera-shake pass (`scene_shift`, 2026-11-13): every frame registered against the stretch's mean
+    frame, or against the frame before where the scene pans, by least squares on the gradient with three Fourier warps
+    (`lk_shift`), and again with a small shift planted at the beat. On a card the same in this process, the frames read
+    ahead: the same way of registering, each number of the reading within a ten-thousandth of a pixel."""
+    print("\nflicker's camera-shake pass")
+    from mcdonald import flicker
+    for what, clip in (("a picture shaken 0.3 px at the beat", _Shaken(0.3)), ("the same, sliding 1.2 px a frame", _Shaken(0.3, pan=1.2))):
+        ns = list(range(1, 151))
+        tracks = {"object": {n: clip.at(n) for n in ns}}
+
+        def run(card):
+            with on(card):
+                return flicker.scene_shift(clip, ns, tracks, {"object": 6.0}, procs=0)
+        cpu = run(None)
+        check(cpu["scene"]["power"] and cpu["scene"]["registered"] == ("frame to frame" if clip.pan else "against the mean frame")
+              and 0.2 <= cpu["object"]["at_beat_px"] <= 0.4,
+              f"on the CPU, {what}: registered {cpu['scene']['registered']}, and the shake read at about its size",
+              f"{cpu['object']['at_beat_px']:.3f} px at the beat, a planted {flicker.SHIFT_PLANT} px recovered {cpu['object']['recovered']:.2f}")
+        for c in the_cards():
+            got = run(c)
+            a, b, sa, sb = cpu["object"], got["object"], cpu["scene"], got["scene"]
+            far = max(abs(a[k] - b[k]) for k in ("at_beat_px", "recovered"))
+            check(sa["registered"] == sb["registered"] and sa["power"] == sb["power"] and a["moves"] == b["moves"]
+                  and abs(sa["step_px"] - sb["step_px"]) <= 1e-4 and abs(sa["texture"] - sb["texture"]) <= 1e-4 * sa["texture"]
+                  and abs(a["at_beat_px"] - b["at_beat_px"]) <= 1e-4 and abs(a["recovered"] - b["recovered"]) <= 1e-3
+                  and abs(a["stands"] - b["stands"]) <= 1e-3 * a["stands"] and abs(a["local"] - b["local"]) <= 1e-3 * a["local"],
+                  f"{c.name}, {what}: registered the same way, the shake at the beat within 0.0001 px, the same verdict",
+                  f"{b['at_beat_px']:.6f} against {a['at_beat_px']:.6f} px; farthest of the shake and the planted share {far:.1e}")
+        check("ahead" not in flicker._S and "ref_on" not in flicker._S, f"{what}: nothing of the card's round is left behind")
+
+
+def test_the_third_pass_of_layers_on_the_card_is_the_cpus():
+    """`layers`' third pass (2026-11-13): where a pattern on the sensor holds the templates at zero, each pixel's mean
+    over a block is taken out and the block's pairs are matched again (`layers._mean_out`). On a card the same blocks
+    in the stage's own process, the pairs matched on the card and the frames read ahead: the same blocks, the same
+    pairs read, the scene's velocity within a hundredth of a pixel a frame."""
+    print("\nlayers' third pass, the scene under a sensor's pattern")
+    import json
+    import shutil
+    import subprocess
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    from PIL import Image
+    from scipy import ndimage
+    from mcdonald import clip as clipmod, layers
+    v, frames, h, w = (6.0, 1.5), 70, 480, 640
+    with tempfile.TemporaryDirectory() as td:
+        rng = np.random.default_rng(113)         # test_measurement's breathing clip: a scene behind a pattern four times as strong
+        src = Path(td) / "src"
+        src.mkdir()
+        big = ndimage.gaussian_filter(rng.normal(0, 1, (h + 80, w + 700)), 3.0)
+        big = 5.0 * big / big.std()
+        pattern = ndimage.gaussian_filter(rng.normal(0, 1, (h, w)), 1.5)
+        pattern = 20.0 * pattern / pattern.std()
+        for n in range(1, frames + 1):
+            scene = ndimage.shift(big, (v[1] * n, v[0] * n), order=1, mode="wrap")[40:40 + h, 350:350 + w]
+            g = 110.0 + scene + (1.0 + 0.25 * np.sin(2 * np.pi * n / 23.0)) * pattern + rng.normal(0, 1.0, (h, w))
+            Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+        video = Path(td) / "breathes.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray", str(video)], check=True)
+        clip = clipmod.Clip(video, src)
+        none = np.zeros((clip.H, clip.W), bool)
+        masks = dict(blocks=none, graphics=none, colour=True, tinted=False)
+
+        def run(card):
+            with on(card):
+                layers.measure(clip, masks, k=5, procs=0, fresh=True, say=lambda *a: None, scene=True)
+                cache = max(clip.dir.glob("bg_scene_k5_*.npz"), key=lambda p: p.stat().st_mtime_ns)
+                z = np.load(cache)
+                return json.loads(str(z["blocks"])), z["tpl"]
+        b0, t0 = run(None)
+        read0 = [(b["start"], b["tpl_pairs_read"], b["tpl_pairs_tried"]) for b in b0]
+        check(len(t0) > 20 and any(r for _, r, _ in read0)
+              and all(np.hypot(b["tpl_vx"] - v[0], b["tpl_vy"] - v[1]) < 0.3 for b in b0 if b["tpl_vx"] is not None),
+              "on the CPU the third pass reads the drawn scene under the pattern", f"{len(t0)} rows; blocks (start, read, tried) {read0}")
+        for c in the_cards():
+            b1, t1 = run(c)
+            read1 = [(b["start"], b["tpl_pairs_read"], b["tpl_pairs_tried"]) for b in b1]
+            same = t0.shape == t1.shape and np.array_equal(t0[:, [0, 1, 2, -2, -1]], t1[:, [0, 1, 2, -2, -1]])
+            d = float(np.abs(t0[:, 3:5] - t1[:, 3:5]).max()) if same and len(t0) else np.inf
+            dv = max((np.hypot(x["tpl_vx"] - y["tpl_vx"], x["tpl_vy"] - y["tpl_vy"]) for x, y in zip(b0, b1) if x["tpl_vx"] is not None and y["tpl_vx"] is not None),
+                     default=np.inf)
+            check(read0 == read1 and same and d <= SHIFT_PX and dv <= 0.01,
+                  f"{c.name}, the third pass: the same blocks and pairs read, the same templates, the scene's velocity within 0.01 px a frame",
+                  f"{len(t1)} rows, worst shift difference {d:.1e} px, velocity {dv:.1e} px/frame")
+        check("ahead" not in layers._G, "and no reading threads are left behind")
 
 
 def test_a_case_says_what_computed_it_and_is_measured_again_that_way():

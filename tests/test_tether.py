@@ -346,6 +346,24 @@ def test_a_drawn_pendulum_is_followed_and_read():
           "" if c is None else f"re-found on {100 * c['followed_on']:.0f}%, at the offset on {100 * (c['seen_on_frames'] or 0):.0f}%")
     check(sw is not None and sw["swings"] is True and abs(sw["period_used_s"] - 2.0) < 0.06 and sw["wander"]["p"] <= tether.WANDER_P,
           "and its period is the pendulum's, past the wander null", "" if sw is None else f"{sw.get('period_used_s')} s, p = {(sw.get('wander') or {}).get('p')}")
+    # The same stage with its frames read, weighed and measured on threads (2026-11-13: each frame's own arithmetic in
+    # the thread that read it, the two stacks beside each other, the background's steps beside the pass): every
+    # number of the record, to the last bit, is what one thread gives.
+    import json
+    clip, track = drawn(swing_deg=12.0, n=180)
+    on_threads = tether.measure(clip, track, masks=clip.masks(), say=lambda line: None, procs=4).fields
+    same = json.dumps(on_threads, sort_keys=True, default=repr) == json.dumps(f, sort_keys=True, default=repr)
+    check(same, "read and measured on four threads, the record is the same to the last bit as in one",
+          "" if same else str([k for k in f if repr(f[k]) != repr(on_threads.get(k))][:6]))
+    seen = []
+    frames = tether.Frames(clip, clip.masks(), track, 60, cache=False, procs=4)
+    got = list(frames.each(sorted(track)[:40], also=lambda n, g, bad: (seen.append(n), float(g.sum()))[1]))
+    one = [(n, *frames(n)) for n in sorted(track)[:40]]
+    check([q[0] for q in got] == sorted(track)[:40] and all(np.array_equal(a_[1], b_[1]) and np.array_equal(a_[2], b_[2])
+                                                           and a_[3] == float(b_[1].sum()) for a_, b_ in zip(got, one))
+          and sorted(seen) == sorted(track)[:40],
+          "`Frames.each` gives the frames in order with what `also` made of each, whichever thread read it",
+          f"{len(got)} frames, {len(seen)} computed")
 
 
 def test_nothing_tied_leaves_no_swing_and_says_where_it_looked():

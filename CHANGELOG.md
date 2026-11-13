@@ -5,6 +5,36 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**A long track is measured in two thirds of the time, with the same numbers** (2026-11-13). The whole run of a
+3,678-frame track (PR088's object 2) took the same 406 s at 32 worker processes as at 88: more than half of it was
+one process doing arithmetic that no pool had a share of. Three such places now share it out among threads of that
+process, each piece the same function on the same numbers as before, so nothing a report says changes:
+
+- *`flicker`'s judging.* Each background aperture judged as the object, and the object's own windows along the
+  track, are read beside the stage's other work (`progress.Beside`, `flicker.controls_started`): the step went from
+  107 to 43 s.
+- *`tether`'s two passes over the frames.* Each frame's own arithmetic (its noise, its weights) is done in the thread
+  that read the frame (`Frames.each(also=)`), the two stacks are filled beside each other, the background's steps are
+  read beside the pass and the followers look at a frame beside each other: 121 to 65 s.
+- *`camera`'s look at the object's shape on every frame* reads the frames on threads: 22 to 11 s.
+
+PR088's object 2 at 32 workers: 406 to 280 s with the graphics card, 426 to 295 s without; at 8 workers with the
+card, 468 to 349 s. A short track gains little (PR135's 270 frames: 60 to 54 s with the card). Held three ways: each
+threaded pass against the same pass in one thread, to the last bit (test_tether, test_camera, test_measurement); and
+all fourteen reference case files measured again before and after, 31 objects, no number or sentence different at
+one part in a billion.
+
+**Two more steps on a graphics card** (ROADMAP 0.6, objective 3; 2026-11-13), each held to the CPU's in test_gpu:
+
+- *`flicker`'s camera-shake pass* (`scene_shift`): every frame registered against the stretch's mean frame, or the
+  frame before, on the card (`flicker._lk_shift_on`). A frame takes 2.5 ms there against 69 ms on one CPU core at
+  1280 x 720 (5.7 against 198 ms at 1920 x 1028), and the two shifts lie under a millionth of a pixel apart.
+- *`layers`' third pass* (the scene under a sensor's pattern): a block's mean and its pairs' templates on the card.
+
+Measured and not built: the spot detector on the card for Find and Follow (IDEAS.md G2). The response is ten to
+twenty times sooner there, but most of a frame's time is the picking of the spots, which one process would do more
+slowly than the pool does, and the card's list is not the CPU's list (the same spots on 201 of 240 frames tried).
+
 **`share rerun` holds every sentence to the letter** (IDEAS.md G6, found 2026-11-12, fixed 2026-11-13). A rerun is
 made in another folder, so a string that is a file's path is compared by its file name. Until now any two strings
 that both held a slash were taken for paths: "median 103 px/s (...)" and "median 250 px/s (...)" were the same
@@ -20,6 +50,35 @@ shake test prints both axes' slopes and keeps only the stronger axis's numbers, 
 "-646.25" was held by nothing. No object's verdict changes: each of the 31 already differed in a number field.
 Two reruns of all 31 on the same computer, a day and five commits apart and in different folders, differ in nothing
 under the new rule (test_share; test_gpu's check of the card's tolerance now has a slash in its sentence).
+**The add-on for graphics cards, installed from the window** (IDEAS.md G5; built 2026-11-13). Where the computer has
+an NVIDIA card and CuPy is not installed, Preferences could only say which command to type in a terminal, which a
+person at the window has not got.
+
+- **Edit → Preferences… has a button, Install the add-on**, beside the graphics card's row, where a card waits for
+  it. The line under it says what it downloads: about 1.4 GB for CUDA 13's build and 1.8 GB for CUDA 12's, 1.9 and
+  2.8 GB once in place. pip runs behind a wait's card at the top of the right column, with a bar that counts the
+  megabytes and a Cancel. mcDonald stays open and usable meanwhile, and the card computes from the next step that
+  starts: the window is not opened again. When it is over the card says so, with a tick, and stays until it is
+  closed. Nothing pops up.
+- **`mcdonald setup --install-gpu`** does the same from a terminal, for an agent (`--json` for one object; exit 0
+  when the card computes, 3 when there is nothing to install it for or it failed). `mcdonald setup`'s "graphics card"
+  line names it, and the pip command for this computer's driver.
+- **Which build**: CUDA 13's where the card's driver runs CUDA 13 and every card here is one CUDA 13's libraries
+  still run (the GTX 1600 and RTX 2000 series on), else CUDA 12's. The driver is asked directly, with nothing
+  installed for it (`gpu.cuda`). The driver alone does not decide: NVIDIA's 580 drivers report CUDA 13 on a GTX 1080,
+  which CUDA 13's libraries dropped. A driver older than CUDA 12 is said before anything is downloaded.
+- **pip touches nothing that is installed** (`mcdonald.addon`). It is given CuPy's own requirement, never
+  `mcdonald[gpu]`, so a working copy (`pip install -e`) or a copy from GitHub stays what it is. It is also given a
+  constraints file that pins every installed package at its version, so it can add packages and replace none; that
+  is why the window can stay open, on Windows too, where a running program's files are locked. Wheels only, nothing
+  left in pip's cache, no questions asked.
+- **A failure is said on the page in plain words**: no network, no room on the disk (checked before the download),
+  no build for this Python, a package that would have to be replaced. Under it, what pip said and the command to
+  type by hand, which can be copied.
+- Tried for real on the workstation, in fresh venvs: CUDA 13's add-on in 22 s (1,353 MB), CUDA 12's in 34 s
+  (1,823 MB), each with the card computing in the process that installed it, and test_gpu's comparisons passing on
+  the card after. Not tried on Windows. Tests use a stand-in for pip: none installs anything or uses the network
+  (test_gpu, test_gui's `drive_the_add_on`).
 
 **No more than 32 worker processes unless asked** (the maintainer, 2026-11-13: "is there an optimal number of CPUs
 for mcDonald GUI to use? Right now the default is the system maximum"). Measured on the 96-thread workstation: whole

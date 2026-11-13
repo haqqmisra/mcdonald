@@ -88,7 +88,9 @@ for updates in the window, and the `version` line of `mcdonald setup` (`--json`:
   command sets one step's worker processes within that.
 
 - **A graphics card (GPU), if there is one.** Never needed. Where the computer has an NVIDIA card and CuPy is
-  installed (`pip install "mcdonald[gpu]"`; [docs/install.md](docs/install.md)), the steps that match one frame
+  installed (the window's Preferences has a button for it, **Install the add-on**; from a terminal,
+  `mcdonald setup --install-gpu`, or by hand `pip install "mcdonald[gpu]"`; [docs/install.md](docs/install.md)), the
+  steps that match one frame
   against another run on it: the *layers* check and the *integrity* check's background passes, which are most of a
   Measure's time. On the workstation mcdonald is now developed on (a 48-core Xeon and an RTX 5070 Ti, November 2026),
   the *layers* check of a 2-second 1080p segment takes 27 s on four CPU cores, 10 s on all 88 threads and 3 s on the
@@ -612,7 +614,10 @@ the first that will open.
   segment (by ffplay, which comes with ffmpeg; the speaker beside the stop button turns it off). **Edit →
   Preferences…** chooses where it plays -- the system default, or any output ffplay's SDL lists -- with a test
   tone, and chooses the graphics card (GPU) the slow steps run on: the cards mcdonald can compute on (NVIDIA's, through
-  CUDA, with CuPy installed), greyed out where there is none, with a line saying why and what would change it. The
+  CUDA, with CuPy installed), greyed out where there is none, with a line saying why and what would change it. Where
+  a card waits for CuPy, the row has a button, **Install the add-on**: pip runs behind a wait's card in the right
+  column, the window stays open, and the card computes from the next step (`mcdonald setup --install-gpu` on the
+  command line; `mcdonald.addon`). The
   choice is remembered and used from the next step (`mcdonald --gpu` on the command line). Opening another video while one is still on its way in (its
   segment being chosen, its frames saved) stops that one first. `mcdonald setup` (or `mcdonald-gui --desktop-entry`)
   adds it to the applications menu on Linux. It needs the `gui` extra

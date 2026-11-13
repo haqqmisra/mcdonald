@@ -94,7 +94,7 @@ from scipy import ndimage
 from scipy.ndimage import gaussian_filter
 
 from . import forensics as vf
-from .progress import PROCS_HELP, counted, to_stderr, workers
+from .progress import BESIDE, PROCS_HELP, Beside, counted, to_stderr, workers
 from .report import Found, emit, inputs_of, said_to_stderr
 
 R_MIN = 1.2          # x the object's size: the first ring a companion is looked for in (inside is the object)
@@ -220,33 +220,42 @@ class Frames:
         grey, bad = self._read(n)
         return self._keep(n, grey.astype(np.float64), bad)
 
-    def each(self, ns, progress=None, stop=None, what=""):
+    def each(self, ns, progress=None, stop=None, what="", also=None):
         """(n, grey, bad) for each frame of `ns`, in order, exactly as `self(n)` gives them, saying how far
-        the pass has got and asking `stop` after each (`progress.counted`)."""
+        the pass has got and asking `stop` after each (`progress.counted`). With `also`, (n, grey, bad,
+        also(n, grey, bad)): what a pass computes from one frame alone, done in the thread that read the frame
+        and not by the pass, which then waits on nothing but what ties one frame to the next. The same function on
+        the same frame, so the same numbers (2026-11-13: PR088's 3,558 frames, the frame's noise 17 ms each in the
+        pass's own thread, 59 of the pass's 97 s; SciPy's filters let other threads run)."""
         ns = list(ns)
-        todo = [n for n in ns if self.cache is None or n not in self.cache]
-        size = workers(self.procs, self.clip.W * self.clip.H) if todo else 0
+        fresh = {n for n in ns if self.cache is None or n not in self.cache}
+        size = workers(self.procs, self.clip.W * self.clip.H) if fresh or also is not None else 0
+
+        def one(n):
+            if n in fresh:
+                grey, bad = self._read(n)
+                g, bad = self._keep(n, grey.astype(np.float64), bad)
+            else:
+                g, bad = self(n)
+            return (n, g, bad) if also is None else (n, g, bad, also(n, g, bad))
         if not size:
             for n in counted(ns, progress, stop, what):
-                yield (n, *self(n))
+                yield one(n)
             return
-        fresh, out, it = set(todo), deque(), iter(todo)
+        out, it = deque(), iter(ns)
         ex = ThreadPoolExecutor(size)
 
         def more():
             n = next(it, None)
             if n is not None:
-                out.append(ex.submit(self._read, n))
+                out.append(ex.submit(one, n))
         try:
             for _ in range(2 * size):
                 more()
             for n in counted(ns, progress, stop, what):
-                if n in fresh:
-                    grey, bad = out.popleft().result()
-                    more()
-                    yield (n, *self._keep(n, grey.astype(np.float64), bad))
-                else:
-                    yield (n, *self(n))
+                got = out.popleft().result()
+                more()
+                yield got
         finally:
             ex.shutdown(wait=False, cancel_futures=True)
 
@@ -312,30 +321,42 @@ def stack_both(clip, track, frames, radius=None, progress=None, stop=None):
     accr, cntr = np.zeros((S, S), np.float64), np.zeros((S, S), np.float64)
     pos = [track[n] for n in ns]
     repeats, diffs, last = [], [], None
-    for i, (n, g, bad) in enumerate(frames.each(ns, progress, stop, "Stack")):
+
+    def weighed(n, g, bad):                                # in the thread that read the frame (`Frames.each`)
         w = (~bad).astype(np.float64)
-        gw = g * w
-        for a, c, (x, y) in ((acc, cnt, pos[i]), (accr, cntr, pos[len(ns) - 1 - i])):
-            ox, oy = int(round(R - x)), int(round(R - y))
-            x0, y0 = max(ox, 0), max(oy, 0)
-            x1, y1 = min(ox + clip.W, S), min(oy + clip.H, S)
-            if x1 <= x0 or y1 <= y0:
-                continue
-            a[y0:y1, x0:x1] += gw[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
-            c[y0:y1, x0:x1] += w[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
-        # the cadence: the crop about the object against the last frame's
-        x, y = pos[i]
-        X0, Y0 = int(max(x - 128, 0)), int(max(y - 128, 0))
-        crop = g[Y0:Y0 + 256, X0:X0 + 256]
-        if last is not None and last[1].shape == crop.shape and last[2] == (X0, Y0):
-            d = float(np.abs(crop - last[1]).mean())
-            loc = [v for v in diffs[-10:] if np.isfinite(v)]
-            if loc and d < 0.2 * np.median(loc) and d < 0.35:
-                repeats.append(n)
-            diffs.append(d)
-        elif last is not None:
-            diffs.append(np.nan)
-        last = (n, crop, (X0, Y0))
+        return w, g * w
+
+    def put(a, c, xy, w, gw):                              # one frame into one stack, where (x, y) puts it
+        ox, oy = int(round(R - xy[0])), int(round(R - xy[1]))
+        x0, y0 = max(ox, 0), max(oy, 0)
+        x1, y1 = min(ox + clip.W, S), min(oy + clip.H, S)
+        if x1 <= x0 or y1 <= y0:
+            return
+        a[y0:y1, x0:x1] += gw[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
+        c[y0:y1, x0:x1] += w[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
+    # The two stacks are filled beside each other, each in the frames' own order (a sum of doubles depends on its
+    # order, so no stack's frames are shared out): the object's in a thread beside this one, the mirror's here.
+    beside = Beside(None if frames.procs is None else min(int(frames.procs), 2))
+    try:
+        for i, (n, g, bad, (w, gw)) in enumerate(frames.each(ns, progress, stop, "Stack", also=weighed)):
+            own = beside.call(put, acc, cnt, pos[i], w, gw)
+            put(accr, cntr, pos[len(ns) - 1 - i], w, gw)
+            own.result()
+            # the cadence: the crop about the object against the last frame's
+            x, y = pos[i]
+            X0, Y0 = int(max(x - 128, 0)), int(max(y - 128, 0))
+            crop = g[Y0:Y0 + 256, X0:X0 + 256]
+            if last is not None and last[1].shape == crop.shape and last[2] == (X0, Y0):
+                d = float(np.abs(crop - last[1]).mean())
+                loc = [v for v in diffs[-10:] if np.isfinite(v)]
+                if loc and d < 0.2 * np.median(loc) and d < 0.35:
+                    repeats.append(n)
+                diffs.append(d)
+            elif last is not None:
+                diffs.append(np.nan)
+            last = (n, crop, (X0, Y0))
+    finally:
+        beside.close()
     with np.errstate(invalid="ignore", divide="ignore"):
         m = np.where(cnt > 0, acc / np.maximum(cnt, 1), np.nan)
         mc = np.where(cntr > 0, accr / np.maximum(cntr, 1), np.nan)
@@ -660,43 +681,63 @@ def examine(clip, track, frames, cands, size=None, follow=(), progress=None, sto
     # it (inside is the object's own picture; PR105's middle point, 15 px out, took the follower from the lower one)
     keep = max(0.6 * (size or 0), 2 * SIGMA_OUT) if keep is None else keep
     followers = {k: Follower(cands[k], keep) for k in follow}
-    for n, g, bad in frames.each(ns, progress, stop, "Frames"):
-        ox, oy = track[n]
-        if follow:
-            g32 = g.astype(np.float32)
-            if last is None:
+
+    def alone(n, g, bad):          # what the pass needs of one frame alone: in the thread that read it (`Frames.each`)
+        return wide_noise(g, bad, *track[n]), g.astype(np.float32) if follow else None
+
+    def stepped(a, b, bad_a, bad_b):                        # the background's step from one frame to the next
+        return background_shift(a, b, ~(bad_b | bad_a))
+    # Each step of the background is read beside the pass (two frames each, no step needs another's), and they are
+    # summed in the frames' order once the pass is through: the sums the pass made as it went.
+    beside, steps, waiting = Beside(None if frames.procs is None else int(frames.procs)), [], deque()
+
+    def looked(way, n, g, bad, noise, obj):                 # every follower's look at one frame, beside each other:
+        jobs = [beside.call(f.look, way, n, g, bad, noise, obj) for f in followers.values()]     # each has its own state,
+        for job in jobs:                                    # and the frame is not gone on from until all have looked
+            job.result()
+    try:
+        for n, g, bad, (noise, g32) in frames.each(ns, progress, stop, "Frames", also=alone):
+            ox, oy = track[n]
+            if follow:
+                job = None if last is None else beside.call(stepped, last[1], g32, last[2], bad)
+                steps.append((n, None if last is None else last[0], job))
+                if job is not None:
+                    waiting.append(job)
+                    while len(waiting) > 4 * BESIDE:            # never far ahead of the steps: each holds two frames
+                        waiting.popleft().result()
+                last = (n, g32, bad)
+            for k, c in enumerate(cands):
+                if noise > 0:
+                    x, y = int(round(ox + c["dx_px"])), int(round(oy + c["dy_px"]))
+                    if w <= x < clip.W - w and w <= y < clip.H - w:
+                        sub = g[y - w:y + w + 1, x - w:x + w + 1].copy()
+                        sub[bad[y - w:y + w + 1, x - w:x + w + 1]] = np.nan
+                        if np.isfinite(sub).sum() > 0.8 * sub.size:
+                            d = _dog(sub)
+                            core = d[w - 2:w + 3, w - 2:w + 3]
+                            v = core.min() if c["sign"] == "dark" else core.max()
+                            seen[k] += 1
+                            hit = (abs(v) / noise >= FRAME_Z) and ((v < 0) == (c["sign"] == "dark"))
+                            hits[k] += hit
+                            if hit:
+                                dd = np.where(np.isfinite(d), d, 0.0)
+                                iy, ix = np.unravel_index(int(np.argmin(dd) if c["sign"] == "dark" else np.argmax(dd)), dd.shape)
+                                where[k].append((ix - w, iy - w))
+            if follow and noise > 0:
+                noises[n] = noise
+                looked(0, n, g, bad, noise, (ox, oy))
+        for n, before, job in steps:
+            if job is None:
                 bg[n] = (0.0, 0.0)
             else:
-                d = background_shift(last[1], g32, ~(bad | last[2]))
-                bg[n] = (bg[last[0]][0] + d[0], bg[last[0]][1] + d[1])
-            last = (n, g32, bad)
-        noise = wide_noise(g, bad, ox, oy)
-        for k, c in enumerate(cands):
-            if noise > 0:
-                x, y = int(round(ox + c["dx_px"])), int(round(oy + c["dy_px"]))
-                if w <= x < clip.W - w and w <= y < clip.H - w:
-                    sub = g[y - w:y + w + 1, x - w:x + w + 1].copy()
-                    sub[bad[y - w:y + w + 1, x - w:x + w + 1]] = np.nan
-                    if np.isfinite(sub).sum() > 0.8 * sub.size:
-                        d = _dog(sub)
-                        core = d[w - 2:w + 3, w - 2:w + 3]
-                        v = core.min() if c["sign"] == "dark" else core.max()
-                        seen[k] += 1
-                        hit = (abs(v) / noise >= FRAME_Z) and ((v < 0) == (c["sign"] == "dark"))
-                        hits[k] += hit
-                        if hit:
-                            dd = np.where(np.isfinite(d), d, 0.0)
-                            iy, ix = np.unravel_index(int(np.argmin(dd) if c["sign"] == "dark" else np.argmax(dd)), dd.shape)
-                            where[k].append((ix - w, iy - w))
-        if follow and noise > 0:
-            noises[n] = noise
-            for f in followers.values():
-                f.look(0, n, g, bad, noise, (ox, oy))
-    if followers and noises:                            # and again in reverse: see Follower
-        for n, g, bad in frames.each(ns[::-1], progress, stop, "Frames"):
-            if n in noises:
-                for f in followers.values():
-                    f.look(1, n, g, bad, noises[n], track[n])
+                d = job.result()
+                bg[n] = (bg[before][0] + d[0], bg[before][1] + d[1])
+        if followers and noises:                        # and again in reverse: see Follower
+            for n, g, bad in frames.each(ns[::-1], progress, stop, "Frames"):
+                if n in noises:
+                    looked(1, n, g, bad, noises[n], track[n])
+    finally:
+        beside.close()
     gots = {}
     for k, f in followers.items():
         got, cands[k]["_runs"] = f.merged()

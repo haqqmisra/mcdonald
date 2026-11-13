@@ -163,7 +163,10 @@ processes: more measure no sooner (`--cpus N` with a larger N is used as given).
 computer has an NVIDIA graphics card and CuPy is installed, the steps that match
 one frame against another (`layers`, `integrity`'s background passes) run on the
 card, several times sooner, and give the CPU's measurement to about one part in
-a million. `mcdonald setup` says which card is in use. `--gpu none` (or
+a million. `mcdonald setup` says which card is in use, and where a card is
+there and CuPy is not, `mcdonald setup --install-gpu` installs it (1.4 to
+1.8 GB from PyPI, the build for the card's driver, nothing already installed
+replaced; `--json` for one object, exit 0 when the card computes). `--gpu none` (or
 `MCDONALD_GPU=none`) keeps a command on the CPU, and `--gpu NAME` picks a card.
 In a batch job a card is used only if the job was given one (for Slurm,
 `--gres=gpu:1`): ask for it, or the job runs on the CPU and says so. A case's

@@ -92,20 +92,28 @@ Mac, and with a card from AMD or Intel, every step runs on the CPU for now.
 
 1. **The card's driver** from NVIDIA has to be installed. If the card already shows pictures at its full resolution,
    it usually is. `nvidia-smi` in a terminal prints the card's name when the driver is there.
-2. **The add-on**, about 2 GB:
+2. **The add-on.** In the window, open **Edit → Preferences…** (on a Mac, mcDonald → Settings). Beside the
+   graphics card's name there is a button, **Install the add-on**. It downloads 1.4 to 1.8 GB, which takes a few
+   minutes, and mcDonald stays open meanwhile. The card is used from the next step on. In a terminal, the same is:
 
    ```bash
-   python3 -m pip install "mcdonald[gpu]"
+   mcdonald setup --install-gpu
    ```
 
-   On Windows, `py -m pip install "mcdonald[gpu]"`. If mcdonald was installed in a venv, install the add-on there too.
-3. **Check**: `mcdonald setup` has a line "graphics card" that names the card in use.
+   Both choose the build for the card's driver, and replace nothing that is already installed.
+3. **Check**: `mcdonald setup` has a line "graphics card" that names the card in use, and Preferences lets you
+   choose it.
 
-The add-on is CuPy, a library that does on a card what NumPy does on the CPU, with NVIDIA's CUDA 12 libraries. It
-runs on any NVIDIA card from the GeForce GTX 900 series (2014) on. Three things to know:
+The add-on is CuPy, a library that does on a card what NumPy does on the CPU, with NVIDIA's CUDA libraries (CUDA is
+NVIDIA's software for computing on a card). It runs on any NVIDIA card from the GeForce GTX 900 series (2014) on.
+It takes 1.9 to 2.8 GB on the disk. Four things to know:
 
+- To install it by hand instead: `python3 -m pip install "mcdonald[gpu]"` (on Windows, `py -m pip install
+  "mcdonald[gpu]"`), in the venv mcdonald is in, if it is in one. That is the build for CUDA 12, which runs on every
+  card the add-on supports.
 - A computer whose driver is new and whose card is from the RTX 2000 series or later can use CUDA 13 instead:
-  `pip install "mcdonald[gpu-cuda13]"`. Install one of the two, never both.
+  `pip install "mcdonald[gpu-cuda13]"`. Install one of the two, never both. The button and
+  `mcdonald setup --install-gpu` choose CUDA 13 on such a computer.
 - A computer that already has NVIDIA's CUDA toolkit needs only CuPy itself: `pip install cupy-cuda12x`, or
   `cupy-cuda13x` for CUDA 13.
 - The first step that uses the card takes some seconds longer, once: CuPy builds its small programs for the card and

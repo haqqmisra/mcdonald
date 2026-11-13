@@ -3549,6 +3549,35 @@ def test_one_version_everywhere_it_is_said():
           mcdonald.__released__)
 
 
+def test_the_add_on_is_what_pyproject_and_the_install_notes_say():
+    """The add-on for graphics cards is installed by its own requirement, never as `mcdonald[gpu]` (`mcdonald.addon`:
+    pip must not touch mcdonald, and a working copy's recorded extras can be older than its code). So the requirement
+    is written twice, in pyproject.toml's extras and in `addon.REQUIRES`, and the two are held together here; and the
+    install notes name the button, the command and the sizes the code has."""
+    print("\nthe add-on for graphics cards: one requirement, said the same everywhere")
+    import ast
+    import re
+    from mcdonald import addon
+    root = Path(__file__).resolve().parent.parent
+    toml = (root / "pyproject.toml").read_text(encoding="utf-8")
+    extras = {name: ast.literal_eval(m.group(1)) for name in addon.REQUIRES
+              for m in [re.search(r"^" + re.escape(name) + r" = (\[.*\])$", toml, re.M)] if m}
+    check(extras == addon.REQUIRES and set(addon.REQUIRES) == set(addon.CUDA) == set(addon.DOWNLOAD_MB) == set(addon.DISK_MB),
+          "what the window and `mcdonald setup --install-gpu` hand to pip is what pyproject.toml's extras say", str(extras))
+    check(all(f"cuda{addon.CUDA[name]}x" in req for name, reqs in addon.REQUIRES.items() for req in reqs),
+          "and each extra's CuPy is the build for the CUDA the code says it brings")
+    notes = (root / "docs" / "install.md").read_text(encoding="utf-8")
+    size = lambda mb: f"{min(mb.values()) / 1000:.1f} to {max(mb.values()) / 1000:.1f} GB"
+    button = re.search(r'QPushButton\("(Install [^"]+)"\)', (root / "src" / "mcdonald" / "mark_qt.py").read_text(encoding="utf-8"))
+    check(button is not None and f"**{button.group(1)}**" in notes and "mcdonald setup --install-gpu" in notes
+          and size(addon.DOWNLOAD_MB) in notes and size(addon.DISK_MB) in notes
+          and all(f'"mcdonald[{name}]"' in notes for name in addon.REQUIRES),
+          "docs/install.md names the window's button as the window does, the command, the two extras by hand, and the "
+          "sizes the code has", f"{button and button.group(1)}; {size(addon.DOWNLOAD_MB)}; {size(addon.DISK_MB)}")
+    for f in ("README-technical.md", "docs/agents.md", "CHANGELOG.md"):
+        check("mcdonald setup --install-gpu" in (root / f).read_text(encoding="utf-8"), f"{f} names the command")
+
+
 def test_help_about_says_what_the_readme_says():
     """Help -> About (Jacob, 2026-09-25): the README's one sentence, its quote, its license line
     and (2026-09-27) where to donate, word for word, so that the two cannot drift apart. Since
