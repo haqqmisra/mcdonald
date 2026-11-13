@@ -5,6 +5,22 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`share rerun` holds every sentence to the letter** (IDEAS.md G6, found 2026-11-12, fixed 2026-11-13). A rerun is
+made in another folder, so a string that is a file's path is compared by its file name. Until now any two strings
+that both held a slash were taken for paths: "median 103 px/s (...)" and "median 250 px/s (...)" were the same
+wherever the words after "px/s" were. Now only a path is compared that way (`rerun.is_path`: an absolute path, or a
+string with no space in it and a file's ending); a rate, a ratio and a sentence are compared whole. A path written
+on Windows is read by its file name on any system.
+
+What the old rule hid, measured on the fourteen reference case files rerun on the workstation (31 objects; the
+files were made on another CPU, so their numbers differ in the last digits there, as the benchmark of 2026-11-12
+found): 21 sentences on 11 objects, each a printed number that moved by one in its last digit ("29.3" and "29.4
+px/s"). Fifteen repeat a number field that differs too, so the old check already said so. Six do not: `integrity`'s
+shake test prints both axes' slopes and keeps only the stronger axis's numbers, so PR135's "-646.24" against
+"-646.25" was held by nothing. No object's verdict changes: each of the 31 already differed in a number field.
+Two reruns of all 31 on the same computer, a day and five commits apart and in different folders, differ in nothing
+under the new rule (test_share; test_gpu's check of the card's tolerance now has a slash in its sentence).
+
 **No more than 32 worker processes unless asked** (the maintainer, 2026-11-13: "is there an optimal number of CPUs
 for mcDonald GUI to use? Right now the default is the system maximum"). Measured on the 96-thread workstation: whole
 `mcdonald run`s of PR149 (158 frames, 1080p), PR135's object 2 (270 frames, 720p) and PR088's object 2 (3,678

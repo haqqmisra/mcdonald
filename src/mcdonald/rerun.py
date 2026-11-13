@@ -7,8 +7,10 @@ video the very file it was made from -- found beside the file, in the storage fo
 or $MCDONALD_DATA, or by its catalog name), every object in it is measured again by the very command its report records
 -- the same marks or track, frames, known quantities, polarity, aperture, beat rule, other objects kept clear of and
 skipped stages, into a fresh folder -- and the new report is held against the one in the file: every stage's fields,
-results, what had no power and what is needed, number for number (strings that are paths are compared by their file
-name; a float may differ by one part in a billion, the floating-point noise of another machine, no more). The file
+results, what had no power and what is needed, number for number (a string that is a file's path is compared by its file
+name, since a run made again is in another folder; every other string, each sentence of the report among them, has to
+be the same to the letter (`is_path`); a float may differ by one part in a billion, the floating-point noise of another
+machine, no more). The file
 reruns to its numbers when nothing differs. One thing is left out of that: the review state, whether a person said
 they looked at the track sheet (`stages.confirm_sheet`, `--i-looked`). A run made again cannot say that, so the two
 reports always differ there when the file's was confirmed; it is reported beside the comparison, and decides nothing
@@ -21,6 +23,7 @@ Takes minutes per object: the Technical Note's cases 3-11 min with integrity, th
 import json
 import math
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -50,17 +53,34 @@ def held_to(old, new):
     return (CARD_REL, CARD_ABS, card) if card else (REL, 0.0, None)
 
 
+_ENDING = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,7}$")      # a file's ending: ".csv", ".mp4"; not the ".32" of "0.35/0.32", nor "1.5x"
+_DRIVE = re.compile(r"[A-Za-z]:[\\/]")
+
+
+def is_path(s):
+    """Is this string a file's path, which a run made again in another folder gives with another folder in front? Only
+    what is one: an absolute path ("/...", "~/...", "C:\\..."), or a string with no space in it and a file's ending
+    ("out/object-1/x_track.csv", "x_track.csv"). A sentence is not, whatever is in it: until 2026-11-13 any two strings
+    that both held a slash were compared by what followed the last one, so "median 103 px/s (...)" and "median 250 px/s
+    (...)" were the same wherever the words after "px/s" were (IDEAS.md G6)."""
+    if not isinstance(s, str):
+        return False
+    if s.startswith(("/", "\\", "~/")) or _DRIVE.match(s):
+        return True
+    return not re.search(r"\s", s) and bool(_ENDING.search(s))
+
+
+def _name(s):
+    """A path's file name, whichever computer wrote it (a Windows path read on Linux has no "/" in it)."""
+    return re.split(r"[\\/]", s.rstrip("\\/"))[-1]
+
+
 def _same(a, b, path, diffs, rel=REL, floor=0.0):
     """Compare two JSON-ish values; record each difference as (path, old, new). A float may differ by `rel`, relative,
-    or by `floor`."""
+    or by `floor`. Two strings that are both paths (`is_path`) are the same where their file names are; any other two
+    strings where they are the same string."""
     if isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b)):
-            if k in ("source", "path", "file", "files", "out", "figure", "png", "csv"):     # paths: by their file name
-                va, vb = a.get(k), b.get(k)
-                if isinstance(va, str) and isinstance(vb, str):
-                    if Path(va).name != Path(vb).name:
-                        diffs.append((f"{path}.{k}", va, vb))
-                    continue
             if k not in a or k not in b:
                 diffs.append((f"{path}.{k}", a.get(k, "<absent>"), b.get(k, "<absent>")))
                 continue
@@ -75,8 +95,8 @@ def _same(a, b, path, diffs, rel=REL, floor=0.0):
         if not (a == b or (isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b))
                 or abs(a - b) <= max(rel * max(abs(a), abs(b)), floor if isinstance(a, float) or isinstance(b, float) else 0.0)):
             diffs.append((path, a, b))
-    elif isinstance(a, str) and isinstance(b, str) and ("/" in a or "\\" in a) and ("/" in b or "\\" in b):
-        if Path(a).name != Path(b).name:
+    elif is_path(a) and is_path(b):
+        if _name(a) != _name(b):
             diffs.append((path, a, b))
     elif a != b:
         diffs.append((path, a, b))

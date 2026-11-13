@@ -703,8 +703,10 @@ carries the thread on with the new note last.
 
 Does a shared file give back its own numbers? `mcdonald share rerun FILE.mcdonald` opens it as anyone does,
 measures every object again by the command its report records, and holds the new report against the file's, number
-for number (exit 1 where it does not): the check every reference case of the data folder is held to (ROADMAP.md,
-0.3), and in the window the shared card's **Measure it again**. Minutes per object; needs the video (beside the file,
+for number and sentence for sentence (exit 1 where it does not): a number may differ by one part in a billion, a
+file's path is compared by its file name, and every other string has to be the same to the letter. It is the check
+every reference case of the data folder is held to (ROADMAP.md, 0.3), and in the window the shared card's **Measure
+it again**. Minutes per object; needs the video (beside the file,
 in the storage folder, in `$MCDONALD_DATA`, in a `--video-dir`, or by its catalog name). `tools/rerun_cases.py` in
 the repository is the same, with the reference-data folder looked in as well.
 
