@@ -119,6 +119,30 @@ or by a person at the window.** Its twelve choices are in the commit's message a
    reference cases and the goldens, and list every report whose look-alikes or wording change, for him to see before
    it is kept.
 
+### What followed the answers, the same evening (45824df, ba56f53; local, not pushed)
+
+- **G3 built** (45824df): `forensics._peaks_fused`, two kernels of the card's own; the plain batch kept for the
+  stand-in and for a card that refuses the code; `forensics.FUSED = False` is the way back. On the real card every
+  field is the plain batch's to the last bit (test_gpu 143 PASS; 4,105 rows of PR088, PR149 and PR113; 4,678 rows
+  with the second pass's dense templates). **The gain is a fifth of a pair, not half**: 11.2 ms against 14.1 on
+  PR088, 29.0 against 35.6 on PR149, 97.5 against 125.4 with dense templates. Of a 1080p pair's 26 ms now, about 12
+  is the card's, 6.6 is `_peak_read` on the CPU in Python (the one function both ways call), 3.6 the frames sent up,
+  2 each template's mean. The peak read for a batch at once was the other half of the old estimate; it is not
+  built, and whether to build it is a new question for Jacob (it would be a second way of reading a peak).
+- **The sound among the look-alikes fixed** (ba56f53, its own commit so it can be taken back alone): `judge(video=)`.
+  **No reference report changes**: the fourteen cases measured again with and without it, 31 objects, nothing
+  different; the goldens 228 PASS. Of the 145 videos of the data folder the sound of eight carries a rhythm in the
+  beat band (PR106, PR107, PR111, PR113's per-file copy, PR117, PR118, PR119, NASA-UAP-D008's tape); none has a
+  recorded track, so there is no changed report to show. Jacob had asked to see the changed reports before it is
+  kept: the list is empty, and the commit stands unless he says otherwise.
+- All suites with the goldens on the tree with both (snapshot `snapD`; jobs 1266 on CPUs, 1267 with the card): ALL
+  SUITES PASS on both -- golden 228, the window's suite 791 with 1 skip, audio 65, test_gpu 118 with NumPy standing in
+  and 143 on the card.
+- The queue was paused by Jacob from 16:21 to 16:58 (`queue-pause.sh --suspend`); jobs resumed by themselves.
+  The reference for the no-number-moves gate on today's `main` is now `gate/refA` (code e75083d).
+- The "mcDonald: development" session took `plant`'s design and CPU side (its branch `s23-plant`) and told Jacob; its
+  branches are on 3459561 and will meet ba56f53's change to `flicker.judge` when they merge `main`.
+
 ### What was put to Jacob (answered above)
 
 1. **G3:** build the fused pass, as the card's own code, tested on arthur only (NumPy cannot stand in for it)?
