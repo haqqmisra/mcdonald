@@ -145,7 +145,19 @@ discriminating power on this clip, whatever its verdict says.
 **Two readings that need care.**
 - *Shake.* Both accelerations carry measurement noise, so neither regression
   slope is 1 even when the truth is. With similar noise in both, unit slope
-  gives slopes of r and 1/r; check that they straddle 1.
+  gives slopes of r and 1/r; check that they straddle 1. The verdict is the
+  axis of the larger sigma (`best`, `r`, `sigma`). Every number the sentence
+  prints is a field as well (since 2026-11-13): `r_x`, `sigma_x`, `slope_x`
+  (the object's acceleration fitted on the background's), `slope_inverse_x`
+  (one over the background's fitted on the object's; `null` where the
+  sentence says inf, r within 0.05 of zero), the same four for y, and
+  `frames`, the N; the made-up disc's shake test keeps them too
+  (`selftest.shake`). The inverse slope at r near zero is a quotient by
+  almost nothing: on PR135's objects 1, 2 and 4 it printed "-646.24" on one
+  computer and "-646.25" on another, with no field to hold the sentence to.
+  A trap that stays: a case made on one CPU and rerun on another can still
+  differ there by more than the one part in a billion a rerun allows; now a
+  number says by how much, where before only a sentence differed.
 - *Smear.* No smear is INCONCLUSIVE, not a FLAG: a millisecond exposure shows
   none either. Smear that scales with speed is the informative outcome.
 

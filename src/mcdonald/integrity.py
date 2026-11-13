@@ -50,6 +50,7 @@ from .report import Found, emit, inputs_of, plain, said_to_stderr
 
 _G = {}
 PASS, FLAG, INC, NOP = "PASS", "FLAG", "INCONCLUSIVE", "NO POWER"
+SELFTEST_FIELDS = ("shake",)   # the tests whose numbers the self-test's report keeps as fields, beside verdict and sentence
 
 
 # ---- the record and the container ---------------------------------------------------------
@@ -662,6 +663,13 @@ def t_smear(o, runs):
 
 
 def t_shake(o, bg, reps, dbl):
+    """Does the object's screen acceleration follow the background's, at unit slope? Each axis apart; the verdict is
+    the stronger axis's (`best`, with its `r` and `sigma`, as before 2026-11-13). Every number the sentence prints is
+    a field too, named by its axis: `r_x`, `sigma_x`, `slope_x` (the object's acceleration fitted on the
+    background's), `slope_inverse_x` (one over the background's fitted on the object's; None where the sentence says
+    inf: r within 0.05 of zero), the same four for y, and `frames`, the N. Until then the weaker axis's numbers and
+    both axes' slopes were in the sentence alone, where a rerun on another computer could differ in a last digit
+    ("-646.24" against "-646.25", an inverse slope at r near zero) with no field to hold it to."""
     rows = []
     for n in sorted(o.trk):
         if not all(k in o.trk for k in (n - 1, n + 1)) or not all(k in bg for k in (n - 1, n)):
@@ -673,7 +681,7 @@ def t_shake(o, bg, reps, dbl):
         if max(abs(ac).max(), abs(ab).max()) < 6:
             rows.append((n, ac[0], ac[1], ab[0], ab[1], bg[n][1] == "striated"))
     if len(rows) < 40:
-        return NOP, f"{len(rows)} usable frames", {}, None
+        return NOP, f"{len(rows)} usable frames", {"frames": len(rows)}, None
     a = np.array(rows)
     out, best = [], None
     for comp, ia, ib in (("x", 1, 3), ("y", 2, 4)):
@@ -695,7 +703,11 @@ def t_shake(o, bg, reps, dbl):
         v, txt = INC, txt + " No shared shake found: a steady camera, a noisy background, or an independent path."
     else:
         v = INC
-    return v, txt, {"best": comp, "r": r, "sigma": float(sig)}, a[:, [0, 2 if comp == "y" else 1, 4 if comp == "y" else 3]]
+    d = {"best": comp, "r": r, "sigma": float(sig), "frames": len(a)}
+    for c, rc, sc, a1, a2 in out:                            # both axes, each number the sentence prints
+        d.update({f"r_{c}": rc, f"sigma_{c}": float(sc), f"slope_{c}": a1,
+                  f"slope_inverse_{c}": float(a2) if np.isfinite(a2) else None})
+    return v, txt, d, a[:, [0, 2 if comp == "y" else 1, 4 if comp == "y" else 3]]
 
 
 def t_halo(o):
@@ -1011,7 +1023,10 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
             ins = Insert(clip, trk, size, dark, power)
             fo = Obj(ins, ins.trk, size, dark)
             fres, fake = object_tests(fo, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
-            R["selftest"] = {k: {"verdict": v[0], "finding": v[1]} for k, v in fres.items()}
+            # the made-up disc's shake test keeps its numbers as the object's does (2026-11-13: every number its sentence
+            # prints is a field); the disc's other tests are still a verdict and a sentence
+            R["selftest"] = {k: {"verdict": v[0], "finding": v[1], **(v[2] if k in SELFTEST_FIELDS else {})}
+                             for k, v in fres.items()}
 
     stage("Integrity report")
     if out:

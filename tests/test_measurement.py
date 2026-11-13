@@ -5303,6 +5303,88 @@ def test_hue_reads_a_tall_warm_pointer_inside_a_box():
     check(sy.hue_glyphs(rgb) is None, "and, as before, not with no box (taller than 30 px)")
 
 
+def numbers_no_field_holds(finding, fields, fixed=("Unit slope with noise in both gives slopes of r and 1/r.",)):
+    """The numbers a test's sentence prints that none of its fields is, at the digits printed: [] where every one is
+    held. `fixed` are the sentence's own words with a digit in them."""
+    import re
+    text = finding
+    for words in fixed:
+        text = text.replace(words, "")
+    values = [v for v in fields.values() if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)]
+    missing = []
+    for tok in re.findall(r"(?<![\w.])[-+]?\d+(?:\.\d+)?", text):
+        places = len(tok.split(".")[1]) if "." in tok else 0
+        if not any(f"{v:.{places}f}" == tok.lstrip("+") for v in values):
+            missing.append(tok)
+    return missing
+
+
+def test_with_both_axes_the_shake_test_keeps_every_number_it_prints():
+    """integrity's shake test (2026-11-13; found by session 22's work on `share rerun`, IDEAS.md G6): its sentence prints
+    r, sigma and two slopes for each axis and the N, and its fields kept the stronger axis's r and sigma alone. On PR135's
+    objects 1, 2 and 4 a rerun on another computer printed "-646.25" for "-646.24" (the weaker axis's inverse slope, at r
+    near zero) and no field held it. Now each axis's four numbers and the N are fields, and the old three keep their
+    names and meaning.
+
+    The name sorts after every other test's on purpose: `--part K/N` deals the sorted names round, so a new name in the
+    middle moves later tests to other parts, where a test that draws from the module's RNG gets other draws."""
+    print("\nintegrity: the shake test keeps every number its sentence prints, both axes")
+    from mcdonald import integrity
+    rng = np.random.default_rng(20261113)          # its own generator: nothing here moves another test's draws
+
+    class Tracked:
+        pass
+
+    def drawn(n, acc_obj, acc_bg):
+        """n frames of an object whose screen acceleration at frame f is acc_obj[f - 2] and a background whose shift
+        changes by acc_bg[f - 2] there: (the object, bg) as t_shake takes them, its rows frames 2 to n - 1."""
+        o = Tracked()
+        pos = np.cumsum(np.cumsum(np.vstack([np.zeros((2, 2)), acc_obj[:n - 2]]), axis=0), axis=0) + (300.0, 200.0)
+        o.trk = {f: (float(pos[f - 1, 0]), float(pos[f - 1, 1])) for f in range(1, n + 1)}
+        shift = np.cumsum(np.vstack([np.zeros((1, 2)), acc_bg[:n - 1]]), axis=0)
+        return o, {f: (shift[f - 1], "isotropic") for f in range(1, n + 1)}
+
+    def unlike(a, b, r=0.0):
+        """`a` with what it shares with `b` taken out, then as much of `b` put back as correlates them by r."""
+        b0, a0 = b - b.mean(), a - a.mean()
+        a0 = a0 - b0 * (b0 @ a0) / (b0 @ b0)
+        return a0 + b0 * r / math.sqrt(1 - r * r) * math.sqrt((a0 @ a0) / (b0 @ b0))
+
+    n = 200
+    shake = rng.normal(0, 0.6, (n, 2))             # the camera's: the background's shift changes by it, and the object's too
+    own = rng.normal(0, 0.25, (n, 2))              # the object's own motion and its measurement noise
+    seen = shake + rng.normal(0, 0.2, (n, 2))      # the background's, as measured
+    # 1. the object rides the camera's shake on both axes, more cleanly in y
+    o, bg = drawn(n, shake + own * (1.0, 0.4), seen)
+    v, txt, d, pts = integrity.t_shake(o, bg, set(), set())
+    check(v == integrity.PASS and d["best"] == "y" and d["r"] == d["r_y"] and d["sigma"] == d["sigma_y"]
+          and 0.5 < d["r_x"] < d["r_y"] and d["frames"] == len(pts) == n - 2,
+          "a shared shake passes on its stronger axis, whose r and sigma are the old fields", txt[:112])
+    check(numbers_no_field_holds(txt, d) == [], "and every number the sentence prints is a field",
+          str(numbers_no_field_holds(txt, d)))
+    # 2. a path of its own: in x its acceleration has nothing of the background's (r = 0: the sentence prints the inverse
+    # slope as inf), in y a chance likeness of the size PR135's objects showed (r = 0.07)
+    acc = np.column_stack([unlike(own[:n - 2, 0] * 2.4, seen[:n - 2, 0]), unlike(own[:n - 2, 1] * 2.4, seen[:n - 2, 1], 0.07)])
+    o, bg = drawn(n, acc, seen)
+    v, txt, d, _ = integrity.t_shake(o, bg, set(), set())
+    check(v == integrity.INC and "No shared shake found" in txt and "inf" in txt and d["slope_inverse_x"] is None
+          and abs(d["r_x"]) < 1e-6 and abs(d["r_y"] - 0.07) < 1e-6 and abs(d["slope_inverse_y"]) > 3,
+          "no shared shake: inconclusive; an inverse slope the sentence prints as inf is None, the other axis's a number",
+          txt[:112])
+    check(numbers_no_field_holds(txt, d) == [], "and every number the sentence prints is a field, the weaker axis's too",
+          str(numbers_no_field_holds(txt, d)))
+    stronger = max("xy", key=lambda c: d[f"sigma_{c}"])
+    check((d["best"], d["r"], d["sigma"]) == (stronger, d[f"r_{stronger}"], d[f"sigma_{stronger}"]) and stronger == "y",
+          "best, r and sigma are the axis of the larger sigma, as before", f"{d['best']}: r {d['r']:+.2f}, {d['sigma']:.1f} sigma")
+    check(numbers_no_field_holds(txt, {k: d[k] for k in ("best", "r", "sigma")}) != [],
+          "(the old three fields alone did not hold them)", str(numbers_no_field_holds(txt, {k: d[k] for k in ("best", "r", "sigma")})))
+    # 3. too few frames to say
+    o, bg = drawn(30, shake, seen)
+    v, txt, d, _ = integrity.t_shake(o, bg, set(), set())
+    check(v == integrity.NOP and d == {"frames": 28} and numbers_no_field_holds(txt, d) == [],
+          "under 40 usable frames: no power, and the count it prints is a field", txt)
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for
