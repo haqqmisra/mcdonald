@@ -706,12 +706,19 @@ random by leverage, `<tag>_audit.png` and `.json`) and `<tag>_refused.png`, samp
 shared file, `<tag>_batch.mcdonald`, which `share rerun` measures again to its numbers; the unit's rows; and the
 frames removed (`--keep-frames`). `DIR/batch.tsv`, `.json` and `.md` are the table over all of them: a row an object,
 and a row for each video with none (nothing that lasted, a picture that does not change, a failure with its error).
+A row is a spot that lasted, not an identified object: one object lost and found again is several rows, a group Find
+listed as one spot is one row (`several`, `members`), and a spot in view under 40 frames is counted (`brief`,
+`brief_spots`, `brief_longest`) and never measured -- PR113's four-frame transit is a count in a row that says
+"nothing found".
 
 It is resumable (`batch_plan.json`, a `batch_state.json` and a lock a unit): a unit that is done is left, one killed
 half way goes on from the windows and objects it finished, and a unit done by another version or with other options
 (`batch.make_of`) is left as it is and said to be so by `--status`, in every row and at the head of `batch.md`.
 `--slurm` writes `DIR/batch.sbatch` (no partition, no account: those go through `--sbatch`) and submits one array a
-size class, then the table's job after them; `--slurm-print` writes the lines and submits nothing.
+size class (`batch.classes`: time and memory from the video's frames and size, fitted to a pilot on the 2025
+workstation), then the table's job after them; `--slurm-print` writes the lines and submits nothing. `--units` and
+`--except` take part of a plan (a long video on more CPUs than the rest); `--note` is a line kept with the batch and
+printed at the head of its table.
 
 ### Sharing an analysis (`share`)
 

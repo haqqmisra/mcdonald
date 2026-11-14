@@ -470,11 +470,19 @@ the first twelve (`--most M`) each become an object: a folder `object-N`, marks 
 positions, then `run --each` as above. The rest are listed and not measured. `--quick` leaves out
 the two long steps, `layers` and `integrity`.
 
+**What the rule leaves out.** A spot in view for fewer than 40 frames is counted and not measured,
+however clear it is. An object that crosses the picture in four frames is such a spot (PR113's is).
+Each row has its video's counts: `brief` (spots seen too briefly), `brief_spots` (those refused for
+that alone) and `brief_longest`. For a short event, use `look --propose` on the frames it is in.
+
 **The marks are a rule's, and say so.** Each mark is recorded as an agent's, with the reason
 "taken by `mcdonald batch` ... with nobody looking". Every report says an agent chose the object,
 and every report is provisional. A row of the table is a spot that lasted. It is not an object
 anyone has identified: it may be a wave, a feature of the ground or a symbol on the display.
-Nothing a batch writes should be quoted before a person has looked at the object's track sheet.
+One object can have several rows, where Find lost it and found it again. One row can be several
+objects, where Find listed a group as one spot: its `several` is true and `members` says how many
+were followed. So count labels as reports, not as objects. Nothing a batch writes should be
+quoted before a person has looked at the object's track sheet.
 
 **What it leaves in `--out`.** One folder a video (`runs/pr113/`; a part of a video in
 `runs/pr113/segment-400-420/`), with:
@@ -501,9 +509,11 @@ counts: `by_outcome`, `by_label`, `by_grade`, `no_power_by_stage`, `other_make`.
 **It can be stopped and started again.** A video that is done is not done twice. One that was
 stopped half way goes on from the stretches and objects it had finished. Options that change
 results (`--most`, `--quick`, `--window`) are kept with each video. A video done with other
-options, or by another version, is left as it is, and `--status` and every row say so; `--again`
-does it again and moves its old folder aside. The exit code is 0 when every video is done and 1
-when one failed or is not done yet.
+options, or by another version, is left as it is. The status and every row say so. To do it
+again, give `--again`: its old folder is moved aside. To take only some videos, give
+`--units NAMES`, and to take all but some, `--except NAMES`. A line about the batch, given with
+`--note TEXT`, is kept with it and printed at the head of the table. The exit code is 0 when
+every video is done and 1 when one failed or is not done yet.
 
 **The audit.** For each object the batch draws 59 frames of its track at random, more often near
 the track's ends, where a wrong frame moves the measured rate most. `object-N/<tag>_audit.png`

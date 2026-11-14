@@ -67,8 +67,9 @@ import numpy as np
 from . import __version__, several, storage
 from . import catalog as _catalog
 from . import forensics as vf
+from .clip import EXIT_USAGE
 from .progress import default_workers
-from .report import Case, emit, envelope
+from .report import Case, emit, envelope, said_to_stderr
 
 FORMAT = "mcdonald-batch/1"
 PLAN, STATE, LOCK = "batch_plan.json", "batch_state.json", "batch.lock"
@@ -90,8 +91,9 @@ QUICK = ("layers", "integrity")     # --quick: the two long stages left out (nei
 # A picture that does not change: at every instant looked at, no part of it differs from the first instant by as much
 # as STILL grey levels, the difference smoothed as Find smooths its residual (STILL_SIGMA). STILL is Find's own floor,
 # the least a residual's peak must reach to be a candidate (`propose.peaks`: floor 4.0, sigma 2.0), so such a picture
-# holds nothing Find could propose at those instants. Not a level of the batch's own; tests/test_batch.py holds the
-# two together. Among the 144 PURSUE videos one lies under it, a sound recording (method section 54).
+# holds nothing Find could propose at those moments. Not a level of the batch's own; tests/test_batch.py holds the
+# two together. It is a guard against a picture that truly never changes, and a strict one: of the 144 PURSUE videos
+# none lies under it (the one sound recording on a single card differs by 5.8 at some point; method section 54).
 STILL, STILL_SIGMA = 4.0, 2.0
 STILL_EVERY, STILL_LEAST, STILL_MOST = 10.0, 40, 600      # an instant every 10 s, at least 40 and at most 600 of them
 
@@ -359,7 +361,8 @@ def options_of(args):
     skip = sorted(set(x for x in (args.skip or "").split(",") if x) | (set(QUICK) if args.quick else set()))
     return dict(window=int(args.window), overlap=int(args.overlap), most=int(args.most), skip=skip,
                 only=sorted(x for x in (args.only or "").split(",") if x), audit=int(args.audit_frames),
-                keep_frames=bool(args.keep_frames), video_dir=[str(Path(d).resolve()) for d in args.video_dir or ()])
+                keep_frames=bool(args.keep_frames), video_dir=[str(Path(d).resolve()) for d in args.video_dir or ()],
+                note=str(getattr(args, "note", "") or ""))
 
 
 def make_of(options):
@@ -800,7 +803,7 @@ def audit_record(folder, wrong, by="", agent=False):
     ks = {d["k"]: d for d in a["drawn"]}
     bad = [k for k in wrong if k not in ks]
     if bad:
-        raise vf.Stop(f"--wrong {','.join(map(str, bad))}: the sheet's frames are numbered 1 to {len(ks)}", vf.EXIT_USAGE)
+        raise vf.Stop(f"--wrong {','.join(map(str, bad))}: the sheet's frames are numbered 1 to {len(ks)}", EXIT_USAGE)
     wrong_draws = sum(ks[k]["times"] for k in wrong)
     if a["whole"]:                                        # every frame was looked at: the share is known, not bounded
         bound = sum(ks[k]["weight"] for k in wrong)
@@ -864,10 +867,13 @@ NOTE = ("Made by `mcdonald batch` with nobody looking. Find searched every frame
         "nobody has looked at a track sheet, so every report here is provisional.")
 
 
-def frames_dir(u):
-    """Where a unit keeps its frames: a folder of its own in the storage folder's frames, so that two units of one
-    video never share frames, nor remove each other's."""
-    return storage.frames() / f"{Path(u['file']).stem}.batch-{u['folder'].replace('/', '-')}"
+def frames_dir(out, u):
+    """Where a unit keeps its frames: a folder of its own in the storage folder's frames, named for the video, the
+    batch (eight letters from its folder's path) and the unit. Two units never share frames, nor remove each other's:
+    not two parts of one video, and not the same video in two batches that share a storage folder (the pilot of
+    2026-11-13: one batch's unit finished and removed the frames under another's, whose integrity step then failed)."""
+    batch = hashlib.sha256(os.path.realpath(out).encode()).hexdigest()[:8]
+    return storage.frames() / f"{Path(u['file']).stem}.batch-{batch}-{u['folder'].replace('/', '-')}"
 
 
 def _wipe(folder, tag):
@@ -892,7 +898,7 @@ def _clock(seconds, step):
     return T()
 
 
-def _unit(u, opt, folder, state, say, progress, stop):
+def _unit(out, u, opt, folder, state, say, progress, stop):
     """The steps of one unit (the module's docstring), each skipped where its product is there. Fills `state` as it
     goes and returns the unit's record (what `<tag>_batch.json` holds)."""
     from . import propose
@@ -933,7 +939,7 @@ def _unit(u, opt, folder, state, say, progress, stop):
         return rec
 
     # 2 the frames, whole and once -- only where a later step still needs them
-    wd = frames_dir(u)
+    wd = frames_dir(out, u)
     whole = vf.Clip(video, wd, u["n0"], u["n1"], extract=False)
     need = (not rec.get("windows") or any(not (folder / FIND / f"{w[0]}.json").exists() for w in rec["windows"])
             or not rec.get("measured") or not rec.get("audited"))
@@ -985,6 +991,8 @@ def _unit(u, opt, folder, state, say, progress, stop):
     objs = ordered(merged(kept))
     taken, listed = objs[:opt["most"]], objs[opt["most"]:]
     counts = {k: sum(k in p["why"] for p in refused) for k in ("brief", "edge", "tape")}
+    counts["brief_spots"] = sum(p["why"] == ["brief"] for p in refused)     # spots in all but how long they were seen: a short transit is one
+    counts["brief_longest"] = max((p["seen"] for p in refused if p["why"] == ["brief"]), default=0)
     rec.update(proposals=sum(len(v) for v in windows.values()), kept=len(kept), refused=counts, found=len(objs),
                objects=[dict(object=k if k <= len(taken) else None, first=o["a"], last=o["b"], dark=o["dark"], strength=o["strength"],
                              score=round(float(o.get("score") or 0), 2), seen=len(o["t"]), size_px=o.get("size"),
@@ -1122,7 +1130,7 @@ def run_unit(out, k, say=print, progress=None, stop=None):
     out = Path(out)
     p = read_plan(out)
     if not 0 <= k < len(p["units"]):
-        raise vf.Stop(f"--unit {k}: the plan in {out} has units 0 to {len(p['units']) - 1}", vf.EXIT_USAGE)
+        raise vf.Stop(f"--unit {k}: the plan in {out} has units 0 to {len(p['units']) - 1}", EXIT_USAGE)
     u, opt = p["units"][k], p["options"]
     make = make_of(opt)
     folder = out / u["folder"]
@@ -1130,7 +1138,7 @@ def run_unit(out, k, say=print, progress=None, stop=None):
     was = read_state(folder)
     if was.get("state") == "done":
         if not opt.get("keep_frames"):
-            shutil.rmtree(frames_dir(u), ignore_errors=True)
+            shutil.rmtree(frames_dir(out, u), ignore_errors=True)
         say(f"{u['name']}: done already" + ("" if was.get("make") == make else
                                            " by another version or with other options: left as it is (--again does it again)"))
         return was
@@ -1152,7 +1160,7 @@ def run_unit(out, k, say=print, progress=None, stop=None):
     watch.start()
     t0, interrupted = time.time(), None
     try:
-        _unit(u, opt, folder, state, say, progress, stop)
+        _unit(out, u, opt, folder, state, say, progress, stop)
         state["state"] = "done"
     except vf.Stopped:
         state.update(state="stopped", error="stopped before it finished; `mcdonald batch --out DIR` takes it up again")
@@ -1176,7 +1184,7 @@ def run_unit(out, k, say=print, progress=None, stop=None):
         write_state(folder, state)
         lock.release()
         if state["state"] in ("done", "failed") and not opt.get("keep_frames"):
-            shutil.rmtree(frames_dir(u), ignore_errors=True)
+            shutil.rmtree(frames_dir(out, u), ignore_errors=True)
     say(f"{u['name']}: {state['state']}" + (f" ({state['error']})" if state["error"] else "") + f", {state['wall_s']:.0f} s")
     if interrupted is not None:
         raise interrupted
@@ -1195,7 +1203,10 @@ def _video_row(u, state, rec):
                 error=state.get("error"), mcdonald=make.get("mcdonald"), make=make_id(make), host=state.get("host"),
                 unit_seconds=state.get("wall_s"), peak_rss_mb=state.get("peak_rss_mb"), frames_mb=rec.get("frames_mb"),
                 cpus=state.get("cpus"),
-                proposals=rec.get("proposals"), found=rec.get("found"), measured=None, object=None)
+                proposals=rec.get("proposals"), brief=(rec.get("refused") or {}).get("brief"),
+                brief_spots=(rec.get("refused") or {}).get("brief_spots"), brief_longest=(rec.get("refused") or {}).get("brief_longest"),
+                edge=(rec.get("refused") or {}).get("edge"), tape=(rec.get("refused") or {}).get("tape"),
+                found=rec.get("found"), measured=None, object=None)
 
 
 def rows_of(out, u, state=None, rec=None):
@@ -1241,7 +1252,8 @@ def rows_of(out, u, state=None, rec=None):
                    found_strength=o.get("strength"), found_score=o.get("score"), found_frames=o.get("seen"), found_first=o.get("first"),
                    found_last=o.get("last"), found_dark=o.get("dark"), found_windows=len(o.get("windows") or []),
                    followed_frames=None, followed_first=None, followed_last=None, size_px=None, dark=None,
-                   same_as=(r.get("same_as") or {}).get("same_as"), label=None, headline=None, grade=None, rate_px_per_s=None,
+                   same_as=(r.get("same_as") or {}).get("same_as"), several=None, members=None, label=None, headline=None, grade=None,
+                   rate_px_per_s=None,
                    rate_is=None, beat_hz=None, beat_share=None, checklist={}, reasons=[], no_power=None, no_power_by_stage={},
                    needs=None, computed_on=None, seconds=timing.get("seconds"), seconds_by_stage=timing.get("stages") or {},
                    sheet_looked=None, audit_frames=None, audit_looked=None, audit_wrong=None, audit_bound=None,
@@ -1267,7 +1279,12 @@ def rows_of(out, u, state=None, rec=None):
                 label, head_said = case.conclusion()
                 grade = case.grade()
                 rate, rate_is = case.rate()
-                beat = (((case.stages.get("flicker") or {}).get("fields") or {}).get("beat") or {}).get("object") or {}
+                beats = ((case.stages.get("flicker") or {}).get("fields") or {}).get("beat") or {}
+                beat = beats.get("object") or {}
+                if not beat and beats:                       # a group: its members' beats; the strongest stands for the row
+                    beat = max(beats.values(), key=lambda b: float(b.get("amplitude") or 0))
+                gf = (case.stages.get("groups") or {}).get("fields") or {}
+                row.update(several=gf.get("several"), members=gf.get("members_followed"))
                 row.update(label=label, headline=head_said, grade=(grade or {}).get("level"),
                            rate_px_per_s=round(float(rate), 2) if rate is not None else None, rate_is=rate_is,
                            beat_hz=round(float(beat["hz"]), 3) if beat.get("hz") else None,
@@ -1290,9 +1307,10 @@ def rows_of(out, u, state=None, rec=None):
 
 
 COLUMNS = ["id", "release", "file", "unit", "video_frames", "width", "height", "fps", "first", "last", "state", "outcome", "note",
-           "proposals", "found", "measured", "object", "object_state", "found_strength", "found_score", "found_frames", "found_first",
-           "found_last", "found_dark", "found_windows", "followed_frames", "followed_first", "followed_last", "size_px", "dark",
-           "same_as", "label", "grade", "rate_px_per_s", "rate_is", "beat_hz", "beat_share"]
+           "proposals", "brief", "brief_spots", "brief_longest", "edge", "tape", "found", "measured", "object", "object_state",
+           "found_strength", "found_score", "found_frames", "found_first", "found_last", "found_dark", "found_windows",
+           "followed_frames", "followed_first", "followed_last", "size_px", "dark", "same_as", "several", "members", "label", "grade",
+           "rate_px_per_s", "rate_is", "beat_hz", "beat_share"]
 COLUMNS_AFTER = ["reasons", "no_power", "needs", "sheet_looked", "audit_frames", "audit_looked", "audit_wrong", "audit_bound",
                  "computed_on", "seconds", "unit_seconds", "cpus", "peak_rss_mb", "frames_mb", "host", "mcdonald", "make", "disclosure",
                  "folder", "error"]
@@ -1361,7 +1379,12 @@ def markdown(p, rows, t):
          "were measured, the most likely first.", "",
          "Nobody chose the objects. Nobody has yet looked at a track sheet, the page of small pictures that shows the object "
          "ringed in each frame. So every report here is provisional, and an object may be a feature of the background or of "
-         "the display.", ""]
+         "the display.", "",
+         f"A spot in view for fewer than {SEEN} frames is counted and not measured, however clear it is. An object that "
+         "crosses the picture in a few frames is such a spot. The last table gives each video's count. One object can also "
+         "have several rows: it is found again after a gap, or it is one of a group that is measured together.", ""]
+    if opt.get("note"):
+        L += [f"About this batch: {opt['note']}", ""]
     if opt.get("skip"):
         L += [f"These steps were left out of every report: {', '.join(opt['skip'])}.", ""]
     if t["other_make"]:
@@ -1381,8 +1404,8 @@ def markdown(p, rows, t):
                   "A test that cannot decide on a video says so. It has not passed. The counts are over all the objects.", "",
                   "| step | tests that could not decide |", "|---|---:|"]
             L += [f"| {k} | {v} |" for k, v in t["no_power_by_stage"].items()]
-    L += ["", "## The videos", "", "| video | frames | what became of it | spots that lasted | measured | labels | folder |",
-          "|---|---:|---|---:|---:|---|---|"]
+    L += ["", "## The videos", "", "| video | frames | what became of it | spots seen too briefly | spots that lasted | measured | labels | folder |",
+          "|---|---:|---|---:|---:|---:|---|---|"]
     seen = {}
     for r in rows:
         seen.setdefault(r["folder"], []).append(r)
@@ -1394,7 +1417,7 @@ def markdown(p, rows, t):
         for x in rs:
             if x.get("object"):
                 labels[x["label"] or x["object_state"]] = labels.get(x["label"] or x["object_state"], 0) + 1
-        L.append(f"| {r['id']} | {r['first']}–{r['last']} | {what} | {_cell(r['found'])} | {_cell(r['measured'])} | "
+        L.append(f"| {r['id']} | {r['first']}–{r['last']} | {what} | {_cell(r.get('brief_spots'))} | {_cell(r['found'])} | {_cell(r['measured'])} | "
                  + ", ".join(f"{v} {k}" for k, v in sorted(labels.items(), key=lambda kv: -kv[1])) + f" | `{folder}/` |")
     L += ["", "Each folder holds the video's objects (`object-1`, `object-2`, ...), each with its report and its track sheet, "
           "the list of them (`<name>_objects.md`), and one file to send (`<name>_batch.mcdonald`). `batch.tsv` has a row for "
@@ -1426,6 +1449,18 @@ def write_table(out):
 
 
 # ---- what is done, running, failed ---------------------------------------------------------------------------------
+def chosen(units, only=None, leave=None):
+    """The units of a plan a run takes: all of them, or those named in `only`, less those named in `leave`. A unit is
+    named by its folder's name, its record id, its tag or its number."""
+    names = lambda u: {u["name"].lower(), str(u["k"]), (u["id"] or "").lower(), u["tag"].lower()}
+    want = {str(x).strip().lower() for x in only or () if str(x).strip()}
+    drop = {str(x).strip().lower() for x in leave or () if str(x).strip()}
+    unknown = (want | drop) - set().union(*(names(u) for u in units)) if units else want | drop
+    if unknown:
+        raise vf.Stop(f"no video of this batch is called {', '.join(sorted(unknown))}", EXIT_USAGE)
+    return [u for u in units if (not want or names(u) & want) and not (names(u) & drop)]
+
+
 def status(out):
     """Each unit as it stands, with nothing run: [{k, name, state, step, error, make_same, since, alive_s, ...}].
     `state` is waiting, running, stalled (running, with no sign of life for STALE seconds: it was killed, and the next
@@ -1447,7 +1482,7 @@ def status(out):
                          mcdonald=(st.get("make") or {}).get("mcdonald"), started=st.get("started"), finished=st.get("finished"),
                          alive_s=round(age) if age is not None else None, wall_s=st.get("wall_s"), host=st.get("host"),
                          job=st.get("job"), attempts=st.get("attempts"), peak_rss_mb=st.get("peak_rss_mb"),
-                         frames_on_disk=frames_dir(u).is_dir()))
+                         frames_on_disk=frames_dir(out, u).is_dir()))
     return p, rows
 
 
@@ -1478,33 +1513,42 @@ def status_said(p, rows):
 
 
 # ---- a scheduler's arrays ------------------------------------------------------------------------------------------
-# What a unit needs, by its video's size: measured on the pilot of 2026-11-13 (docs/method.md section 54), not guessed.
-# Minutes: MIN_BASE and MIN_PER_GPX minutes for each thousand million pixels of frames (frames x width x height / 1e9),
-# at 8 CPUs of the 2025 workstation, with every stage and MOST objects; scaled by 8 / CPUs. Memory: MEM_BASE and
-# MEM_PER_MPX megabytes for each million pixels of a frame and each CPU.
-MIN_BASE, MIN_PER_GPX = 20.0, 15.0
-MEM_BASE, MEM_PER_MPX = 2500.0, 450.0
+# What a unit needs, measured on the pilot of 2026-11-13 (eleven PURSUE videos on a 48-core Xeon of 2025; method
+# section 54), not guessed. They are one machine's: elsewhere they are wrong by the ratio of the machines.
+FIND_S = 0.2                   # s Find takes a frame at 8 CPUs: 0.11 to 0.22 measured, 720p and 1080p alike
+OBJECT_MIN = 3.0               # minutes to measure an object at 8 CPUs, every stage: 0.6 to 9.2 measured, 2.8 on average
+UNIT_MIN = 5.0                 # the rest of a unit: the picture, the frames (150 a second), the index, the case file
+CPU_POWER = 0.6                # half the CPUs take 2 ** 0.6 = 1.5 times as long: 1.35 (an object) to 1.8 (Find) from 8 to 4
+# MB a unit's processes held at their most, each counted by its fair share (`_tree_rss`), fitted to the pilot's units at
+# 4 and at 8 CPUs: 3.0 and 4.1 GB at 1920x1080, 1.7 and 2.6 GB at 1280x720, 2.8 GB at 608x1080 and 8 CPUs.
+MEM_FIXED, MEM_PER_MPX = 300.0, 900.0          # the unit's own process: a part that is there anyway, and a part by the frame's size
+MEM_CPU, MEM_CPU_PER_MPX = 185.0, 45.0         # each worker: its own, and by the frame's size
+MEM_ROOM = 1.3                                 # asked for over the measured peak
+MEM_STEP = 1500                                # MB: a class's memory is rounded up to this, so a batch is a few arrays, not one a frame size
 TIME_CLASSES = (60, 240, 720, 2880)        # minutes: a unit goes in the first class its estimate fits twice over
 
 
-def resources(u, cpus=8):
-    """(megabytes, minutes) one unit is expected to need on `cpus` CPUs (the constants above)."""
+def resources(u, cpus=8, most=MOST):
+    """(megabytes, minutes) to ask a scheduler for, for one unit on `cpus` CPUs with `most` objects measured, from the
+    constants above: the minutes it is expected to take, and MEM_ROOM times the memory its processes are expected to
+    hold at their most. (A scheduler's own count of a job's memory reads higher, up to the job's limit: it counts the
+    frames the system keeps to hand, which it gives back when asked.)"""
     mpx = (u.get("width") or 1920) * (u.get("height") or 1080) / 1e6
     n = (u["n1"] - u["n0"] + 1) if u.get("n0") else (u.get("frames") or 3000)
-    minutes = (MIN_BASE + MIN_PER_GPX * n * mpx / 1000.0) * 8.0 / max(1, cpus)
-    return MEM_BASE + MEM_PER_MPX * mpx * cpus, minutes
+    minutes = (UNIT_MIN + FIND_S * n / 60.0 + OBJECT_MIN * most) * (8.0 / max(1, cpus)) ** CPU_POWER
+    return MEM_ROOM * (MEM_FIXED + MEM_PER_MPX * mpx + cpus * (MEM_CPU + MEM_CPU_PER_MPX * mpx)), minutes
 
 
-def classes(units, cpus=8):
+def classes(units, cpus=8, most=MOST):
     """The units in size classes, each to be one job array: [{minutes, mem_mb, units: [k, ...], work}]. A unit goes in
     the first time class that holds twice its estimate (a class's limit kills what runs past it, and a killed unit is
-    only taken up again by the next submission); a class's memory is its largest unit's."""
+    only taken up again by the next submission), with the units whose memory, rounded up to MEM_STEP, is its own."""
     out = {}
     for u in units:
-        mem, minutes = resources(u, cpus)
+        mem, minutes = resources(u, cpus, most)
         limit = next((c for c in TIME_CLASSES if 2 * minutes <= c), TIME_CLASSES[-1])
-        c = out.setdefault(limit, dict(minutes=limit, mem_mb=0, units=[], work=0.0))
-        c["mem_mb"] = max(c["mem_mb"], int(math.ceil(mem / 500.0) * 500))
+        mem = int(math.ceil(mem / MEM_STEP) * MEM_STEP)
+        c = out.setdefault((limit, mem), dict(minutes=limit, mem_mb=mem, units=[], work=0.0))
         c["units"].append(u["k"])
         c["work"] += minutes
     return [out[k] for k in sorted(out)]
@@ -1555,13 +1599,16 @@ def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_
     out = Path(os.path.abspath(out))
     p = read_plan(out)
     todo = p["units"] if todo is None else todo
-    cs = classes(todo, cpus)
+    cs = classes(todo, cpus, p["options"].get("most", MOST))
     work = sum(c["work"] for c in cs) or 1.0
+    share = [max(1, min(len(c["units"]), int(round((throttle or 0) * c["work"] / work)) or 1)) for c in cs]
+    while throttle and sum(share) > max(int(throttle), len(cs)):      # rounding up must not pass the most asked for
+        share[share.index(max(share))] -= 1
     lines = []
-    for c in cs:
+    for c, most in zip(cs, share):
         t = ""
         if throttle:
-            t = f"%{max(1, min(len(c['units']), int(round(throttle * c['work'] / work)) or 1))}"
+            t = f"%{most}"
         lines.append(["sbatch", "--parsable", "-J", name, "-c", str(cpus), f"--mem={c['mem_mb']}M", f"--time={c['minutes'] // 60:02d}:{c['minutes'] % 60:02d}:00",
                       f"--array={_ranges(c['units'])}{t}", "-o", str(out / "logs" / "%x_%A_%a.out"), *shlex.split(extra or ""),
                       str(out / "batch.sbatch")])
@@ -1570,13 +1617,13 @@ def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_
     return lines, table, cs
 
 
-def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcdonald_batch"):
+def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcdonald_batch", only=None, leave=None):
     """Write `batch.sbatch` and `batch_submit.sh` in `out`, and, unless `dry`, submit them: the arrays, then the
     table's job after them. Returns {script, lines, jobs, classes}. Units that are done are not submitted."""
     out = Path(os.path.abspath(out))
     p, rows = status(out)
     waiting = {r["k"] for r in rows if r["state"] not in ("done", "running")}
-    todo = [u for u in p["units"] if u["k"] in waiting]
+    todo = [u for u in chosen(p["units"], only, leave) if u["k"] in waiting]
     (out / "logs").mkdir(exist_ok=True)
     write_text(out / "batch.sbatch", slurm_script(out))
     lines, table, cs = slurm_lines(out, cpus, throttle, extra, todo, name)
@@ -1621,14 +1668,15 @@ def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcd
 
 
 # ---- a pool here ---------------------------------------------------------------------------------------------------
-def run_pool(out, n=1, say=print, stop=None, quiet=True):
+def run_pool(out, n=1, say=print, stop=None, quiet=True, only=None, leave=None):
     """The units still to do, `n` at a time on this computer, each in a process of its own (`mcdonald batch --out DIR
     --unit K`: what a scheduler's task runs), each allowed its share of the CPUs. Returns {unit: exit code}. `stop` is
     asked while they run: on yes the running units are told to end, and are taken up again by the next run."""
     from .progress import CPUS_VAR, cpus
     out = Path(out)
     p, rows = status(out)
-    todo = [r["k"] for r in rows if r["state"] not in ("done", "running")]
+    take = {u["k"] for u in chosen(p["units"], only, leave)}
+    todo = [r["k"] for r in rows if r["state"] not in ("done", "running") and r["k"] in take]
     n = max(1, min(int(n), len(todo) or 1))
     each = max(1, cpus() // n)
     (out / "logs").mkdir(exist_ok=True)
@@ -1685,7 +1733,7 @@ def again(out, names=None, say=print):
             aside = folder.with_name(f"{folder.name}.before-{datetime.now():%Y%m%d-%H%M%S}")
             os.replace(folder, aside)
             say(f"{u['name']}: what was there is now in {aside}")
-        shutil.rmtree(frames_dir(u), ignore_errors=True)
+        shutil.rmtree(frames_dir(out, u), ignore_errors=True)
         done.append(u["name"])
     return done
 
@@ -1737,6 +1785,8 @@ def main(argv=None):
     how.add_argument("--throttle", type=int, metavar="T", help="with --slurm: about this many videos at once, at most")
     how.add_argument("--job-name", default="mcdonald_batch", metavar="NAME", help="with --slurm: what the jobs are called in the queue")
     how.add_argument("--unit", type=int, metavar="K", help="run unit K of the plan and nothing else (what a job array's task runs)")
+    how.add_argument("--units", metavar="NAMES", help="only these videos of the batch (comma-separated names, as --status lists them)")
+    how.add_argument("--except", dest="leave", metavar="NAMES", help="every video of the batch but these")
     how.add_argument("--status", action="store_true", help="say what is done, running and failed; run nothing")
     how.add_argument("--table", action="store_true", help="write the table again from what is in --out; run nothing")
     how.add_argument("--again", nargs="?", const="", metavar="NAMES",
@@ -1752,6 +1802,9 @@ def main(argv=None):
     what.add_argument("--only", default=None, metavar="STEPS", help="only these steps, comma-separated")
     what.add_argument("--audit-frames", type=int, default=None, metavar="N", help=f"frames drawn for each object's audit (default {AUDIT})")
     what.add_argument("--keep-frames", action="store_true", default=None, help="leave each video's frames on disk when it is done")
+    what.add_argument("--note", default=None, metavar="TEXT",
+                      help="a line about this batch, kept with it and printed at the head of its table: which copy of the "
+                           "code made it, what it is for")
     aud = ap.add_argument_group("an object's audit")
     aud.add_argument("--audit", metavar="FOLDER", help="an object's folder: say what its audit drew, or record a look with --wrong")
     aud.add_argument("--wrong", metavar="NUMBERS", help="with --audit: the sheet's numbers whose ring is off the object, or `none`")
@@ -1785,7 +1838,8 @@ def main(argv=None):
     old = read_json(out / PLAN)
     said = {k: v for k, v in dict(window=args.window, overlap=args.overlap, most=args.most, audit_frames=args.audit_frames).items()
             if v is not None}
-    if given or old is None or said or args.quick or args.skip is not None or args.only is not None or args.keep_frames or args.video_dir:
+    if (given or old is None or said or args.quick or args.skip is not None or args.only is not None or args.keep_frames or args.video_dir
+            or args.note is not None):
         if old is None and not given:
             ap.error(f"{out} holds no batch yet: name the videos, or give --list FILE or --catalog")
         o = dict((old or {}).get("options") or {})
@@ -1794,13 +1848,16 @@ def main(argv=None):
                                 quick=args.quick, skip=args.skip if args.skip is not None else ",".join(o.get("skip") or []),
                                 only=args.only if args.only is not None else ",".join(o.get("only") or []),
                                 keep_frames=args.keep_frames if args.keep_frames is not None else o.get("keep_frames", False),
-                                video_dir=args.video_dir or o.get("video_dir") or [])
+                                video_dir=args.video_dir or o.get("video_dir") or [],
+                                note=args.note if args.note is not None else o.get("note", ""))
         if ns.overlap >= ns.window:
             ap.error("--overlap must be fewer frames than --window")
         p = plan(out, given, options_of(ns), fetch=bool(args.slurm or args.slurm_print), say=say)
     else:
         p = read_plan(out)
 
+    only, leave = (args.units or "").split(","), (args.leave or "").split(",")
+    chosen(p["units"], only, leave)                             # a name that is no video's is said now
     if args.again is not None:
         moved = again(out, [x for x in args.again.split(",") if x.strip()], say)
         say(f"{len(moved)} video{'s' if len(moved) != 1 else ''} to be done again")
@@ -1820,12 +1877,14 @@ def main(argv=None):
         flag = threading.Event()
         _signals(flag)
         from .progress import to_stderr
-        st = run_unit(out, args.unit, say=say, progress=to_stderr(), stop=flag.is_set)
+        with said_to_stderr(args.json):                       # with --json, stdout is the envelope's alone: a stage's own lines go to stderr
+            st = run_unit(out, args.unit, say=say, progress=to_stderr(), stop=flag.is_set)
         if args.json:
             emit(envelope("batch", inputs, None, [], dict(out=str(out), unit=st)))
         return 0 if st.get("state") in ("done", "running") or st.get("elsewhere") else 1
     if args.slurm or args.slurm_print:
-        r = submit(out, args.cpus_per_video, args.throttle, args.sbatch, dry=not args.slurm, say=say, name=args.job_name)
+        r = submit(out, args.cpus_per_video, args.throttle, args.sbatch, dry=not args.slurm, say=say, name=args.job_name,
+                   only=only, leave=leave)
         if args.json:
             emit(envelope("batch", inputs, None, [r["script"], r["submit"]], dict(out=str(out), **r)))
         return 0
@@ -1833,17 +1892,19 @@ def main(argv=None):
     # here: the units still to do, one at a time (each with every CPU) or --pool N side by side
     flag = threading.Event()
     _signals(flag)
-    todo = [r for r in status(out)[1] if r["state"] not in ("done", "running")]
+    take = {u["k"] for u in chosen(p["units"], only, leave)}
+    todo = [r for r in status(out)[1] if r["state"] not in ("done", "running") and r["k"] in take]
     say(f"{len(p['units'])} video{'s' if len(p['units']) != 1 else ''} in {out}, {len(todo)} to do")
     try:
         if args.pool and args.pool > 1:
-            run_pool(out, args.pool, say=say, stop=flag.is_set)
+            run_pool(out, args.pool, say=say, stop=flag.is_set, only=only, leave=leave)
         else:
             from .progress import to_stderr
-            for r in todo:
-                if flag.is_set():
-                    break
-                run_unit(out, r["k"], say=say, progress=to_stderr(), stop=flag.is_set)
+            with said_to_stderr(args.json):                   # with --json, stdout is the envelope's alone
+                for r in todo:
+                    if flag.is_set():
+                        break
+                    run_unit(out, r["k"], say=say, progress=to_stderr(), stop=flag.is_set)
     except KeyboardInterrupt:
         say("stopped: `mcdonald batch --out` of this folder goes on from here")
     files, t, _ = write_table(out)
@@ -1867,12 +1928,12 @@ def _audit(args, say, inputs):
         raise vf.Stop(f"{folder}: not an object's folder (object-1, object-2 ...) nor a video's folder with objects in it")
     if args.wrong is not None:
         if len(objs) != 1:
-            raise vf.Stop("--wrong goes with one object's folder (.../object-1): an audit is of one track", vf.EXIT_USAGE)
+            raise vf.Stop("--wrong goes with one object's folder (.../object-1): an audit is of one track", EXIT_USAGE)
         text = args.wrong.strip().lower()
         try:
             wrong = [] if text in ("none", "0", "") else [int(x) for x in re.split(r"[,\s]+", text) if x]
         except ValueError:
-            raise vf.Stop("--wrong takes the sheet's numbers, comma-separated, or `none`", vf.EXIT_USAGE)
+            raise vf.Stop("--wrong takes the sheet's numbers, comma-separated, or `none`", EXIT_USAGE)
         audit_record(objs[0], wrong, by=args.by, agent=args.agent)
         try:
             several.index(objs[0].parent)                    # the list beside the objects says who has looked

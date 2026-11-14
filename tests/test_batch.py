@@ -137,10 +137,10 @@ def test_rules():
         check(batch.read_list(f) == [("DOD_111688723.mp4", None, None), ("DOD_9.mp4", None, None)],
               "a list with named columns (tools/sweep/videos.tsv) is read by them: the video by its file")
     base = dict(window=400, overlap=30, most=12, skip=[], only=[], audit=59, keep_frames=False)
-    a, b = batch.make_of(base), batch.make_of(dict(base, keep_frames=True))
+    a, b = batch.make_of(base), batch.make_of(dict(base, keep_frames=True, note="another line"))
     c, d = batch.make_of(dict(base, most=3)), batch.make_of(dict(base, skip=["layers"]))
     check(a == b and a != c and a != d and len({batch.make_id(x) for x in (a, c, d)}) == 3 and a["mcdonald"] == batch.__version__,
-          "a video's make: the version and the options that reach the measuring, not where its frames are kept")
+          "a video's make: the version and the options that reach the measuring, not where its frames are kept nor its note")
     sig = inspect.signature(propose.peaks).parameters
     check(batch.STILL == sig["floor"].default and batch.STILL_SIGMA == sig["sigma"].default,
           "a picture that does not change is held to Find's own floor for a candidate, smoothed as Find smooths",
@@ -192,9 +192,24 @@ def test_rules():
     check(sum(len(c["units"]) for c in cs) == 4 and cs == sorted(cs, key=lambda c: c["minutes"])
           and all(c["mem_mb"] >= batch.resources(u, 8)[0] for c in cs for u in units if u["k"] in c["units"]),
           "the videos in size classes: each in one, a class's memory its largest video's", str([(c["minutes"], c["units"]) for c in cs]))
-    check(batch.resources(units[1], 8)[1] > 5 * batch.resources(units[3], 8)[1] and batch.resources(units[1], 4)[1] > batch.resources(units[1], 8)[1],
-          "a segment is sized by its own frames, and fewer CPUs by more time")
+    check(batch.resources(units[1], 8)[1] > batch.resources(units[3], 8)[1] + 25 and batch.resources(units[1], 4)[1] > batch.resources(units[1], 8)[1]
+          and batch.resources(units[1], 8)[0] > batch.resources(units[3], 8)[0] > batch.resources(units[3], 4)[0],
+          "a segment is sized by its own frames; fewer CPUs by more time and less memory; a larger picture by more memory")
     check(batch._ranges([0, 1, 2, 5, 7, 8]) == "0-2,5,7-8", "an array's tasks as sbatch takes them")
+    u = dict(file="DOD_1.mp4", folder="pr1")
+    check(batch.frames_dir("/a/one", u) != batch.frames_dir("/a/two", u) and batch.frames_dir("/a/one", u) == batch.frames_dir("/a/one", u)
+          and batch.frames_dir("/a/one", u) != batch.frames_dir("/a/one", dict(u, folder="pr1/segment-1-9")),
+          "a unit's frames are in a folder of its own: not another batch's of the same video, nor another part's")
+    named = [dict(k=0, name="pr113", id="DOW-UAP-PR113", tag="pr113"), dict(k=1, name="fbi-uap-pr001", id="FBI-UAP-PR001", tag="pr001"),
+             dict(k=2, name="lle-uap-pr001", id="LLE-UAP-PR001", tag="pr001")]
+    try:
+        batch.chosen(named, ["pr999"])
+        refused = False
+    except SystemExit:
+        refused = True
+    check([x["k"] for x in batch.chosen(named, ["PR113", "2"])] == [0, 2] and [x["k"] for x in batch.chosen(named, None, ["fbi-uap-pr001"])] == [0, 2]
+          and len(batch.chosen(named)) == 3 and refused,
+          "--units and --except take videos by name, record id or number, and a name that is no video's is refused")
     with tempfile.TemporaryDirectory(prefix="mcdonald-batch-test-") as td:
         batch.write_json(Path(td) / batch.PLAN, dict(format=batch.FORMAT, options=base, units=[
             dict(u, name=f"v{u['k']}", folder=f"v{u['k']}", tag=f"v{u['k']}", id=f"V{u['k']}", file=f"v{u['k']}.mp4") for u in
@@ -423,7 +438,12 @@ def test_segment(td):
     one = vids / "one.mkv"
     c = Path(td) / "c"
     rc, out, err = mcdonald(f"{one}:11-70", "--out", c, "--quick", "--most", "1", "--json", td=td)
-    d = json.loads(out) if out.strip() else {}
+    try:
+        d = json.loads(out)
+    except ValueError:
+        d = {}
+    check(d.get("command") == "batch", "with --json a run prints one object alone on stdout, whatever its steps say on the way",
+          f"stdout begins {out[:60]!r}")
     rows = json.loads((c / "batch.json").read_text(encoding="utf-8"))["rows"] if (c / "batch.json").exists() else []
     check(rc == 0 and len(rows) == 1 and rows[0]["first"] == 11 and rows[0]["last"] == 70 and rows[0]["folder"] == "one/segment-11-70"
           and rows[0]["followed_first"] >= 11 and (c / "one" / "segment-11-70" / "object-1" / "one_case.json").exists()
