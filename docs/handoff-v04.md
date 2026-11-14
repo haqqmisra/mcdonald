@@ -17,6 +17,10 @@ first pass on a CPU hands out chains of pairs sharing frames, so each frame is r
 31 objects 0 differences; suites with goldens on CPUs and card (2354, 2355) all pass. Whole runs at 8 CPUs: PR149
 150 and 140 s to 128 and 125, PR135 object 2 134 and 129 to 111 and 99.
 
+**Then 6263ce0: `tether`'s stroke mask on the card** (the same mask to the pixel; 2.6 ms a crop against 55 ms on a
+core). PR088 with the card, alternating: 289 and 281 s to 282 and 272 s, every number the same; small on the 48-core
+workstation, more where the frames' reading is the wait. Suites with goldens on CPUs and the card all pass (2394, 2395).
+
 **Where a CPU run goes now** (PR149 at 8 CPUs, 641 CPU-s before c53bf90; PR088 at 32 workers, 6,600 CPU-s): `layers`'
 first pass is still the largest (its FFTs, now its own arithmetic); then `tether`'s three reads of every frame on a
 long track (its stroke mask, about 0.07 s a frame, opened in double; single precision was tried and gave 5 %);
