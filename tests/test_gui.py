@@ -3850,7 +3850,8 @@ def drive_the_add_on(td):
         d = preferences(w)
         check(not d.gpu.isEnabled() and not d.gpu_install.isHidden() and d.gpu_install.isEnabled()
               and d.gpu_install.text() == "Install the add-on" and d.gpu_said.text() == offer_words
-              and "1.4 GB" in offer_words and "terminal" not in offer_words and "pip" not in offer_words,
+              and ("1.3 GB" if sys.platform == "win32" else "1.4 GB") in offer_words   # Windows's wheels are smaller (addon.download_mb)
+              and "terminal" not in offer_words and "pip" not in offer_words,
               "a card mcDonald could use, with the add-on for it not installed: named, greyed out, with a button that installs "
               "it and a line that says how much it downloads; no command to type", d.gpu_said.text()[:120])
 
