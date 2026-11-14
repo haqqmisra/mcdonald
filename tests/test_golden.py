@@ -1666,10 +1666,12 @@ def test_pr016_a_row_of_birds_is_not_symbology():
           f"a stroke at most {limit:.1f}")
     check(now[0] != "FLAG" and "lines drawn frame by frame" not in now[1] and len(aside["wide"]) == len(seen["widths"]),
           "a line is thin: the rings' net is set aside on every frame it was taken", f"{now[0]}: {now[1][:120]}")
-    check(now[0] != "FLAG" and "drawn for a stretch" not in now[1] and all(h < held for _, h in aside["passing"]),
-          "text held for a stretch stays: the row's dark gaps, passing, are not text the bird was drawn over",
-          f"{len(aside['passing'])} readings set aside, the place dark on {min([h for _, h in aside['passing']] or [0]):.2f}-"
-          f"{max([h for _, h in aside['passing']] or [0]):.2f} of the frames it should be (text: {held:g} or more)")
+    check(now[0] == "NO POWER" and ("drawn for a stretch" not in now[1] or "too few to decide" in now[1])
+          and len(aside["passing"]) >= 5 and all(h < held for _, h in aside["passing"]) and len(aside["held"]) < integrity.DRAWN_MIN,
+          "text held for a stretch stays: most of what read as text was the row's dark gaps passing, and what is left is "
+          "too few to decide", f"{len(aside['passing'])} readings set aside, the place dark on "
+          f"{min([h for _, h in aside['passing']] or [0]):.2f}-{max([h for _, h in aside['passing']] or [0]):.2f} of the frames it "
+          f"should be (text: {held:g} or more); {len(aside['held'])} left")
 
 
 def test_pr105_companion_is_not_followed_away():

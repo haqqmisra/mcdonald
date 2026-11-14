@@ -2547,7 +2547,38 @@ points 15-20 px apart, each ringed dark by the sensor's edge enhancement, and:
 What is set aside is in the fields beside what is kept (`wide_frames`, `wide_width_px`; `passing_frames`,
 `passing_held`; and `moving_width_px`, `text_held` for the readings taken).
 
-OVERLAYNULL
+*The null* (2026-11-13; `_overlay_drawn` with the two gates off and on, on objects nothing was drawn over, each with its
+clip's static masks: the labelled infrared set's 431 tracks that give a polarity, PR-016's bird, PR135's six flock
+members, PR47's bird in a row of three, PR098's three points in a line; and FLIR1's exit, whose gate is drawn).
+
+| objects | flagged before | flagged now | what else |
+|---|---|---|---|
+| the labelled set, 431 tracks | 0 | 0 | 2 PASS and 21 crossings that decide nothing, before; 2 and 20 now |
+| PR-016's bird | FLAG twice (lines, text) | none | all 13 nets set aside; 10 of its 12 text readings set aside, 2 left: "too few to decide" |
+| PR47's bird | FLAG (text, 14 readings, 0.91) | **FLAG** (11 readings, 0.91) | 3 readings set aside |
+| PR098's three points | 0 | 0 | one "decides nothing" (same side) |
+| PR135's six | 0 | 0 | nothing crossed |
+| FLIR1's exit | - | - | its crossing kept: 4 frames of text, same side, decides nothing |
+
+So on the labelled set the test flags nothing either way: a false-flag rate under 0.7 % (0 of 431; exact, one-sided
+95 %). The rate that matters is on rows of ringed points, and there are three such clips in hand: PR-016's flag is
+gone, PR098's never was, and **PR47's stands**.
+
+*The line's width.* The 560 groups that ran through an object on the labelled set (strokes of its scenes: nothing is
+drawn there) read 0.27 of a stroke's width at the median (quartiles 0.18-0.32), 89 % of them 0.5 or less. PR-016's 13
+nets read 1.23-1.66. `LINE_THIN` 0.5 is the least that keeps a stroke as wide as `ridges` allows (0.29) with two pieces
+joined off each other's line; anything from 0.4 to 1.2 gives the same verdicts here. On the labelled set it sets aside
+60 of 560 groups, on 3 tracks, and moves one verdict: a crossing that decided nothing, gone.
+
+*The text's hold is judgement, and only half a remedy.* The shares the null read: PR-016's passing gaps 0.00-0.60 (10
+readings) and two at 0.98 and 1.00; PR47's 0.33-0.68 (3) and eleven at 0.75-1.00; the drawn readout 0.97 on the six readings kept, with five set aside within 8 frames of
+its first and last frames, where the window reaches past it. No line
+divides them: `TEXT_HELD` 0.75 takes out what is plainly passing and no drawn text, and PR47's readings are held as
+text is. PR47's clip holds its scene still on screen, with dark strokes in it that the mask does not know (14,272
+static pixels, the coloured symbology alone): a stroke of the scene and a stroke of the symbology look the same
+there, and the bird passes in front of one. That is not looked at frame by frame yet. What would settle it is the
+scene's own motion over the window (a stroke of the scene moves with it; drawn text does not), which this test is
+not handed.
 
 *How it fails.* (1) A drawn line wider than half a stroke's width for its picture's height is set aside: a bar drawn
 6 px wide at 1080 rows, or one blurred to that; `ridges` would mostly not have found it either (a stroke is "no wider
@@ -5911,7 +5942,7 @@ their hour, each pair then rebuilding both stretches' fixed patterns, which `zoo
 | Puerto Rico, 118.1 s | 675 to 2024: x2.9985 | x3.096 | x3.1270, 2.7795-3.4387 | held |
 | Puerto Rico, 142.6 s | x0.3335 | x0.327 | x0.3260, 0.3200-0.3300 | not held: 1.1 % over its top |
 
-The five steps of the x2 rung are each read to about 0.4 % and every interval holds the ratio. The Puerto Rico display
+The four steps of the x2 rung (PR105's x0.5 its return) are each read to about 0.4 %, and every interval holds the ratio. The Puerto Rico display
 prints its focal lengths as whole numbers, and the imagery's own scale differs from their ratios by 1 to 3 % by three
 routes (a hand fit, the burst's pair, this); the interval is the imagery's, and is narrower than that difference.
 

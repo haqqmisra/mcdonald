@@ -355,7 +355,10 @@ LINE_THIN = 0.5          # a line's width across its own axis, rms, is at most t
                          # stroke to be): 2.5 px at 1080 rows. A stroke w px wide reads w / sqrt(12), two pieces joined 2 px
                          # off each other's line 1 px more (`_collinear`); PR-016's nets read 6.2-8.3 px on its 13 frames.
 TEXT_HELD = 0.75         # text held for a stretch is at its own level on at least this share of the window's frames that
-                         # the object is clear of it; a place the dark gaps of a moving row pass is dark on some of them
+                         # the object is clear of it; a place the dark gaps of a moving row pass is dark on some of them.
+                         # A judgement call, and half a remedy: PR-016's passing gaps read 0.00-0.60 (10 of its 12 readings,
+                         # the two left too few to decide) and a drawn readout 1.00, but PR47's bird, in front of dark
+                         # strokes of a scene held still, reads 0.75-1.00 on 11 of 14 and is flagged as before (method 25)
 
 
 def _axis(px):

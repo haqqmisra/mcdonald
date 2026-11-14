@@ -763,6 +763,12 @@ def test_integrity_sees_symbology_drawn_frame_by_frame():
           "a readout drawn for frames 10-30 over the object: missed by the whole-clip mask, found on top", txt)
     v, txt, d = verdict("text", False, 10.0, 110.0, True)[0]
     check(v == "FLAG" and "drawn f" in txt, "the readout under the object: FLAG", txt)
+    check(d.get("text_held", 0.0) >= 0.85 and len(d["text_frames"]) >= 5
+          and all(n <= 17 or n >= 23 for n in d.get("passing_frames") or []),
+          "and the readout is held: at its level on nearly every frame of the window the object is clear of it; the "
+          "readings set aside are within 8 frames of its first and last frames, where the window reaches past it",
+          f"held on {d.get('text_held', 0.0):.2f} (text: {integrity.TEXT_HELD:g} or more), {len(d['text_frames'])} readings; "
+          f"set aside {d.get('passing_frames')}")
 
     # AARO's PR-016 (2026-11-13): a row of bright points, each ringed dark by the sensor's edge enhancement, under dark
     # symbology. The rings join into a net along the row -- a rung between each two points, arcs above and below -- which
