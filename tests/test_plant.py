@@ -60,7 +60,10 @@ def drawn_video(path, seed=0):
     grain of 1.2 grey levels, through libx264 with B frames at 700 kb/s."""
     rng = np.random.default_rng(seed)
     big = ndimage.gaussian_filter(rng.normal(0, 1, (H + 40, W + 4 * N + 40)), 6)
-    big = 110 + 12 * big / big.std()               # 12 grey levels of texture: enough to register, well under the objects planted
+    fine = ndimage.gaussian_filter(rng.normal(0, 1, big.shape), 1.0)
+    # 12 grey levels of broad texture and 4 of fine: well under the objects planted, and sharp enough that one bright
+    # point is not the sharpest thing in the picture (it would pull the registration of the whole scene toward itself)
+    big = 110 + 12 * big / big.std() + 4 * fine / fine.std()
     frames = []
     for n in range(N):
         g = ndimage.shift(big, (0, DRIFT * n), order=1, mode="nearest")[20:20 + H, 20 + 2 * N:20 + 2 * N + W]
@@ -151,10 +154,13 @@ def test_under_the_overlay_and_past_the_ceiling(tmp, made):
           f"overlay {t['overlay']['share']:.2f} of the frame, {len(seen)} frames in the open, {len(hidden)} wholly hidden")
     check(changed <= 3.0, "and nothing is written into the block", f"the most a pixel inside it differs from the control: {changed:.0f} codes")
     lv = t["levels"]
+    top = [float(A[int(n) - 1][int(round(xy[1])), int(round(xy[0]))]) for n, xy in by[5]["track"].items()]
     check(by[5]["frames_clipped"] >= 0.9 * by[5]["frames_on"] and by[5]["contrast_written"] < 0.6 * by[5]["contrast"]
-          and float(A.max()) <= lv["ceiling"] + 15,
-          "an object brighter than the picture can hold is cut at the picture's ceiling (the encoder rings up to 15 codes past it), and the table says so",
-          f"asked {by[5]['contrast']:g} DN, written {by[5]['contrast_written']:g}; ceiling {lv['ceiling']}, the planted video's highest {A.max():.0f}")
+          and abs(float(np.median(top)) - lv["ceiling"]) <= 6,
+          "an object brighter than the picture can hold is cut at the picture's ceiling: a flat top there after the encoder, "
+          "and the table says so",
+          f"asked {by[5]['contrast']:g} DN, written {by[5]['contrast_written']:g}; ceiling {lv['ceiling']}, its middle in the planted "
+          f"video {np.median(top):.0f} at the median (the encoder rings to {A.max():.0f} beside it)")
     check(lv["codes_per_dn"] < 1 and lv["floor"] <= 16 and lv["ceiling"] >= 235,
           "the levels are the stretch's own: a studio-range picture, a contrast in grey levels divided into codes", str(lv))
 
@@ -174,9 +180,13 @@ def test_the_scene_and_what_moves_with_it(tmp, made):
     tr = {int(n): xy for n, xy in by[6]["track"].items()}
     a, b = min(tr), max(tr)
     moved = (tr[b][0] - tr[a][0], tr[b][1] - tr[a][1])
-    check(abs(moved[0] - DRIFT * (b - a)) <= 3.0 and abs(moved[1]) <= 2.0 and by[6]["speed_against_scene"] <= 0.2,
-          "an object planted with the scene moves as the scene does: within 3 px of the drawn drift over its life, and still against it",
-          f"moved {moved[0]:.1f}, {moved[1]:.1f} px in {b - a} frames for {DRIFT * (b - a):.0f}, 0; {by[6]['speed_against_scene']} px a frame against the scene")
+    steps = np.diff([tr[n][0] for n in sorted(tr)])
+    check(abs(moved[0] - DRIFT * (b - a)) <= 1.0 and abs(moved[1]) <= 1.0 and by[6]["speed_against_scene"] <= 0.1
+          and float(np.std(steps)) <= 0.1,
+          "an object planted with the scene moves as the scene does: within 1 px of the drawn drift over its life, its "
+          "steps scattered under 0.1 px, and still against it",
+          f"moved {moved[0]:.2f}, {moved[1]:.2f} px in {b - a} frames for {DRIFT * (b - a):.0f}, 0; steps scattered {np.std(steps):.3f} px; "
+          f"{by[6]['speed_against_scene']} px a frame against the scene")
     want = {1: np.hypot(1.5 - DRIFT, 0.4), 2: np.hypot(1.0 - DRIFT, 0.3), 3: np.hypot(0.5 - DRIFT, 0.2)}
     check(all(abs(by[i]["speed_against_scene"] - v) <= 0.2 for i, v in want.items()) and abs(by[1]["speed_px_per_frame"] - np.hypot(1.5, 0.4)) < 0.01,
           "every object's speed is given on the screen and against the scene",

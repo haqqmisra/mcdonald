@@ -265,8 +265,8 @@ def main():
                 top30=top(orig, again, SHOWN), top8=top(orig, again, 8),
                 fair_or_strong=dict(n=sum(r["strength"] != "weak" for r in orig),
                                     kept=sum(j is not None for r, j in zip(orig, again) if r["strength"] != "weak")),
-                rows=[dict(rank=i, strength=r["strength"], score=r["score"], frames=r["frames"], in_control=j)
-                      for i, (r, j) in enumerate(zip(orig, again), 1)][:60])
+                first_rows=[dict(rank=i, strength=r["strength"], score=r["score"], frames=r["frames"], in_control=j)
+                            for i, (r, j) in enumerate(zip(orig, again), 1)][:60])
             print(f"original: {len(orig)} rows, {result['original']['in_control']} of them in the control too "
                   f"(top 30: {result['original']['top30']})", flush=True)
 

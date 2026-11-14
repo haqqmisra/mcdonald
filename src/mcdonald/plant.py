@@ -722,7 +722,7 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
                                          stdin=subprocess.PIPE, stderr=open(tmp / "none.log", "wb")))
         mark = _label(W, H) if label else None
         rows, got = [], 0
-        moving = _Scene(~hide) if (scene or with_scene) else None
+        moving = _Scene(~hide, fine=bool(with_scene)) if (scene or with_scene) else None
         scene_from = {}
         try:
             for m in range(1, n + 1):
@@ -826,7 +826,9 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
             held_still=round(float(np.mean([math.hypot(*v) < 0.05 for v in drift.values()] or [1.0])), 3),
             how=("the background's shift from a reference frame to each frame, by the registration Find uses "
                  "(`propose.onto`), the reference renewed every 15 frames or 24 px; a scene with too little texture "
-                 "to register, or one that fits as well unshifted, reads as held still"),
+                 "to register, or one that fits as well unshifted, reads as held still"
+                 + ("; finished by least squares on the picture's gradients, for the objects planted with the scene"
+                    if with_scene else "")),
             at={str(m): [round(x, 2), round(y, 2)] for m, (x, y) in moving.places.items()}),
         files=dict(planted=f_planted.name, none=f_none.name if null else None))
     f_truth, f_table = out / f"{stem}_s{seed}_truth.json", out / f"{stem}_s{seed}_truth.csv"
@@ -843,28 +845,48 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
 
 class _Scene:
     """Where the scene has got to on each frame, as a displacement from the stretch's first frame: `at(m, g)` for frame
-    m's luma. Each frame is registered to a reference frame by `propose.onto` (the registration Find uses: one shift
-    for the whole picture, kept only where it fits better than none), and the reference is renewed once the scene has
-    moved `reach` px from it or after `most` frames -- so a shift is read over a baseline long enough to read it on
-    (frame to frame, half a pixel reads as a quarter), and the errors of a long pan do not add up frame by frame."""
+    m's luma. Each frame is registered to a reference frame as `propose.onto` registers (the registration Find uses: one
+    shift for the whole picture, kept only where it fits better than none), and the reference is renewed once the scene
+    has moved `reach` px from it or after `most` frames -- so a shift is read over a baseline long enough to read it on
+    (frame to frame, half a pixel reads as a quarter), and the errors of a long pan do not add up frame by frame.
 
-    def __init__(self, ok, reach=24.0, most=15):
-        self.ok, self.reach, self.most = ok, reach, most
-        self.ref = self.ref_m = None
+    With `fine`, that shift is then finished by least squares on the picture's own gradients (`flicker.lk_shift`, at
+    half the resolution): what is planted *with* the scene has to sit on it more closely than Find can see. The
+    correlation's peak alone is good to about half a pixel a frame on a soft scene (measured on the drawn video of
+    tests/test_plant.py: a step scatter of 0.50 px), and a bright point that jitters so about the scene is a faint
+    mover to Find, which listed it."""
+
+    def __init__(self, ok, reach=24.0, most=15, fine=False):
+        self.ok, self.reach, self.most, self.fine = ok, reach, most, fine
+        self.ref = self.ref_m = self.ref_band = None
         self.base = (0.0, 0.0)
         self.places = {}
 
     def at(self, m, g):
-        from . import propose
         if self.ref is None:
             self.ref, self.ref_m, here = g, m, (0.0, 0.0)
         else:
-            dx, dy = propose.onto(self.ref, g, self.ok)[1]
+            dx, dy = self.shift(self.ref, g)
             here = (self.base[0] + float(dx), self.base[1] + float(dy))
             if math.hypot(dx, dy) > self.reach or m - self.ref_m >= self.most:
-                self.ref, self.ref_m, self.base = g, m, here
+                self.ref, self.ref_m, self.base, self.ref_band = g, m, here, None
         self.places[m] = here
         return here
+
+    def shift(self, g0, g):
+        """(dx, dy): where g0's background is found in g."""
+        from . import propose
+        dx, dy = propose.onto(g0, g, self.ok)[1]
+        if not self.fine:
+            return float(dx), float(dy)
+        from .flicker import _bandpass, lk_shift
+        if self.ref_band is None:
+            self.ref_band = _bandpass(g0[::2, ::2])
+        half = ndimage.shift(g[::2, ::2], (-dy / 2.0, -dx / 2.0), order=1, mode="nearest")
+        fy, fx, _ = lk_shift(self.ref_band, _bandpass(half), self.ok[::2, ::2])
+        if not (np.isfinite(fy) and np.isfinite(fx)) or math.hypot(fy, fx) > 2.0:      # no texture to read, or it ran away
+            return float(dx), float(dy)
+        return float(dx + 2.0 * fx), float(dy + 2.0 * fy)
 
     def velocity(self, half=5):
         """{frame: (vx, vy)} px a frame, each from the places `half` frames either side (fewer at the ends)."""

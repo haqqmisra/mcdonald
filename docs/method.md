@@ -6125,3 +6125,142 @@ and they triangulate to the pipeline's positions within 0.5 %.
 2 km away. A search of the second site's detections found two candidates seen from both sites, too briefly to hear a
 wingbeat. A search of its pixels cannot work on these files: the encoder copies a still sky unchanged, and a far bird
 would be half a grey level.
+
+## 62. Planted objects: what the search could have found (ROADMAP 0.6, objective 4; added 2026-11-13)
+
+**What it is.** A search that lists what it found, and not what it could have found, reports no completeness. `mcdonald
+plant` is the injection half of injection and recovery (Christiansen et al. 2013 for Kepler; Margot et al. 2021 made
+the recovery rate the headline number of a radio search). It writes objects of known place, contrast, width, motion
+and light into a stretch of a video's decoded frames, encodes the stretch again as the video is encoded, and writes a
+truth table that says where every object is on every frame. Find, the link, `flicker` and `run` are then run on the
+planted video as on any other, and what they make of it is held against the table (`plant.recovered`). The seed of
+it is `planted` (section 13's encoding control), which is left as it was: the reference case files hold its numbers.
+
+**A planted video is a test article, never footage.** Nothing else in this package writes detail that was not in
+the record. So the file says what it is four ways: its name has `planted` in it; its container's comment begins
+`mcdonald plant: a test video, not footage` and counts the objects written in; its truth table lies beside it; and
+`clip.planted` is in every command's envelope and every case made from it, with a line above the report's
+conclusion. The command refuses to write one beside the video it was made from, in the storage folder's videos or
+anywhere in the reference-data folder.
+
+**How an object is written in** (`plant.stamp`).
+- *Into the luma plane, in the file's own codes.* The stretch is decoded to the planes the file holds (yuv420p), with
+  no conversion; the object is added to the luma and the planes go to the encoder as they are. A contrast is asked in
+  grey levels of the extracted frames (DN, what every stage reads) and divided by the stretch the extraction applies
+  (255/219 on a studio-range video, section 50). The table gives the contrast asked and the contrast written: the
+  median over the object's frames of the most any pixel was changed by.
+- *A point* is a Gaussian of a given sigma. *A body* is a disc of a given width with its rim blurred by the sigma; it
+  hides what is behind it. With `exposure` either is drawn out along its own motion. The default is a sharp picture
+  in every frame, which flatters a fast object: a real one is a dash wherever the shutter is open long (section 30).
+- *It clips where the video clips*: at the highest and lowest luma codes the stretch's sampled frames reach, and at
+  least the nominal white and black of its declared range. A dark object on a dark scene is cut at the floor, and the
+  contrast written is then less than asked (PR113: 160 DN asked, 77 written on a scene at 95 codes).
+- *Under the overlay.* Nothing is written where the stretch's static masks (`forensics.static_masks`) say symbology or a
+  redaction block is; the table gives the hidden share on each frame. **Moving symbology is not in those masks**: a
+  planted object is drawn over a scrolling tape's strokes, where a real object would pass under them.
+- *Its light*: constant (the null for `flicker`); a steady beat; a beat whose frequency wanders (an Ornstein-Uhlenbeck
+  walk: a wingbeat is not a clock); the twinkle of a point through turbulent air (a log-normal series whose spectrum
+  is flat to a corner and falls as f^(-8/3) past it, through a detector's time constant: IDEAS.md W29); a strobe.
+- *Its path*: a line at constant velocity on the screen; held still on the screen; a line with a drawn wander of a
+  given size and memory (`kriging.simulate`, section 32's covariance with no jitter: the truth, not a measurement);
+  a recorded track moved elsewhere in the frame (`place_recorded`: turned about the centre or moved whole, clear of
+  the overlay and 80 px or more from the original), which carries the camera's own motion and the object's own
+  irregular steps; or with the scene, which Find should not list.
+- *Groups*: a formation (members keep their places) or a flock (each member its own beat and its own wander).
+- *Each object's draws come from a generator of its own*, seeded by the seed and its number, so an object is the same
+  whatever is planted after it. The crowding measurement below rests on that.
+
+**The scene's own motion** is measured as the frames go by (`plant._Scene`: each frame registered to a reference frame
+by `propose.onto`, the registration Find uses; the reference renewed every 15 frames or 24 px, because frame to
+frame half a pixel reads as a quarter). Every object's speed is given on the screen and against the scene. Find
+lists what moves against the background, so completeness is tabulated by the second. Where the scene has too little
+texture to register, or fits as well unshifted (PR135's sensor pattern, section 2), the scene reads as held still and
+the two speeds are the same.
+
+**How the stretch is encoded, and what that leaves unmatched.** All 144 PURSUE files were written by one encoder that
+is not x264 (their streams are tagged `Elemental H.264`), and none carries its settings. What a decoder can read back
+is repeated by libx264: the profile, the pixel format and declared levels, the exact frame rate, the number of
+reference frames, the number of B frames between anchors, the bit rate *of this stretch* (its packets' sizes over its
+length; a busy stretch of PR113 runs at 5.5 Mb/s in a file of 3.0), and an I frame forced wherever the video has one,
+the stretch begun at the I frame at or before the first frame asked for. One encoder thread, so that one seed gives
+one file, byte for byte (`planted`'s finding of 2026-10-17). **Not matched:** the first encoder itself (its motion
+search, its mode decisions, its rate control); the quantiser it ran at (a second encode at the first one's bit rate
+runs gentler: the noise the first spent its bits on is gone); and where the P and B frames fall between I frames,
+which this ffmpeg cannot force and which Elemental moves about (PR113 301-471: 53 % of the frames get the picture
+type the video gives them; a regular stream such as the drawn test's gets 100 %). The truth table records all of it
+(`settings`: `types`, `types_made`, `types_same`, `bit_rate`, `bit_rate_made`, `not_recovered`). The control for all
+three is the `_none` file: the same stretch through the same encoder with nothing planted. Every completeness number
+is of a second-generation picture, and each video's table gives beside it what the second encode alone does to
+Find's list.
+
+**How a search is held against the table** (`plant.recovered`, `tools/plant_chain.py`).
+- *Found*: a row of Find's list is on the object's path by `tools/find_rank.py`'s rule: over 70 % of the frames they
+  share within 12 px, or a third of the row's own width if that is more, on two frames or more. Its place on the
+  list, strength and score are kept; "shown" is a place among the first 30, what `look --propose --more` and the
+  window give a person.
+- *Followed*: the link from that row's own marks, as "This is it" runs it, covers half or more of the object's frames
+  within 6 px of the truth.
+- *Chance*: the planted paths held against the control's list, where they were not planted.
+- *Other rows*: rows on no planted path. Each is on the control's list too (a feature of the scene, or clutter), or new.
+- *The second encode alone*: the original stretch's list against the control's.
+- *The beat*: `flicker` on the followed track of 60 frames or more. A beat called on a constant object is a false
+  alarm; a planted beat is recovered where the beat called is within two resolutions of it (or of its double).
+- Cells carry Wilson's 95 % interval (`plant.wilson`), which is honest at 0 of n and n of n.
+
+**What a planted object can and cannot stand for.**
+- It tests whether an object *like the ones drawn* would have been found *in these frames*. A grid of contrasts, widths
+  and speeds is not the population of the sky; a completeness is a function of the cell, to be weighted by whatever
+  population a question assumes.
+- *It flatters Find where Find fails* (IDEAS.md B22: on 127 hand-labelled objects Find has 73 % where planted single
+  dots said 77 %, but 58 % of members of several-object videos against 82 % alone, and 29 % of objects held still).
+  So groups are planted as well as single points, objects held still and objects with the scene are planted as rows
+  of their own, and wherever a video has a recorded track the real object's recovery is given beside its planted
+  copy's.
+- *A planted beat does not glide* (B13): a wandering beat is not a bird that stops flapping. The census's weight for
+  birds comes from footage of known birds, not from this.
+- *It sits on the real scene and its motion.* Planted in real frames a constant dot reads 1.9 times the amplitude near
+  a beat's frequency that it reads on `planted`'s still background (B35: 0.54-2.42 over 8 videos). Every number here
+  is from real frames in their own order; `planted.dots` is the still control and says so.
+- It is a Gaussian or a disc. It has no wing, no shape that turns, no glint, no trail, and its position has no
+  jitter but what the encoder and the detector give it (section 32's jitter on real objects is 8 times the bound;
+  planted dots reach 2-3 times).
+- It never passes through the first encoder, the display, the screen recording or the sensor.
+
+**How it fails.** A scene too dark or too bright for the contrast asked (read `contrast_written`, not `contrast`). A
+scene with no texture: every path is "against the scene" at its screen speed. A stretch that starts mid-GOP with no
+I frame before it in reach (the stretch then begins on a forced I frame the video does not have there). A video whose
+frame size is odd, which the encoder refuses (the command says so). Many objects at once: see the crowding
+measurement, and keep to what it allows. A recorded path that cannot be placed clear of the overlay
+(`path.frames_clear` says how much of it is).
+
+**How many objects one planted video can hold** (measured 2026-11-13). Twelve probes, drawn first so that they are
+the same objects in every run, with more and more fillers planted round them, on PR135 frames 1201-1480:
+
+| in the frame at once | probes on Find's list | among its first 30 rows | followed over half their frames |
+|---|---|---|---|
+| 12 (the probes alone) | 12 of 12 | 12 | 12 |
+| 16 (12 fillers taking turns) | 12 | 12 | 12 |
+| 24 | 12 | 12 | 12 |
+| 48 | 10 | 6 | 9 |
+| 70 | 7 | 6 | 5 |
+| 48, the fillers at 160 DN | 8 | 6 | 5 |
+
+Up to 24 at once every probe is still listed and followed, though its score moves by up to a factor of four and
+its place by a few rows (Find's score counts what else moves the same way; it keeps ten peaks a frame of each
+polarity). So a draw keeps to a few at a time (`plant.AT_ONCE`, 4; the pilot used 6 units, about a dozen points), no
+two nearer than 60 px (`plant.APART`), and an object's place "among the rows shown" is counted with the other
+planted objects' rows set aside (`rank_alone`).
+
+**Two objects near each other are one row** (measured 2026-11-13, on the drawn video of `tests/test_plant.py`). A dark
+point planted alone is Find's first row, on 68 of its 72 frames. Planted again with a bright point whose path
+crosses it (a median 25 px apart, within 6 px for a few frames), it is not on the list at all: `propose.distinct`
+folds a lower-scored row into a better one that runs within 30 px of it at the median, which is right for the dark
+undershoot that trails a bright object and for pieces of one object, and cannot tell those from a second object. Two
+bright points the same way leave the second as two short rows, before and after the crossing. This is the mechanism
+the biology survey suspected behind B22's 58 % for members of groups, shown here on a pair whose only difference is
+the neighbour. Find is not changed by this section; the finding is IDEAS.md's PL2.
+
+**What it costs** (arthur, CPU-seconds a 1080p frame; PR113 frames 301-471): planting with both encodes 0.23,
+extracting the planted video's frames 0.05, Find 0.27 (400 rows kept), and 5 s a window for the static masks. A
+planted window of 400 frames through Find is about 225 CPU-s, and Find is half of it; the encoder, which must stay on
+one thread to be repeatable, is most of the rest. A link is seconds an object; the whole `run` 49 CPU-s an object.

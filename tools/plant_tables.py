@@ -184,7 +184,9 @@ def reliability(units, rows):
                               new=u["control"]["others"] - u["control"]["others_in_control"],
                               new_not_weak=sum(o.get("strength") != "weak" for o in u["control"]["others_new"]))
                          for u in with_control],
-               second_encode=[dict(video=u["tag"], rows=u["original"]["rows"], in_control=u["original"].get("in_control"),
+               second_encode=[dict(video=u["tag"], seed=u["seed"], types_same=u["settings"].get("types_same"),
+                                   rows=u["original"]["rows"] if isinstance(u["original"]["rows"], int) else sum(u["original"]["strengths"].values()),
+                                   in_control=u["original"].get("in_control"),
                                    top30=u["original"].get("top30"), top8=u["original"].get("top8"),
                                    fair_or_strong=u["original"].get("fair_or_strong"), control_rows=u["control"]["rows"])
                               for u in units if u.get("original") and u.get("control")])
@@ -284,9 +286,11 @@ def main():
               + (f" (at most {100 * c['high']:.1f} %)" if c["n"] else "") + ".",
               "- Rows on the planted video's list that are on no planted path and not on the control's list: "
               + "; ".join(f"{r['video']} seed {r['seed']}: {r['new']} of {r['others']} ({r['new_not_weak']} fair or strong)" for r in rel["new_rows"][:8]) + ".",
-              "- What the second encode alone changes: "
-              + "; ".join(f"{r['video']}: {r['in_control']} of the original's {r['rows']} rows are on the control's list, "
-                          f"{r['top30']['kept']} of its first {r['top30']['n']}" + (f", {r['fair_or_strong']['kept']} of its {r['fair_or_strong']['n']} fair or strong rows" if r["fair_or_strong"]["n"] else "")
+              "- What the second encode alone changes (the stretch encoded again with nothing planted; "
+              "the encoder gave the share of frames in brackets the picture type the video gives them): "
+              + "; ".join(f"{r['video']} [{100 * (r['types_same'] or 0):.0f} %]: {r['in_control']} of the original's {r['rows']} rows are on the control's list, "
+                          f"{r['top30']['kept']} of its first {r['top30']['n']}, {r['top8']['kept']} of its first {r['top8']['n']}"
+                          + (f", {r['fair_or_strong']['kept']} of its {r['fair_or_strong']['n']} fair or strong rows" if r["fair_or_strong"]["n"] else ", none of them fair or strong")
                           for r in rel["second_encode"]) + ".",
               f"- `flicker`, on followed objects of 60 frames or more: a beat called on a constant object {said(f['constant'])}; "
               f"on a twinkling one {said(f['twinkle'])}; on a strobe {said(f['strobe'])}; a planted beat called {said(f['beating_called'])}, "

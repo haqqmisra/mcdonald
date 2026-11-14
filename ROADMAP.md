@@ -631,6 +631,18 @@ knowing what the search could not have found.
    link, flicker, report), thousands per clip -- completeness and reliability per video, the
    sweep's negative half with its search volume, and thresholds tuned on the corpus's own
    frames rather than on guesses.
+
+   *Begun 2026-11-13* (`mcdonald plant`, `docs/method.md` §62, `tests/test_plant.py`): the planting itself is built
+   and held -- points, bodies, flocks and formations with constant, beating, twinkling and strobing light, on
+   straight, still, wandering, recorded and with-the-scene paths, written into a stretch's own frames, encoded again
+   by libx264 with what a decoder can read back of the video's encoding, a truth table beside it and the same stretch
+   with nothing planted as the control; one seed, one file. A planted video is a test article and says so in its
+   name, its tags and every case made from it. The release files were all written by another encoder (Elemental), so
+   the control carries what a second encode alone does. Measured on the way: Find is half the cost of a planted
+   window and the one-thread encoder most of the rest, so the plants do not need Find on the card (IDEAS.md G2); up
+   to 24 objects in the frame at once leave a probe's recovery as it was; and a second object within 30 px of a
+   better one is folded into its row (IDEAS.md PL2). *Still to do:* the run at scale through `mcdonald batch` (its
+   `--only track,report`, `--most 0` and `--keep`), the completeness table per video, and the thresholds tuned on it.
 5. **Anomaly ranking over the pass.** Every object of every video on the same axes; the
    defects and blends come out first, and what is left after them is the residue worth a
    person's time. One of everything, kept as a list.
