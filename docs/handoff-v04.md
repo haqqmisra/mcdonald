@@ -21,8 +21,10 @@ the fourteen-case gate (31 objects, 0 differences at 1e-9; the second against a 
   wrote N3); `progress.workers` 0 inside a pool's worker (the controls' rejudge judges inside one: a pool there would
   fail); under the paper rule `whole_passes` beside the drift; `kinematics._fitted_both`; `tether.stack_both` in
   bands of rows (STACK_BANDS); `addon.download_mb` (Windows's wheels 1,303 and 1,727 MB, not Linux's).
-- The alternating timing of f0da3a2 against 0.5.4 is job 2209 (`out/ab-snapJ0-snapI3-32-on/`), queued when this
-  was written.
+- **Against 0.5.4** (job 2209, PR088 object 2, 32 workers with the card, alternating in one job on a crowded machine;
+  `out/ab-snapJ0-snapI3-32-on/`): 516 and 497 s with e056f12, 364 and 364 s with f0da3a2, about 28 % less. Flicker
+  162-172 s to 77-82, Layers again 32-40 to 10, the Scene step 51 to 27. Flicker is still about 30 s over its time
+  before N3 (43-49 s): the background windows' own work, now on four processes.
 
 **The catalog run's "slow third pass" was not one** (the development session's batch, notes §12; corrected there in
 §12.4). PR26 object 2 (4,833 s of `layers`) and PR092 object 3 ran across the 21:57-23:12 queue pause, and a
