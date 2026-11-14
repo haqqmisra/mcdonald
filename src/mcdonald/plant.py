@@ -235,6 +235,17 @@ def settings(video, n0, n1, info=None, align=True):
                 not_recovered=NOT_RECOVERED)
 
 
+def encoder_build(path):
+    """The x264 build that wrote `path`, as its own stream says ("x264 - core 164 r3108 31e19f9"), read from the file's
+    first megabyte; None where there is none. One seed gives one file byte for byte with one build: two builds of
+    libx264 (arthur's packaged one, merlin's built from source, 2026-11-14) write different files from the same frames
+    and settings, the control too."""
+    import re
+    with open(path, "rb") as f:
+        m = re.search(rb"x264 - core [0-9]+(?: r[0-9]+ [0-9a-f]+)?", f.read(1 << 20))
+    return m.group(0).decode("ascii") if m else None
+
+
 def _encode_command(path, W, H, st, text):
     """ffmpeg's command line for one encoder: raw planes on its stdin, the stretch as the video is encoded out."""
     n = st["n1"] - st["n0"] + 1
@@ -802,7 +813,8 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
     same = None if not (made and st["types"]) else float(np.mean([x == y for x, y in zip(made, st["types"])]))
     after = _packets(f_planted)
     st.update(types_made=made, types_same=same,
-              bit_rate_made=int(round(8 * sum(s for _, s in after) * fps / n)) if after else None)
+              bit_rate_made=int(round(8 * sum(s for _, s in after) * fps / n)) if after else None,
+              encoder_build=encoder_build(f_planted))
     by = {}
     for r in rows:
         by.setdefault(r["id"], []).append(r)

@@ -6192,11 +6192,15 @@ is repeated by libx264: the profile, the pixel format and declared levels, the e
 reference frames, the number of B frames between anchors, the bit rate *of this stretch* (its packets' sizes over its
 length; a busy stretch of PR113 runs at 5.5 Mb/s in a file of 3.0), and an I frame forced wherever the video has one,
 the stretch begun at the I frame at or before the first frame asked for. One encoder thread, so that one seed gives
-one file, byte for byte (`planted`'s finding of 2026-10-17). **Not matched:** the first encoder itself (its motion
-search, its mode decisions, its rate control); the quantiser it ran at (a second encode at the first one's bit rate
-runs gentler: the noise the first spent its bits on is gone); and where the P and B frames fall between I frames,
-which this ffmpeg cannot force and which Elemental moves about (PR113 301-471: 53 % of the frames get the picture
-type the video gives them; a regular stream such as the drawn test's gets 100 %). The truth table records all of it
+one file, byte for byte (`planted`'s finding of 2026-10-17) -- with one build of libx264: the same seed on two
+computers whose ffmpeg links two builds (the packaged `core 164 r3108` and one built from source) gave two different
+files, the control too. The truth table names the build that wrote the file (`settings.encoder_build`).
+
+**Not matched:** the first encoder itself (its motion search, its mode decisions, its rate control); the quantiser it
+ran at (a second encode at the first one's bit rate runs gentler: the noise the first spent its bits on is gone); and
+where the P and B frames fall between I frames, which this ffmpeg cannot force and which Elemental moves about (in
+the pilot 55 % of PR144's frames got the picture type the video gives them, 72 % of PR113's, 90 % of PR135's, 97 % of
+PR149's and 99 % of PR44's; a regular stream such as the drawn test's gets 100 %). The truth table records all of it
 (`settings`: `types`, `types_made`, `types_same`, `bit_rate`, `bit_rate_made`, `not_recovered`). The control for all
 three is the `_none` file: the same stretch through the same encoder with nothing planted. Every completeness number
 is of a second-generation picture, and each video's table gives beside it what the second encode alone does to
@@ -6275,29 +6279,83 @@ bright points the same way leave the second as two short rows, before and after 
 the biology survey suspected behind B22's 58 % for members of groups, shown here on a pair whose only difference is
 the neighbour. Find is not changed by this section; the finding is IDEAS.md's PL2.
 
-**A planted copy against the object it copies** (IDEAS.md B22; measured 2026-11-13 on the labelled infrared set of
-section 44: every clip with several labelled objects and every fourth with one, a 150-frame window each; 111 clips,
-155 hand-labelled objects). Each object's copy is a constant point of its contrast and width (`planted.look`), on its
+**The pilot** (2026-11-13/14; `tools/plant_chain.py`, `tools/plant_tables.py`). Five videos chosen to span the
+corpus -- PR113 frames 301-800 (a pan over terrain under a scrolling tape), PR149 1-500 (the sea, a still camera),
+PR135 1201-1700 (the flock's stretch, 720p), PR44 3001-3500 (a long quiet video), PR144 99-598 (the camera follows its
+object, the scene 15 px a frame) -- each planted ten times with 30 units (13 points, a body, one held still, 4 flocks,
+3 formations, 2 steady beats, 3 birds, a twinkle, a strobe, one with the scene; 6 at once, 60 px apart, up to 90
+frames each): 50 planted videos, 2,748 planted points. Each cell: found / planted, with Wilson's 95 % interval.
+
+| kind | on Find's list | among the 30 rows shown | followed over half its frames |
+|---|---|---|---|
+| constant point | 365/650 = 56 % (52-60) | 54 % | 49 % (45-53) |
+| body | 31/50 = 62 % (48-74) | 56 % | 46 % |
+| steady beat | 51/100 = 51 % (41-61) | 49 % | 46 % |
+| bird (a wandering beat on a wandering path) | 77/150 = 51 % (43-59) | 51 % | 47 % |
+| strobe | 31/50 = 62 % (48-74) | 58 % | 58 % |
+| member of a flock | 338/906 = 37 % (34-41) | 34 % | 28 % |
+| member of a formation | 174/683 = 25 % (22-29) | 25 % | 22 % |
+| held still on the screen | 5/50 = 10 % (4-21) | 10 % | 10 % |
+| twinkle, with the scene | 2/50 = 4 % (1-13) | 0 % | 4 % |
+| a feature of the scene | 0/50 = 0 % (0-7) | 0 % | 0 % |
+
+A flock is listed (any member) in 66 % (59-72) of the 200 planted, as a row that says it holds two points or more in
+34 %, with every member in 11 %; a formation 49 %, 27 % and 2 %.
+
+| constant points moving 1 px a frame or more against the scene | on Find's list |
+|---|---|
+| 0-15 grey levels written | 11 % (6-20) |
+| 15-30 | 51 % (41-60) |
+| 30-60 | 73 % (65-81) |
+| 60-120 | 96 % (90-98) |
+| over 120 | 100 % (95-100) |
+
+| constant points of 30 grey levels or more, by speed against the scene | on Find's list |
+|---|---|
+| under 0.3 px a frame | 40 % (22-61) |
+| 0.3-1 | 53 % (42-63) |
+| 1-3 | 81 % (71-88) |
+| 3-10 | 94 % (87-98) |
+| over 10 | 89 % (82-94) |
+
+By video, the constant points on Find's list: PR113 35 % (27-43), PR149 52 % (44-61), PR135 68 % (59-75), PR44
+60 % (51-68), PR144 66 % (58-74). PR113 is the hard one twice over: a third of its frame is overlay, and one global
+registration does not find its pan (it reads 0.04 px a frame), so there "against the scene" is "on the screen".
+
+Reliability: a planted path is "found" in the control, where nothing was planted, 5 times in 2,748 (at most 0.4 %).
+`flicker` calls a beat on 1 of 369 followed constant points (0.3 %, at most 2 %) and on 1 of 26 strobes; a planted
+beat 3-12 times a second and 15-60 % deep is called at its frequency on 143 of 286 followed tracks of 60 frames or
+more (50 %, 44-56). The second encode alone, with nothing planted, keeps 14 to 22 of the original's first 30 rows and
+16 of its 18 fair or strong rows; its weak tail mostly changes. The picture types the encoder gave were the video's
+on 55 % (PR144) to 99 % (PR44) of the frames.
+
+**A planted copy against the object it copies** (IDEAS.md B22; measured 2026-11-13/14 on the labelled infrared set of
+section 44: every clip with several labelled objects and every fourth with one, a 150-frame window each; 126 clips,
+185 hand-labelled objects). Each object's copy is a constant point of its contrast and width (`planted.look`), on its
 own labelled path moved elsewhere in the frame. Find's rate, by `find_rank`'s rule, with Wilson's 95 % interval:
 
 | | the labelled object | in the control (encoded again) | its planted copy |
 |---|---|---|---|
-| all 155 | 83 % (77-88) | 85 % (78-89) | 66 % (59-73) |
-| the 96 copies placed clear and written at 0.8 of their contrast or more | 81 % (72-88) | 83 % | 73 % (63-81) |
-| of those, under 0.5 px a frame against the scene (58) | 76 % (63-85) | | 59 % (46-70) |
-| of those, 0.5 px a frame or more (38) | 89 % (76-96) | | 95 % (83-99) |
+| all 185 | 82 % (75-87) | 83 % (77-87) | 69 % (62-75) |
+| the 107 copies placed clear and written at 0.8 of their contrast or more | 80 % (72-87) | 82 % | 74 % (65-81) |
+| of those, under 0.5 px a frame against the scene (62) | 74 % (62-83) | | 60 % (47-71) |
+| of those, 0.5 px a frame or more (45) | 89 % (77-95) | | 93 % (82-98) |
 
-A second encode alone changes whether a labelled object is listed for 8 of 155 (5 %). What the table says: a copy
-that could not be written whole is no copy (24 of 155 landed on a brighter patch than their objects and were cut at
+A second encode alone changes whether a labelled object is listed for 8 of 185 (4 %). What the table says: a copy
+that could not be written whole is no copy (27 of 185 landed on a brighter patch than their objects and were cut at
 the ceiling); a fair copy that moves is listed a little more often than its object, the biology survey's "planted
 dots flatter Find" (it had 77 % planted against 73 % true); and a fair copy that crawls on a still scene is listed
 less often than its object, because a constant point that barely moves changes nothing from frame to frame where a
 real bird or drone flaps and turns, and because at these clips' tenth of a megabit a second the second encoder takes
 most of a faint point away. So a completeness from constant points is too high for what moves, too low for what
 crawls, and the object's own rate for neither. In this set "one of several" objects is listed as often as one alone
-(84 and 83 %): its several objects are mostly not in the frame together, so it does not test the fold above.
+(82 and 81 %): its several objects are mostly not in the frame together, so it does not test the fold above; the
+pilot's planted flocks do, and lose most of their members.
 
-**What it costs** (arthur, CPU-seconds a 1080p frame; PR113 frames 301-471): planting with both encodes 0.23,
-extracting the planted video's frames 0.05, Find 0.27 (400 rows kept), and 5 s a window for the static masks. A
-planted window of 400 frames through Find is about 225 CPU-s, and Find is half of it; the encoder, which must stay on
-one thread to be repeatable, is most of the rest. A link is seconds an object; the whole `run` 49 CPU-s an object.
+**What it costs.** A planted video of 500 frames with 30 units (about 55 points), through Find, the link and `flicker`:
+about 1,200 CPU-seconds on merlin and 720 on arthur (the pilot; peak memory 2.9 GB at 1080p). Of that, Find is 41 %;
+the planting with its two one-thread encodes 36 %; the frames and masks 6 %; the link and `flicker` 17 %. The
+control's and the original's Find run once a stretch whatever the number of seeds; the whole `run` is 270 CPU-s an
+object on merlin. So "thousands a video" is about 13 CPU-seconds a planted point on arthur: 2,000 points on each of
+the 144 videos is of the order of 1,000 CPU-hours, a day or two of arthur, and Find on a graphics card (IDEAS.md G2)
+would save at most two fifths of it.

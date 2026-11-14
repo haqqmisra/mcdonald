@@ -219,6 +219,9 @@ def test_one_seed_one_file(tmp, made):
     check(sha(again["planted"]) == sha(made["planted"]) and sha(again["none"]) == sha(made["none"]),
           "two runs with one seed give the same planted video and the same control, byte for byte")
     check(Path(again["truth"]).read_text() == Path(made["truth"]).read_text(), "and the same truth table")
+    build = made["truth_data"]["settings"].get("encoder_build") or ""
+    check(build.startswith("x264 - core "), "the truth table names the encoder build that wrote the file (one seed, one file holds "
+          "for one build: two builds of libx264 write different files)", build)
     a = plant.make(tmp / "drawn.mp4", 1, N, None, tmp / "s1", "drawn", seed=1, drawn=dict(k=4, life=30, at_once=2), look=False)
     b = plant.make(tmp / "drawn.mp4", 1, N, None, tmp / "s1b", "drawn", seed=1, drawn=dict(k=4, life=30, at_once=2), look=False)
     c = plant.make(tmp / "drawn.mp4", 1, N, None, tmp / "s2", "drawn", seed=2, drawn=dict(k=4, life=30, at_once=2), look=False)
