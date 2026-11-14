@@ -716,6 +716,8 @@ def t_halo(o):
         ring = sub[(rr >= 0.67 * s) & (rr <= 1.06 * s)]
         rows.append((n, vf.flat_top(sub[rr <= 0.28 * s], lv, level=bgl), sub[rr <= 0.22 * s].mean() - bgl, bgl - ring.mean(),
                      ring.min() - lv.floor))
+    if not rows:
+        return NOP, f"no frame where the object is {2.5:g} of its sizes from every edge of the picture", {}
     h = np.array(rows)
     un = (h[:, 1] == 0) & (h[:, 4] > 12) & (h[:, 2] > 25)
     if un.sum() < 40 or np.ptp(h[un, 2]) < 30:
@@ -755,6 +757,8 @@ def t_pattern(o, pat, power, masks):
         hp = g - ndimage.gaussian_filter(g, 2.0)
 
         def cov(cx, cy):
+            if cy - r < 0 or cx - r < 0 or cy + r + 1 > o.clip.H or cx + r + 1 > o.clip.W:
+                return None                               # a window that runs off the picture is not read
             sl = (slice(cy - r, cy + r + 1), slice(cx - r, cx + r + 1))
             if bad[sl].any():
                 return None
@@ -800,9 +804,10 @@ class Insert:
         xy = ndimage.gaussian_filter1d(np.array([pos(n) for n in ns]), 10, axis=0)
         best = None
         offs = [(dx, dy) for dx in (-400, -250, -160, 0, 160, 250, 400) for dy in (-250, -120, 0, 120, 250) if np.hypot(dx, dy) >= 150]
+        edge = max(40, int(np.ceil(2.5 * size)) + 1)     # the widest window a test takes about the object (t_halo's)
         for off in offs:                                  # stay in frame; prefer where the static pattern is measurable
             p = xy + off
-            inside = (p[:, 0] > 40) & (p[:, 0] < clip.W - 40) & (p[:, 1] > 40) & (p[:, 1] < clip.H - 40)
+            inside = (p[:, 0] > edge) & (p[:, 0] < clip.W - edge) & (p[:, 1] > edge) & (p[:, 1] < clip.H - edge)
             score = inside.mean()
             if power is not None:
                 pw = np.nan_to_num(power[np.clip(p[:, 1].astype(int), 0, clip.H - 1), np.clip(p[:, 0].astype(int), 0, clip.W - 1)])
@@ -828,6 +833,8 @@ class Insert:
         core = np.clip((0.5 * self.size - rr) / 1.2 + 0.5, 0, 1)
         ring = np.clip(1 - np.abs(rr - 0.85 * self.size) / (0.25 * self.size), 0, 1) * (1 - core)
         r = yy.shape[0] // 2
+        if yi - r < 0 or xi - r < 0 or yi + r + 1 > a.shape[0] or xi + r + 1 > a.shape[1]:
+            return a                                      # a patch that would run off the picture is not drawn
         sl = (slice(yi - r, yi + r + 1), slice(xi - r, xi + r + 1))
         lvl = 0.0 if self.dark else 255.0
         fill = np.clip((1.6 * self.size - rr) / 2.0, 0, 1)[..., None]      # the region a fill or a feathered paste rewrites
@@ -1009,9 +1016,13 @@ def examine(clip, rec=None, track=None, size=9.0, dark=False, rows=None, max_shi
         if selftest:
             stage("Synthetic insert")
             ins = Insert(clip, trk, size, dark, power)
-            fo = Obj(ins, ins.trk, size, dark)
-            fres, fake = object_tests(fo, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
-            R["selftest"] = {k: {"verdict": v[0], "finding": v[1]} for k, v in fres.items()}
+            if ins.trk:
+                fo = Obj(ins, ins.trk, size, dark)
+                fres, fake = object_tests(fo, reps, dbl, bg, runs, masks, rows, pat, power, max_shift)
+                R["selftest"] = {k: {"verdict": v[0], "finding": v[1]} for k, v in fres.items()}
+            else:                                         # an object this large has no path that keeps clear of the edges
+                R["selftest"] = {"insert": {"verdict": NOP, "finding": "not run: no path in the picture keeps a synthetic "
+                                                                       f"object {size:g} px wide 2.5 of its sizes from every edge"}}
 
     stage("Integrity report")
     if out:

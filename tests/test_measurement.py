@@ -5641,6 +5641,70 @@ def test_hue_reads_a_tall_warm_pointer_inside_a_box():
     check(sy.hue_glyphs(rgb) is None, "and, as before, not with no box (taller than 30 px)")
 
 
+# ---- integrity near the picture's edge (session 23, 2026-11-14) ---------------------------------------------------------
+# Named to sort after every other test of this suite, as the groups tests above are, so that adding it moves no other
+# test to another `--part`; it draws no random numbers.
+class _EdgeStub:
+    """What the insert and the pattern test ask of a clip: its size, frames and pictures (a smooth sky)."""
+    W, H, n0, n1, fps, video = 540, 300, 1, 60, 30.0, Path("drawn.mkv")
+
+    def __init__(self):
+        yy, xx = np.mgrid[0:self.H, 0:self.W]
+        self.g = (60 + 20 * np.sin(xx / 17.0) * np.cos(yy / 23.0)).astype(np.float32)
+
+    def grey(self, n):
+        return self.g
+
+    def rgb(self, n):
+        return np.repeat(self.g[..., None], 3, axis=2)
+
+
+
+def _edge_run(label, fn):
+    try:
+        out = fn()
+        return out, None
+    except Exception as e:                                # the failure itself is what is checked
+        return None, f"{type(e).__name__}: {e}"
+
+
+
+def test_zz_integrity_near_the_picture_edge_reads_no_window_off_it():
+    """The batch's catalog run (2026-11-14): three of integrity's tests took a window about the object without asking
+    whether it lay inside the picture, and the synthetic insert's path was held a fixed 40 px inside it whatever the
+    object's size, so on objects 21 and 71 px wide near an edge the stage raised (6 of 321 cases): a patch with no
+    columns (`Insert._draw`), the halo test with no frame to read (`t_halo`), a control window off the picture
+    (`t_pattern`'s `cov`). Each check raised before the fix."""
+    from types import SimpleNamespace
+    from mcdonald import integrity as I
+    clip = _EdgeStub()
+
+    print("\nthe synthetic insert, for an object 71 px wide (a third of the picture's height)")
+    trk = {n: (300.0 + 2 * n, 60.0) for n in range(1, 61)}
+    ins, err = _edge_run("insert", lambda: I.Insert(clip, trk, 71.0, False, None))
+    drawn = None if ins is None else _edge_run("draw", lambda: [ins.rgb(n) for n in range(1, 61)])
+    check(err is None and drawn is not None and drawn[1] is None,
+          "every frame of the insert is drawn: a patch that would run off the picture is not drawn", err or (drawn or [None, ""])[1] or "")
+    edge = 2.5 * 71
+    check(ins is not None and all(edge < x < clip.W - edge and edge < y < clip.H - edge for x, y in ins.trk.values()),
+          "its path keeps 2.5 of the object's sizes from every edge, or it has none", f"{len(ins.trk) if ins else '?'} frames on its path")
+
+    print("\nthe halo test, on an object 71 px wide that hugs the top of the picture")
+    o = SimpleNamespace(trk={n: (270.0, 60.0) for n in range(1, 61)}, size=71.0, cut=lambda n, r, centre=None, headroom=False: None,
+                        levels=SimpleNamespace(floor=0.0, ceiling=255.0, step=1.0))
+    got, err = _edge_run("halo", lambda: I.t_halo(o))
+    check(err is None and got[0] == I.NOP, "no frame to read is NO POWER, said, not an error", err or got[1])
+
+    print("\nthe static pattern test, for an object 21 px wide 91 px from the left edge")
+    ns = list(range(1, 41))
+    o = SimpleNamespace(trk={n: (91.0, 150.0) for n in ns}, size=21.0, clip=clip)
+    ones = np.ones((clip.H, clip.W))
+    pat = dict(frames=ns, half_of={n: 1 for n in ns}, H1=ones, H2=ones)
+    masks = dict(graphics=np.zeros((clip.H, clip.W), bool), blocks=np.zeros((clip.H, clip.W), bool))
+    got, err = _edge_run("pattern", lambda: I.t_pattern(o, pat, ones, masks))
+    check(err is None, "a control window that would run off the picture is not read, and the test goes on", err or f"{got[0]}: {got[1][:80]}")
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for
