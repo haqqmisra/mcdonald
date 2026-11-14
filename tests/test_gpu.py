@@ -1234,6 +1234,47 @@ def test_flickers_shake_pass_on_the_card_is_the_cpus():
         check("ahead" not in flicker._S and "ref_on" not in flicker._S, f"{what}: nothing of the card's round is left behind")
 
 
+def test_tethers_stroke_mask_on_the_card_is_the_cpus():
+    """`tether` masks the overlay's thin bright strokes on every frame it reads (`tether.stroke_mask`: three grey
+    openings). Since 2026-11-14 on the card where the stage has one, handed to the card's thread from the threads that
+    read the frames. An opening only picks minima and maxima, so the mask is the CPU's to the pixel: a reticle's arms
+    and a gate's edge masked, a dark line and a wide bright blob not, on frames in single precision and in double; and
+    a frame reader given the card gives every frame's grey and mask as one without it."""
+    print("\ntether's stroke mask")
+    from mcdonald import tether
+    rng = np.random.default_rng(14)
+    g = rng.normal(80, 3, (240, 320))
+    g[118:121, 40:200] = 200                       # a reticle's arm
+    g[60:160, 250:252] = 190                       # a gate's edge
+    g[200:202, 20:300] = 10                        # a dark line
+    yy, xx = np.mgrid[:240, :320]
+    g += 120 * (np.hypot(xx - 120, yy - 190) < 14)  # a bright blob wider than a stroke
+    frames = {"double": g, "single": g.astype(np.float32).astype(np.float64)}
+    cpu = {k: tether.stroke_mask(v) for k, v in frames.items()}
+    check(cpu["double"][119, 100] and cpu["double"][100, 250] and not cpu["double"][201, 150] and not cpu["double"][190, 120],
+          "on the CPU: the arm and the gate's edge are masked, the dark line and the blob not")
+    for c in the_cards():
+        got = {k: tether.stroke_mask(v, card=c) for k, v in frames.items()}
+        check(all(np.array_equal(got[k], cpu[k]) for k in frames),
+              f"{c.name}: the same mask to the pixel, on a frame in double and one in single precision",
+              f"{int(cpu['double'].sum())} pixels masked")
+
+        class Drawn:
+            n0, n1, H, W, fps = 1, 6, 240, 320, 30.0
+
+            def rgb(self, n):
+                return np.repeat(np.roll(frames["single"], n, axis=1).astype(np.float32)[:, :, None], 3, 2)
+        clip, none = Drawn(), np.zeros((240, 320), bool)
+        masks = dict(blocks=none, graphics=none, colour=True)
+        track = {n: (150.0 + n, 120.0) for n in range(1, 7)}
+        plain = tether.Frames(clip, masks, track, 200, cache=False, procs=2)
+        carded = tether.Frames(clip, masks, track, 200, cache=False, procs=2, card=c)
+        a_, b_ = list(plain.each(range(1, 7))), list(carded.each(range(1, 7)))
+        check(all(np.array_equal(x[1], y[1]) and np.array_equal(x[2], y[2]) for x, y in zip(a_, b_)) and len(b_) == 6
+              and any(x[2].any() for x in b_),
+              f"{c.name}: a frame reader given the card gives every frame's grey and mask as one without it")
+
+
 def test_the_third_pass_of_layers_on_the_card_is_the_cpus():
     """`layers`' third pass (2026-11-13): where a pattern on the sensor holds the templates at zero, each pixel's mean
     over a block is taken out and the block's pairs are matched again (`layers._mean_out`). On a card the same blocks

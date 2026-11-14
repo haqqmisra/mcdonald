@@ -112,7 +112,7 @@ import numpy as np
 from scipy import ndimage
 from scipy.ndimage import gaussian_filter
 
-from . import forensics as vf
+from . import forensics as vf, gpu
 from .progress import BESIDE, PROCS_HELP, Beside, counted, to_stderr, workers
 from .report import Found, emit, inputs_of, said_to_stderr
 
@@ -197,16 +197,39 @@ HANGS, BESIDE_IT, NOTHING, CANNOT = "hangs", "beside it", "nothing tied", "canno
 
 
 # ---- frames --------------------------------------------------------------------------
-def stroke_mask(g, length=STROKE_LEN, above=STROKE_DN, bright=STROKE_MIN):
+def stroke_mask(g, length=STROKE_LEN, above=STROKE_DN, bright=STROKE_MIN, card=None):
     """Thin bright strokes: what survives a grey opening with a line along x or y of
     `length` but not with a 9x9 square, standing `above` DN over the square's remainder,
     and at least `bright` itself. Dilated 2 px. The overlay's reticle, gate and brackets;
-    not a bright blob (it survives the square) and not a dark line."""
+    not a bright blob (it survives the square) and not a dark line.
+
+    With `card` (a `gpu.Card` the stage computes on), the same on the card (`_stroke_mask_on`), handed to the card's
+    one thread from whichever thread reads the frame: an opening only picks minima and maxima, and the difference and
+    the comparisons are made in double there too, so the mask is the CPU's to the pixel (2026-11-14: 2.6 ms a
+    721 x 721 crop on the card against 55 ms on a CPU core; held in test_gpu). A card that refuses it is given up
+    (`gpu.gave_up`) and the CPU does the rest."""
     gg = np.where(np.isfinite(g), g, 0.0)
+    if card is not None and not card.stopped:
+        try:
+            return card.run(_stroke_mask_on, card, gg, length, above, bright)
+        except card.errors as e:
+            gpu.gave_up(e, "masking the overlay's strokes")
     sq = ndimage.grey_opening(gg, size=(9, 9))
     lines = np.maximum(ndimage.grey_opening(gg, size=(1, length)), ndimage.grey_opening(gg, size=(length, 1)))
     m = ((lines - sq) >= above) & (gg >= bright)
     return ndimage.binary_dilation(m, iterations=2) if m.any() else m
+
+
+def _stroke_mask_on(c, gg, length, above, bright):
+    """`stroke_mask` of `gg` on the card `c` (its array module and filters: `c.xp`, `c.ndimage`), brought back."""
+    xp, nd = c.xp, c.ndimage
+    g = c.up(gg)
+    sq = nd.grey_opening(g, size=(9, 9))
+    lines = xp.maximum(nd.grey_opening(g, size=(1, length)), nd.grey_opening(g, size=(length, 1)))
+    m = ((lines - sq) >= above) & (g >= bright)
+    if bool(m.any()):
+        m = nd.binary_dilation(m, iterations=2, brute_force=True)    # CuPy iterates only by brute force: the same pixels
+    return c.down(m)
 
 
 CACHE_BYTES = 600 * 1024 ** 2   # frames are kept between passes as uint8 while they fit in this
@@ -216,10 +239,11 @@ STACK_BANDS = 4                 # threads a frame's rows are shared among, a sta
 NEAR = 260           # px about the object within which what the strokes alone mask is kept (`Frames.unstroked`)
 
 
-def _read(clip, masks, rows, track, radius, strokes, n, only=None):
+def _read(clip, masks, rows, track, radius, strokes, n, only=None, card=None):
     """Frame n as the stage reads it: (its grey as the clip gives it, what of it is not scene -- the static
-    masks, its own coloured symbology and, within `radius` of the object, the overlay's strokes). With `only`
-    (a dict), what the strokes alone mask within NEAR px of the object is left there as (ys, xs)."""
+    masks, its own coloured symbology and, within `radius` of the object, the overlay's strokes; on `card` where the
+    stage has one, `stroke_mask`). With `only` (a dict), what the strokes alone mask within NEAR px of the object is
+    left there as (ys, xs)."""
     rgb = clip.rgb(n)
     grey = vf.grey_of(rgb)
     bad = vf.frame_mask(rgb, masks, rows, n, grow=2)
@@ -229,7 +253,7 @@ def _read(clip, masks, rows, track, radius, strokes, n, only=None):
         x0, y0 = int(max(ox - radius, 0)), int(max(oy - radius, 0))
         x1, y1 = int(min(ox + radius + 1, clip.W)), int(min(oy + radius + 1, clip.H))
         if x1 > x0 and y1 > y0:
-            sm = stroke_mask(g[y0:y1, x0:x1])
+            sm = stroke_mask(g[y0:y1, x0:x1], card=card)
             if only is not None:
                 ys, xs = np.nonzero(sm & ~bad[y0:y1, x0:x1])
                 keep = np.hypot(xs + x0 - ox, ys + y0 - oy) <= NEAR
@@ -250,9 +274,9 @@ class Frames:
     pipe it took four times what reading it does (2026-10-10, measured on PR144: 130
     frames 54 s in one process, 220 s on four workers)."""
 
-    def __init__(self, clip, masks, track, radius, rows=None, strokes=True, cache=True, procs=None):
+    def __init__(self, clip, masks, track, radius, rows=None, strokes=True, cache=True, procs=None, card=None):
         self.clip, self.masks, self.track, self.radius, self.rows, self.strokes = clip, masks, track, int(radius), rows, strokes
-        self.procs = procs
+        self.procs, self.card = procs, card                # card: where the overlay's strokes are found (`stroke_mask`)
         n = sum(1 for k in track if clip.n0 <= k <= clip.n1)
         self.cache = {} if cache and n * clip.W * clip.H * 1.125 <= CACHE_BYTES else None
         self.only = {}                 # {frame: what the strokes alone mask near the object, (ys, xs)}: see `unstroked`
@@ -263,7 +287,7 @@ class Frames:
         return g, bad
 
     def _read(self, n):
-        return _read(self.clip, self.masks, self.rows, self.track, self.radius, self.strokes, n, self.only)
+        return _read(self.clip, self.masks, self.rows, self.track, self.radius, self.strokes, n, self.only, self.card)
 
     def unstroked(self, n, bad, r1):
         """`bad` of frame n for the reading about the object itself (`around`): with the strokes that lie wholly
@@ -1499,7 +1523,8 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
     xy = np.array([track[n] for n in ns])
     moved = float(np.hypot(*(xy.max(0) - xy.min(0))))
     radius = int(min(0.75 * max(clip.W, clip.H), (r_max + 2) * (size or 40)))
-    frames = Frames(clip, masks, track, min(radius, STROKE_REGION), rows, strokes, procs=procs)
+    # the overlay's strokes on a graphics card where this process has one (`gpu.card`): the same mask, many times sooner
+    frames = Frames(clip, masks, track, min(radius, STROKE_REGION), rows, strokes, procs=procs, card=gpu.card())
     m, cnt, mc, repeats = stack_both(clip, track, frames, radius=radius, progress=progress, stop=stop)
     R = radius
     est = object_size(m, cnt, R)
