@@ -4268,12 +4268,14 @@ flyers have no block that is one (0 of 15, 0 of 6). With blocks of 90 frames the
 IR_DRONE_098 in none of 3; with 120, neither.
 
 *On the labelled set, judged again from its saved curves* (`tools/controls/summarise.py --rejudge`, which reads the
-held word again since 2026-11-13: `run_set.pictures_again`), against main judged again the same day: 3 of 432 rows
-move, under both rules. IR_DRONE_059: a bird, named, 10.000 Hz at 15.4 % becomes no beat (the continuum null's p 0 to
-0.84). IR_DRONE_098: a bird's call at 9.988 Hz, 4.8 %, not named, becomes no beat. IR_BIRD_032, a bird named at 2.04
-Hz, 11.5 %, keeps its call and its name with the top at 8 Hz (its continuum p 0.0015 to 0.003). Non-birds named: 2 to
-1 of 307 under the stage's rule. No bird loses a call or a name. (That baseline is not the table of record: main's
-own judging had moved 9 other rows since the table was made, which is another matter and is not settled here.)
+held word again since 2026-11-13: `run_set.pictures_again`), against main 4847926 judged again the same day (the
+revision of "a beat that comes back" in it, and none of this): 3 of 432 rows move, under both rules. IR_DRONE_059: a
+bird, named, 10.000 Hz at 15.4 % becomes no beat (the continuum null's p 0 to 0.84). IR_DRONE_098: a bird's call at
+9.988 Hz, 4.8 %, not named, becomes no beat. IR_BIRD_032, a bird named at 2.04 Hz, 11.5 %, keeps its call and its name
+with the top at 8 Hz (its continuum p 0.0015 to 0.003). In the rates of section 44: non-birds called a bird 18 to 16 of
+307 under the stage's rule and 25 to 23 under the paper's, drones 3 to 1 and 7 to 5 of 168; non-birds named 3 to 2 of
+307 (the stage's rule; drones 1 to 0, distant non-birds 1 to 0 of 100). Birds called (31 and 30 of 125) and named (30
+and 27) are as they were: no bird of the record loses a call or a name.
 
 *How it fails.* (1) A clip cut from two sources, most of it at the slower one, has its top lowered through the faster
 part too. (2) A word broken in more than half its blocks stays "uneven" and keeps the grid's band: IR_HELICOPTER_044
