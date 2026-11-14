@@ -3701,10 +3701,12 @@ depression below the horizontal.
   the object. A model file counts within its levels, and beyond them, held at its nearest level, only within a factor
   of 4 of the object's height above the model's own ground, as an observed level does (until 2026-11-02 a model wind
   counted at any height: a file with only a 100-m level counted at 3,960 m, and T2 passed or failed on it). T2 passes
-  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity, plus a model's
-  own error where a model's wind is among them; fails when even the smallest is 10 m/s or more beyond that (it
-  flies); and cannot say between, or when two errors of the velocity exceed 5 m/s (T2 cannot then tell a drifter from
-  a slow flier).
+  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity, plus the
+  largest of the counted winds' own errors (a model's, or two errors of the aircraft's own wind) and the wind's own
+  change over the height between the object and the nearest level a wind was read at (both since 2026-11-13, below);
+  fails when even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, when two errors of
+  the velocity exceed 5 m/s (T2 cannot then tell a drifter from a slow flier), or when no wind was read near enough
+  to its height.
 - *A model's own error* (`MODEL_WIND_ERR`, 3 m/s; 2026-11-13). The spread of a model's hours says how much its wind
   changes from hour to hour, not how far it misses the air's own motion. The Galileo Project's three camera sites near
   Las Vegas triangulate clouds 2-5 km up, so their motion over the ground is known (the uap repository's
@@ -3751,6 +3753,98 @@ depression below the horizontal.
   (the stage admitted 6 and crashed on them until 2026-11-02), 8 keep 4.8 on average and 9 keep 69; the bootstrap's
   errors (its 5th and 95th percentiles among them) are read from 20 resamples at the least, so the stage needs 9
   readings (`READINGS_MIN`, computed from the two by `boot_kept`) and says so below that.
+- *Whose errors the path carries* (`drift.own_scatter`; 2026-11-13, IDEAS.md DR3). The fit weighs each ray by the errors
+  given for it (`--los-sigma`, 0.3° in azimuth and 0.1° in depression by default), and its covariance was scaled up by
+  the rays' misfit and never down. A display that prints its ground point to a metre was then judged at the default:
+  PR051's 23 rays (a reading by an agent, not yet checked by a person) scatter by 0.017° and 0.003° about their path,
+  a reduced chi-square of 0.0024, and the climb read +0.08 +- 2.74 m/s where the rays' own scatter gives 0.16. The rule
+  now has three cases. Rays that fit worse than the errors given scale them up, as before. Rays that fit as well as the
+  errors given allow leave them standing, as before: under them the fit's summed squares are chi-square on 2n - 6
+  degrees of freedom, and the errors given stand unless the sum lies in the lowest 1 % of that distribution (`OWN_P`;
+  the Puerto Rico lanterns' lies at 9 %, so their errors do not move). Rays that fit better than that reject the errors
+  given, and the rays' own scatter takes their place: the azimuths' mean square about the fit and the depressions',
+  each its own (over n - 3), widened by Student's t at 95 % for the fit's degrees of freedom over the normal's 1.96,
+  since a scatter estimated from few rays is itself uncertain (1.11 at 9 rays, 1.03 at 23). The path is not fitted
+  again; its covariance is read with the new errors (the sandwich form), so no fitted number moves, only the errors
+  and the range's bound. The scatter is never read as under a hundredth of the errors given (`OWN_LEAST`, a guard for
+  rays that were drawn or copied, a judgement) nor over them. The bootstrap over the readings is unchanged, and the
+  larger of the two errors is reported as before. On 400 drawn orbits whose rays scatter by a sixth of the errors given,
+  two such errors hold the true east and north velocity and the true climb 94.5, 95.3 and 94.5 times in 100; with the
+  errors given equal to the scatter drawn, 95.5, 96.0 and 95.0, and the rule then takes the rays' own scatter on 7 of
+  the 400 (its level is 4). What it does not see: an error the
+  rays share. Readings that were smoothed or interpolated scatter less than they err, and a constant error of the
+  display's own angles moves every ray alike (the next point).
+- *The display's azimuth reference* (`drift.az_reference`, `--az-ref-err`; 2026-11-13, IDEAS.md DR2). Every ray's azimuth
+  rests on one reference, the display's own true north: an inertial heading, or a ground point the display worked
+  out with one. An error in it turns every ray about its own aircraft position by the same angle. The rays' scatter
+  cannot show that, and the fitted path moves with it: by 1.41 m/s of velocity and 0.08 m/s of climb for one degree on
+  the Puerto Rico turn, three times the velocity error the scatter gives; by 3.7-4.5 m/s on PR051's. So the same rays
+  are fitted once more with a seventh parameter, one constant added to every azimuth, and that fit's covariance gives
+  how each of the six moves for a degree (`az_reference_pull_m_s`, `az_reference_pull_climb_m_s`) and what the rays
+  themselves read the reference as (`az_reference_fitted_deg`, `az_reference_err_deg`: -2.6 +- 1.3 deg on Puerto Rico,
+  -1.6 +- 0.7 on PR051's two legs, +0.3 +- 2.7 on its second leg alone). The path stays the six-parameter fit, which
+  takes the reference as right, and the error of doing so is added in quadrature to the errors from the rays'
+  scatter: the pull times how well the reference is taken as known beforehand. **That number is a judgement, not a
+  measurement: nothing here has measured a display's reference.** By default it is the azimuth error given for the
+  rays (`--los-sigma`, 0.3°), taken to hold for the part all rays share as for each ray's own reading;
+  `--az-ref-err` gives another, and `inf` leaves it to the rays (their own reading and its error, in quadrature). The
+  rays' reading is reported and never used to tighten a reference taken as known, since the path was not fitted with
+  it: a path drawn with every azimuth a degree off and read with the reference known to a degree missed the truth by
+  2.5 such tightened errors, and is held by the untightened ones (in the tests). On Puerto Rico the default moves T2's
+  "two errors of the fit" from 1.0 to 1.3 m/s and T1's error from 0.04 to 0.05 m/s; left to the rays alone, two errors
+  are 8.2 m/s and T2 cannot say. Where the rays' scatter alone would fix the velocity and the reference leaves it open,
+  T2's reading names the reference. Not carried: a constant error in depression, and errors that run on from reading
+  to reading (the residuals' lag-1 correlation is +0.07 and +0.51 on Puerto Rico's azimuths and depressions).
+- *The heading box and the direction of flight* (`drift.aircraft_wind`; 2026-11-13, IDEAS.md DR2). The aircraft's own wind
+  comes from its positions and its heading box through a turn, and took the box as the direction of flight. On
+  PR051's upload that fails: the second leg misfits by 17 m where its positions scatter by 3, and the two legs
+  share one wind to 3.7 m only with the aircraft 14.2 +- 0.3° right of its box (52 m without; what the 14° is stays
+  open). The box alone gives 21.6 m/s from 211°, the positions 11.2 from 266°, and T2 failed or passed on that
+  alone. So the positions are fitted again with one constant added to every heading, and the constant is taken where
+  two things hold. An F test of the second fit over the first passes at 1 % (`HEADING_P`). And the constant exceeds
+  half a step of the heading box by two of its errors: a box that prints whole degrees cannot say where in the degree
+  the heading is, and with fine positions that rounding alone passes the F test (28 % of drawn turns at a tenth of
+  an arcsecond, 12 % overall). The rule's false-alarm rate, measured: of 720 drawn turns of 40-157° with the box true,
+  positions rounded to 1, 0.36 and 0.1 arcseconds and the heading to a degree, it takes an offset on 2 (0.3 %; 95 %
+  upper bound 0.9 %). Its power on the same turns: an offset of 1° is taken on 65 of 200, 2° on 150, 5° on 197,
+  14.2° on 200. Where an offset is taken, the wind, the airspeed and their errors are the second fit's. Where none
+  is, the wind is the first fit's, as before, and its error is the larger of the two fits' with what an offset
+  inside the box's own step would do. Both fits' errors use the position error given (10 m) and are scaled up by a
+  misfit, never down: a rounded heading leaves errors that run on from reading to reading, and the positions' own
+  scatter understated them (two such errors held the true wind 74-87 times in 100 on drawn turns of 157°; with the
+  error given, 99-100). The wind's error now enters T2: the tolerance takes the largest of the counted winds' own
+  errors, a model's 3 m/s or two errors of the aircraft's own wind. And a turn too short to tell the wind from the
+  offset and the airspeed gives no wind that counts: two errors over 5 m/s (`VELOCITY_FIX`), which a 41° turn of ten
+  readings does not meet and PR051's 52° turn of 23 readings just does (4.4). The Puerto Rico turn asks for no offset
+  (-0.23 +- 0.15°, p 0.12): its wind is 9.51 m/s from 70.6° as before, its error 0.55 where it was 0.25. What this
+  costs, on drawn orbits with the aircraft's own wind the only one, 60 draws each: with the box 14.2° off, the old rule
+  failed 60 of 60 drifters and the new one passes 60 of 60; with the box true and a 157° turn nothing changes (drifters
+  pass, 25 m/s through the air fails, 5 and 10 m/s cannot say); on a 60° turn a body flying 5 m/s through the air
+  now passes 55 of 60 where 3 did, because the wind from so short a turn is known to about 2.4 m/s once the offset is
+  open. T2 never told 5 m/s from drift where the winds were that uncertain; now it says how uncertain they are.
+- *A wind read far from the object's height* (`drift.wind_change`, `SHEAR_AT_KM`, `SHEAR_POWER`; 2026-11-13, IDEAS.md
+  DR4). One wind alone has no spread, so T2 held it at the spread's floor, 0.25 m/s, and took it as the wind at the
+  object's height wherever it counted: within a factor of 4 in height. On PR051 the aircraft's own wind, read 1,422 m
+  above the object, decided a fail. How much the wind changes with height is measured on radiosondes: 8,125 soundings
+  of 18 IGRA v2 stations at 00 and 12 UTC, January to early November 2026 (the data folder's `winds_igra/`;
+  `tools/shear_igra.py`; the table of percentiles is `tests/golden/shear_soundings.csv`). The vector change of the wind
+  between two levels of one sounding grows as a power of their height difference dz: nine times in ten it is under
+  10.3 (dz / 1 km)^0.57 m/s. That is 2.8 m/s over 100 m, 6.1 over 400 and 12.6 over 1,422. The law was set on the
+  even-numbered stations and held on the odd ones: 0.89 of their pairs and 0.88 of their soundings (one pair each) lie
+  under it, 0.86-0.93 by height difference from 50 m to 6.4 km. It is one law for every height and place, which it is
+  not quite: by height band the constant runs from 8.6 (3-8 km above the ground) to 12.0 (8-16 km) and the power from
+  0.46 to 0.60; by station the 90th percentile at 1.2 km runs from 7 m/s (tropical coasts) to 14 (mountains, desert
+  coasts); it is 11.0 from November to April and 8.3 from May to October. Each wind now carries how far in height it
+  was read from the object (`level_gap_m`: none where it was interpolated to the object's height), and T2 adds the
+  wind's change over the smallest such gap among the counted winds to its tolerance. Where that change is over 5 m/s
+  (`VELOCITY_FIX`: a gap over about 280 m), no wind was read near enough to tell a drifter from a slow flier: T2 cannot
+  pass, and says so; it still fails a body 10 m/s or more beyond the whole tolerance. With a second wind at the
+  object's height nothing is added: the winds' own spread says how they differ. What the rule did to true drifters,
+  counted on the odd-numbered stations' soundings with the fitted velocity taken as exact: given one wind 1,422 m from
+  the drifter's height, the old rule failed 18.7 % of them and passed 0.2 %; at 800 m it failed 10.8 %, at 400 m 4.1 %.
+  The new rule fails 0.6 % at 1,422 m and 0.2 % at 400 m and passes none there; at 100 m it passes 89 % (9 % before)
+  and at 200 m 80 %. The Puerto Rico lanterns have a sounding and a measured profile at their height, so nothing is
+  added and nothing moves; PR051's one wind is 1.4 km off, and T2 cannot say.
 - *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
   of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
   `comes_back`): the whole track beats, or passing windows that do not overlap agree, more of them than chance gives
@@ -3763,8 +3857,14 @@ depression below the horizontal.
   or more), or if it could not have seen a beat a third as strong. Where it could have and does not, the beat is the first
   camera's view, and T3 passes on it. On the Galileo clouds, Hideout's 7 % beat at 1.94 Hz went where Sphere, able to see
   1 %, saw none; a 5 % beat at 2.44 Hz stayed, the other camera seeing 0.8 % where only 2 % would have shown. The
-  envelopes must be of the same moments; nothing here can check it. No beat passes, with the smallest beat the clip could have shown (the injections' floor, else the
-  rule's own threshold, three times the background's).
+  envelopes must be of the same moments; nothing here can check it. No beat passes, with the smallest beat the clip could have shown. That is the injections' floor
+  where `mcdonald flicker` ran them. A result out of `mcdonald run` or a case file has none, and there it is the track's
+  own closed-form floor (§13, `flicker.analytic`'s `with_floor`: what a beat needs in the track's own noise and over the
+  background's flicker), which the stage records for every object and the report's beat row already reads (2026-11-13,
+  IDEAS.md DR5). Until then the rule's own threshold was quoted there, three times the background's beat, which says
+  nothing of the track's noise: on 18 of the 28 reference objects the track's own floor is higher, by up to 17 times
+  (PR088 object 2: 2 % quoted, 36 % in truth), and PR097 object 4 read "only a beat over 2 % would have shown" beside
+  an 8.7 % peak that did not show. Only the sentence moves, no outcome; the rule's threshold stays the last resort.
 - *T4, other evidence.* Does other evidence in the video, where there is any, agree with drift? Few videos show a strike
   or anything shed, so this test runs only on whichever of its parts the inputs allow. It fails when a part fails,
   passes when a part passes and none fails, and cannot say otherwise; only its tracer part bears on the airspeed.
@@ -3773,7 +3873,9 @@ depression below the horizontal.
     speed against the remains, in L per second (a straight line in time to their difference, its error from a
     moving-block bootstrap), divided by sin δ bounds the airspeed in the object's own lengths per second, with no field
     of view, range or wind. Fixed-wing drones cruise at two or more of their lengths a second, birds at four or more: a
-    bound under 2 passes; pieces leaving at 2 L/s or more fail. L is taken at its smallest (the rate kindest to a
+    bound under 2 passes; pieces leaving at 2 L/s or more fail, with or without δ: what shows across the line of
+    sight is the least the airspeed can be, and flight along it only adds (2026-11-13, IDEAS.md DR5; until then a
+    missing δ was asked for first and such pieces could not say). L is taken at its smallest (the rate kindest to a
     flier). Cloud is a tracer too (`--comotion`, the envelope of `mcdonald comotion`), but only where it is shown at the
     object's depth: cloud passing in front of the object places it within the layer (`--tracer-depth layer`), not at a
     cloud feature's depth, and a relative motion through it can then come from a depth offset inside the layer, from
@@ -3853,6 +3955,21 @@ T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap
   of its brightness, over the whole stretch (frames 13250-13530, a disc of 90 px, ring 100-130, background apertures
   320 px away) and in windows apart, the blade-pass of its two-bladed main rotor (its double folds to 8.68 Hz).
   Verdict: not drifting, the right answer, which only a held beat could give.
+- *PR051's second leg, a second display for the route from the aircraft's own track* (IDEAS.md DR1; 2026-11-13;
+  `tests/golden/pr051_drift/`, held in test_drift and test_golden). **Its inputs were read off the data bar of the
+  unredacted upload by an agent and have not been checked by a person**; a second agent checked seven of the 23
+  frames (the whole seconds, the height and the grid's hundreds of metres agree; the ranges recomputed from the
+  readings match the ranges the bar prints to 1-12 m). It is kept as a test of the route's arithmetic on a real
+  display, not as a finding about the object, and no verdict is drawn from it. The route takes the bar's TGT A as the
+  boresight's ground point while the gate holds the object, so the scene must stream behind the object. On the ULTN
+  part of the hold (39-58.5 s; 13 readings) `mcdonald scene` reads that stream at 0.8-0.97 of the rate TGT A's
+  motion gives, on the upload, on a 29.97 copy of it and on the released copy, with a control at 0.88 where the scene
+  is known; on the 4X part (60-73.5 s; 10 readings) no reading of the picture has power, and the bar alone carries
+  them. What the stage says of the 23 rays: 9.4 m/s toward 103° at 4,298 m above the sea, 11.0-11.7 km from the
+  aircraft; their own scatter (0.018° and 0.004°) in place of the errors given; T1 passes (+0.08 +- 0.19 m/s); the
+  aircraft flew 14.7 +- 1.3° right of its heading box, and its wind is 11.2 m/s from 266°; T2 cannot say, since that
+  wind, the only one, was read 1.4 km above the object; T3 passes on the 4 s of the hold it was given. Verdict:
+  cannot say. Three of this stage's rules were found on it (the errors, the heading box, the far wind).
 - *PR055* (a dark sphere seen passing into cloud): `comotion` on the zoomed frames, pairs of 6 frames, finds it moving
   through the cloud field at 1.31 and 3.66 of its diameters a second on its two visible legs (15.0 D in 5.6 s; 15.0-15.7 D
   for every ring from 450 px out), and turning about 110 deg against a steady flow. The cloud places it only within the

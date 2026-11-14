@@ -1219,6 +1219,50 @@ def test_pr051_released_track_against_the_scene():
           "PR051: it says the camera was not turning, and that the release explains none of it")
 
 
+def test_pr051_drift_from_the_aircrafts_own_track():
+    """PR051's upload, the second leg of the aircraft's turn (37.5-73.5 s): `mcdonald drift` from the aircraft's own
+    track, the route of the Puerto Rico lanterns, on a second display (IDEAS.md DR1; 2026-11-13). The inputs are the
+    data bar's readings in `tests/golden/pr051_drift/` -- READ BY AN AGENT AND NOT CHECKED BY A PERSON, as their headers
+    say, with what a second agent checked. They rest on TGT A being the boresight's ground point while the gate holds
+    the object: `mcdonald scene` reads that on the ULTN part of the hold (the scene streams behind the object at
+    0.8-0.97 of the rate the bar gives, on three copies), and on the 4X part no reading of the picture has power.
+    What the stage says: it holds its height; the aircraft flew 14.7 deg right of its heading box; and T2 cannot say,
+    because the only wind, the aircraft's own, was read 1.4 km above it. No verdict on the object is drawn from this."""
+    print("\nPR051's upload, 37.5-73.5 s -- drift from the aircraft's own track (an agent's readings of the data bar)")
+    video = reference_data.root() / "pr051" / "yt_nKtJslcHlCQ_1080p60_h264.mp4"
+    if not video.exists():
+        print(f"  SKIP  {video} is not here")
+        SKIP.append("PR051 drift")
+        return
+    import json
+    g = HERE / "golden" / "pr051_drift"
+    with tempfile.TemporaryDirectory() as td:
+        out = run(["drift", str(video), "--platform", str(g / "platform.csv"), "--los", str(g / "los.csv"), "--ground-m", "525.8",
+                   "--flicker", str(g / "flicker.json"), "--out", str(Path(td) / "p"), "--json"], td)
+    r = json.loads(out)["results"]
+    T = {t["test"]: t for t in r["tests"]}
+    p, w = r["ground_path"], T["T2"].get("aircraft_wind") or {}
+    check(9.0 <= p["speed_m_s"] <= 9.8 and 100 <= p["toward_deg"] <= 106 and 4270 <= p["height_m"] <= 4330
+          and 10.9e3 <= p["range_m"][0] and p["range_m"][1] <= 11.8e3,
+          "PR051: the path, 9.4 m/s toward 103 deg, 4,298 m above the sea, 11.0-11.7 km from the aircraft",
+          f"{p['speed_m_s']:.2f} m/s toward {p['toward_deg']:.1f} deg, {p['height_m']:.0f} m, {p['range_m'][0] / 1e3:.2f}-{p['range_m'][1] / 1e3:.2f} km")
+    check(p["errors_from"] == "the rays' own scatter" and 0.014 <= p["sigma_deg"][0] <= 0.023 and p["sigma_deg"][1] < 0.006
+          and 2.0 <= p["az_reference_pull_m_s"] <= 5.5,
+          "PR051: its errors are from the rays' own scatter (0.018 and 0.004 deg), with the azimuth reference carried (3.7 m/s a degree)",
+          f"{p['sigma_deg'][0]:.4f}, {p['sigma_deg'][1]:.4f} deg; {p['az_reference_pull_m_s']:.2f} m/s a degree")
+    check(T["T1"]["outcome"] == "passes" and abs(T["T1"]["climb_m_s"] - 0.08) <= 0.05 and 0.14 <= T["T1"]["climb_err_m_s"] <= 0.24,
+          "PR051: T1, it holds its height (+0.08 +- 0.19 m/s)", T["T1"]["reading"])
+    check(w.get("heading_offset_seen") and 13.0 <= w["heading_offset_deg"] <= 16.5 and abs(w["speed_m_s"] - 11.2) < 0.6
+          and abs(w["from_deg"] - 265.7) < 4 and abs(w["as_displayed_speed_m_s"] - 21.6) < 0.5,
+          "PR051: the aircraft flew 14.7 deg right of its heading box; its own wind 11.2 m/s from 266 deg (the box alone: 21.6 from 211)",
+          f"{w.get('heading_offset_deg')} +- {w.get('heading_offset_err_deg', 0):.2f} deg; {w.get('speed_m_s')} m/s from {w.get('from_deg')}")
+    check(T["T2"]["outcome"] == "cannot say" and "no wind was read near its height" in T["T2"]["reading"]
+          and 1380 <= T["T2"]["winds_level_gap_m"] <= 1460,
+          "PR051: T2 cannot say: the only wind was read 1.4 km above the object", T["T2"]["reading"][:120])
+    check(T["T3"]["outcome"] == "passes" and r["verdict"] == "cannot say", "PR051: T3 passes (no beat), and the verdict is cannot say",
+          r["verdict"])
+
+
 def test_flir1_frame_rate():
     """The Navy's 2004 FLIR1, the 2007 copy (2026-10-20): an MPEG-1 VCD stream whose header gives the field rate.
     Read at 59.94 every time and rate on it was halved, and flicker's verdict changed on the same pixels."""
@@ -1981,6 +2025,7 @@ def main():
     test_pr051_zoom_with_no_blank()
     test_pr051_scene_path_against_the_data_bar()
     test_pr051_released_track_against_the_scene()
+    test_pr051_drift_from_the_aircrafts_own_track()
     test_puerto_rico_k_from_the_data_bar()
     test_puerto_rico_lanterns_tau_against_their_range()
     test_puerto_rico_lanterns_over_the_doubling()

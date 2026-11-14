@@ -5,6 +5,50 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`drift` asks more of its own inputs before it decides: four report-changers from the second drift screen** (IDEAS.md
+DR2-DR5; 2026-11-13). All four are in the route that works from the aircraft's own track (`--platform`, `--los`) or in
+what the tests say when an input is missing. Of the three known answers, the Yemen video and the Santa Barbara hoist
+do not change by one digit. The Puerto Rico lanterns keep every outcome and their verdict, and two of their quoted
+errors widen, from the second point below:
+
+| Puerto Rico lanterns | before | now |
+|---|---|---|
+| T1 | "it holds its height: -0.60 +- 0.04 m/s" | "it holds its height: -0.60 +- 0.05 m/s" |
+| T2 | "... within their own spread (6.2 m/s), two errors of the fit (1.0) and a model's own error (3) ..." | "... two errors of the fit (1.3) ..." |
+| T2's tolerance (`--json` output) | 10.18 m/s | 10.50 m/s |
+| the aircraft's own wind (`--json` output) | 9.51 m/s from 70.6 deg +- 0.25 | 9.51 m/s from 70.6 deg +- 0.55 |
+
+- *Errors from the lines of sight themselves* (DR3). The path's errors were those given beforehand (`--los-sigma`,
+  0.3 and 0.1 deg by default) even where the lines of sight fitted far better. Now the errors given stand unless the
+  fit is closer than they allow 99 times in 100. Then the scatter of the lines of sight about the path takes their
+  place. On lines of sight drawn six times tighter than the errors given, two such errors hold the true velocity 95
+  times in 100.
+- *The display's own north* (DR2). Every line of sight rests on the display's reference for true north. A constant
+  error in it turns them all alike, and their scatter cannot show it. The path's errors now carry such an error:
+  how far one degree moves the velocity and the climb, times how well the reference is known. By default that is the
+  error given for an azimuth, a compass direction (0.3 deg), and `--az-ref-err` gives another. This default is a judgement, not a measurement.
+- *The heading box is tested, not trusted* (DR2). The aircraft's own wind comes from its positions and its heading
+  through a turn. The stage took the heading box as the direction of flight. It now fits one constant angle between
+  the two and uses it where the positions ask for it. On drawn turns with a true box it does so 3 times in 1,000. The
+  wind's own error now counts in T2, and a turn too short to fix the wind gives none.
+- *One wind far from the object's height* (DR4). A single wind was taken as the wind at the object's height, with no
+  allowance, wherever it lay within a factor of 4 in height. Weather balloons show how much the wind changes with
+  height (8,125 flights from 18 stations). Nine times in ten it changes by less than 10.3 m/s over a kilometre, and
+  by less than 6.1 over 400 m. T2 now allows for that change. It cannot pass on a wind read more than about 280 m
+  from the object's height. On those flights the old rule failed 19 of 100 objects that truly drifted, given one wind
+  1.4 km away. The new one fails fewer than 1.
+- *A fast piece fails without the depression* (DR5). Some pieces leave an object at two of its lengths a second or
+  more. They show that it flies, whatever the depression of the line of sight. T4a said "cannot say" when no
+  depression was given. It now fails.
+- *The smallest beat a track could have shown* (DR5). For a result out of `mcdonald run` or a case file, T3 quoted three
+  times the background's own beat. It now quotes the track's own floor, which is higher on 18 of the 28 reference
+  objects, by up to 17 times. No outcome changes. The sentence does: one object's "only a beat over 2 %" becomes 8 %.
+
+New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_reference_*`, `velocity_err_rays_m_s`; T2's
+`winds_own_err_m_s`, `winds_level_gap_m`, `wind_change_m_s`; `aircraft_wind.heading_offset_*`, `fixed`. New data:
+`winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
+has each rule, its null and what it costs.
+
 **A beat is now held against the clip's own sound** (a change to reports; the maintainer's choice of 2026-11-13).
 `flicker` lists the rhythms a supply, a codec or the sampling can put into a brightness curve, its look-alikes, and
 marks a beat that sits at one. Since 0.3.0 that list was meant to hold the rhythms the clip's own sound carries too
