@@ -2553,7 +2553,7 @@ contrast test on the symbology's side), and the static test's words are kept whe
   `tests/test_measurement.py`: a gate on top of a dark object (PASS, 1.00), under it (FLAG, 0.25), white bars over a
   white object (no power), a readout drawn for 20 frames over a dark object (PASS, 0.00) and under it (FLAG, 0.98).
 
-**What is drawn is thin, and what is drawn for a stretch stays (added 2026-11-13).** AARO's PR-016 is a row of birds,
+**What is drawn is thin, what is drawn for a stretch stays, and a scene held still decides no text (added 2026-11-13).** AARO's PR-016 is a row of birds,
 and the test flagged the one it followed as possibly added, on both counts: "crosses lines drawn frame by frame ... in
 13 frames; over the object's middle 0.00 of their pixels keep the line's own level (76 DN, the object 255)" and "passes
 symbology drawn for a stretch (text) in 11 frames; its pixels move 1.02 as far toward the object's level". Reproduced on
@@ -2573,26 +2573,33 @@ points 15-20 px apart, each ringed dark by the sensor's edge enhancement, and:
   frames, and those places read as strokes held for the stretch. Now the text's pixels at the object must be nearer
   the text's level than the object's on `TEXT_HELD` (0.75) or more of the window's frames that the object is clear of
   (1.5 sizes away): text held for a stretch is there on all of them, a passing gap on some.
+- *A scene held still.* Where more than 30 % of the frame never changes (`static_masks`' `still_scene`, the clip
+  where that function already says "static and sharp is the scene, not graphics" and leaves such pixels out of its
+  own mask), the text reading decides nothing: "passes symbology drawn for a stretch (text) in N frames, in a picture
+  whose scene holds still on screen, where a stroke of the scene and text drawn for a stretch look alike: that
+  decides nothing" (`TEXT_STILL`; `still_frames`). Over PR-016's frames 560-690 the hold alone left 7 of 25 readings
+  held as text is (0.98), and flagged; and PR47's bird (below) flagged with the hold alone.
 
 What is set aside is in the fields beside what is kept (`wide_frames`, `wide_width_px`; `passing_frames`,
 `passing_held`; and `moving_width_px`, `text_held` for the readings taken).
 
-*The null* (2026-11-13; `_overlay_drawn` with the two gates off and on, on objects nothing was drawn over, each with its
+*The null* (2026-11-13, again with the still-scene rule on 2026-11-14; `_overlay_drawn` with the three rules off and on, on objects nothing was drawn over, each with its
 clip's static masks: the labelled infrared set's 431 tracks that give a polarity, PR-016's bird, PR135's six flock
 members, PR47's bird in a row of three, PR098's three points in a line; and FLIR1's exit, whose gate is drawn).
 
 | objects | flagged before | flagged now | what else |
 |---|---|---|---|
-| the labelled set, 431 tracks | 0 | 0 | 2 PASS and 21 crossings that decide nothing, before; 2 and 20 now |
-| PR-016's bird | FLAG twice (lines, text) | none | all 13 nets set aside; 10 of its 12 text readings set aside, 2 left: "too few to decide" |
-| PR47's bird | FLAG (text, 14 readings, 0.91) | **FLAG** (11 readings, 0.91) | 3 readings set aside |
+| the labelled set, 431 tracks (357 with a scene held still) | 0 | 0 | 2 PASS (moving lines) and 21 crossings that decide nothing, before; 2 and 20 now |
+| PR-016's bird | FLAG twice (lines, text) | none | all 13 nets set aside; the text reading decides nothing (a scene held still) |
+| PR47's bird | FLAG (text, 14 readings, 0.91) | none | the text reading decides nothing (a scene held still) |
 | PR098's three points | 0 | 0 | one "decides nothing" (same side) |
 | PR135's six | 0 | 0 | nothing crossed |
 | FLIR1's exit | - | - | its crossing kept: 4 frames of text, same side, decides nothing |
 
 So on the labelled set the test flags nothing either way: a false-flag rate under 0.7 % (0 of 431; exact, one-sided
-95 %). The rate that matters is on rows of ringed points, and there are three such clips in hand: PR-016's flag is
-gone, PR098's never was, and **PR47's stands**.
+95 %). The rate that matters is on rows of ringed points, and there are three such clips in hand: PR-016's and PR47's
+flags are gone, and PR098's never was. Three is no rate.
+
 
 *The line's width.* The 560 groups that ran through an object on the labelled set (strokes of its scenes: nothing is
 drawn there) read 0.27 of a stroke's width at the median (quartiles 0.18-0.32), 89 % of them 0.5 or less. PR-016's 13
@@ -2600,17 +2607,19 @@ nets read 1.23-1.66. `LINE_THIN` 0.5 is the least that keeps a stroke as wide as
 joined off each other's line; anything from 0.4 to 1.2 gives the same verdicts here. On the labelled set it sets aside
 60 of 560 groups, on 3 tracks, and moves one verdict: a crossing that decided nothing, gone.
 
-*The text's hold is judgement, and only half a remedy.* The shares the null read: PR-016's passing gaps 0.00-0.60 (10
+*The text's hold is judgement, and half a remedy alone.* The shares the null read: PR-016's passing gaps 0.00-0.60 (10
 readings) and two at 0.98 and 1.00; PR47's 0.33-0.68 (3) and eleven at 0.75-1.00; the drawn readout 0.97 on the six readings kept, with five set aside within 8 frames of
 its first and last frames, where the window reaches past it. No line
 divides them: `TEXT_HELD` 0.75 takes out what is plainly passing and no drawn text, and PR47's readings are held as
 text is. PR47's clip holds its scene still on screen, with dark strokes in it that the mask does not know (14,272
 static pixels, the coloured symbology alone): a stroke of the scene and a stroke of the symbology look the same
-there, and the bird passes in front of one. That is not looked at frame by frame yet. What would settle it is the
-scene's own motion over the window (a stroke of the scene moves with it; drawn text does not), which this test is
-not handed.
+there, and the bird passes in front of one (read so; not looked at frame by frame). Hence the third rule. **Its cost**:
+in a clip whose scene holds still, a paste under drawn text is no longer caught by this reading, which says it cannot
+decide; the moving-line reading and the static symbology's still decide there. On the labelled set 357 of 432 tracks
+are such clips, and the rule changed no verdict of theirs. What would decide text in them is the scene's own motion
+over the window (a stroke of the scene moves with it; drawn text does not), which this test is not handed.
 
-*How it fails.* (1) A drawn line wider than half a stroke's width for its picture's height is set aside: a bar drawn
+*How it fails.* (0) In a clip whose scene holds still, text drawn for a stretch decides nothing (above). (1) A drawn line wider than half a stroke's width for its picture's height is set aside: a bar drawn
 6 px wide at 1080 rows, or one blurred to that; `ridges` would mostly not have found it either (a stroke is "no wider
 than about" its step). (2) Text shown for under three quarters of the 17-frame window (under about 13 frames, 0.4 s) is
 not read near its start and end, and a readout that changes digit every few frames may never be. (3) Neither gate
@@ -4261,7 +4270,27 @@ A single block is a cadence in at most 2.3 % of them (runs of mean two; 1.9 % by
 the line's 5 %, and the word needs more than half its blocks. So the block reading adds at most 0.15 % to the false
 alarms at 180 frames and nothing found from 450, where the rate the line was set to is 5 %.
 
-POWERTABLE
+*The other side: a cadence broken* (200 words a cell: a mechanical word at a random phase, with a burst of extra holds
+at a random place, frames misread at random, or both). The share called a cadence, by the whole word (the rule
+before) / now, %:
+
+| source on a 30-a-second grid | frames | intact | a burst of 20 | a burst of 60 | 20, and 1 % misread | 20, and 2 % misread | 2 % misread |
+|---|---|---|---|---|---|---|---|
+| 20 on 30 (one in three held) | 180 | 100 / 100 | 0 / 81 | 0 / 8 | 0 / 58 | 0 / 45 | 79 / 85 |
+|  | 300 | 100 / 100 | 0 / 100 | 0 / 100 | 0 / 87 | 0 / 60 | 85 / 90 |
+|  | 3000 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 |
+| 25 on 30 (one in six) | 180 | 100 / 100 | 0 / 78 | 0 / 2 | 0 / 54 | 0 / 35 | 66 / 80 |
+|  | 300 | 100 / 100 | 0 / 100 | 0 / 100 | 0 / 76 | 0 / 49 | 59 / 74 |
+|  | 3000 | 100 / 100 | 100 / 100 | 0 / 100 | 94 / 100 | 8 / 92 | 73 / 96 |
+| 10 on 30 (two in three) | 180 | 100 / 100 | 33 / 95 | 0 / 28 | 9 / 70 | 2 / 48 | 78 / 88 |
+|  | 300 | 100 / 100 | 100 / 100 | 0 / 100 | 56 / 95 | 16 / 67 | 87 / 94 |
+|  | 3000 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 |
+
+A single burst of 20 or 60 held frames in 300, the drone's own kind, was never a cadence by the whole word and now is
+every time; at 180 frames a burst takes one of three blocks and the reading needs the other two, so a burst of 60
+(a whole block and part of another) leaves it at 2-28 %. Over 3,000 frames the whole word mostly carried the burst
+already. Frames misread at random are helped less (2 % misread at 300 frames: 59-87 % to 74-94 %), as a misread frame
+spoils every block it falls in alike.
 
 *On the saved words* (the 432 labelled tracks, the 27 controls, the 31 reference objects: 170 with a tenth of their
 frames held). Four change, one track twice: IR_DRONE_059 (4 of its 5 blocks; the control `sv_drone_059` is the same
@@ -6000,7 +6029,33 @@ said "a step": it took a pair's scale wherever the fit gave a number off the gri
 asked the pair's own verdict (its peak's prominence, its lead over the rival scale). PR27's burst at 89 s, featureless
 haze, the trap section 17 names, read "x3.1271, 95 % x3.1271-x3.1271" from 15 pairs all stuck on one value of the grid.
 Now a pair's scale is taken only where its own fit is a step or no step, and pairs that all give one value are no
-estimate. RERUN
+estimate.
+
+*The five clips again, with the fix* (2026-11-14; 43-82 minutes a clip). The pairs of the nine bursts the stage
+calls unknown are now too few to trust, but for one: Puerto Rico at 185.6 s, where 12 of the 16 pairs are trusted on
+their own and agree, x2.9551 (2.9430-2.9672), though the burst's own pair is not (a step `zoom.confirm` would accept
+by its own rule, two pairs further out passing). The known steps:
+
+| clip | the step | before the fix | with it |
+|---|---|---|---|
+| PR057a, 32.8 s | x2 | x2.0004, 1.9924-2.0085 | the same |
+| PR057a, 53.8 s | the x5.9 rung | x4.92, 3.55-9.46, "a step" | x5.61 from 11 pairs, 0.97-32.4: **not a step at that level** |
+| PR27, 74.3 s (a picture step) | its pair's x1.205 | x0.859, 0.134-7.73 | x1.2039, 1.1552-1.2546, a step |
+| PR27, 82 s | x2 | x2.0025, 1.9954-2.0092 | the same |
+| PR27, 127.7 s (a picture step) | its pair's x0.852 | x0.8583, 0.7499-0.9926 | x0.8534, 0.8250-0.8828, a step |
+| PR105, 94.6 s | x2 | x2.0008, 1.9933-2.0091 | the same |
+| PR105, 125.7 s | x0.5 | x0.5005, 0.4924-0.5071 | x0.4996, 0.4984-0.5009 |
+| PR144, 2.5 s | x5.884 by hand | x5.8608, 5.7738-5.8969 | the same |
+| Puerto Rico, 20.5 s | x5.000 (the display) | x4.9149, 4.8932-4.9694 | the same: not held |
+| Puerto Rico, 118.1 s | x2.9985 | x3.1270, 2.7795-3.4387 | **too few pairs trusted** |
+| Puerto Rico, 142.6 s | x0.3335 | x0.3260, 0.3200-0.3300 | x0.3308, 0.2999-0.3648: held |
+
+Taking only the pairs whose own fit is trusted narrows the intervals where the pairs agree (PR27's two picture steps,
+PR105's x0.5) and widens or removes them where few do (PR057a's x5.9 rung, Puerto Rico's x3). Two known steps are lost
+to the reading that way, and none is read wrong. The placebos: 46 judged of 50, **none a step** (under 6.3 %, exact,
+one-sided 95 %); the same 7 intervals exclude x1, six of them PR105's drift, so the finding above stands unchanged.
+What `--rd` adds, then: an interval on a step that the pairs agree on, and a way to see that they do not. The
+single burst's pair (`zoom.fit_all`, `zoom.confirm`) stays the reading the states are built from.
 
 **The zoom ladder pooled (E16; `scale.ladder`, `credible`, `carry`).** International price comparison fits log price = country
 effect + product effect over rarely observed pairs (Summers 1973), and finance shrinks a stock's noisy beta towards the cross

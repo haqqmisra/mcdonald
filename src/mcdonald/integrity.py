@@ -361,7 +361,8 @@ TEXT_HELD = 0.75         # text held for a stretch is at its own level on at lea
                          # readout 0.97, but strokes of a scene that holds still read as text does (PR47's bird: 0.75-1.00
                          # on 11 readings of 14; PR-016's on 7 of 25 over frames 560-690). So where the clip's scene holds
                          # still (`static_masks`' still_scene: what stays put there may be the scene, as that function
-                         # already says of its own mask) the text reading decides nothing (method 25)
+                         # already says of its own mask) the text reading decides nothing (TEXT_STILL; method 25). Its
+                         # cost there: a paste under drawn text is not caught by this reading
 
 
 def _axis(px):
