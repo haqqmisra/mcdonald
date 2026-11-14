@@ -1700,12 +1700,25 @@ def background_windows(beside, own, n, bgs, ns, fps, lines, gone, top, scale):
     """[passing, all] of the windows of the apertures `bgs` beside the object `n`, each put through the object's own
     windows (`windows`) as if it were the object, held against the others and measured in the object's brightness
     `scale` (as `_control` does), over the object's own stretch: what passes there passes by chance. None where fewer
-    than two apertures could be read. `own` is {name: curve over the stretch}; `beside` a `progress.Beside`."""
-    jobs = [beside.call(windows, {m: own[m] for m in [b] + [c for c in bgs if c != b]}, b, [c for c in bgs if c != b],
-                        ns, fps, lines, gone=gone, top=top, scale=scale)
-            for b in bgs if len(bgs) >= 2]
-    got = [w for j in jobs for w in j.result()]
+    than two apertures could be read. `own` is {name: curve over the stretch}; `beside`, a `progress.Beside`, is no longer
+    used (the apertures go to processes, below) and is kept for the callers."""
+    jobs = [(({m: own[m] for m in [b] + [c for c in bgs if c != b]}, b, [c for c in bgs if c != b], ns, fps, lines),
+             dict(gone=gone, top=top, scale=scale)) for b in bgs if len(bgs) >= 2]
+    if not jobs:
+        return None
+    # Each aperture's windows are a drawn null per window, mostly small arrays that hold the interpreter: on threads
+    # they took turns (2026-11-13: four apertures of PR088's 3,559 frames added 107 s to the stage), so they go to a
+    # small pool of processes, one an aperture, as many as there are CPUs; the curves go out and the windows come back,
+    # both small. The same function on the same arguments, so the same windows. With one CPU, here.
+    from .progress import cpus
+    got = [w for ws in pooled(min(len(jobs), cpus()) if cpus() > 1 else 0, _windows_of, jobs) for w in ws]
     return [sum(1 for w in got if w["passes"]), len(got)] if got else None
+
+
+def _windows_of(job):
+    """`windows(*args, **kw)` of one job of `background_windows`, in a pool's worker."""
+    args, kw = job
+    return windows(*args, **kw)
 
 
 def back_said(b):
@@ -4232,13 +4245,20 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
                 F["floors"][n] = floor_n
             own = {m: use[m][s0:s1] for m in [n] + beside_n}
             wins_job = beside.call(windows, own, n, beside_n, ns[s0:s1], fps, lines, gone=[k - s0 for k in gone.get(n, [])], top=top)
-            d = drift(own[n], fps)
-            per[n].update(over_drift=d["over"], drift_needed=d["needed"])
-            per[n]["above_top"] = per[n]["hz"] > top
             def bg_at(hz, bgs=beside_n, spectra=spectra):
                 vals = [float(2 * np.abs(spectra[b]["F"][int(np.argmin(np.abs(spectra[b]["fr"] - hz)))]) / spectra[b]["wsum"]) for b in bgs]
                 return float(np.median(vals)) if vals else float("inf")
-            ok, read = whole_passes(own[n], per[n], fps, top, [own[b] for b in beside_n], floor_n, None, level[n] if mine[n] else scale, d, bg_at=bg_at)
+            others_n = [own[b] for b in beside_n]
+            # The paper's rule judges the whole track by its continuum null and reads no drift: that test is begun beside
+            # the drift (each a drawn null of the whole track, 7 and 13 s on PR088's 3,559 frames), on the peak as it
+            # stands before the drift's fields are added to it. The stage's rule needs the drift, and waits for it.
+            wp_job = (beside.call(whole_passes, own[n], dict(per[n]), fps, top, others_n, floor_n, None,
+                                  level[n] if mine[n] else scale, None, bg_at=bg_at) if active_rule() == "paper" else None)
+            d = drift(own[n], fps)
+            per[n].update(over_drift=d["over"], drift_needed=d["needed"])
+            per[n]["above_top"] = per[n]["hz"] > top
+            ok, read = (wp_job.result() if wp_job is not None else
+                        whole_passes(own[n], per[n], fps, top, others_n, floor_n, None, level[n] if mine[n] else scale, d, bg_at=bg_at))
             per[n].update(read)
             whole_ok[n] = ok
             wins = wins_job.result()
@@ -4302,6 +4322,8 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
     mine = st["mine"]
     # the background apertures judged as the object, begun now and read where they are written into the fields below
     ctrl_job = controls_started(beside, use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
+    # ... and each object's steadiness (a drawn null of the whole stretch it was followed over): its beat stands from here on
+    steady_job = {n: beside.call(steadiness, deviation(use[n][seg[n][0]:seg[n][1]], fps), fps, fields["beat"][n]["hz"]) for n in obj}
     # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
     sound = []
     if video:                                              # the clip's own sound, where it has any (`mcdonald audio`)
@@ -4408,8 +4430,7 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
     steady = {}
     for n in obj:
         s0, s1 = seg[n]
-        steady[n] = dict(steadiness(deviation(use[n][s0:s1], fps), fps, fields["beat"][n]["hz"]),
-                         frames=[int(ns[s0]), int(ns[s1 - 1])])
+        steady[n] = dict(steady_job[n].result(), frames=[int(ns[s0]), int(ns[s1 - 1])])
     fields["steadiness"] = steady
     # ---- one stretch against its own continuum (item 15; 2026-10-30): before anything is said of a beat that is not kept
     unheld = [n for n in strong if not once_held(fields["beat"][n], cont[n])]

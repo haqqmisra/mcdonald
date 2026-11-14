@@ -250,6 +250,20 @@ New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_r
 `winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
 has each rule, its null and what it costs.
 
+**A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone
+now runs beside the rest, each piece the same function on the same arguments: the scene's held-still pairs looked
+up once, not once a pair (`layers`); the second pass's frames read ahead on a graphics card; a beat's steadiness,
+the motion models and the paper rule's test of the whole track each beside the work they do not depend on; the two
+coordinates of the speed band fitted side by side; `tether`'s stacks filled by bands of rows. And the background
+apertures' windows that 0.5.4 began to judge (`flicker.background_windows`) go to a small pool of processes: on PR088
+object 2 (3,559 frames) they had added 107 s to the flicker step, the apertures taking turns on threads. Held by the
+fourteen reference case files measured again before and after (31 objects, no difference at one part in a billion)
+and by every suite. A stage run inside someone else's pool of processes (the controls' rejudge) does its pooled
+work in line there, where a pool of its own would not start (`progress.workers`).
+
+**The add-on for graphics cards says its own system's download.** PyPI's wheels for Windows are 1,303 and 1,727 MB,
+not Linux's 1,350 and 1,820; the window's words and its bar now use this system's (`addon.download_mb`).
+
 ## 0.5.4 (2026-11-14)
 
 **A beat is now held against the clip's own sound** (a change to reports; the maintainer's choice of 2026-11-13).

@@ -57,8 +57,15 @@ REQUIRES = {"gpu": ["cupy-cuda12x[ctk]>=14"], "gpu-cuda13": ["cupy-cuda13x[ctk]>
 CUDA = {"gpu": 12, "gpu-cuda13": 13}                # the CUDA whose libraries each brings
 OLDEST = (12, 0)                # a driver must run at least this CUDA for either
 STILL_RUN = (7, 5)              # the compute capability from which CUDA 13's libraries run a card (Turing)
-DOWNLOAD_MB = {"gpu": 1820, "gpu-cuda13": 1350}     # what pip downloads: PyPI's wheels for Linux, measured 2026-11-13 (those
-DISK_MB = {"gpu": 2800, "gpu-cuda13": 1900}         # for Windows add up to 1,727 and 1,303 MB), and what they take unpacked
+DOWNLOAD_MB = {"gpu": 1820, "gpu-cuda13": 1350}     # what pip downloads: PyPI's wheels for Linux, measured 2026-11-13,
+DISK_MB = {"gpu": 2800, "gpu-cuda13": 1900}         # and what they take unpacked
+DOWNLOAD_MB_WINDOWS = {"gpu": 1727, "gpu-cuda13": 1303}   # the same wheels for Windows, by PyPI's own file sizes (2026-11-13)
+
+
+def download_mb(extra, platform=None):
+    """What pip downloads for `extra` on this system (or `platform`, sys.platform's name), in MB: the window's bar
+    counts to it, and its words say it. Windows's wheels are a little smaller than Linux's; a Mac has no add-on."""
+    return (DOWNLOAD_MB_WINDOWS if (platform or sys.platform) == "win32" else DOWNLOAD_MB)[extra]
 PIP = None                      # a test's stand-in for [python, "-m", "pip"]
 TAIL = 12                       # lines of what pip said that a failure keeps
 
@@ -101,7 +108,7 @@ def offer(cards=None, seen=None):
         cannot = (f"The add-on needs NumPy 2, and this Python has NumPy {'.'.join(map(str, numpy))}, which cannot be "
                   f"replaced while mcDonald runs. Close mcDonald and type in a terminal: {update.said(command(extra))}")
     return dict(card=ours[0]["name"], extra=extra, requires=list(REQUIRES[extra]), cuda=(seen or {}).get("driver"),
-                download_mb=DOWNLOAD_MB[extra], disk_mb=DISK_MB[extra], command=command(extra), cannot=cannot)
+                download_mb=download_mb(extra), disk_mb=DISK_MB[extra], command=command(extra), cannot=cannot)
 
 
 def _numpy():
@@ -147,7 +154,7 @@ def room(extra, where=None, temp=None):
         where = where.parent
     try:
         same = os.stat(where).st_dev == os.stat(temp).st_dev
-        need = [(where, DISK_MB[extra] + (DOWNLOAD_MB[extra] if same else 0))] + ([] if same else [(temp, DOWNLOAD_MB[extra])])
+        need = [(where, DISK_MB[extra] + (download_mb(extra) if same else 0))] + ([] if same else [(temp, download_mb(extra))])
         for folder, mb in need:
             free = shutil.disk_usage(folder).free / 1e6
             if free < mb:
@@ -173,7 +180,7 @@ def install(extra, progress=None, said=None, stop=None):
     short = room(extra)
     if short:
         return dict(result, why=short)
-    state = dict(phase="looking", mb=0.0, of=float(DOWNLOAD_MB[extra]), file="")
+    state = dict(phase="looking", mb=0.0, of=float(download_mb(extra)), file="")
     before, lines = 0, []                             # bytes of the files already here; what pip said
     folder = Path(tempfile.mkdtemp(prefix="mcdonald-addon-"))
     try:
@@ -255,7 +262,7 @@ def explain(lines, extra="gpu"):
     """One plain sentence for why pip failed, from what it printed (`lines`)."""
     text = "\n".join(lines)
     if re.search(r"No space left on device|Errno 28\b|not enough (free )?space", text, re.I):
-        return f"The disk filled up. The add-on needs about {(DOWNLOAD_MB[extra] + DISK_MB[extra]) / 1000:.0f} GB of free space."
+        return f"The disk filled up. The add-on needs about {(download_mb(extra) + DISK_MB[extra]) / 1000:.0f} GB of free space."
     if "externally-managed-environment" in text:
         return "This Python is looked after by the operating system, which does not let pip add packages to it."
     if re.search(r"Permission denied|Errno 13\b|Access is denied", text, re.I):

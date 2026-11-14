@@ -4822,6 +4822,28 @@ def test_a_large_machine_runs_no_more_than_most_workers():
         os.environ.pop(progress.CPUS_VAR, None)
         if keep is not None:
             os.environ[progress.CPUS_VAR] = keep
+    # A pool's worker is a daemonic process and may start no pool of its own: there `workers` is 0 and a stage's
+    # pooled work runs in line. The controls' rejudge judges tracks inside a pool's workers, and since 2026-11-13
+    # `flicker.background_windows` pools the background apertures' windows: the same windows there as here.
+    from mcdonald import flicker
+    ctx = progress.context()
+    with ctx.Pool(1) as pool:
+        inside = pool.apply(progress.workers, (4,))
+        got = pool.apply(_background_windows_drawn)
+    here_got = _background_windows_drawn()
+    check(inside == 0 and got == here_got and here_got is not None and here_got[1] > 0,
+          "inside a pool's worker no pool is started: the background apertures' windows are read in line there, the same "
+          "as on a pool here", f"workers {inside} there; {here_got} here, {got} there")
+
+
+def _background_windows_drawn():
+    """`flicker.background_windows` of four drawn apertures of noise, 300 frames at 30 a second (for the check above,
+    at module level so that a pool's worker can run it)."""
+    from mcdonald import flicker
+    rng = np.random.default_rng(20261114)
+    bgs = [f"background {i}" for i in range(4)]
+    own = {b: list(rng.normal(0, 40, 300)) for b in bgs}
+    return flicker.background_windows(None, own, "object", bgs, list(range(1, 301)), 30.0, [], [], flicker.TOP * 15.0, 1000.0)
 
 
 def _square(x):

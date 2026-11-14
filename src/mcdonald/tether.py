@@ -169,6 +169,7 @@ def stroke_mask(g, length=STROKE_LEN, above=STROKE_DN, bright=STROKE_MIN):
 
 
 CACHE_BYTES = 600 * 1024 ** 2   # frames are kept between passes as uint8 while they fit in this
+STACK_BANDS = 4                 # threads a frame's rows are shared among, a stack, as it is added to the stacks (`stack_both`)
 
 
 def _read(clip, masks, rows, track, radius, strokes, n):
@@ -326,22 +327,31 @@ def stack_both(clip, track, frames, radius=None, progress=None, stop=None):
         w = (~bad).astype(np.float64)
         return w, g * w
 
-    def put(a, c, xy, w, gw):                              # one frame into one stack, where (x, y) puts it
+    def placed(xy):                                       # where (x, y) puts a frame in a stack: its rows and columns there
         ox, oy = int(round(R - xy[0])), int(round(R - xy[1]))
         x0, y0 = max(ox, 0), max(oy, 0)
         x1, y1 = min(ox + clip.W, S), min(oy + clip.H, S)
-        if x1 <= x0 or y1 <= y0:
-            return
-        a[y0:y1, x0:x1] += gw[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
-        c[y0:y1, x0:x1] += w[y0 - oy:y1 - oy, x0 - ox:x1 - ox]
-    # The two stacks are filled beside each other, each in the frames' own order (a sum of doubles depends on its
-    # order, so no stack's frames are shared out): the object's in a thread beside this one, the mirror's here.
-    beside = Beside(None if frames.procs is None else min(int(frames.procs), 2))
+        return ox, oy, x0, y0, x1, y1
+
+    def put(a, c, at, w, gw, r0, r1):                      # rows r0 .. r1 (of the stack) of one frame into one stack
+        ox, oy, x0, _, x1, _ = at
+        if r1 > r0 and x1 > x0:
+            a[r0:r1, x0:x1] += gw[r0 - oy:r1 - oy, x0 - ox:x1 - ox]
+            c[r0:r1, x0:x1] += w[r0 - oy:r1 - oy, x0 - ox:x1 - ox]
+    # Each frame goes into both stacks with its rows shared among threads (STACK_BANDS bands a stack), and the next
+    # frame only once all are in: every pixel of a stack still sums its frames in their own order, which is what a
+    # sum of doubles depends on, so the stacks are the same to the bit. (2026-11-13: the sums were 18 s of one thread
+    # on PR088's 3,558 frames, the Stack step's whole wait; an add over a band lets the other threads run.)
+    beside = Beside(None if frames.procs is None else min(int(frames.procs), 2 * STACK_BANDS))
     try:
         for i, (n, g, bad, (w, gw)) in enumerate(frames.each(ns, progress, stop, "Stack", also=weighed)):
-            own = beside.call(put, acc, cnt, pos[i], w, gw)
-            put(accr, cntr, pos[len(ns) - 1 - i], w, gw)
-            own.result()
+            jobs = []
+            for a_, c_, xy in ((acc, cnt, pos[i]), (accr, cntr, pos[len(ns) - 1 - i])):
+                at = placed(xy)
+                cut = np.linspace(at[3], max(at[5], at[3]), STACK_BANDS + 1).round().astype(int)
+                jobs += [beside.call(put, a_, c_, at, w, gw, int(r0), int(r1)) for r0, r1 in zip(cut[:-1], cut[1:]) if r1 > r0]
+            for job in jobs:
+                job.result()
             # the cadence: the crop about the object against the last frame's
             x, y = pos[i]
             X0, Y0 = int(max(x - 128, 0)), int(max(y - 128, 0))

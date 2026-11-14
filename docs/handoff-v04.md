@@ -1,4 +1,51 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.4 released 2026-11-14; session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 22, continued overnight (2026-11-13/14): 0.5.4 out, the next round on a branch
+
+**0.5.4 released** by the "GP Triangulation" session on Jacob's word (2026-11-14 morning): version commit e748ad4
+(code = 4847926, its N3 revision on top of this session's commits), tag v0.5.4, GitHub release, PyPI, the site, and
+Zenodo's version DOI 10.5281/zenodo.24220916 in CITATION.cff (e056f12, `origin/main`). Tested at e748ad4: Cannon's
+suites all pass, the Mac and Windows runs green (`macos-ci`/`windows-ci` at e748ad4). Everything of this session up
+to 5e6c468 went out in it: G3, the peaks read at once, the sound's look-alikes, the threads, the two card passes, G5,
+G6. `tests/test_controls.py` is now in every suite list (118 PASS on 4847926).
+
+**After it, on `main` (local, not pushed):** ce4a121 and f0da3a2, two rounds that move no number, each held by
+the fourteen-case gate (31 objects, 0 differences at 1e-9; the second against a fresh reference on 4847926's code,
+`gate/refI`) and by all suites with the goldens on CPUs and with the card (jobs 1854/1855, 2222/2223).
+- ce4a121: `layers._by_pair`, `second_pass` reading ahead on a card, `flicker`'s steadiness beside the stage,
+  `stages.kinematics`' model set beside the speed band. PR088 object 2's main thread busy 97 s of 298 under py-spy
+  (338 s the morning before). Alternating whole runs on a crowded machine (job 2173): 461 and 472 s before, 442 and
+  413 after.
+- f0da3a2: **N3's `background_windows` on a process pool** (on PR088 the Flicker step had gone from 43-49 s on
+  5e6c468 to 153-158 s on 4847926, the four apertures' windows taking turns on threads; agreed with the session that
+  wrote N3); `progress.workers` 0 inside a pool's worker (the controls' rejudge judges inside one: a pool there would
+  fail); under the paper rule `whole_passes` beside the drift; `kinematics._fitted_both`; `tether.stack_both` in
+  bands of rows (STACK_BANDS); `addon.download_mb` (Windows's wheels 1,303 and 1,727 MB, not Linux's).
+- The alternating timing of f0da3a2 against 0.5.4 is job 2209 (`out/ab-snapJ0-snapI3-32-on/`), queued when this
+  was written.
+
+**The catalog run's "slow third pass" was not one** (the development session's batch, notes §12; corrected there in
+§12.4). PR26 object 2 (4,833 s of `layers`) and PR092 object 3 ran across the 21:57-23:12 queue pause, and a
+suspended job's clock keeps running: PR26 object 2 measured again alone (job 2247, 4 CPUs, no card) took 672 s of
+`layers` -- first pass 479, second 134, third 50, the scene's blocks 8. On PR27's two objects and PR094 object 1 (no
+pause) the first pass is most of it: about 2.6 s a 1080p pair at 4 CPUs, where the card takes about 25 ms. A batch
+job given `--gres=gpu:1` is the lever for the next catalog run.
+
+**For Jacob (new):** of the CPU's first pass on PR26, a quarter (478 of 1,970 worker-seconds) is each template's own
+summed-area tables over its search region (`forensics.box_of` inside `zncc`). The card makes those tables once a
+frame. Doing the same on the CPU would cut about a quarter off `layers` on every computer without a card, but the
+sums would then start from the frame's corner, so every CPU measurement would change in its last digits and no
+existing case file would rerun to one part in a billion (`share rerun --strict`). Build it, and remake the reference
+case files with the release that carries it, or leave the CPU's arithmetic as the reference it is?
+
+**Open, from the GP Triangulation session:** under `nulls` (`mcdonald flicker`'s default) the control apertures'
+windows (`_control`, `windows_too`) measure the same apertures again, each over its own stretch. Reusing them for
+`background_windows` would save that time but change the numbers slightly (the aperture's stretch against the
+object's), so it would need the labelled set's measurement (`galileo/nevada/n3/` in the uap repo: `n3_record.py`,
+`n3_rules.py`). Not built.
+
+**Corrected:** the add-on agent's note that Help's "Check for updates" breaks the no-pop-ups rule. It does not: the
+rule of 2026-10-07 keeps "the OS file dialogs, alerts and About" as windows. Nothing to change.
 
 ## Session 22 (2026-11-13): what was built from the brief below, and what was measured and left
 

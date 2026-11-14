@@ -181,9 +181,11 @@ def workers(procs=None, pixels=None):
     """How many worker processes a pool gets: `default_workers`, or `procs` if a caller says (never more than
     there are CPUs to run them on) -- and never more than the memory free has room for, at what a worker holds
     for frames of `pixels` (1920 x 1080 if not said). At least one; and 0 when `procs` is 0, which callers take
-    to mean "in this process, no pool"."""
-    if procs == 0:
-        return 0
+    to mean "in this process, no pool" -- and 0 inside a pool's worker, which is a daemonic process and may not start
+    processes of its own: a stage run in someone else's pool (the controls' rejudge, `tools/controls/summarise.py`)
+    does its pooled work in line (2026-11-13, when `flicker.background_windows` began to pool)."""
+    if procs == 0 or multiprocessing.current_process().daemon:
+        return 0                                      # in this process; and a pool's worker may start no pool of its own
     n = default_workers() if procs is None else max(1, min(int(procs), cpus()))
     free = free_memory()
     if free is not None:
