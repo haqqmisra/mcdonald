@@ -342,6 +342,7 @@ def _overlay_static(o, masks):
     return v, txt, {"frames": r[:, 0].astype(int).tolist(), "ratio": ratio}
 
 
+TEXT_STILL = True        # in a clip whose scene holds still on screen the text reading decides nothing (off: a null's "before")
 DRAWN_WINDOW = 8          # frames either side over which text held for a stretch is taken from their median
 DRAWN_FRAMES = 60        # at most this many frames are looked at for it
 DRAWN_MIN = 3            # frames a reading of symbology drawn frame by frame needs before it decides anything
@@ -356,9 +357,11 @@ LINE_THIN = 0.5          # a line's width across its own axis, rms, is at most t
                          # off each other's line 1 px more (`_collinear`); PR-016's nets read 6.2-8.3 px on its 13 frames.
 TEXT_HELD = 0.75         # text held for a stretch is at its own level on at least this share of the window's frames that
                          # the object is clear of it; a place the dark gaps of a moving row pass is dark on some of them.
-                         # A judgement call, and half a remedy: PR-016's passing gaps read 0.00-0.60 (10 of its 12 readings,
-                         # the two left too few to decide) and a drawn readout 1.00, but PR47's bird, in front of dark
-                         # strokes of a scene held still, reads 0.75-1.00 on 11 of 14 and is flagged as before (method 25)
+                         # A judgement call, and half a remedy alone: PR-016's passing gaps read 0.00-0.60 and a drawn
+                         # readout 0.97, but strokes of a scene that holds still read as text does (PR47's bird: 0.75-1.00
+                         # on 11 readings of 14; PR-016's on 7 of 25 over frames 560-690). So where the clip's scene holds
+                         # still (`static_masks`' still_scene: what stays put there may be the scene, as that function
+                         # already says of its own mask) the text reading decides nothing (method 25)
 
 
 def _axis(px):
@@ -546,7 +549,7 @@ def _overlay_drawn(o, masks, polarity):
         out[-1][2]["moving_width_px"] = float(np.median(widths))
     if out and wide:                                     # set aside as too wide for a stroke, beside the lines taken
         out[-1][2].update(wide_frames=[n for n, _ in wide], wide_width_px=float(np.median([w for _, w in wide])))
-    rows, same, passing = [], 0, []
+    rows, same, passing, still = [], 0, [], 0
     pick = text_frames if len(text_frames) <= DRAWN_FRAMES else \
         [text_frames[i] for i in np.linspace(0, len(text_frames) - 1, DRAWN_FRAMES).astype(int)]
     for n in pick:
@@ -572,6 +575,9 @@ def _overlay_drawn(o, masks, polarity):
         obj = float(g[core].min() if o.dark else g[core].max())
         if not opposite or np.median(np.abs(obj - M[near])) < 40:
             same += 1
+            continue
+        if TEXT_STILL and masks.get("still_scene"):      # what stays put may be the scene: a stroke of it is no text
+            still += 1
             continue
         # text held for a stretch is there on every frame of the window the object is clear of it: the share of those
         # frames, over the text's pixels at the object, that are nearer the text's level than the object's
@@ -602,10 +608,12 @@ def _overlay_drawn(o, masks, polarity):
                     f"passes symbology drawn for a stretch (text) in {len(R_)} frames; its pixels move {ratio:.2f} as "
                     "far toward the object's level as the object's own do",
                     {"text_frames": R_[:, 0].astype(int).tolist(), "text_ratio": ratio, "text_held": float(np.median(R_[:, 2]))}))
-    elif rows or same:
-        out.append((NOP, f"passes symbology drawn for a stretch (text) in {len(rows) + same} frames, " + (
+    elif rows or same or still:
+        out.append((NOP, f"passes symbology drawn for a stretch (text) in {len(rows) + same + still} frames, " + (
             "on the same side of the picture's level as the object, or at its level: that decides nothing" if same else
-            "too few to decide"), {"text_frames": [int(q[0]) for q in rows]}))
+            "in a picture whose scene holds still on screen, where a stroke of the scene and text drawn for a stretch look "
+            "alike: that decides nothing" if still else
+            "too few to decide"), {"text_frames": [int(q[0]) for q in rows], **({"still_frames": still} if still else {})}))
     if passing and out and "text_frames" in out[-1][2]:  # set aside as not held through the window, beside the text taken
         out[-1][2].update(passing_frames=[n for n, _ in passing], passing_held=float(np.median([h for _, h in passing])))
     _overlay_drawn.seen = dict(widths=widths, wide=wide, held=[q[2] for q in rows], passing=passing)   # for a null's reading

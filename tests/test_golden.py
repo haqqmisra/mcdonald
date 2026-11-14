@@ -1635,7 +1635,9 @@ def test_pr016_a_row_of_birds_is_not_symbology():
     each bird, joined along the row into a net 6-8 px across (rms), and the text is the trail the dark gaps leave where
     the row slides along itself. A drawn line is a thin stroke, and text held for a stretch is there on every frame the
     object is clear of it. Held here on the blind run's own track, with the clip's static masks: with the two gates
-    off the test flags as it did; as built it flags nothing."""
+    off the test flags as it did; as built it flags nothing: the net is too wide for a line, and in a clip whose scene
+    holds still on screen the text reading decides nothing (seven of its readings over these frames were held as text
+    is, and flagged, with the hold alone)."""
     print("\nAARO PR-016, a row of birds -- their dark rings are not symbology the bird was drawn over")
     video, why = _aaro("DOD_111415209.mp4")
     if video is None:
@@ -1650,28 +1652,25 @@ def test_pr016_a_row_of_birds_is_not_symbology():
         masks = vf.static_masks(clip)
         o = integrity.Obj(clip, track, 9.0, False)
         thin, held = integrity.LINE_THIN, integrity.TEXT_HELD
-        try:
-            integrity.LINE_THIN, integrity.TEXT_HELD = np.inf, -1.0          # the test as it was until 2026-11-13
+        try:                                                               # the test as it was until 2026-11-13
+            integrity.LINE_THIN, integrity.TEXT_HELD, integrity.TEXT_STILL = np.inf, -1.0, False
             was = integrity.t_overlay(o, masks)
             seen = integrity._overlay_drawn.seen
         finally:
-            integrity.LINE_THIN, integrity.TEXT_HELD = thin, held
+            integrity.LINE_THIN, integrity.TEXT_HELD, integrity.TEXT_STILL = thin, held, True
         now = integrity.t_overlay(o, masks)
         aside = integrity._overlay_drawn.seen
     limit = thin * vf.stroke_step(clip.H)
-    check(was[0] == "FLAG" and "lines drawn frame by frame" in was[1] and len(seen["widths"]) >= 8
-          and min(seen["widths"]) > 2 * limit,
+    check(was[0] == "FLAG" and "lines drawn frame by frame" in was[1] and "drawn for a stretch" in was[1]
+          and len(seen["widths"]) >= 8 and min(seen["widths"]) > 2 * limit,
           "with no word on a line's width: the row's rings are a line the bird is drawn over (FLAG), each over twice as "
           "wide as a stroke", f"{was[1][:150]}; across {min(seen['widths'] or [0]):.1f}-{max(seen['widths'] or [0]):.1f} px rms, "
           f"a stroke at most {limit:.1f}")
     check(now[0] != "FLAG" and "lines drawn frame by frame" not in now[1] and len(aside["wide"]) == len(seen["widths"]),
           "a line is thin: the rings' net is set aside on every frame it was taken", f"{now[0]}: {now[1][:120]}")
-    check(now[0] == "NO POWER" and ("drawn for a stretch" not in now[1] or "too few to decide" in now[1])
-          and len(aside["passing"]) >= 5 and all(h < held for _, h in aside["passing"]) and len(aside["held"]) < integrity.DRAWN_MIN,
-          "text held for a stretch stays: most of what read as text was the row's dark gaps passing, and what is left is "
-          "too few to decide", f"{len(aside['passing'])} readings set aside, the place dark on "
-          f"{min([h for _, h in aside['passing']] or [0]):.2f}-{max([h for _, h in aside['passing']] or [0]):.2f} of the frames it "
-          f"should be (text: {held:g} or more); {len(aside['held'])} left")
+    check(masks["still_scene"] and now[0] == "NO POWER" and "scene holds still on screen" in now[1] and not aside["held"],
+          "and what stays put in a scene that holds still may be the scene: the text reading decides nothing there",
+          f"{now[0]}: {now[1][:170]}")
 
 
 def test_pr105_companion_is_not_followed_away():
