@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.5 (2026-11-14)
 
 **A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone
 now runs beside the rest, each piece the same function on the same arguments: the scene's held-still pairs looked
