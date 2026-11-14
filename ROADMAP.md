@@ -445,7 +445,8 @@ the worst), the companion gate set against a null (a false companion on 2 of 160
 finding saying the ring it searched. Its version commit is dated 2026-11-10 (the maintainer's word, that day) and went to main that day, after the Mac and
 Windows runs; it had no tag of its own, and **was released with 0.5.3 on 2026-11-12** (with the graphics card's first
 steps, 0.6's objective 3). The reference case files are remade after it, on the maintainer's word. **After it, in 0.5.x:** the test the balloon class had lacked, "does something hang under it?" (H5,
-with AARO's known balloon PR-004 and the WA9ONY-5 launch as its positives); `drift`'s corrections and PR051 as a known answer of
+with AARO's known balloon PR-004 and the WA9ONY-5 launch as its positives; **built 2026-11-13**, unreleased: `tether`'s first outcome, hangs /
+beside it / nothing tied / cannot say, method section 55); `drift`'s corrections and PR051 as a known answer of
 its own-track route (DR1-DR5); and `glide` (GL1), once the maintainer has looked at its by-eye controls.
 
 **Classes, signatures and tests.**
