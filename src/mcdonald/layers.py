@@ -165,6 +165,47 @@ def _first(a):
                                tpl=_G.get("tpl", TEMPLATES[0]), stride=_G.get("stride", TEMPLATES[1]))
 
 
+CHAIN = 4   # pairs a, a+k, a+2k, ... a pool's worker takes at once on a CPU (`_first_chain`)
+
+
+def chains(pairs, k, most=CHAIN):
+    """`pairs` (their first frames) as chains of up to `most`, a, a+k, a+2k, ..., each pair in one chain, the chains
+    in the order of their first pairs: the second frame of a pair in a chain is the first of the next."""
+    left, out = set(pairs), []
+    for a in pairs:
+        if a not in left:
+            continue
+        chain = [a]
+        left.discard(a)
+        while len(chain) < most and chain[-1] + k in left:
+            chain.append(chain[-1] + k)
+            left.discard(chain[-1])
+        out.append(chain)
+    return out
+
+
+def _first_chain(chain):
+    """`_first` of each pair of a chain (`chains`) on a CPU: [(a, (rows, held still))]. Each frame of the chain is
+    read, masked and band-passed once and the last one kept for the next pair, whose first frame it is (2026-11-14:
+    every frame was read and filtered twice, once as the second frame of a pair and once as the first of the pair
+    k frames on, a quarter of the first pass). Each pair is `_first`'s, on the same arrays, so the same rows."""
+    k = _G["k"]
+    out, kept = [], None
+    for a in chain:
+        fa = kept if kept is not None and kept[0] == a else _plain(a)
+        fb = _plain(a + k)
+        out.append((a, vf.shift_field_auto(fa[1], fb[1], fa[2], fb[2], fa[3], fb[3], a=a, reach=_G["reach"],
+                                           tpl=_G.get("tpl", TEMPLATES[0]), stride=_G.get("stride", TEMPLATES[1]))))
+        kept = fb
+    return out
+
+
+def _plain(n):
+    """Frame n as `_first` reads it on a CPU: (n, grey, mask, band-passed)."""
+    g, bad = _bad(n)
+    return n, g, bad, vf.bandpass_kept(g)
+
+
 def window_start(a, k, L, n0, n1):
     """The first frame of the L-frame window a held-still pair (a, a + k) is measured again over:
     the nearest to the pair of the windows starting every L/2 frames, kept inside the clip.
@@ -727,8 +768,11 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                 _forget_card()
             if gpu.card() is None:                    # no card, or one that stopped: a pool of CPUs for what is left
                 pool = pool_of(procs, _init, args, pixels=clip.W * clip.H)
-                if first is None:
-                    first = pooled(procs, _first, pairs, chunksize=2, progress=progress, stop=stop, what="Layers", pool=pool)
+                if first is None:                     # in chains, each frame read and filtered once (`_first_chain`)
+                    got = pooled(procs, _first_chain, chains(pairs, k), chunksize=1, progress=progress, stop=stop,
+                                 what="Layers", pool=pool)
+                    done = dict(r for chain in got for r in chain)
+                    first = [done[a] for a in pairs]
             first, _ = held_but_moved(first)
             _, unmoved = repeating(pairs, first, k, L, clip.n0, clip.n1) if L > k else (set(), set())
             starts = sorted({window_start(a, k, L, clip.n0, clip.n1) for a, (f, still) in zip(pairs, first)

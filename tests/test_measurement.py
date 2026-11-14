@@ -630,6 +630,23 @@ def test_integrity_keeps_a_frame_for_the_next_pair():
     check(same and kept and fresh[0][1]["all"] is not None and np.allclose(fresh[0][1]["all"][0], (-6.0, -2.5), atol=0.1),
           "three pairs in a row, cold and with the last frame kept: the same numbers, and the drawn drift",
           f"{fresh[0][1]['all'][0] if fresh[0][1]['all'] else None}; kept frame {integrity._G.get('frame_n')}")
+    # 2026-11-14: the background's two readings, zero shift left out and allowed, from the one search of each pair
+    # (`_pair1_zones`), where a scene held nearly still used to be read a second time: each is its own run's, to the bit
+    def lays_equal(x, y):
+        return all((x[c] is None) == (y[c] is None) and (x[c] is None or (np.array_equal(x[c][0], y[c][0]) and x[c][1] == y[c][1]
+                                                                            and np.array_equal(x[c][2], y[c][2])))
+                   for c in ("striated", "isotropic", "all"))
+    alone = {}
+    for z in (4, -1):
+        integrity._G.update(zero=z)
+        integrity._G.pop("frame_n", None)
+        alone[z] = [integrity._pair1(a) for a in (10, 11, 12)]
+    integrity._G.update(zero=4, zeros=(4, -1))
+    integrity._G.pop("frame_n", None)
+    zones = [integrity._pair1_zones(a) for a in (10, 11, 12)]
+    check(all(zz[0] == a4[0] == a1[0] and lays_equal(zz[1][0], a4[1]) and lays_equal(zz[1][1], a1[1])
+              for zz, a4, a1 in zip(zones, alone[4], alone[-1])),
+          "both readings from the one search: each zone's layers are those of its own search, to the bit")
 
 
 def _drawn_clip(td, n=100, h=48, w=64, name="drawn"):
@@ -4771,6 +4788,16 @@ def test_layers_second_pass_shared_out_is_the_same():
         got = layers.second_pass(None, [1], h, 5, 30, parts=3)[0]
         check(np.array_equal(ref[0], got[0]) and ref[1] == got[1], f"{name}: the window's rows, in three parts",
               f"{len(ref[0])} rows, {'still' if ref[1] else 'moved'}")
+        # 2026-11-14: the first pass's pairs in chains a, a+k, a+2k, ..., each frame read and filtered once
+        # (`_first_chain`): each pair's rows and verdict are `_first`'s, to the bit
+        pairs = list(range(1, 36))
+        cs = layers.chains(pairs, 5)
+        chained = dict(r for c in cs for r in layers._first_chain(c))
+        one = {a: layers._first(a) for a in pairs[:12]}
+        check(sorted(x for c in cs for x in c) == pairs and max(len(c) for c in cs) == layers.CHAIN
+              and all(np.array_equal(one[a][0], chained[a][0]) and one[a][1] == chained[a][1] for a in one),
+              f"{name}: the first pass's pairs in chains, each frame read once: every pair's rows and verdict the same",
+              f"{len(cs)} chains of {len(pairs)} pairs")
 
 
 class _Gained(_Beating):
