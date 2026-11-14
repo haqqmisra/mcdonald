@@ -7,29 +7,31 @@ and/or merlin, and cannon is also available."
 
 This file is the session's record in the repository; `docs/handoff-v04.md` stays the usual handoff (the GPU session
 writes it). The working record, with every agent's id, brief and notes, is `/scratch/mcdonald/s23-2026-11-13/`
-(`COORDINATOR.md` first). **This is an interim state, written at 22:00 on 2026-11-13 while eight strands were still
-at work**; it is brought current at each merge.
+(`COORDINATOR.md` first). **Interim state, brought current at 09:00 on 2026-11-14: five strands merged, four at
+work.** The session ran on Fable until the usage limit stopped every agent twice (16:19 and ~23:45 on 11-13), and
+on Opus 5.5 from 07:26 on 11-14 at Jacob's word ("keep going with opus"); each agent resumed from its own transcript.
 
 ## Where it stands (read this first)
 
-`s23` (worktree `/hugespace/models/mcdonald-s23`) is `main` 5e6c468 plus what is merged below. Each strand is a branch
-`s23-<name>` in `/hugespace/models/mcdonald-s23-<name>`, started from `main` 3459561, built by an agent under one
-common brief and a brief of its own. **Do not delete those worktrees or the scratch folder until every strand is
-merged: several hold work that exists nowhere else.**
+`s23` (worktree `/hugespace/models/mcdonald-s23`, 5fc8cbf) is **0.5.4 as released** (`main` e056f12, merged as
+417c2b4) plus the five strands merged below. **Every suite and every golden passes on it** (Cannon run
+20261114-082051-s23-5fc8cbf: test_golden 235 PASS, 0 FAIL, 0 SKIP; test_controls 118; test_measurement 635+). Each
+strand is a branch `s23-<name>` in `/hugespace/models/mcdonald-s23-<name>`, started from `main` 3459561. **Do not
+delete those worktrees or the scratch folder until every strand is merged.**
 
-| strand | ROADMAP | state at 22:00 | last commit |
+| strand | ROADMAP | state at 09:00 on 11-14 | merged as |
 |---|---|---|---|
-| drift | 0.5.x: `drift`'s report-changers DR2-DR5; PR051 as a known answer (DR1, in part) | **merged into `s23`** (9aea557); every suite passes on the merged tree (Cannon run 20261113-214000-s23-9aea557; no goldens in that run; the branch's own run had them, 234 PASS) | 7d5a17d |
-| batch | 0.6 objectives 1 and 2: `mcdonald batch` | built, tested, piloted on 11 videos; **the 144-video run is going** (jobs 1656, 1658-1662; out `batch/catalog/`) | 7c0ab20 |
-| hang | 0.5.x, H5: "does something hang under it?" | built; suites pass; second null, goldens, the fourteen cases and method section 55 under way | 5b7895b |
-| scene | 0.5.x, GL4 and GL5 (PR058); K10 | GL4 and GL5 built; finishing runs under way; **20 of 31 reference objects change words** | c7a74fb |
-| small | W8, the shake test's fields, `_overlay_drawn`, a held-picture cadence, E15 on real clips, a test_cli flake | items 1-2 done and tested; 3-6 built, their nulls and reruns under way | 57f83b0 |
-| plant | 0.6 objective 4: planted objects at scale (design and the CPU path) | `mcdonald plant` built; cost and crowding measured; the pilot not yet run | 5ea36da |
-| kin | 0.4.x: Av11, Av10, A16, D8 | resumed 21:27 after being held; work in progress | (checkpoint) |
-| groups | 0.5.x: M7 with B23, S14, E21 | resumed 21:39; work in progress | (checkpoint) |
-| beat | 0.3's leftovers: K2, T2, E11, the band search as a reading | resumed 21:53; work in progress | (checkpoint) |
+| drift | 0.5.x: `drift`'s report-changers DR2-DR5; PR051 as a known answer (DR1, in part) | merged | 9aea557 |
+| groups | 0.5.x: M7 with B23, S14, E21 | merged | f25311f |
+| kin | 0.4.x: Av11, Av10, A16 (set aside), D8 | merged | 7037f60 |
+| plant | 0.6 objective 4: planted objects (design, CPU path, pilot) | merged | 1c933da |
+| scene | 0.5.x: GL4 and GL5 (PR058); K10 not merged | merged; **a report-changer: words on 17 reference objects** | 5fc8cbf |
+| batch | 0.6 objectives 1 and 2: `mcdonald batch` | built and tested; **the 144-video run: 55 done at 09:00** | -- |
+| hang | 0.5.x, H5: "does something hang under it?" | built; its null, goldens and gate finishing | -- |
+| small | W8, shake fields, `_overlay_drawn`, the cadence rule, E15, test_cli; the controls' record remade | items 1-2 tested; the rest finishing | -- |
+| beat | 0.3's leftovers: K2, T2, E11, the band search as a reading | finishing | -- |
 
-Method sections reserved: 54 batch, 55 hang, 56 scene, 57 drift (used section 34 instead), 58 small, 59 beat, 60
+Method sections: 54 batch, 55 hang, 56 scene (used 1, 41 and its own), 57 drift (used 34), 58 small, 59 beat, 60
 groups, 61 kin, 62 plant.
 
 ## What is merged on `s23`
@@ -44,6 +46,42 @@ their verdict, and three quoted numbers move (T1 -0.60 +- 0.04 to +- 0.05 m/s; T
 1.3; its tolerance 10.18 to 10.50 m/s). PR051's second leg is a golden of the own-track route, from readings an
 agent made and no person has checked. Not built: the reader for the data bar, the two-leg fit, W7. The data folder
 gained `winds_igra/` (41 MB; Cannon's copy of the folder lacks it).
+
+**groups** (merge f25311f). Two calibrated readings beside the unchanged `rigid` call: `one_body` (one rigid body or
+several, from what is left off the best rank-3 fit of the centred positions) and `places` (the members keep their
+places or wander, from every separation over the group's size). "Moved" only where the wander keeps going (KPSS
+against a block bootstrap of the series itself), stands over a line drawn on rigid groups carrying the detector's
+real errors, and is over a pixel; NO POWER under four members or 60 shared frames. On drawn nulls 0 of 32,640 false
+"wander" and 0 of 32,640 false "several"; PR135's six read several and wander, the drone show's 20 groups of six one
+body that keeps its places. No reference report changes (no case holds a group).
+
+**kin** (merge 7037f60). Av11: the speed in body lengths a second, a lower bound, against a 33-row class table in
+which every number carries its source (`class_envelopes.csv`, `envelopes.py`); on 209 Galileo aircraft a median 0.72
+of the truth, above it in 1 %. Av10: a turn's rate against each class's sourced limit load. A16: tried and set aside
+(a crossing reads the blurred image). D8: which missing unknown would settle the most of two questions about the
+speed. All 31 reference objects are NO POWER for Av11 and Av10; additions only on the fourteen cases (each report
+gains about 22 lines, "Which missing quantity to ask for first"). New suite `test_unknowns`.
+
+**plant** (merge 1c933da). `mcdonald plant`: synthetic objects written into a clip's frames and encoded again with
+the clip's own settings, a control stretch beside it, a truth table, the planted video marked as a test article
+everywhere. The pilot (50 stretches, 2,748 points): Find lists 56 % (52-60) of constant points, 11 % under 15 DN to
+100 % over 120 DN; flock members 37 %, formation members 25 %; 5 of 2,748 paths "found" where nothing was planted.
+On the labelled set a copy written whole is listed 74 % against its object's 80 %. About 13 CPU-s a planted point,
+Find 41 % of it, so the plants do not need Find on the card. Found: Find folds a dark point into a bright one
+crossing within 30 px (PL2). New suite `test_plant`. No reference report changes.
+
+**scene** (merge 5fc8cbf). GL4: on PR058 there was no lock -- templates matched well along the sea's streaks but did
+not agree, and "nothing found" was written as "held still". `layers.LOST` (such a pair is not counted as held; 0 of
+5,213 held pairs on five still cameras) and `layers.scene_state` (where `scene`'s blocks read the background moving
+beyond 1 in 100 by chance, the report says so). GL5: `symbology --method hue` reads PR058's magenta pointer (613 of
+615 frames) and five more pointer clips. **A report-changer**: words on 17 reference objects, a sentence on 8 more;
+PR113's held share 48 to 46 %, PR088 object 2's 0.9924 to 0.9897, PR41's pointer -0.413 to -0.409 deg/s; no rate
+moves; exercise pages 01 and 04 quote the new first lines. The side-by-side table is in `scene/notes.md`. K10 not
+merged.
+
+**0.5.4** (merge 417c2b4): released by the Triangulation session from 4847926 on 2026-11-14 (N3 revised,
+test_controls in the suite lists, the GPU session's work). The four strands' CHANGELOG entries, which the merge put
+under "## 0.5.4", were moved back under "## Unreleased".
 
 ## Found on the way
 
@@ -68,8 +106,10 @@ gained `winds_igra/` (41 MB; Cannon's copy of the folder lacks it).
 ## For Jacob to decide (collected as the strands report; each strand's notes have the full lists)
 
 1. **`s23` into `main`**, when every strand is merged and the merged tree has passed the suites, the goldens and the
-   fourteen-case rerun. Not asked yet: nothing but drift is merged.
-2. **plant, forks F1-F8** (`plant/notes.md`): what is planted, how it moves, what stands for the clip's own
+   fourteen-case rerun. Five strands are in and pass everything (golden 235); four to come.
+2. **plant, forks F1-F10** (`plant/notes.md`; F9: completeness against the contrast after the encoder; F10: the
+   planted rate beside the labelled table) and **the full run** (500 points a video on 144 videos, about 320 CPU-hours,
+   a night on arthur, as batch units once batch is merged): what is planted, how it moves, what stands for the clip's own
    settings, what counts as found, how much of the chain, how many and where, a burned-in label, where results
    live. The pilot runs on the agent's recommendations; nothing larger starts without a word.
 3. **drift**: the azimuth reference's default error (none; 0.3 deg as built; left to the rays, which makes the
@@ -83,11 +123,14 @@ gained `winds_igra/` (41 MB; Cannon's copy of the folder lacks it).
    two birds as the false alarms of record) and every new sentence in `hang/words-for-jacob.md`.
 6. **small**: the horizon's band of kappa stays 0-0.25; the cadence rule's blocks of 60 frames and "more than
    half"; `_overlay_drawn`'s two thresholds; whether other integrity tests' printed numbers become fields too.
-7. **batch**: a row of the corpus table is not an object (one bird in seven pieces on PR088; a flock as one row on
+7. **kin**: a known quantity "the camera stood still" (the only way Av11 and Av10 speak inside `run`); D8's table only
+   where some unknown is bounded; the class table's stated rules; whether "too long for the limit" changes a verdict.
+8. **groups**: which reading the report's group sentences follow (`places` recommended; IDEAS RG3); nine sentence forms.
+9. **batch**: a row of the corpus table is not an object (one bird in seven pieces on PR088; a flock as one row on
    PR135); a second pass that splits a group into its members; the 40-frame rule, which leaves out PR113's transit
    and PR43's streak; every stage for every object as the default.
-8. **The record of the controls**: remade once, after N3's revision and the small strand's cadence rule are both in.
-9. **How hard agents may load arthur by day** (asked 16:15; the queue was resumed without an answer, so "as before").
+10. **The record of the controls**: remade once, after N3's revision and the small strand's cadence rule are both in.
+11. **How hard agents may load arthur by day** (asked 16:15; the queue was resumed without an answer, so "as before").
 
 ## How it ran (for next time)
 
@@ -102,4 +145,8 @@ gained `winds_igra/` (41 MB; Cannon's copy of the folder lacks it).
 - The fourteen-case gate (`/scratch/mcdonald/s23-2026-11-13/gate/`) asked 8 GB a task, eleven at once, which is all
   of arthur's job memory; from measured peaks (PR088 4.9 GB) it asks 6 now.
 - With the catalog run and nine strands' jobs, a 48-CPU niced suites job did not start on arthur; the same tree on
-  Cannon's `test` partition took minutes.
+  Cannon's `test` partition took minutes (golden in 36 min).
+- The usage limit stopped every agent a second time (~23:45); on 2026-11-14 Jacob switched the session to Opus 5.5 and
+  the agents resumed under it from their transcripts. Commits from then on carry Opus 5.5's line.
+- Merging a released `main` moves an "Unreleased" heading's entries under the new version's heading: move them back.
+- Every strand that adds a test function to `test_golden.py` needs its line in `test_controls.GOLDEN_KINDS`.
