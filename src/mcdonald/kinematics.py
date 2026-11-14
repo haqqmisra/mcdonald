@@ -584,6 +584,19 @@ def _held_better(new, old):
     return min(new["ljung_box_p"]) > min(old["ljung_box_p"]) and zone(new) <= zone(old)
 
 
+def _fitted_both(fit, x, y, named=False):
+    """{"x": fit(x), "y": fit(y)}: the two coordinates' fits, each its own REML of its own series, the y one in a
+    thread beside this one (`progress.Beside`; in line where this process has one CPU). Each is the same function
+    on the same arguments as one after the other, so the same numbers (2026-11-13: a long track's two fits were
+    7 s of one process on PR088). `named`: fit is also told which coordinate it fits."""
+    from .progress import Beside, cpus
+    call = (lambda v, name: fit(v, name=name)) if named else (lambda v, name: fit(v))
+    with Beside(2 if cpus() > 1 else 0) as beside:
+        y_job = beside.call(call, y, "y")
+        fx = call(x, "x")
+        return {"x": fx, "y": y_job.result()}
+
+
 def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     """The track's rate along it with a band, from its own covariance (`kriging`): each coordinate against
     wall-clock time as a line plus a Matérn-3/2 wander plus a nugget, the three fitted by REML; the rate at
@@ -618,8 +631,7 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     n = len(tk)
     tm = float(tk.mean())
     lo = 0 if n <= n_max else (n - n_max) // 2
-    models = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt)       # the covariance, from the middle (or all)
-              for name, v in (("x", xk), ("y", yk))}
+    models = _fitted_both(lambda v, **kw: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, **kw), xk, yk)   # the covariance, from the middle (or all)
     span = float(tk[-1] - tk[0])
     rate, innov, ends, wins, paths, memory = _read_band(models, tk, xk, yk, tm, dt, n_max)
     plain = models                                          # the wander alone: its evidence says whether the velocity changes
@@ -629,8 +641,8 @@ def speed_band(track, fps, t0=None, t1=None, n0=None, n1=None, n_max=BAND_NMAX):
     hz = (bt or {}).get("rhythm_hz")
     if hz and hz * min(span, n_max * dt) >= BEAT_CYCLES and hz < 0.5 / dt:
         # a rhythm left in the innovations: the wander and a beat beside it (M8), each coordinate apart where it gains
-        tried = {name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, warm=models[name].theta, beat=hz)
-                 for name, v in (("x", xk), ("y", yk))}
+        tried = _fitted_both(lambda v, name: kg.Model(tk[lo:lo + n_max], v[lo:lo + n_max], tm, dt=dt, warm=models[name].theta, beat=hz),
+                             xk, yk, named=True)
         gain = {name: (models[name].val - tried[name].val) / 2.0 for name in tried}
         if max(gain.values()) >= BEAT_DLNL:
             trial = {name: tried[name] if gain[name] >= BEAT_DLNL else models[name] for name in models}

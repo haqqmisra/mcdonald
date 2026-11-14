@@ -3844,7 +3844,7 @@ def drive_the_add_on(td):
         addon.room = lambda extra, **k: ""
         speaker.outputs = lambda program=None: []
         addon.PIP = pip_stand_in(home, "offline")
-        offer_words = mark_qt.GPU_INSTALL.format(card=name, gb=1.35, disk=addon.DISK_MB["gpu-cuda13"] / 1000)
+        offer_words = mark_qt.GPU_INSTALL.format(card=name, gb=addon.download_mb("gpu-cuda13") / 1000, disk=addon.DISK_MB["gpu-cuda13"] / 1000)
         w = mark_qt.QtMarker(cases=tempfile.gettempdir())
         w.show()
         d = preferences(w)
@@ -3894,7 +3894,7 @@ def drive_the_add_on(td):
         QtTest_wait(lambda: card.bar.value() > 0, 20)
         counting = (card.bar.value(), card.bar.maximum(), card.bar.format(), card.label.text())
         w.end_waits()                                 # as a video opened meanwhile would
-        check(counting == (75, 1350, "%v of %m MB", mark_qt.ADDON_WORDS["downloading"].format(card=name, gb=1.35))
+        check(counting == (75, addon.download_mb("gpu-cuda13"), "%v of %m MB", mark_qt.ADDON_WORDS["downloading"].format(card=name, gb=addon.download_mb("gpu-cuda13") / 1000))
               and w.busy_slot.indexOf(card) >= 0 and not card.done and w._addon is not None,
               "while it downloads, the bar counts megabytes of the add-on's size, and the card says the window can be used "
               "meanwhile; a video opened meanwhile leaves the card where it is", str(counting[:3]))
@@ -3962,7 +3962,7 @@ def drive_the_add_on(td):
 
         # the words, as sciencespeak has them: none of the trade's, and no sentence over 40 words
         words = [offer_words, mark_qt.GPU_INSTALLING.format(card=name), old, mark_qt.GPU_BY_HAND.format(card=name), mark_qt.ADDON_TITLE,
-                 *(t.format(card=name, gb=1.35) for t in mark_qt.ADDON_WORDS.values()),
+                 *(t.format(card=name, gb=addon.download_mb("gpu-cuda13") / 1000) for t in mark_qt.ADDON_WORDS.values()),
                  mark_qt.ADDON_FAILED.format(why=addon.explain(["Network is unreachable"]), pip="", command="")]
         trade = [(pat, t[:50]) for t in words for pat in TRADE_WORDS if re.search(pat, t, re.I if pat != r"\bDN\b" else 0)]
         longest = max(len(re.findall(r"[A-Za-z0-9][\w'’.-]*", x)) for t in words for x in re.split(r"(?<=[.!?:])\s+", t))

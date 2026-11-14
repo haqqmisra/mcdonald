@@ -401,7 +401,7 @@ def test_the_add_on_is_installed_without_touching_what_is_here():
             phases = list(dict.fromkeys(s["phase"] for s in states))
             mbs = [s["mb"] for s in states]
             check(phases == ["looking", "downloading", "installing"] and mbs == sorted(mbs) and all(s["of"] >= s["mb"] for s in states)
-                  and states[-1]["of"] == addon.DOWNLOAD_MB["gpu-cuda13"] and any(0 < s["mb"] < 800 for s in states),
+                  and states[-1]["of"] == addon.download_mb("gpu-cuda13") and any(0 < s["mb"] < 800 for s in states),
                   "its progress is told as it goes: looking, downloading megabyte by megabyte over all the files, then "
                   "putting it in place", f"{phases}, {len(states)} times")
             check(lines and "pip_stand_in" in lines[0] and not any(ln.startswith("Progress") for ln in lines)
@@ -736,6 +736,18 @@ def test_the_fused_pass_is_the_plain_pass_to_the_bit():
                   err.getvalue().strip()[:120])
     finally:
         vf.FUSED = was
+
+
+def test_the_add_on_says_its_own_systems_download():
+    """The add-on's download is said and counted in its own system's size: PyPI's wheels for Windows are a little
+    smaller than Linux's (2026-11-13: until then the bar counted to Linux's on Windows too, and stopped near 95 %)."""
+    print("\nthe add-on's download, by system")
+    from mcdonald import addon
+    check(addon.download_mb("gpu-cuda13", "linux") == 1350 and addon.download_mb("gpu", "linux") == 1820
+          and addon.download_mb("gpu-cuda13", "win32") == 1303 and addon.download_mb("gpu", "win32") == 1727
+          and addon.download_mb("gpu") == (addon.DOWNLOAD_MB_WINDOWS if sys.platform == "win32" else addon.DOWNLOAD_MB)["gpu"],
+          "Linux's wheels on Linux, Windows's on Windows, and this system's by default",
+          f"{addon.download_mb('gpu')} MB here ({sys.platform})")
 
 
 def test_the_peaks_read_at_once_are_the_peaks_read_one_by_one():
