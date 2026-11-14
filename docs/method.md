@@ -3819,6 +3819,29 @@ depression below the horizontal.
   pass, 25 m/s through the air fails, 5 and 10 m/s cannot say); on a 60° turn a body flying 5 m/s through the air
   now passes 55 of 60 where 3 did, because the wind from so short a turn is known to about 2.4 m/s once the offset is
   open. T2 never told 5 m/s from drift where the winds were that uncertain; now it says how uncertain they are.
+- *A wind read far from the object's height* (`drift.wind_change`, `SHEAR_AT_KM`, `SHEAR_POWER`; 2026-11-13, IDEAS.md
+  DR4). One wind alone has no spread, so T2 held it at the spread's floor, 0.25 m/s, and took it as the wind at the
+  object's height wherever it counted: within a factor of 4 in height. On PR051 the aircraft's own wind, read 1,422 m
+  above the object, decided a fail. How much the wind changes with height is measured on radiosondes: 8,125 soundings
+  of 18 IGRA v2 stations at 00 and 12 UTC, January to early November 2026 (the data folder's `winds_igra/`;
+  `tools/shear_igra.py`; the table of percentiles is `tests/golden/shear_soundings.csv`). The vector change of the wind
+  between two levels of one sounding grows as a power of their height difference dz: nine times in ten it is under
+  10.3 (dz / 1 km)^0.57 m/s. That is 2.8 m/s over 100 m, 6.1 over 400 and 12.6 over 1,422. The law was set on the
+  even-numbered stations and held on the odd ones: 0.89 of their pairs and 0.88 of their soundings (one pair each) lie
+  under it, 0.86-0.93 by height difference from 50 m to 6.4 km. It is one law for every height and place, which it is
+  not quite: by height band the constant runs from 8.6 (3-8 km above the ground) to 12.0 (8-16 km) and the power from
+  0.46 to 0.60; by station the 90th percentile at 1.2 km runs from 7 m/s (tropical coasts) to 14 (mountains, desert
+  coasts); it is 11.0 from November to April and 8.3 from May to October. Each wind now carries how far in height it
+  was read from the object (`level_gap_m`: none where it was interpolated to the object's height), and T2 adds the
+  wind's change over the smallest such gap among the counted winds to its tolerance. Where that change is over 5 m/s
+  (`VELOCITY_FIX`: a gap over about 280 m), no wind was read near enough to tell a drifter from a slow flier: T2 cannot
+  pass, and says so; it still fails a body 10 m/s or more beyond the whole tolerance. With a second wind at the
+  object's height nothing is added: the winds' own spread says how they differ. What the rule did to true drifters,
+  counted on the odd-numbered stations' soundings with the fitted velocity taken as exact: given one wind 1,422 m from
+  the drifter's height, the old rule failed 18.7 % of them and passed 0.2 %; at 800 m it failed 10.8 %, at 400 m 4.1 %.
+  The new rule fails 0.6 % at 1,422 m and 0.2 % at 400 m and passes none there; at 100 m it passes 89 % (9 % before)
+  and at 200 m 80 %. The Puerto Rico lanterns have a sounding and a measured profile at their height, so nothing is
+  added and nothing moves; PR051's one wind is 1.4 km off, and T2 cannot say.
 - *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
   of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
   `comes_back`): the whole track beats, or passing windows that do not overlap agree, more of them than chance gives
