@@ -132,6 +132,11 @@ def test_planted_as_the_truth_table_says(tmp, made):
           "its contrast survives the encoder: 0.75 to 1.15 of what was asked, at the median", said)
     check(all(0.75 <= v[3] <= 1.25 for v in worst.values()),
           "and its width: 0.75 to 1.25 of the sigma asked (the half-peak core's second moment)", said)
+    check(all(0.75 <= by[i]["contrast_after"] / by[i]["contrast_written"] <= 1.15 for i in (1, 2, 3))
+          and all(abs(by[i]["contrast_after"] - worst[i][2] * by[i]["contrast"]) <= 0.12 * by[i]["contrast"] for i in (1, 2, 3)),
+          "the table also gives each object's contrast after the encoder (the planted video less the control): here 0.75 to "
+          "1.15 of what was written, and the same as this test reads",
+          str([(by[i]["contrast_written"], by[i]["contrast_after"]) for i in (1, 2, 3)]))
     check(all(0.9 <= by[i]["contrast_written"] / by[i]["contrast"] <= 1.0 for i in (1, 2, 3)),
           "the table's contrast as written (the most a pixel was changed by) is 0.9 to 1 of the contrast asked where nothing cut it",
           str([(by[i]["contrast"], by[i]["contrast_written"]) for i in (1, 2, 3)]))
@@ -191,6 +196,22 @@ def test_the_scene_and_what_moves_with_it(tmp, made):
     check(all(abs(by[i]["speed_against_scene"] - v) <= 0.2 for i, v in want.items()) and abs(by[1]["speed_px_per_frame"] - np.hypot(1.5, 0.4)) < 0.01,
           "every object's speed is given on the screen and against the scene",
           "; ".join(f"object {i}: {by[i]['speed_px_per_frame']} on the screen, {by[i]['speed_against_scene']} against the scene ({v:.2f} drawn)" for i, v in want.items()))
+
+
+def test_a_faint_object_at_a_low_bit_rate_is_mostly_the_encoders(tmp):
+    """The same faint point through the drawn video's own 700 kb/s and through a tenth of it: the table's contrast after
+    the encoder says what is left, which the contrast written cannot."""
+    faint = [point(1, 70.0, 150.0, 1.0, 0.2, contrast=20.0, sigma=1.5)]
+    low = tmp / "low.mp4"
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(tmp / "drawn.mp4"), "-c:v", "libx264", "-threads", "1",
+                        "-pix_fmt", "yuv420p", "-g", "24", "-bf", "2", "-b:v", "60k", str(low)], capture_output=True)
+    assert r.returncode == 0, r.stderr.decode()
+    a = plant.make(tmp / "drawn.mp4", 1, N, faint, tmp / "faint", "drawn", seed=1, look=False)["truth_data"]["plants"][0]
+    b = plant.make(low, 1, N, faint, tmp / "faint-low", "low", seed=1, look=False)["truth_data"]["plants"][0]
+    check(abs(a["contrast_written"] - b["contrast_written"]) <= 1.5 and a["contrast_after"] >= 0.6 * a["contrast_written"]
+          and b["contrast_after"] <= 0.6 * a["contrast_after"],
+          "a 20-level point written the same into both: most of it is left at the video's bit rate, under 0.6 of that at a tenth of it",
+          f"written {a['contrast_written']} and {b['contrast_written']} DN; after the encoder {a['contrast_after']} and {b['contrast_after']}")
 
 
 def test_one_seed_one_file(tmp, made):

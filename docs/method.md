@@ -6147,8 +6147,13 @@ anywhere in the reference-data folder.
 - *Into the luma plane, in the file's own codes.* The stretch is decoded to the planes the file holds (yuv420p), with
   no conversion; the object is added to the luma and the planes go to the encoder as they are. A contrast is asked in
   grey levels of the extracted frames (DN, what every stage reads) and divided by the stretch the extraction applies
-  (255/219 on a studio-range video, section 50). The table gives the contrast asked and the contrast written: the
-  median over the object's frames of the most any pixel was changed by.
+  (255/219 on a studio-range video, section 50). The table gives three contrasts: the one asked; the one *written*
+  (the median over the object's frames of the most any pixel was changed by: less than asked where the picture's
+  floor or ceiling cut it); and the one left *after the encoder* (`contrast_after`: the planted video less the
+  control at the object, the median over up to 8 of the frames it is seen on). The third is what Find was given. At
+  a release video's few megabits a second it is close to the second; at a tenth of a megabit, a faint point is mostly
+  quantised away (two copies written at 25 DN into a labelled infrared clip could not be seen in five frames of six),
+  and a completeness read against the contrast written would blame the search for what the encoder did.
 - *A point* is a Gaussian of a given sigma. *A body* is a disc of a given width with its rim blurred by the sigma; it
   hides what is behind it. With `exposure` either is drawn out along its own motion. The default is a sharp picture
   in every frame, which flatters a fast object: a real one is a dash wherever the shutter is open long (section 30).
@@ -6228,7 +6233,10 @@ Find's list.
 - It is a Gaussian or a disc. It has no wing, no shape that turns, no glint, no trail, and its position has no
   jitter but what the encoder and the detector give it (section 32's jitter on real objects is 8 times the bound;
   planted dots reach 2-3 times).
-- It never passes through the first encoder, the display, the screen recording or the sensor.
+- It never passes through the first encoder, the display, the screen recording or the sensor. And it meets *one
+  encoder more than it should*: an object's contrast in a release video is what its first encoder left of it, and a
+  copy planted at that contrast is then encoded again. Where the bit rate is low this makes a planted copy fainter
+  than the object it copies (read `contrast_after`).
 
 **How it fails.** A scene too dark or too bright for the contrast asked (read `contrast_written`, not `contrast`). A
 scene with no texture: every path is "against the scene" at its screen speed. A stretch that starts mid-GOP with no
@@ -6266,6 +6274,28 @@ undershoot that trails a bright object and for pieces of one object, and cannot 
 bright points the same way leave the second as two short rows, before and after the crossing. This is the mechanism
 the biology survey suspected behind B22's 58 % for members of groups, shown here on a pair whose only difference is
 the neighbour. Find is not changed by this section; the finding is IDEAS.md's PL2.
+
+**A planted copy against the object it copies** (IDEAS.md B22; measured 2026-11-13 on the labelled infrared set of
+section 44: every clip with several labelled objects and every fourth with one, a 150-frame window each; 111 clips,
+155 hand-labelled objects). Each object's copy is a constant point of its contrast and width (`planted.look`), on its
+own labelled path moved elsewhere in the frame. Find's rate, by `find_rank`'s rule, with Wilson's 95 % interval:
+
+| | the labelled object | in the control (encoded again) | its planted copy |
+|---|---|---|---|
+| all 155 | 83 % (77-88) | 85 % (78-89) | 66 % (59-73) |
+| the 96 copies placed clear and written at 0.8 of their contrast or more | 81 % (72-88) | 83 % | 73 % (63-81) |
+| of those, under 0.5 px a frame against the scene (58) | 76 % (63-85) | | 59 % (46-70) |
+| of those, 0.5 px a frame or more (38) | 89 % (76-96) | | 95 % (83-99) |
+
+A second encode alone changes whether a labelled object is listed for 8 of 155 (5 %). What the table says: a copy
+that could not be written whole is no copy (24 of 155 landed on a brighter patch than their objects and were cut at
+the ceiling); a fair copy that moves is listed a little more often than its object, the biology survey's "planted
+dots flatter Find" (it had 77 % planted against 73 % true); and a fair copy that crawls on a still scene is listed
+less often than its object, because a constant point that barely moves changes nothing from frame to frame where a
+real bird or drone flaps and turns, and because at these clips' tenth of a megabit a second the second encoder takes
+most of a faint point away. So a completeness from constant points is too high for what moves, too low for what
+crawls, and the object's own rate for neither. In this set "one of several" objects is listed as often as one alone
+(84 and 83 %): its several objects are mostly not in the frame together, so it does not test the fold above.
 
 **What it costs** (arthur, CPU-seconds a 1080p frame; PR113 frames 301-471): planting with both encodes 0.23,
 extracting the planted video's frames 0.05, Find 0.27 (400 rows kept), and 5 s a window for the static masks. A

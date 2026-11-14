@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from mcdonald import plant  # noqa: E402
 
 CONTRAST = ((0, 15), (15, 30), (30, 60), (60, 120), (120, 1e9))        # DN as written
+AFTER = ((0, 5), (5, 15), (15, 30), (30, 60), (60, 120), (120, 1e9))    # DN after the encoder (the planted video less the control)
 SPEED = ((0, 0.3), (0.3, 1.0), (1.0, 3.0), (3.0, 10.0), (10.0, 1e9))    # px a frame against the scene
 PLAIN = ("dot", "body", "still")                                        # constant light: the kinds the grid is read on
 BEATING = ("beat", "bird", "flock")
@@ -98,6 +99,7 @@ def rows_of(units):
                             linked="link" in r and "error" not in link, covered=link.get("covered"),
                             link_px=link.get("median_px"), link_off=link.get("off"), link_beyond=link.get("beyond"),
                             contrast_cell=cell(r.get("contrast_written"), CONTRAST),
+                            after_cell=cell(r.get("contrast_after"), AFTER),
                             speed_cell=cell(r.get("speed_scene") if r.get("speed_scene") is not None else r.get("speed"), SPEED),
                             flickered="flicker" in r and "error" not in fl, beat_called=called,
                             beat_right=bool(called and hz and fl.get("hz") and
@@ -238,11 +240,13 @@ def main():
         part = [r for r in rows if name == "all" or r["video"] == name]
         plain = [r for r in part if r.get("kind") in PLAIN]
         dots = [r for r in part if r.get("kind") == "dot"]
-        tabs = dict(kind=table(part, "kind"), contrast=table(dots, "contrast_cell"), speed=table(dots, "speed_cell"),
+        tabs = dict(kind=table(part, "kind"), contrast=table(dots, "contrast_cell"), after=table(dots, "after_cell"),
+                    speed=table(dots, "speed_cell"),
                     sigma=table(dots, "sigma"), dark=table(dots, "dark"))
         loud = [r for r in dots if (r.get("contrast_written") or 0) >= 30]
         tabs["speed_loud"] = table(loud, "speed_cell")
         tabs["contrast_moving"] = table([r for r in dots if (r.get("speed_scene") or r.get("speed") or 0) >= 1.0], "contrast_cell")
+        tabs["after_moving"] = table([r for r in dots if (r.get("speed_scene") or r.get("speed") or 0) >= 1.0], "after_cell")
         frames = sum(u["frames"] for u in part_u)
         L += [f"## {name}", "", f"{len(part_u)} planted videos, {frames} frames, {len(part)} objects; "
               f"the scene moved {np.median([u.get('scene_speed') or 0 for u in part_u]):.2f} px a frame at the median.", ""]
@@ -274,9 +278,24 @@ def main():
                          f"({r['copy_contrast']} DN, {r['copy_frames']} frames) |")
             L.append("")
         L += markdown_table(tabs["contrast"], "contrast_cell", "Constant points, by contrast as written (grey levels)")
+        L += markdown_table(tabs["after"], "after_cell", "Constant points, by contrast after the encoder (grey levels; the planted video less the control)")
+        kept = {}
+        for r in dots:
+            if r.get("contrast_after") is not None and r.get("contrast_written"):
+                kept.setdefault(r["contrast_cell"], []).append(r["contrast_after"] / r["contrast_written"])
+        if kept:
+            tabs["encoder_keeps"] = {k: dict(n=len(v), median=float(np.median(v)), low=float(np.percentile(v, 16)), high=float(np.percentile(v, 84)))
+                                     for k, v in kept.items()}
+            L += ["**What the encoder leaves of a constant point's contrast** (after / written: the median, and the 16th to 84th centile)", "",
+                  "| written | objects | share left |", "|---|---|---|"]
+            for k in sorted(kept, key=_first_number):
+                c = tabs["encoder_keeps"][k]
+                L.append(f"| {k} | {c['n']} | {c['median']:.2f} ({c['low']:.2f}-{c['high']:.2f}) |")
+            L.append("")
         L += markdown_table(tabs["speed"], "speed_cell", "Constant points, by speed against the scene (px a frame)")
         L += markdown_table(tabs["speed_loud"], "speed_cell", "The same for points of 30 grey levels or more")
         L += markdown_table(tabs["contrast_moving"], "contrast_cell", "By contrast, for points moving 1 px a frame or more against the scene")
+        L += markdown_table(tabs["after_moving"], "after_cell", "The same by contrast after the encoder")
         L += markdown_table(tabs["sigma"], "sigma", "Constant points, by sigma (px)")
         L += markdown_table(tabs["dark"], "dark", "Constant points, dark (True) or bright")
         rel = reliability(part_u, part)

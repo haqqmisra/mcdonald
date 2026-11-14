@@ -819,6 +819,10 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
                  speed_against_scene=_against(mine, drift),
                  track={str(r["frame"]): [r["x"], r["y"]] for r in mine},
                  light_by_frame={str(r["frame"]): r["light"] for r in mine})
+    seen = {i: [r["frame"] for r in v if r["on"] and r["hidden"] <= 0.5] for i, v in by.items()}
+    after = after_the_encoder(plants, seen, f_planted, f_none, W, H, lv) if null else {}
+    for p in plants:
+        p["contrast_after"] = after.get(p["id"])
     truth = dict(
         what=("mcdonald plant: the truth table of a test video with synthetic objects written into it. The video is "
               "a test article, not footage."),
@@ -829,7 +833,10 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
         units=dict(contrast="grey levels of the extracted frames (DN), the object's peak over what is behind it, as asked",
                    contrast_written="the same as written: the median over its frames of the most a pixel was changed by "
                                     "(less than asked where the picture's floor or ceiling cut it, or its light was low)",
-                   peak="that, frame by frame (DN)",
+                   contrast_after="what the encoder left of it: the median, over up to 8 of its frames, of the planted video "
+                                  "less the control at the object (DN). Read a completeness against this where the bit "
+                                  "rate is low: an object asked at 25 DN can come out at 5. None where no control was written",
+                   peak="the contrast written, frame by frame (DN)",
                    contrast_codes="the same in the file's luma codes", sigma="px", speed="px a frame", hz="Hz"),
         settings=st, levels=lv, labelled=bool(label), plants=plants, skipped=skipped,
         overlay=dict(share=float(hide.mean()), still_scene=bool(masks.get("still_scene"))),
@@ -937,6 +944,38 @@ def _plain(o):
     return str(o)
 
 
+def after_the_encoder(plants, seen, f_planted, f_none, W, H, lv, most=8, reach=3):
+    """{id: contrast in DN} of each planted object as the encoder left it: over up to `most` of the frames it is seen
+    on (`seen`, {id: frames}: on the frame and not under the overlay), the planted video's luma less the control's, in the object's polarity, at its largest within `reach` px
+    of where the truth table has it; the median of those. The contrast *written* is what went into the encoder. At a
+    release video's few megabits a second the two are close; at a tenth of a megabit (the labelled infrared set) a
+    faint point is mostly quantised away, and a completeness read against the contrast written would blame the search
+    for what the encoder did."""
+    want = {}
+    for p in plants:
+        ns = sorted(int(n) for n in seen.get(p["id"], ()))
+        if ns:
+            want[p["id"]] = sorted({ns[int(round(i))] for i in np.linspace(0, len(ns) - 1, min(most, len(ns)))})
+    every = {n for v in want.values() for n in v}
+    A, B = _luma_frames(f_planted, every, W, H), _luma_frames(f_none, every, W, H)
+    out = {}
+    for p in plants:
+        got = []
+        for n in want.get(p["id"], ()):
+            if n not in A or n not in B:
+                continue
+            x, y = p["track"][str(n)]
+            xi, yi = int(round(x)), int(round(y))
+            x0, x1, y0, y1 = max(xi - reach, 0), min(xi + reach + 1, W), max(yi - reach, 0), min(yi + reach + 1, H)
+            if x1 <= x0 or y1 <= y0:
+                continue
+            d = A[n][y0:y1, x0:x1].astype(np.float32) - B[n][y0:y1, x0:x1].astype(np.float32)
+            got.append(float((-d if p.get("dark") else d).max()) / lv["codes_per_dn"])
+        if got:
+            out[p["id"]] = round(max(float(np.median(got)), 0.0), 1)
+    return out
+
+
 # ---- looking at what was planted ----------------------------------------------------------------------------------
 def _luma_frames(video, frames, W, H):
     """{frame: H x W uint8 luma} of the frames asked for, by one pass of ffmpeg over the file."""
@@ -996,7 +1035,8 @@ def sheet(truth, folder, out, per=6, box=48, zoom=4, page=10):
             y = i * rows_h
             lt = p.get("light") or {}
             words = (f"object {p['id']}: {p.get('kind') or p.get('shape')}, {'dark' if p.get('dark') else 'bright'}, "
-                     f"{p['contrast']:g} DN asked, {p.get('contrast_written')} written, sigma {p.get('sigma'):g} px"
+                     f"{p['contrast']:g} DN asked, {p.get('contrast_written')} written, {p.get('contrast_after')} after the encoder, "
+                     f"sigma {p.get('sigma'):g} px"
                      + (f", {p['diameter']:g} px wide" if p.get("diameter") else "")
                      + (f", {p['speed_px_per_frame']:g} px a frame" if p.get("speed_px_per_frame") is not None else "")
                      + (f", light {lt.get('kind')}" + (f" {lt['hz']:.1f} Hz" if lt.get("hz") else "") if lt.get("kind", "constant") != "constant" else "")
@@ -1064,7 +1104,7 @@ def recovered(truth, proposals, px=12.0):
             if i not in taken and on_path(tr, path_, float(p.get("size_px") or 0.0), px):
                 taken.add(i)
         rows.append(dict(id=pl["id"], kind=pl.get("kind"), group=pl.get("group"), contrast=pl["contrast"],
-                         contrast_written=pl.get("contrast_written"), sigma=pl.get("sigma"),
+                         contrast_written=pl.get("contrast_written"), contrast_after=pl.get("contrast_after"), sigma=pl.get("sigma"),
                          diameter=pl.get("diameter"), speed=pl.get("speed_px_per_frame"),
                          speed_scene=pl.get("speed_against_scene"), dark=bool(pl.get("dark")),
                          light=(pl.get("light") or {}).get("kind"), hz=(pl.get("light") or {}).get("hz"),
@@ -1183,7 +1223,8 @@ def main():
         d = json.loads(Path(args.plants).read_text(encoding="utf-8"))
         plants = d if isinstance(d, list) else d.get("plants") or []
         for p in plants:                                   # a truth table's objects carry what `make` adds: taken off again
-            for k in ("frames_on", "frames_clipped", "frames_hidden", "contrast_codes", "contrast_written", "fwhm_px", "speed_px_per_frame",
+            for k in ("frames_on", "frames_clipped", "frames_hidden", "contrast_codes", "contrast_written", "contrast_after", "fwhm_px",
+                      "speed_px_per_frame",
                       "speed_against_scene",
                       "track", "light_by_frame"):
                 p.pop(k, None)
