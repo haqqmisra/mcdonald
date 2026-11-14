@@ -33,6 +33,8 @@ DEPTH_S = 2.0          # s: the pieces a beat's depth is read in along the track
 DEPTH_PIECES = 24      # pieces at most: of a longer stretch this many are read, evenly spread along it
 DEPTH_RUNS = 200       # beats of one steady depth planted per reading ...
 DEPTH_P = 0.01         # ... and the share of them under which the depth changes more than a steady beat's does
+DEPTH_LEVEL = 0.5      # a piece whose own median brightness is under this share of the stretch's is left out: the object is
+                       # not all there, and a depth over its running mean is not a depth (PR088's object 2: one piece at 0.01, a "depth" of 690 %)
 CORE_PX = 3.0          # px: the core left out of the width reading on every frame (the bird paper's 2.5 or 3)
 WIDTH_P = 0.01         # the harmonic F-test's chance, at the beat, under which the width has a line there
 WIDTH_PLANT = 0.1      # the change of width planted at the beat in the object's own stamps: would one have shown?
@@ -75,25 +77,36 @@ def _depths(parts, fps, f0):
     return a, e, mean, float(np.sum(w * (a - mean) ** 2)), got
 
 
-def depth_along(r, fps, hz, runs=DEPTH_RUNS, seed=0):
+def depth_along(r, fps, hz, runs=DEPTH_RUNS, seed=0, level=None):
     """Does the beat at `hz` in the deviation curve r keep one depth along the track? {power, why, pieces, piece_s,
     covered (the share of the stretch the pieces hold), depth (a piece), err, mean, least, most, stat, steady_99, p,
     changes}. The stretch is cut in pieces of DEPTH_S seconds, end to end -- DEPTH_PIECES of them, evenly spread, where it
     holds more -- short enough that a wingbeat's wander inside a piece does not lower its depth. p is the share of `runs`
     beats of one steady depth, planted at hz in the pieces' own residuals (resampled in blocks of
     `flicker.BOOT_BLOCK_S`), whose pieces' depths come apart as far as the beat's do, the beat counted among them;
-    `changes` is p < DEPTH_P. Under two pieces nothing is read."""
+    `changes` is p < DEPTH_P. `level`, the brightness on the frames of r, leaves out a piece whose own median is under
+    DEPTH_LEVEL of the whole stretch's (`left_out`, their number). Under two pieces nothing is read."""
     from . import flicker
     r = np.asarray(r, float)
     n = len(r)
     out = dict(power=False, why=None, pieces=None, piece_s=None, covered=None, depth=None, err=None, mean=None, least=None,
-               most=None, stat=None, steady_99=None, p=None, changes=None)
+               most=None, stat=None, steady_99=None, p=None, changes=None, left_out=0)
     L = max(flicker.MIN_FRAMES, int(round(DEPTH_S * fps)))
     if not hz or n < 2 * L:
         out["why"] = f"too short to compare its depth along the track: {n} frames, and two pieces need {2 * L}"
         return out
     pieces = min(n // L, DEPTH_PIECES)
     starts = np.round(np.linspace(0, n - L, pieces)).astype(int) if n // L > pieces else np.arange(pieces) * L
+    if level is not None:
+        lv = np.asarray(level, float)
+        whole = float(np.median(lv))
+        keep = [a for a in starts if whole > 0 and np.median(lv[a:a + L]) >= DEPTH_LEVEL * whole]
+        out["left_out"] = int(len(starts) - len(keep))
+        starts, pieces = np.asarray(keep, int), len(keep)
+        if pieces < 2:
+            out["why"] = (f"too few pieces where the object is all there to compare its depth: {pieces} of {len(keep) + out['left_out']} "
+                          f"hold half its median brightness or more")
+            return out
     t = np.arange(n) / fps
     parts = [(t[a:a + L], r[a:a + L]) for a in starts]
     a, e, mean, stat, got = _depths(parts, fps, hz)

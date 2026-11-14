@@ -38,6 +38,7 @@ LINE_P = 0.01          # a band holds a line where curves with no line stand as 
 POOL_MIN = 20          # the background's frequencies, two resolutions apart, that its standing is read from (four apertures, five each)
 SHARED = 0.5           # a background aperture that beats this strongly at the line, in the object's brightness, shares it (`flicker.SHARED`)
 SAME_RES = 1.0         # resolutions: a line within this of the stage's beat (or its double) is that beat, not another line
+LEVEL_FLOOR = 0.5      # the running mean an object's curve is read as a share of is held at this share of its median or more
 
 
 def _stretches(n, fps):

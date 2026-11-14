@@ -339,6 +339,43 @@ def test_curves_with_no_line_hold_none():
     traffic.rate(check, "a curve with no line is given one about one time in a hundred, all its bands together (LINE_P)", lines, runs, beatlines.LINE_P)
 
 
+def test_an_object_that_fades_for_a_moment():
+    """An object that all but vanishes for two seconds (its brightness a hundredth of its median), with a steady 12 %
+    beat at 9.99 Hz and grain: read against its running mean, those two seconds explode (the running mean nears
+    nought), and on PR088's object 2 they alone made a "line" and a depth of 690 %. Through `beatreadings.beside`, the
+    readings the stage makes: the band search holds the beat and no other line, and the depth leaves the faded pieces
+    out."""
+    print("\nthe readings on an object that fades for a moment")
+    rng = np.random.default_rng(597)
+    n = 600
+    t = np.arange(n) / FPS
+    table = flicker.lookalikes(FPS)
+    found, depth = [], []
+    for k in range(8):
+        level = 1000.0 * (1 + 0.12 * np.sin(2 * np.pi * 9.99 * t + rng.uniform(0, 6.28))) * (1 + 0.01 * rng.standard_normal(n))
+        a = 240 + 60 * (k % 3)
+        level[a:a + 60] = 10.0 * (1 + 0.5 * rng.standard_normal(60))      # the object all but gone
+        use = {"object": [float(v) for v in level]}
+        bgs = [f"background {j}" for j in range(4)]
+        for c in bgs:
+            use[c] = [float(v) for v in 15.0 * rng.standard_normal(n)]
+        seg = {c: (0, n) for c in use}
+        b = dict(hz=9.99, hz_err=0.02, resolution_hz=0.25, double_hz=19.98, lookalike=flicker.at_lookalikes(9.99, 0.25, table, 0.02))
+        fields = {"beat": {"object": b}, "lookalikes": table, "steadiness": {}}
+        beatreadings.beside(fields, ["object"], ["object"], use, seg, bgs, {}, 1000.0, FPS, [], 12.0, say=lambda *a: None)
+        f = fields["band_lines"]["object"]
+        found.append([(round(x["hz"], 2), x["the_beat"]) for x in beatlines.lines_of(f)])
+        depth.append(fields["morphology"]["object"]["depth"])
+    other = [x for x in found if any(not the for _, the in x)]
+    check(not other and all(x for x in found), "the band search holds the beat, and no line that is not it",
+          f"{found[:3]}; with another line: {len(other)} of 8")
+    check(all(d["power"] and d["left_out"] >= 1 and d["most"] < 0.3 for d in depth),
+          "the depth leaves out the pieces where the object is not all there, and reads the rest",
+          str([(d["pieces"], d["left_out"], round(d["most"] or 0, 3)) for d in depth[:4]]))
+    traffic.rate(check, "a steady beat with a faded moment is said to change depth about one time in a hundred (DEPTH_P)",
+                 sum(bool(d["changes"]) for d in depth), 8, beatshape.DEPTH_P, str([round(d["p"], 2) for d in depth]))
+
+
 class _Drifting(_Scene):
     """A point whose brightness wanders slowly by 25 % and carries a line of 5 % at 10.5 Hz. Eight seconds."""
     n1 = 240

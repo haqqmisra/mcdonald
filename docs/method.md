@@ -6374,7 +6374,13 @@ other half, a verdict taken from the battery of tests, is the headline rule, and
 
 **The reading** (`beatlines.search`, from the curves; `band_lines[name]`). The object's curve and each background
 aperture's -- each against its running mean, the backgrounds in the object's brightness, as the stage reads them -- in
-stretches of 4 s, half overlapping. The stretches' power spectra are averaged (Welch), and each frequency is divided by
+stretches of 4 s, half overlapping. The object's running mean is held at LEVEL_FLOOR = 0.5 of its median or more:
+where the object fades to nothing for a moment the running mean nears nought and the share explodes. On PR088's
+object 2, as its case file measures it, two stretches reached 116 times its brightness and alone made a "line" at
+8.09 Hz, 64 % of its brightness (found by the gate, 2026-11-14; `test_beat` holds it). Where the running mean never
+falls so far the curve is the stage's own. Reading every curve as a share of the median instead was tried and
+dropped: it weighs the bright stretches over the faint, and on the saved curve sets it said a line that is not the
+stage's beat on 7 objects more (a harmonic of flyer 1's beat among them) and on 2 fewer. The stretches' power spectra are averaged (Welch), and each frequency is divided by
 the mean of its neighbours within SIDE_HZ = 2.5 Hz (or eight resolutions), its own lobe left out: how it stands over its
 own continuum, whatever the continuum's level or slope. In each band of the look-alike table that does not cover the
 whole band (at 30 frames a second: the lantern's 4.7-8.7 Hz, the bus as heard, the lamp on it, the candles'), the
@@ -6398,7 +6404,10 @@ grain and a wander with little grain, a line is given 0 to 1.0 % of the time, al
 aperture searched as the object against the other three (the control by construction, `false_alarm` in every
 measurement): 15 lines in 5,772 band searches (0.26 %) over the 459 saved curve sets (the controls harness's 27 and the
 labelled infrared set's 432, judged again from their curves under the stage's rule). On real objects that are not
-birds: no line that is not the stage's own beat on the 27 controls' 29 objects. On the labelled set's non-birds a line
+birds: on the 27 controls' 29 objects, one line that is not the stage's own beat, on v030 (a helicopter in visible
+light with an anti-collision strobe): 10.34 Hz at 0.7 % of its brightness, 7.8 times its neighbours, chance 0.002,
+where the stage calls no beat. It showed only once the running mean was held off nought (above): that object fades
+with its strobe. On the labelled set's non-birds a line
 is said on 5 of the 286 the search could read (1.7 %; exact 95 % 0.6-4.0 %): 2 of 80 airplanes, 3 of 162 drones and 0
 of 44 helicopters. IR_AIRPLANE_001 (8.13 Hz at 1.0 %, the line the paper's rule calls a beat there; that camera's
 platform shakes at 8.2-8.3 Hz, section 59.1) and IR_AIRPLANE_074 (10.22 Hz at 1.3 %) hold a line beside the stage's
@@ -6417,7 +6426,7 @@ double), the notes say "a line at f Hz, a % of its brightness, in the N-M Hz ban
 not show (chance p)", and whether the stage calls a beat; the report's bottom line says it in a reader's words. Where
 the line is the stage's own beat, nothing more is said. Where it is the stage's strongest rhythm and the stage did not call it a beat
 (`the_peak`), the note says that the stage's own tests did not hold it, and that the finding says why. On the 27
-controls no band holds a line that is not the stage's
+controls (v030 apart, above) no band holds a line that is not the stage's
 own beat; where a control's beat lies inside a band, the search holds the same line (flyers 2, 3 and 4, PR135's six,
 AIRPLANE_064, DRONE_059), at the paper's frequency where the stage reports its clearest window's (flyer 2: 4.48 Hz
 against the stage's 4.25 and the paper's 4.49; flyer 4: 3.88 against 4.19 and 3.85). On the labelled set's birds it adds
@@ -6460,14 +6469,18 @@ chain makes (`chain_marked`: every mark but the flames' and the rotors', which a
    point), or pixels outside the core sit at the picture's floor or ceiling on a twentieth of the frames, it is NO
    POWER and says which.
 
+**Pieces where the object is not all there.** A piece whose own median brightness is under DEPTH_LEVEL = 0.5 of the
+stretch's is left out (`left_out`): its depth over a running mean near nought is not a depth (PR088's object 2 in its
+case file: one piece at a hundredth of the median, a "depth" of 690 %). Under two pieces left, the depth is not read.
+
 **Held to** (`test_beat`, drawn): a beat of one depth is said to change 0 times in 12; one whose depth doubles along 10
 s, 7 times in 8; a blob 3 px in sigma whose brightness alone beats by 20 % has no line in its width outside the core
 (p 0.04) where the planted change shows (p 2e-9), though its pixel area beats in step (p 3e-10); one whose width beats
 by 8 % has (p 7e-11); a point and a blob clipped beyond its core are NO POWER.
 
 **On objects whose nature is known** (the stage run whole on each, 2026-11-13; the curves of the labelled set judged
-again). Galileo flyer 3, a bird at 10.03 Hz: its depth runs from 27 to 39 % over 3 pieces, no more than a steady
-beat's does (chance 0.07); its frequency wanders (chance 0.005 of a clock's); its width is a point. PR135's six
+again). Galileo flyer 3, a bird at 10.03 Hz: its depth runs from 27 to 30 % over 2 pieces, no more than a steady
+beat's does (chance 0.60; a third piece, where the bird is under half its median brightness, left out); its frequency wanders (chance 0.005 of a clock's); its width is a point. PR135's six
 (7.1-8.0 Hz): depths that do not change (chance 0.07-0.94, 2 pieces each), frequencies that wander at 1 in 100 on four
 of the six (0.005-0.025 over all six), widths not read (a point, or pixels outside the core clipped on 7-35 % of the
 frames). IR_DRONE_059, a held-picture cadence at 10.00 Hz: its depth changes (2.6-14.4 %, chance 0.005), its frequency

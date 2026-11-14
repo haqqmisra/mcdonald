@@ -8,6 +8,7 @@ the sensor chain can make (T2, `beatshape`), and the beat in the position (K2, `
 sentences after everything the stage said before.
 """
 import numpy as np
+from scipy import ndimage
 
 
 def beside(fields, obj, strong, use, seg, bgs, mine, scale, fps, lines, top, stamps=None, say=print):
@@ -28,11 +29,23 @@ def beside(fields, obj, strong, use, seg, bgs, mine, scale, fps, lines, top, sta
         b["lookalike_share"] = flicker.marked_share(table, top, b["resolution_hz"], b.get("hz_err"))["share"]
         s0, s1 = seg[n]
         r = flicker.deviation(use[n][s0:s1], fps)
+        level = np.asarray(use[n][s0:s1], float)
+        med = float(np.median(level))
+        # the band search reads the curve as a share of its running mean, as the stage does, with that mean held at
+        # beatlines.LEVEL_FLOOR of the object's median or more: where the object fades to nothing for a moment the running
+        # mean nears nought and the share explodes (PR088's object 2 in its case file: 116 times its brightness on two
+        # stretches, which alone made a "line" at 8.09 Hz). Where it never fades so far, the curve is the stage's own
+        rb = r
+        if med > 0:
+            trend = ndimage.uniform_filter1d(level, flicker.trend_frames(fps), mode="nearest")
+            if trend.min() < beatlines.LEVEL_FLOOR * med:
+                rb = (level - trend) / np.maximum(trend, beatlines.LEVEL_FLOOR * med)
+                rb = rb - rb.mean()
         try:
             sc = float(np.median(use[n][s0:s1])) if mine.get(n) else scale
             R = [flicker.deviation(use[c][s0:s1], fps, sc) for c in (mine.get(n) or bgs)
                  if c in seg and seg[c][0] <= s0 and seg[c][1] >= s1 and not any(v is None for v in use[c][s0:s1])]
-            found[n] = beatlines.search(r, R, fps, table, top, flicker.LOW, lines, beat=b if n in strong else None,
+            found[n] = beatlines.search(rb, R, fps, table, top, flicker.LOW, lines, beat=b if n in strong else None,
                                         peak=None if n in strong else b)
         except Exception as e:
             say(f"  ! the band search was not read ({n}): {type(e).__name__}: {e}")
@@ -40,7 +53,7 @@ def beside(fields, obj, strong, use, seg, bgs, mine, scale, fps, lines, top, sta
             marks = beatshape.chain_marked(b)
             if marks and n in strong:
                 st = (fields.get("steadiness") or {}).get(n) or {}
-                m = dict(hz=b["hz"], marks=marks, depth=beatshape.depth_along(r, fps, b["hz"]),
+                m = dict(hz=b["hz"], marks=marks, depth=beatshape.depth_along(r, fps, b["hz"], level=level),
                          steadiness={k: st.get(k) for k in ("p", "wanders", "wander_share", "pieces", "why")}, width=None)
                 if stamps and n in stamps:
                     ring = (fields.get("ring_px") or {}).get(n) or flicker.RING
