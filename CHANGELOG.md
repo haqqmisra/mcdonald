@@ -128,7 +128,11 @@ that the measurements do not support (IDEAS.md N1-N6). Each changes what some re
   4.5-9.5).
 - **A beat comes back by windows apart only beyond chance** (N3; `flicker.CHANCE_P`, `windows_chance`). On a long track
   two passing windows apart are what chance gives: 14 of 16 beats on clouds and aircraft were. Such a beat is now held to
-  the one-stretch rule, and `drift` weighs envelopes made before this from their own windows. **T3 with two cameras**
+  the one-stretch rule, and `drift` weighs envelopes made before this from their own windows. Each window's chance is the
+  clip's own: its background apertures' windows over the object's stretch, judged as the object's, at least 2 in 100
+  (`CHANCE_FLOOR`, `background_windows`). With the census's 9 % instead, short tracks lost two of the labelled set's 30
+  named birds; now all 30 stay, and every call is the record's but one refusal. T3's false beats on the Galileo
+  Project's clouds and aircraft go from 14 and 3 to 5 and 0. **T3 with two cameras**
   (N4; `--flicker a.json,b.json`): a beat that one camera sees and another, watching at the same time and able to see a
   third of it, does not, is the first camera's view, and T3 passes on it.
 - **No size from the default spot** (N5; `report.extent`). With a track file and no size, the report turned the

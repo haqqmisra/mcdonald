@@ -347,6 +347,11 @@ GOLDEN_KINDS = {
     "test_wa9ony5_swing": ("control", "the payload's line, 'a little over one metre', from its maker"),
     "test_pr071_string": ("regression", "the line seen by eye; its object unidentified"),
     "test_pr055_nothing_tied": ("regression", "unidentified; the clouds seen by eye"),
+    "test_pr004_companion_and_no_pendulum": ("regression", "the companion and the wander null as 0.5.2 reads them; AARO's "
+                                             "'almost certainly a balloon' is from outside, the pendulum's absence is not"),
+    "test_pr105_companion_is_not_followed_away": ("regression", "the point under the object where 0.5.2's stack puts it"),
+    "test_no_pendulum_on_the_birds": ("regression", "birds known by the tool's own beat (X7), read by 0.5.2's follower"),
+    "test_nothing_tied_leaves_nothing_in_the_record": ("regression", "the record's fields and words as 0.5.2 writes them"),
     "test_audio_cases": ("control", "aircraft of known type in known phases of flight (DVIDS)"),
     "test_flyover_cases": ("control", "known aircraft over a camera, and ADS-B for the approaches"),
     "test_pr051_zoom_with_no_blank": ("control", "the data bar's FVW and SLR, read by eye"),

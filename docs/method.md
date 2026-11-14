@@ -1125,6 +1125,33 @@ far beyond it: 12 of 40 windows give 1.9 in 10,000. Each beat records `windows_i
 the finding says when windows apart were no more than chance. A whole track that beats is not asked. A beat that fails
 this falls to the one-stretch rule above.
 
+**Chance from the clip's own background (revised 2026-11-13, IDEAS.md N3).** The drift test's rate is a census over 116
+release videos (§39). A clip whose background is clean passes far less often than that, and on a short track the census's
+9 % makes two windows apart of five no more than chance (7 %). The labelled set lost two of the record's 30 named birds
+this way (§44): IR_BIRD_017 and IR_BIRD_041 under the stage's rule, IR_BIRD_017 and IR_BIRD_038's object 1 under the
+paper's. So where the windows decide (two or more apart, and the whole track does not beat), each background aperture
+beside the object is put through the object's own windows over the object's stretch, held against the other apertures
+and measured in the object's brightness, as the controls are (`background_windows`). Each window's chance of passing is
+then the share of those windows that pass, and at least `CHANCE_FLOOR`, 2 in 100 (`windows_chance`'s `rate`). With fewer
+than two apertures to read, it is the census's rate, as before. Each beat records `background_windows` (passing, of all)
+and `windows_chance_rate`, and the finding says both where they ruled a beat out. The extra windows are read only where
+they decide, so a run takes no longer elsewhere.
+
+It was measured before it was built (the uap repository's `galileo/nevada/n3/`). The labelled set's 432 tracks were
+judged again from their saved curves under both rules, once for each candidate rule. Every named bird of the record
+comes back: 30 under the stage's rule, 27 under the paper's. Every call is the record's but one: IR_BIRD_035's object
+0, refused in the record, now has no beat of its own, since its background's windows pass 6 % of the time and its two
+windows apart of three are what that gives. The record's three false alarms come back with the birds (DRONE_059,
+HELICOPTER_043, HELICOPTER_024); the census's rate had dropped HELICOPTER_043 along with the two birds. Background
+apertures judged as objects come back by windows 2 times in 1,562. On the Galileo Project's objects (§53), T3's false
+beats from every camera fall from 14 of 119 clouds and 3 of 80 aircraft (two windows apart, the rule before) to 5 and
+0 (the census's rate gave 3 and 0). Three of the five clouds beat over the whole track. The other two beat in 10 and 11
+windows of more than 160 while their skies' windows pass none: a cloud's own texture flickers more than the clear sky
+beside it, which no background aperture can measure. The floor was set on these numbers. At 3 in 100 one of those two
+clouds also drops, but two windows apart of five, a short bird's track (IR_BIRD_017), would sit at 0.85 % against the
+1 % line; at 2 in 100 it sits at 0.38 %. Making chance's windows also agree in frequency (each 1-Hz band's own share of
+passing background windows, summed over the band) changed only one helicopter, under the paper's rule, and was not built.
+
 The rate is stated and then held to a null. Drawn with no line, in 100 cells at 30 and 60 frames a second: coloured noise,
 bursts of it, hops, steps, and a level that flips. Of 11,400 tracks 1,800 (15.8 %) come out as one stretch, and 93 keep
 it (0.82 % of the tracks, 5.2 % of the calls; the worst family, stationary noise with the object three to five times the
@@ -6134,7 +6161,8 @@ and they triangulate to the pipeline's positions within 0.5 %.
   cannot range them, every time, as it should. No aircraft was called a drifter.
 - *Drift, T3* (sections 13 and 34). The rule for a beat that comes back took two windows apart on any track. On a long
   track chance gives two: 14 of the 16 beats on clouds and aircraft were no more than chance. Windows apart now count
-  only beyond chance, and a beat seen from two cameras at once is held to the second camera too.
+  only beyond chance (chance from the clip's own background windows since the revision, §13), and a beat seen from
+  two cameras at once is held to the second camera too.
 - *Size* (`report.extent`). With a track file and no size, the report turned the tracker's default 9-pixel spot into
   metres. In place of that default it now uses the object's length at half its peak brightness, measured on every
   tracked frame by the camera stage, and never turns the default into a size. A spot the marks or `--size` set is what
