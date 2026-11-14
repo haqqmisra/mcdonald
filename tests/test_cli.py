@@ -227,7 +227,10 @@ def drive_marking(clip, video, td, found):
     ok = check(rc == 0 and d is not None and set(d) == ENVELOPE and d["exit"] == 0 and d["error"] is None,
                "it exits 0 with the envelope, and nothing else on stdout", f"exit {rc}")
     if not ok:
-        print(err[-800:])
+        if d is None:
+            said_instead("mark --set (two marks on the object) --link --json", rc, out, err)
+        else:
+            print(err[-800:])
         return
     names = {Path(f).name for f in d["files"]}
     check(names == {"planted_marks.json", "planted_marks.csv", "planted_marks.png", "planted_autotrack.csv", "planted_autotrack_strip.png"}
