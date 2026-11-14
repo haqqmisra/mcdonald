@@ -1778,6 +1778,52 @@ def test_pr004_companion_and_no_pendulum():
               f"PR-004 row {row}: no pendulum (0.5.1: {'1.95' if row == 4 else '2.00'} m)", "" if sw is None else sw["finding"][:140])
 
 
+def test_pr016_a_row_of_birds_is_not_symbology():
+    """AARO's PR-016, resolved as birds (2026-11-13). The one press followed one bird of a row, and integrity's layer-order
+    test said it was possibly added: "crosses lines drawn frame by frame ... in 13 frames; over the object's middle 0.00
+    of their pixels keep the line's own level" and "passes symbology drawn for a stretch (text) in 11 frames; its pixels
+    move 1.02 as far toward the object's level". The lines are the dark rings the sensor's edge enhancement draws round
+    each bird, joined along the row into a net 6-8 px across (rms), and the text is the trail the dark gaps leave where
+    the row slides along itself. A drawn line is a thin stroke, and text held for a stretch is there on every frame the
+    object is clear of it. Held here on the blind run's own track, with the clip's static masks: with the two gates
+    off the test flags as it did; as built it flags nothing: the net is too wide for a line, and in a clip whose scene
+    holds still on screen the text reading decides nothing (seven of its readings over these frames were held as text
+    is, and flagged, with the hold alone)."""
+    print("\nAARO PR-016, a row of birds -- their dark rings are not symbology the bird was drawn over")
+    video, why = _aaro("DOD_111415209.mp4")
+    if video is None:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR-016 layer order")
+        return
+    import numpy as np
+    from mcdonald import forensics as vf, integrity
+    track = {n: p for n, p in vf.read_track(str(GOLDEN / "aaro_pr016_object1_track.csv")).items() if 560 <= n <= 690}
+    with tempfile.TemporaryDirectory() as td:
+        clip = vf.Clip(video, f"{td}/frames", 560, 690)
+        masks = vf.static_masks(clip)
+        o = integrity.Obj(clip, track, 9.0, False)
+        thin, held = integrity.LINE_THIN, integrity.TEXT_HELD
+        try:                                                               # the test as it was until 2026-11-13
+            integrity.LINE_THIN, integrity.TEXT_HELD, integrity.TEXT_STILL = np.inf, -1.0, False
+            was = integrity.t_overlay(o, masks)
+            seen = integrity._overlay_drawn.seen
+        finally:
+            integrity.LINE_THIN, integrity.TEXT_HELD, integrity.TEXT_STILL = thin, held, True
+        now = integrity.t_overlay(o, masks)
+        aside = integrity._overlay_drawn.seen
+    limit = thin * vf.stroke_step(clip.H)
+    check(was[0] == "FLAG" and "lines drawn frame by frame" in was[1] and "drawn for a stretch" in was[1]
+          and len(seen["widths"]) >= 8 and min(seen["widths"]) > 2 * limit,
+          "with no word on a line's width: the row's rings are a line the bird is drawn over (FLAG), each over twice as "
+          "wide as a stroke", f"{was[1][:150]}; across {min(seen['widths'] or [0]):.1f}-{max(seen['widths'] or [0]):.1f} px rms, "
+          f"a stroke at most {limit:.1f}")
+    check(now[0] != "FLAG" and "lines drawn frame by frame" not in now[1] and len(aside["wide"]) == len(seen["widths"]),
+          "a line is thin: the rings' net is set aside on every frame it was taken", f"{now[0]}: {now[1][:120]}")
+    check(masks["still_scene"] and now[0] == "NO POWER" and "scene holds still on screen" in now[1] and not aside["held"],
+          "and what stays put in a scene that holds still may be the scene: the text reading decides nothing there",
+          f"{now[0]}: {now[1][:170]}")
+
+
 def test_pr105_companion_is_not_followed_away():
     """PR105, frames 1075-2155 (0.5.2, H1): three unresolved points on a near-vertical line, the lower one 26 px under
     the tracked one, brightening and fading by itself. 0.5.1's follower left it within a second and went with the
@@ -2124,6 +2170,7 @@ def main():
     test_pr055_nothing_tied()
     test_wa9ony5_swing()
     test_pr004_companion_and_no_pendulum()
+    test_pr016_a_row_of_birds_is_not_symbology()
     test_pr105_companion_is_not_followed_away()
     test_no_pendulum_on_the_birds()
     test_nothing_tied_leaves_nothing_in_the_record()

@@ -316,6 +316,15 @@ def test_the_zoom_as_a_regression_discontinuity():
     flat = zoom.rd_fit([(i, j, np.exp(rng.normal(0, 0.004))) for i in range(4) for j in range(4)])
     check(flat and zoom.rd_step(flat) is False, "no step: the interval inside the no-step band", flat and f"{flat['interval']}")
     check(zoom.rd_fit(pairs[:4]) is None, "too few pairs: no estimate")
+    # found on real clips, 2026-11-13: a burst the stage calls unknown gave "a step", its pairs' fits never asked their
+    # own verdict (PR27's 89-s burst, featureless haze: 15 pairs all at x3.1271, an interval of no width)
+    fit = dict(s=3.1271, zncc=0.31, at_edge=False)
+    check(zoom.rd_trusts(dict(fit, verdict="step")) and zoom.rd_trusts(dict(fit, s=1.002, verdict="no step"))
+          and not zoom.rd_trusts(dict(fit, verdict="unknown")) and not zoom.rd_trusts(dict(fit, verdict="step", at_edge=True))
+          and not zoom.rd_trusts(dict(fit, verdict="step", zncc=0.05)) and not zoom.rd_trusts(None),
+          "a pair's scale is taken only where its own fit is trusted: a step or no step, not unknown")
+    check(zoom.rd_fit([(i, j, 3.1271) for i in range(4) for j in range(4)]) is None,
+          "every pair at one value is a fit stuck on its grid, not a jump with no error: no estimate")
 
     def frame_of(n):
         m = 1.0 if n <= 70 else 2.0

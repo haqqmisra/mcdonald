@@ -860,6 +860,63 @@ def test_integrity_sees_symbology_drawn_frame_by_frame():
           "a readout drawn for frames 10-30 over the object: missed by the whole-clip mask, found on top", txt)
     v, txt, d = verdict("text", False, 10.0, 110.0, True)[0]
     check(v == "FLAG" and "drawn f" in txt, "the readout under the object: FLAG", txt)
+    check(d.get("text_held", 0.0) >= 0.85 and len(d["text_frames"]) >= 5
+          and all(n <= 17 or n >= 23 for n in d.get("passing_frames") or []),
+          "and the readout is held: at its level on nearly every frame of the window the object is clear of it; the "
+          "readings set aside are within 8 frames of its first and last frames, where the window reaches past it",
+          f"held on {d.get('text_held', 0.0):.2f} (text: {integrity.TEXT_HELD:g} or more), {len(d['text_frames'])} readings; "
+          f"set aside {d.get('passing_frames')}")
+
+    # AARO's PR-016 (2026-11-13): a row of bright points, each ringed dark by the sensor's edge enhancement, under dark
+    # symbology. The rings join into a net along the row -- a rung between each two points, arcs above and below -- which
+    # runs through the point followed, in on one side and out on the other, and was read as a drawn line the point was
+    # laid over ("possibly added"). A drawn line is a thin stroke; the net is as wide as the points.
+    own = np.random.default_rng(16)                  # its own generator: the checks above keep their draws
+
+    class Row:
+        n0, n1, fps = 1, 40, 30.0
+
+        def __init__(self):
+            self.W, self.H = W, H
+            self.noise = {n: own.normal(0, 2.0, (H, W)) for n in range(1, 41)}
+            self.trk = {n: (150.0 + 0.3 * (n - 1), 120.0) for n in range(1, 41)}      # the row drifts, every member with it
+
+        def grey(self, n):
+            x, y = self.trk[n]
+            f = 110.0 + self.noise[n]
+            rs = [np.hypot(xx - (x + 13.0 * j), yy - y) for j in range(-8, 9)]        # points 13 px apart
+            for r in rs:
+                f = f - 60.0 * np.exp(-0.5 * ((r - 5.5) / 1.3) ** 2)                  # each one's dark ring
+            for r in rs:
+                core = np.exp(-0.5 * (r / 2.2) ** 2)
+                f = f * (1 - core) + 250.0 * core
+            f[cross] = 15.0                                                           # the symbology is dark here
+            return np.clip(f, 0, 255)
+
+        def rgb(self, n):
+            return np.repeat(self.grey(n)[:, :, None], 3, 2).astype(np.float32)
+
+    c = Row()
+    masks = vf.static_masks(c)
+    o = integrity.Obj(c, c.trk, 6.0, False)
+    thin, held = integrity.LINE_THIN, integrity.TEXT_HELD
+    try:
+        integrity.LINE_THIN, integrity.TEXT_HELD = np.inf, -1.0          # the test as it was until 2026-11-13
+        was = integrity.t_overlay(o, masks)
+    finally:
+        integrity.LINE_THIN, integrity.TEXT_HELD = thin, held
+    seen = integrity._overlay_drawn.seen
+    now = integrity.t_overlay(o, masks)
+    wide = integrity._overlay_drawn.seen["wide"]
+    check(vf.overlay_polarity(masks) == -1 and was[0] == "FLAG" and "lines drawn frame by frame" in was[1]
+          and len(seen["widths"]) >= 10 and min(seen["widths"]) > 2 * thin * vf.stroke_step(H),
+          "a row of bright points ringed dark, under dark symbology: with no word on a line's width the rings' net was a "
+          "line the point is drawn over (FLAG), though it is over twice too wide for a stroke on every frame",
+          f"{was[0]}: {was[1][:90]}; across {min(seen['widths']):.1f}-{max(seen['widths']):.1f} px rms, a stroke at most "
+          f"{thin * vf.stroke_step(H):.1f}")
+    check(now[0] == "NO POWER" and "lines drawn frame by frame" not in now[1] and len(wide) == len(seen["widths"]),
+          "a line is thin: the net is set aside on every frame, and nothing is said to be drawn under or over the point",
+          f"{now[0]}: {now[1][:90]}; set aside on {len(wide)} frames")
 
 
 def test_the_mark_gate_grows_with_the_spot_size():
@@ -5725,6 +5782,189 @@ def test_zz_integrity_near_the_picture_edge_reads_no_window_off_it():
     masks = dict(graphics=np.zeros((clip.H, clip.W), bool), blocks=np.zeros((clip.H, clip.W), bool))
     got, err = _edge_run("pattern", lambda: I.t_pattern(o, pat, ones, masks))
     check(err is None, "a control window that would run off the picture is not read, and the test goes on", err or f"{got[0]}: {got[1][:80]}")
+
+
+def numbers_no_field_holds(finding, fields, fixed=("Unit slope with noise in both gives slopes of r and 1/r.",)):
+    """The numbers a test's sentence prints that none of its fields is, at the digits printed: [] where every one is
+    held. `fixed` are the sentence's own words with a digit in them."""
+    import re
+    text = finding
+    for words in fixed:
+        text = text.replace(words, "")
+    values = [v for v in fields.values() if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)]
+    missing = []
+    for tok in re.findall(r"(?<![\w.])[-+]?\d+(?:\.\d+)?", text):
+        places = len(tok.split(".")[1]) if "." in tok else 0
+        if not any(f"{v:.{places}f}" == tok.lstrip("+") for v in values):
+            missing.append(tok)
+    return missing
+
+
+def test_with_both_axes_the_shake_test_keeps_every_number_it_prints():
+    """integrity's shake test (2026-11-13; found by session 22's work on `share rerun`, IDEAS.md G6): its sentence prints
+    r, sigma and two slopes for each axis and the N, and its fields kept the stronger axis's r and sigma alone. On PR135's
+    objects 1, 2 and 4 a rerun on another computer printed "-646.25" for "-646.24" (the weaker axis's inverse slope, at r
+    near zero) and no field held it. Now each axis's four numbers and the N are fields, and the old three keep their
+    names and meaning.
+
+    The name sorts after every other test's on purpose: `--part K/N` deals the sorted names round, so a new name in the
+    middle moves later tests to other parts, where a test that draws from the module's RNG gets other draws."""
+    print("\nintegrity: the shake test keeps every number its sentence prints, both axes")
+    from mcdonald import integrity
+    rng = np.random.default_rng(20261113)          # its own generator: nothing here moves another test's draws
+
+    class Tracked:
+        pass
+
+    def drawn(n, acc_obj, acc_bg):
+        """n frames of an object whose screen acceleration at frame f is acc_obj[f - 2] and a background whose shift
+        changes by acc_bg[f - 2] there: (the object, bg) as t_shake takes them, its rows frames 2 to n - 1."""
+        o = Tracked()
+        pos = np.cumsum(np.cumsum(np.vstack([np.zeros((2, 2)), acc_obj[:n - 2]]), axis=0), axis=0) + (300.0, 200.0)
+        o.trk = {f: (float(pos[f - 1, 0]), float(pos[f - 1, 1])) for f in range(1, n + 1)}
+        shift = np.cumsum(np.vstack([np.zeros((1, 2)), acc_bg[:n - 1]]), axis=0)
+        return o, {f: (shift[f - 1], "isotropic") for f in range(1, n + 1)}
+
+    def unlike(a, b, r=0.0):
+        """`a` with what it shares with `b` taken out, then as much of `b` put back as correlates them by r."""
+        b0, a0 = b - b.mean(), a - a.mean()
+        a0 = a0 - b0 * (b0 @ a0) / (b0 @ b0)
+        return a0 + b0 * r / math.sqrt(1 - r * r) * math.sqrt((a0 @ a0) / (b0 @ b0))
+
+    n = 200
+    shake = rng.normal(0, 0.6, (n, 2))             # the camera's: the background's shift changes by it, and the object's too
+    own = rng.normal(0, 0.25, (n, 2))              # the object's own motion and its measurement noise
+    seen = shake + rng.normal(0, 0.2, (n, 2))      # the background's, as measured
+    # 1. the object rides the camera's shake on both axes, more cleanly in y
+    o, bg = drawn(n, shake + own * (1.0, 0.4), seen)
+    v, txt, d, pts = integrity.t_shake(o, bg, set(), set())
+    check(v == integrity.PASS and d["best"] == "y" and d["r"] == d["r_y"] and d["sigma"] == d["sigma_y"]
+          and 0.5 < d["r_x"] < d["r_y"] and d["frames"] == len(pts) == n - 2,
+          "a shared shake passes on its stronger axis, whose r and sigma are the old fields", txt[:112])
+    check(numbers_no_field_holds(txt, d) == [], "and every number the sentence prints is a field",
+          str(numbers_no_field_holds(txt, d)))
+    # 2. a path of its own: in x its acceleration has nothing of the background's (r = 0: the sentence prints the inverse
+    # slope as inf), in y a chance likeness of the size PR135's objects showed (r = 0.07)
+    acc = np.column_stack([unlike(own[:n - 2, 0] * 2.4, seen[:n - 2, 0]), unlike(own[:n - 2, 1] * 2.4, seen[:n - 2, 1], 0.07)])
+    o, bg = drawn(n, acc, seen)
+    v, txt, d, _ = integrity.t_shake(o, bg, set(), set())
+    check(v == integrity.INC and "No shared shake found" in txt and "inf" in txt and d["slope_inverse_x"] is None
+          and abs(d["r_x"]) < 1e-6 and abs(d["r_y"] - 0.07) < 1e-6 and abs(d["slope_inverse_y"]) > 3,
+          "no shared shake: inconclusive; an inverse slope the sentence prints as inf is None, the other axis's a number",
+          txt[:112])
+    check(numbers_no_field_holds(txt, d) == [], "and every number the sentence prints is a field, the weaker axis's too",
+          str(numbers_no_field_holds(txt, d)))
+    stronger = max("xy", key=lambda c: d[f"sigma_{c}"])
+    check((d["best"], d["r"], d["sigma"]) == (stronger, d[f"r_{stronger}"], d[f"sigma_{stronger}"]) and stronger == "y",
+          "best, r and sigma are the axis of the larger sigma, as before", f"{d['best']}: r {d['r']:+.2f}, {d['sigma']:.1f} sigma")
+    check(numbers_no_field_holds(txt, {k: d[k] for k in ("best", "r", "sigma")}) != [],
+          "(the old three fields alone did not hold them)", str(numbers_no_field_holds(txt, {k: d[k] for k in ("best", "r", "sigma")})))
+    # 3. too few frames to say
+    o, bg = drawn(30, shake, seen)
+    v, txt, d, _ = integrity.t_shake(o, bg, set(), set())
+    check(v == integrity.NOP and d == {"frames": 28} and numbers_no_field_holds(txt, d) == [],
+          "under 40 usable frames: no power, and the count it prints is a field", txt)
+
+
+# IR_DRONE_059 of the labelled infrared set (Svanström et al. 2021), its 316 pairs of frames as `flicker.pictures` read
+# them (1: the frame repeats the one before): a 20-a-second source on a 30-a-second grid, with 18 frames of extra holds
+# from its 65th frame and two holds misread. And PR44's object, frames 1-301 of its reference case: a bird's own beat
+# (3.06 Hz), its frames repeating about one in two, never quite in step.
+DRONE_059 = ("0100100100100100100100100100100100100100100100100100100100100100101101111100101101100100100100100100"
+             "1001001001001001001001001000001001001001001001001001001001001001001001001001001001001001001001001001"
+             "0010010010010010010010010010010010010010010010010010010000010010010010010010010010010010010010010010"
+             "0100100100100000")
+PR44 = ("0011001010101100101010111001101011010101011101010100100100100101001111001010101101101010110010101001"
+        "1010101001101010101100101010110101101010010110011001011010110110101011001010001100101011010011010010"
+        "1010101011010010100101001010100101010001010110011010101100101010111010110010110011001010101101001100")
+
+
+class _HeldLong(_HeldWhere):
+    """_HeldWhere over 317 frames, the length of IR_DRONE_059's track: long enough for the held word to be read in
+    blocks. At module level, as a class a process pool pickles must be."""
+    n1 = 317
+
+
+def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
+    """IDEAS.md Dx6 (2026-11-13): M3's balance is read over the whole word, and a burst of holds inside a cadence spoils
+    every window over it. IR_DRONE_059, a 20-a-second source on a 30-a-second grid, read 0.843 against the line's 0.85:
+    the band kept the grid's 12 Hz, and the holds' own rhythm, 10.00 Hz = fps/3, was named a bird's beat at 15 % of its
+    brightness -- the labelled set's false alarm of record. A word short of the line is now read again in blocks of 60
+    frames, each as M3 reads a word, and is a cadence where more than half of them are. Held here: the drone's own word
+    and drawn ones are a cadence at 20 pictures a second, the band's top 8 Hz; PR44's word (a bird, two blocks of five)
+    and the kinds M3 keeps out (random, runs, the encoder's places in a GOP of five) are not; a point drawn beating at a
+    third of the frame rate on the drone's own word is no longer heard; and what the stage says of frames that are
+    nearly the same outside a cadence no longer says the pictures were held (IDEAS.md N7).
+
+    The name sorts after every other test's but one on purpose (see the shake test above)."""
+    print("\nflicker: a cadence broken by a burst of holds (Dx6), and what is said of frames nearly the same (N7)")
+    from mcdonald import flicker
+    rng = np.random.default_rng(20261114)          # its own generator
+    w = np.array([int(c) for c in DRONE_059])
+    c = flicker.cadence(w, 30.0)
+    bl = c.get("blocks") or {}
+    check(abs(c["balance"] - 0.8426) < 1e-3 and c["balance"] < flicker.BALANCED and c["cadence"] is True and c["holds"] == "cadence"
+          and (bl.get("cadence"), bl.get("of")) == (4, 5) and abs(c["source_rate"] - 20.0) <= 0.3 and c["every"] is None,
+          "IR_DRONE_059's own word: short of the line as a whole (0.843), a cadence in 4 of its 5 blocks, 20 pictures a second",
+          f"{c['holds']}; whole {c['balance']:.3f}; blocks {[round(b, 2) for b in bl.get('balance', [])]}; {c['source_rate']:.2f} a second")
+    p = flicker.pictures(_thumbs(w, rng), 30.0)
+    said = flicker.said_pictures(p)
+    check(p["cadence"] is True and abs(p["rate"] - 20.0) <= 0.3 and abs(p["top_hz"] - 8.0) <= 0.15 and len(p["held_k"]) == int(w.sum())
+          and "in a cadence over most of the track: in 4 of its 5 stretches" in said and "only up to 8." in said,
+          "so the band's top is 8 Hz, under the holds' own 10 Hz, and the stage says where the cadence holds", said)
+    blocks = flicker.cadence_blocks(w)
+    check([(b["first"], b["last"]) for b in blocks] == [(1, 63), (64, 126), (127, 190), (191, 253), (254, 316)]
+          and [b["cadence"] for b in blocks] == [True, False, True, True, True] and blocks[1]["slope"] is None
+          and flicker.cadence_blocks(w[:59]) == [] and "blocks" not in flicker.cadence(w[:170], 30.0),
+          "the blocks: as many of 60 frames or a little more as the word holds, every frame in one; the burst's block alone "
+          "is no cadence; under three blocks a word is read whole, as before",
+          str([(b["first"], b["last"], round(b["balance"], 2)) for b in blocks]))
+    # drawn: one frame in three held, at a random phase, with a burst of extra holds and two holds misread
+    kept = []
+    for _ in range(40):
+        v = np.diff(np.floor(np.arange(301) / 3 + rng.random())).astype(int)
+        a = int(rng.integers(20, 250))
+        v[a:a + 20] = 1
+        v[rng.choice(np.flatnonzero(v), 2, replace=False)] = 0
+        got = flicker.cadence(v, 30.0)
+        whole = got["balance"] >= flicker.BALANCED and got["balance"] > got["balance_random"][1]
+        kept.append((whole, got["cadence"], got["source_rate"]))
+    check(sum(k[0] for k in kept) <= 4 and all(k[1] for k in kept) and all(abs(k[2] - 20.0) <= 0.8 for k in kept),
+          "40 drawn words, one frame in three held, each with a burst of 20 held frames and two holds misread: few are a "
+          "cadence as a whole, every one is in most of its blocks, at 20 pictures a second",
+          f"{sum(k[0] for k in kept)} of 40 as a whole, {sum(k[1] for k in kept)} now; {min(k[2] for k in kept):.2f}-{max(k[2] for k in kept):.2f} a second")
+    # what must stay out
+    c44 = flicker.cadence(np.array([int(ch) for ch in PR44]), 30.0)
+    check(c44["cadence"] is False and c44["holds"] == "uneven" and (c44["blocks"]["cadence"], c44["blocks"]["of"]) == (2, 5),
+          "PR44's word (a bird's reference case): two of its five blocks are a cadence, not most -- it stays as it was",
+          f"{c44['holds']}; whole {c44['balance']:.3f}; blocks {[round(b, 2) for b in c44['blocks']['balance']]}")
+    for kind, say in (("random", "at random"), ("runs", "in runs")):
+        got = [flicker.cadence(_word(kind, 600, rng), 30.0) for _ in range(20)]
+        check(not any(g["cadence"] for g in got) and all(g["holds"] == kind for g in got),
+              f"20 words of 600 frames held {say}: none a cadence, by the whole word or by its blocks",
+              f"blocks that are one: {sum((g.get('blocks') or {}).get('cadence', 0) for g in got)} of "
+              f"{sum((g.get('blocks') or {}).get('of', 0) for g in got)}")
+    table = np.array([0.0, 0.35, 0.42, 0.54, 0.75])    # Galileo flyer 5's holds by place in its GOP of five
+    got = [flicker.cadence((rng.random(900) < np.tile(table, 180)).astype(int), 60.0) for _ in range(20)]
+    check(not any(g["cadence"] for g in got),
+          "20 words of 900 frames held by place in a GOP of five, as the Galileo flyers' encoder holds them: none a cadence",
+          f"blocks that are one: {sum(g['blocks']['cadence'] for g in got)} of {sum(g['blocks']['of'] for g in got)}")
+    # the report-changer, drawn: a point beating 30 % at 9.6 Hz on a video that holds frames as the drone's does
+    clip = _HeldLong(w, 9.6, 0.3)
+    f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, 318)}}, say=lambda *a: None).fields
+    pic = f["pictures"]
+    check(pic["cadence"] is True and (pic.get("blocks") or {}).get("cadence") == 4 and abs(pic["top_hz"] - 8.0) <= 0.3
+          and len(pic["held_k"]) == int(w.sum()) and f["beats"] is not True,
+          "a point beating 30 % at 9.6 Hz on a video that holds frames as the drone's does: the top is 8 Hz, and the beat "
+          "above it is not heard (the whole word's balance left the top at 12 Hz)",
+          f"{pic['held']:.2f} held, {pic['holds']}, blocks {pic.get('blocks')}, top {pic['top_hz']:.2f} Hz; {str(f.get('finding'))[:110]}")
+    # N7: frames nearly the same, outside a cadence, are not said to be held pictures
+    for g in got[:1] + [c44]:
+        line = flicker.said_pictures(dict(g, held=0.5, top_hz=12.0))
+        check("not in a cadence" in line and "repeat the one before" not in line and "holds pictures" not in line
+              and "missing samples" not in line and "compression that copies a still scene" in line,
+              "outside a cadence the stage says the frames are nearly the same, and the two things that make them so; it "
+              "does not say the pictures were held", line)
 
 
 def main(argv=None):

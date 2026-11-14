@@ -190,7 +190,19 @@ discriminating power on this clip, whatever its verdict says.
 **Two readings that need care.**
 - *Shake.* Both accelerations carry measurement noise, so neither regression
   slope is 1 even when the truth is. With similar noise in both, unit slope
-  gives slopes of r and 1/r; check that they straddle 1.
+  gives slopes of r and 1/r; check that they straddle 1. The verdict is the
+  axis of the larger sigma (`best`, `r`, `sigma`). Every number the sentence
+  prints is a field as well (since 2026-11-13): `r_x`, `sigma_x`, `slope_x`
+  (the object's acceleration fitted on the background's), `slope_inverse_x`
+  (one over the background's fitted on the object's; `null` where the
+  sentence says inf, r within 0.05 of zero), the same four for y, and
+  `frames`, the N; the made-up disc's shake test keeps them too
+  (`selftest.shake`). The inverse slope at r near zero is a quotient by
+  almost nothing: on PR135's objects 1, 2 and 4 it printed "-646.24" on one
+  computer and "-646.25" on another, with no field to hold the sentence to.
+  A trap that stays: a case made on one CPU and rerun on another can still
+  differ there by more than the one part in a billion a rerun allows; now a
+  number says by how much, where before only a sentence differed.
 - *Smear.* No smear is INCONCLUSIVE, not a FLAG: a millisecond exposure shows
   none either. Smear that scales with speed is the informative outcome.
 
@@ -2629,6 +2641,80 @@ contrast test on the symbology's side), and the static test's words are kept whe
   `tests/test_measurement.py`: a gate on top of a dark object (PASS, 1.00), under it (FLAG, 0.25), white bars over a
   white object (no power), a readout drawn for 20 frames over a dark object (PASS, 0.00) and under it (FLAG, 0.98).
 
+**What is drawn is thin, what is drawn for a stretch stays, and a scene held still decides no text (added 2026-11-13).** AARO's PR-016 is a row of birds,
+and the test flagged the one it followed as possibly added, on both counts: "crosses lines drawn frame by frame ... in
+13 frames; over the object's middle 0.00 of their pixels keep the line's own level (76 DN, the object 255)" and "passes
+symbology drawn for a stretch (text) in 11 frames; its pixels move 1.02 as far toward the object's level". Reproduced on
+frames 467-690 of DOD_111415209.mp4 with the blind run's track, and looked at frame by frame. The clip's symbology is
+read as dark (its mask holds no static pixel; the reference frame's sharp pixels are dark). The birds are saturated
+points 15-20 px apart, each ringed dark by the sensor's edge enhancement, and:
+
+- *The line* is the rings, joined along the row into one net of dark strokes: a rail under the points, a rung between
+  each two, an arc over the bird. On the 13 frames it is 78-90 px long and 26-33 px across (6.2-8.3 px rms), 550-960
+  pixels, its axis within 5 px of the bird's centre. A group was "a straight stroke" where it was three times as long
+  as wide, however wide. Now a group taken for a line must also be no wider across its own axis, rms, than `LINE_THIN`
+  (0.5) of a stroke's width (`forensics.stroke_step`: 3 px to 576 rows, 4 to 800, 5 above; what `ridges` itself takes a
+  stroke to be): 1.5 px at 240-576 rows, 2.5 px at 1080. A stroke w px wide reads w / sqrt(12) (0.9 px for FLIR1's bars
+  spread to 4 px at 480 rows), and two pieces joined 2 px off each other's line 1 px more.
+- *The text* is the row sliding along itself, about 2 px a frame here: the window's far quarter (the 25th percentile
+  over 17 frames, meant to be the picture without the object) is dark wherever a dark gap passed on a quarter of the
+  frames, and those places read as strokes held for the stretch. Now the text's pixels at the object must be nearer
+  the text's level than the object's on `TEXT_HELD` (0.75) or more of the window's frames that the object is clear of
+  (1.5 sizes away): text held for a stretch is there on all of them, a passing gap on some.
+- *A scene held still.* Where more than 30 % of the frame never changes (`static_masks`' `still_scene`, the clip
+  where that function already says "static and sharp is the scene, not graphics" and leaves such pixels out of its
+  own mask), the text reading decides nothing: "passes symbology drawn for a stretch (text) in N frames, in a picture
+  whose scene holds still on screen, where a stroke of the scene and text drawn for a stretch look alike: that
+  decides nothing" (`TEXT_STILL`; `still_frames`). Over PR-016's frames 560-690 the hold alone left 7 of 25 readings
+  held as text is (0.98), and flagged; and PR47's bird (below) flagged with the hold alone.
+
+What is set aside is in the fields beside what is kept (`wide_frames`, `wide_width_px`; `passing_frames`,
+`passing_held`; and `moving_width_px`, `text_held` for the readings taken).
+
+*The null* (2026-11-13, again with the still-scene rule on 2026-11-14; `_overlay_drawn` with the three rules off and on, on objects nothing was drawn over, each with its
+clip's static masks: the labelled infrared set's 431 tracks that give a polarity, PR-016's bird, PR135's six flock
+members, PR47's bird in a row of three, PR098's three points in a line; and FLIR1's exit, whose gate is drawn).
+
+| objects | flagged before | flagged now | what else |
+|---|---|---|---|
+| the labelled set, 431 tracks (357 with a scene held still) | 0 | 0 | 2 PASS (moving lines) and 21 crossings that decide nothing, before; 2 and 20 now |
+| PR-016's bird | FLAG twice (lines, text) | none | all 13 nets set aside; the text reading decides nothing (a scene held still) |
+| PR47's bird | FLAG (text, 14 readings, 0.91) | none | the text reading decides nothing (a scene held still) |
+| PR098's three points | 0 | 0 | one "decides nothing" (same side) |
+| PR135's six | 0 | 0 | nothing crossed |
+| FLIR1's exit | - | - | its crossing kept: 4 frames of text, same side, decides nothing |
+
+So on the labelled set the test flags nothing either way: a false-flag rate under 0.7 % (0 of 431; exact, one-sided
+95 %). The rate that matters is on rows of ringed points, and there are three such clips in hand: PR-016's and PR47's
+flags are gone, and PR098's never was. Three is no rate.
+
+
+*The line's width.* The 560 groups that ran through an object on the labelled set (strokes of its scenes: nothing is
+drawn there) read 0.27 of a stroke's width at the median (quartiles 0.18-0.32), 89 % of them 0.5 or less. PR-016's 13
+nets read 1.23-1.66. `LINE_THIN` 0.5 is the least that keeps a stroke as wide as `ridges` allows (0.29) with two pieces
+joined off each other's line; anything from 0.4 to 1.2 gives the same verdicts here. On the labelled set it sets aside
+60 of 560 groups, on 3 tracks, and moves one verdict: a crossing that decided nothing, gone.
+
+*The text's hold is judgement, and half a remedy alone.* The shares the null read: PR-016's passing gaps 0.00-0.60 (10
+readings) and two at 0.98 and 1.00; PR47's 0.33-0.68 (3) and eleven at 0.75-1.00; the drawn readout 0.97 on the six readings kept, with five set aside within 8 frames of
+its first and last frames, where the window reaches past it. No line
+divides them: `TEXT_HELD` 0.75 takes out what is plainly passing and no drawn text, and PR47's readings are held as
+text is. PR47's clip holds its scene still on screen, with dark strokes in it that the mask does not know (14,272
+static pixels, the coloured symbology alone): a stroke of the scene and a stroke of the symbology look the same
+there, and the bird passes in front of one (read so; not looked at frame by frame). Hence the third rule. **Its cost**:
+in a clip whose scene holds still, a paste under drawn text is no longer caught by this reading, which says it cannot
+decide; the moving-line reading and the static symbology's still decide there. On the labelled set 357 of 432 tracks
+are such clips, and the rule changed no verdict of theirs. What would decide text in them is the scene's own motion
+over the window (a stroke of the scene moves with it; drawn text does not), which this test is not handed.
+
+*How it fails.* (0) In a clip whose scene holds still, text drawn for a stretch decides nothing (above). (1) A drawn line wider than half a stroke's width for its picture's height is set aside: a bar drawn
+6 px wide at 1080 rows, or one blurred to that; `ridges` would mostly not have found it either (a stroke is "no wider
+than about" its step). (2) Text shown for under three quarters of the 17-frame window (under about 13 frames, 0.4 s) is
+not read near its start and end, and a readout that changes digit every few frames may never be. (3) Neither gate
+knows a ring from a line that happens to be thin: a single bright point's own ring is an arc, not a straight stroke
+through it, and was never taken; two points exactly either side of a third give a rung on each side, which `_collinear`
+joins only if each is itself a straight stroke along the row (they lie across it).
+
 ## 26. A clip with little left to see: AARO's "Middle East Object" (added 2026-10-26)
 
 AARO's MQ-9 clip that its director showed the Senate Armed Services Committee on 19 April 2023 (DVIDS 880273,
@@ -2704,8 +2790,49 @@ distance across it in square pixels (`--pixel-aspect`) over k.
 **The band.** Each bound is the conservative corner of the box of what is not known exactly: the line's and the
 object's place (the frame-to-frame scatter of the object's distance from the line, at least a pixel, and a pixel for
 the object), k's share (10 % for an assumed field of view, `--k-share`), h's error (`--height-err`), and kappa from 0 to
-0.25. A range bound takes the farthest range in the box, a height bound the lowest height. A thing whose band reaches
-the line is neither below nor above it, and gets no bound.
+0.25 (`--kappa=LOW,HIGH` gives another band; `fields.kappa` is the band used, low, nominal and high). A range bound
+takes the farthest range in the box, a height bound the lowest height. A thing whose band reaches the line is neither
+below nor above it, and gets no bound.
+
+**Refraction outside the band, and a duct (W8, added 2026-11-13).** The real air does not keep to 0-0.25. For sight
+lines near the surface the effective kappa "varies from moderate negative values (on sunny days) to values considerably
+larger than 1 (at night, or for sight-lines over cold water)" (A. T. Young, "Dip of the Horizon", San Diego State
+University's pages on atmospheric refraction), and the dip depends almost wholly on the air's temperature at the camera
+against that at the horizon (Young and Kattawar 1998, Applied Optics 37, 3785). So no band both covers the air and
+leaves a bound, and the stage says instead which way each bound breaks. Both quantities grow with kappa, at every
+height and angle (held from kappa -1 to 0.98 in `tests/test_horizon.py`), so each bound breaks one way only:
+
+- *The range's "at most" is too short where the air bends light more than the band's top* (warm air over a cold sea;
+  at its limit a duct). The dip shrinks and the sea lies farther along the same ray. From 7,000 ft, 2 deg below the
+  line: 38.8 km at kappa 0.25, 41.4 at 0.5 (+7 %), 45.5 at 0.75 (+17 %), 57.0 at 0.99 (+47 %). A sea warmer than the
+  air only shortens it (35.4 km at -0.25), and the bound holds.
+- *The height's "at least" is too high where kappa is below the band's bottom* (a sea warmer than the air: light bends
+  away from the sea, the dip grows -- 1.82 deg at kappa -0.5 against 1.48 at 0 -- and a ray a given angle over the line
+  starts steeper and runs lower). From 7,000 ft, 0.5 deg above the line: 1,196 m at kappa 0, 1,093 at -0.25 (-9 %),
+  1,013 at -0.5 (-15 %); 1.2 deg above, -4 and -8 %. Stronger bending only raises it, and the bound holds.
+
+Every run that gives a bound says this: `fields.bounds.breaks_if_kappa_above` (a range bound: the band's top) or
+`breaks_if_kappa_below` (a height bound: its bottom), a line under the bound in what the command prints, and a note in
+the case ("The horizon's limit on range assumes the air bends light toward the sea by no more than 0.25 of the Earth's
+curvature ... the object can be farther than that limit."). Someone who knows the air gives the band:
+`--kappa=-0.5,0.25` lowers a height bound to what a warm sea allows (1.2 deg above from 7,000 ft, k 50 px/deg: at least
+1,742 m against 1,935), `--kappa=0,0.75` lengthens a range bound (2 deg below: 50.3 km against 42.4). The words follow
+the band given.
+
+*A duct.* At kappa 1 a level ray follows the Earth's curve, and above 1 it is bent back down: R' = R/(1 - kappa) is
+infinite or negative and there is no horizon. Before 2026-11-13 `radius(1.0)` divided by zero, and above 1 `dip` failed
+inside `acos` while `surface_range` handed back a negative range (-3,374 km for a ray 3 deg down at kappa 1.2). Now
+`radius`, which every
+function of the geometry calls, refuses a kappa of 1 or more with the reason; the stage gives NO POWER for a band that
+reaches 1 (the line is still found and the object set against it; no bound), and the command exits 2 with the reason
+for a `--kappa` typed so, before it looks for the video. None of this was reachable with the stage's own band.
+
+*Traps.* (1) The constant-kappa Earth is a model of the whole path. A surface or evaporation duct fills the lowest
+tens of metres to about 300 m, not the 2 km under an aircraft, so from height the effective kappa moves far less than
+near the surface, and from a ship's deck or a low drone far more; the stage's band does not know the camera's height.
+(2) The band 0-0.25 is the stage's choice (a standard atmosphere and a cold sea), not a measured range of the air:
+the notes say what it assumes, not that the air obeyed. (3) `run` and the window's form take no band: they use the
+stage's, and a wider one reaches a case only through `mcdonald horizon ... --kappa=... --case CASE_JSON`.
 
 **What it assumes, and says on every run.** (1) The line is the sea's horizon: not a haze top (which lies above it), a
 coastline or a cloud deck (nearer, and at heights of their own), nor a skyline over land, which is terrain at a range of
@@ -2718,6 +2845,10 @@ steeply down at h / sin(depression); a ray's lowest height is zero when it graze
 the horizon tilted 1.5 deg, the point given 5 px off it: the line to 0.07 px and its tilt to 0.01 deg; followed over 40
 frames while it drifts 48 px and turns 0.8 deg, under an overlay, within 0.5 px on every frame. An object 2 deg below
 the line from 7,000 ft at k 50 px/deg: at most 42.4 km (nominal 37.8); 1.2 deg above: at least 1,935 m (nominal 2,096).
+Refraction (W8): the four shares above (+6.7, +17.2, -8.6, -15.3 %); both bounds growing with kappa; a kappa of 1, 1.2,
+1.5 or infinity refused as a duct by all five functions of the geometry, by the stage (no power, the line still found)
+and by the command (exit 2, the reason in the `--json` envelope); a band given moving each bound to its own end; and
+the two published bounds unchanged with no band given.
 **Not yet on a real clip with a known answer**: one needs a sea horizon, the camera's height and a surface target at a
 known range. PR43 shows a horizon, over land; PR149's ship and sea are the nearest candidate if its altitude can be had.
 
@@ -4303,6 +4434,110 @@ stage reads, so a stretch whose source changes its rate partway is not balanced 
 windows (a pair between catch-up steps not measured again) read repeats wherever they fall and set no rate; they are
 unchanged.
 
+**A cadence broken by a burst (IDEAS.md Dx6; added 2026-11-13).** The balance is read over the whole word, and a burst
+of holds inside a cadence spoils every window over it. IR_DRONE_059 of the labelled set is a 20-a-second source on a
+30-a-second grid: its word is `010010...` through 316 pairs of frames, but for 18 frames of extra holds from its 65th
+frame and two holds misread. It read 0.843 against the line's 0.85 ("more evenly than at random"), kept the grid's 12
+Hz, and its holds' own rhythm, 10.00 Hz = a third of the frame rate at 15 % of its brightness, was named a bird's beat:
+the set's false alarm of record. The same source runs through the set: IR_BIRD_043 (0.98), IR_DRONE_151 (0.90) and
+IR_AIRPLANE_030 (0.86) pass the line whole; IR_BIRD_032 (0.83), IR_DRONE_098 (0.78, the same false beat at 9.99 Hz, 4.8
+%, under the floor), IR_HELICOPTER_044 (0.69) and _048 (0.59) are the same cadence, more broken.
+
+A word short of the line that holds three blocks or more is now read again block by block (`flicker.cadence_blocks`):
+blocks of 60 frames or a little more, as many whole ones as the word holds with every frame in one, each read as a word
+is (least balance 0.85 or more, above the 99th percentile of random words of its share and length, a tenth of its
+frames held). Where more than half the blocks are a cadence the word is one (`pictures.holds` "cadence"), the source's
+rate from the median of those blocks' slopes, the band's top lowered as for any cadence; `pictures.blocks` says how
+many of how many, with each block's balance. Its period is not named (the word is not mechanical to the frame), and the
+GOP's places are asked as before. Sixty frames is the shortest stretch a beat is heard on and the shortest the line was
+set on. "More than half" is a choice: the band is lowered for the whole track, so most of the track has to be on the
+slower clock (the least count that chance allows would be two blocks of five). Both are judgement in what they ask;
+what they cost is measured:
+
+*The null* (2026-11-13; the families the line was set on, drawn again: random words; held in runs of mean 2, 3, 5 and
+10 frames; held by place in GOPs of 5, 12 and 30 frames, regular and varying, the chance flat, rising or a B pyramid;
+the Galileo flyers' two tables; fifteen shares from 0.1 to 0.8, eight lengths from 180 to 3,000 frames, 2,000 words a
+cell, each read as the stage reads it, before the GOP's places). The share of words called a cadence by the blocks
+where the whole word is not one, at the worst cell:
+
+| frames | random | in runs | by GOP place | flyers' tables | by the whole word (the rule before) |
+|---|---|---|---|---|---|
+| 180 | 0 | 0.10 % | 0.05 % | 0 | 0 |
+| 240 | 0 | 0 | 0 | 0 | 0 |
+| 300 | 0 | 0.05 % | 0.05 % | 0 | 0 |
+| 450 and up | 0 | 0 | 0 | 0 | 0 |
+
+Seven words of 4.24 million, in six cells of 2,216. At 180 frames: two of 2,000 held in runs of mean two at a share of
+0.65 (M3's own worst cell), and one of 2,000 in each of three cells (runs of mean three at 0.75; a GOP of 5, flat, and
+a GOP of 12, a pyramid, at 0.70). At 300 frames: one of 2,000, twice. (A first draw of the 180-frame cells, cut short by
+a shutdown, had three of 2,000 in the runs-of-three cell, 0.15 %, and one word in 2,000 past the whole word's line.)
+A single block is a cadence in at most 2.3 % of them (runs of mean two; 1.9 % by GOP place, 0.1 % at random): under
+the line's 5 %, and the word needs more than half its blocks. So the block reading adds at most 0.15 % to the false
+alarms at 180 frames and nothing found from 450, where the rate the line was set to is 5 %.
+
+*The other side: a cadence broken* (200 words a cell: a mechanical word at a random phase, with a burst of extra holds
+at a random place, frames misread at random, or both). The share called a cadence, by the whole word (the rule
+before) / now, %:
+
+| source on a 30-a-second grid | frames | intact | a burst of 20 | a burst of 60 | 20, and 1 % misread | 20, and 2 % misread | 2 % misread |
+|---|---|---|---|---|---|---|---|
+| 20 on 30 (one in three held) | 180 | 100 / 100 | 0 / 81 | 0 / 8 | 0 / 58 | 0 / 45 | 79 / 85 |
+|  | 300 | 100 / 100 | 0 / 100 | 0 / 100 | 0 / 87 | 0 / 60 | 85 / 90 |
+|  | 3000 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 |
+| 25 on 30 (one in six) | 180 | 100 / 100 | 0 / 78 | 0 / 2 | 0 / 54 | 0 / 35 | 66 / 80 |
+|  | 300 | 100 / 100 | 0 / 100 | 0 / 100 | 0 / 76 | 0 / 49 | 59 / 74 |
+|  | 3000 | 100 / 100 | 100 / 100 | 0 / 100 | 94 / 100 | 8 / 92 | 73 / 96 |
+| 10 on 30 (two in three) | 180 | 100 / 100 | 33 / 95 | 0 / 28 | 9 / 70 | 2 / 48 | 78 / 88 |
+|  | 300 | 100 / 100 | 100 / 100 | 0 / 100 | 56 / 95 | 16 / 67 | 87 / 94 |
+|  | 3000 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 | 100 / 100 |
+
+A single burst of 20 or 60 held frames in 300, the drone's own kind, was never a cadence by the whole word and now is
+every time; at 180 frames a burst takes one of three blocks and the reading needs the other two, so a burst of 60
+(a whole block and part of another) leaves it at 2-28 %. Over 3,000 frames the whole word mostly carried the burst
+already. Frames misread at random are helped less (2 % misread at 300 frames: 59-87 % to 74-94 %), as a misread frame
+spoils every block it falls in alike.
+
+*On the saved words* (the 432 labelled tracks, the 27 controls, the 31 reference objects: 170 with a tenth of their
+frames held). Four change, one track twice: IR_DRONE_059 (4 of its 5 blocks; the control `sv_drone_059` is the same
+track), IR_BIRD_032 (3 of 4) and IR_DRONE_098 (3 of 5), each at 20.0-20.2 pictures a second, the top 8.0-8.1 Hz. The
+nearest that stay: PR44's reference object (2 of 5: a bird at 3.06 Hz whose frames repeat one in two, never quite in
+step; the scatter case above), IR_HELICOPTER_044 and IR_AIRPLANE_069 (2 of 5), IR_DRONE_023 (1 of 5). The Galileo
+flyers have no block that is one (0 of 15, 0 of 6). With blocks of 90 frames the drone is a cadence in 2 of 3 and
+IR_DRONE_098 in none of 3; with 120, neither.
+
+*On the labelled set, judged again from its saved curves* (`tools/controls/summarise.py --rejudge`, which reads the
+held word again since 2026-11-13: `run_set.pictures_again`), against main 4847926 judged again the same day (the
+revision of "a beat that comes back" in it, and none of this): 3 of 432 rows move, under both rules. IR_DRONE_059: a
+bird, named, 10.000 Hz at 15.4 % becomes no beat (the continuum null's p 0 to 0.84). IR_DRONE_098: a bird's call at
+9.988 Hz, 4.8 %, not named, becomes no beat. IR_BIRD_032, a bird named at 2.04 Hz, 11.5 %, keeps its call and its name
+with the top at 8 Hz (its continuum p 0.0015 to 0.003). In the rates of section 44: non-birds called a bird 18 to 16 of
+307 under the stage's rule and 25 to 23 under the paper's, drones 3 to 1 and 7 to 5 of 168; non-birds named 3 to 2 of
+307 (the stage's rule; drones 1 to 0, distant non-birds 1 to 0 of 100). Birds called (31 and 30 of 125) and named (30
+and 27) are as they were: no bird of the record loses a call or a name.
+
+*How it fails.* (1) A clip cut from two sources, most of it at the slower one, has its top lowered through the faster
+part too. (2) A word broken in more than half its blocks stays "uneven" and keeps the grid's band: IR_HELICOPTER_044
+and _048 are 20-a-second sources read so, and a rhythm at a third of the frame rate could still be heard on them (none
+is: 2.2 and 4.8 Hz, no beat). (3) Under 180 frames there are too few blocks, and the whole word's balance decides as
+before. (4) What the line does not cover (above) it does not cover block by block either: an encoder holding 0.9 or
+more of a short GOP's P frames passes block after block.
+
+**What is said of frames that are nearly the same (IDEAS.md N7; 2026-11-13).** `pictures` compares whole frames. An
+encoder that copies a still sky leaves most of a frame the same as the one before while the object's own picture is
+new: the documented misread, 0.10-0.18 of frames on the Svanström set and far more on the Galileo cameras' HEVC. On the
+flyers, the frames read as held are not held where the bird is. Flyer 4: 60 % of frames read as held; on them the box
+about the bird changes by 7.1 grey levels (7.2 on the others) and its centroid steps 1.77 px (1.76), never under 0.38.
+Flyer 5: 31 %; 12.5 grey levels (15.0) and 2.35 px (2.53), never under 1.6. Flyer 1, a slow bird (0.3 px a frame): 64 %;
+1.25 grey levels (3.2), and on 15 % of those frames its box hardly changes. The whole frame's change on them is
+0.05-0.06 grey levels against 0.2-1.0. No number is wrong for it: holds outside a cadence leave the band at the frame
+rate's. The stage's line was: it said "the video holds pictures in runs (64% of frames repeat the one before), not in a
+cadence: they are missing samples, not a slower clock". It now says what was measured and the two things that make
+it: "64% of frames are nearly the same as the one before, more evenly than at random, not in a cadence. A held picture
+does that. So does compression that copies a still scene from frame to frame, while the object's own picture is new.
+Either way the video's clock is its frame rate, and a beat is heard up to 24.0 Hz". A trap that stays: those frames
+are still left out of the Lomb-Scargle periodogram beside the stage's own tests (`held_k`), so on such a chain that
+reading works with a third of the object's samples: a loss of power there, not an error, and not changed here.
+
 ## 36. A farthest range: `--range-max` (added 2026-10-30)
 
 `--range` takes a value, and what a display often gives is a limit: a camera that looks down has the ground behind
@@ -5151,30 +5386,33 @@ independent (E10):
 |---|---|---|---|---|
 | birds (125) | 31 of 125 (24.8 %; 17.5-33.3, by clip 16.7-33.3) | 30 of 125 (24.0 %; 16.8-32.5, by clip 15.8-32.5) | 30 of 125 (24.0 %; 16.8-32.5, by clip 16.1-32.4) | 27 of 125 (21.6 %; 14.7-29.8, by clip 13.8-29.8) |
 | airplanes (82) | 7 of 82 (8.5 %; 3.5-16.8, by clip 3.3-15.0) | 0 of 82 (0.0 %; 0.0-4.4, by clip 0.0-0.0) | 11 of 82 (13.4 %; 6.9-22.7, by clip 6.3-21.0) | 0 of 82 (0.0 %; 0.0-4.4, by clip 0.0-0.0) |
-| drones (168) | 3 of 168 (1.8 %; 0.4-5.1, by clip 0.0-4.1) | 1 of 168 (0.6 %; 0.0-3.3, by clip 0.0-1.8) | 7 of 168 (4.2 %; 1.7-8.4, by clip 1.2-7.3) | 0 of 168 (0.0 %; 0.0-2.2, by clip 0.0-0.0) |
+| drones (168) | 1 of 168 (0.6 %; 0.0-3.3, by clip 0.0-1.8) | 0 of 168 (0.0 %; 0.0-2.2, by clip 0.0-0.0) | 5 of 168 (3.0 %; 1.0-6.8, by clip 0.6-5.9) | 0 of 168 (0.0 %; 0.0-2.2, by clip 0.0-0.0) |
 | helicopters (57) | 8 of 57 (14.0 %; 6.3-25.8, by clip 3.6-25.0) | 2 of 57 (3.5 %; 0.4-12.1, by clip 0.0-8.9) | 7 of 57 (12.3 %; 5.1-23.7, by clip 3.6-23.3) | 2 of 57 (3.5 %; 0.4-12.1, by clip 0.0-8.9) |
-| all non-birds (307) | 18 of 307 (5.9 %; 3.5-9.1, by clip 3.2-8.9) | 3 of 307 (1.0 %; 0.2-2.8, by clip 0.0-2.3) | 25 of 307 (8.1 %; 5.3-11.8, by clip 5.1-11.6) | 2 of 307 (0.7 %; 0.1-2.3, by clip 0.0-1.7) |
+| all non-birds (307) | 16 of 307 (5.2 %; 3.0-8.3, by clip 2.6-8.1) | 2 of 307 (0.7 %; 0.1-2.3, by clip 0.0-1.7) | 23 of 307 (7.5 %; 4.8-11.0, by clip 4.6-10.9) | 2 of 307 (0.7 %; 0.1-2.3, by clip 0.0-1.7) |
 | distant birds | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 5 of 57 (8.8 %; 2.9-19.3, by clip 1.8-16.9) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) | 6 of 57 (10.5 %; 4.0-21.5, by clip 3.4-19.4) |
-| distant non-birds | 3 of 100 (3.0 %; 0.6-8.5, by clip 0.0-6.9) | 1 of 100 (1.0 %; 0.0-5.4, by clip 0.0-3.0) | 5 of 100 (5.0 %; 1.6-11.3, by clip 1.0-9.9) | 0 of 100 (0.0 %; 0.0-3.6, by clip 0.0-0.0) |
+| distant non-birds | 1 of 100 (1.0 %; 0.0-5.4, by clip 0.0-3.0) | 0 of 100 (0.0 %; 0.0-3.6, by clip 0.0-0.0) | 3 of 100 (3.0 %; 0.6-8.5, by clip 0.0-7.0) | 0 of 100 (0.0 %; 0.0-3.6, by clip 0.0-0.0) |
 
 Coverage -- the share answered, not NO POWER -- is not the same for every class, so it stands beside every rate: under the
-stage's rule birds 110 of 125 (88 %), airplanes 80 of 82, drones 162 of 168, helicopters 46 of 57 (81 %), 398 of 432 in all
-(92 %). A refusal is 1.9 times as likely on a bird as on anything else, but by clip 0.8-3.9 (2.1 and 1.0-4.1 under the
+stage's rule birds 111 of 125 (89 %), airplanes 80 of 82, drones 162 of 168, helicopters 46 of 57 (81 %), 399 of 432 in all
+(92 %). A refusal is 1.8 times as likely on a bird as on anything else, but by clip 0.7-3.8 (2.0 and 0.9-4.0 under the
 paper's rule): the interval holds 1, and the diagnostic-accuracy survey (2026-11-07) finds the objects' contrast accounts
 for it, so a NO POWER is not shown to carry class information. Each false-alarm rate is a point estimate with its exact
-one-sided 95 % upper bound: named non-birds 3 of 307, 1.0 %, under 2.5 % (stage), 2 of 307, 0.7 %, under 2.0 % (paper). None
+one-sided 95 % upper bound: named non-birds 2 of 307, 0.7 %, under 2.0 %, under either rule. None
 in 286 would bound the rate only under 1.04 %, so no count on a set this size can show "under 1 %". Among the answered
-non-birds, 3 of 288. The three named are DRONE_059 (10.0 Hz, 15 %, stage only), HELICOPTER_024 (3.53 Hz, 7.8 %, both; over
-the floor since it went to 7 %) and HELICOPTER_043 (2.09 Hz, 21 %, both); of the 33 tracks the report names a bird under the
-stage's rule, 3 are not birds. Read as a test, a name is 25 times likelier on a bird track than on any other (24.0 % against
-0.98 %; 33 under the paper's rule, 21.6 % against 0.65 %). By clip, 3 of 286 non-bird clips are named (stage), 2 (paper).
+non-birds, 2 of 288. The two named are HELICOPTER_024 (3.53 Hz, 7.8 %, both; over the floor since it went to 7 %) and
+HELICOPTER_043 (2.09 Hz, 21 %, both); of the 32 tracks the report names a bird under the stage's rule, 2 are not birds.
+Until 2026-11-13 there was a third, DRONE_059 (10.0 Hz, 15 %, stage only): its held frames' own rhythm, above the band's
+top since its cadence is read in blocks (section 35). Read as a test, a name is 37 times likelier on a bird track than on
+any other (24.0 % against 0.65 %; 33 under the paper's rule, 21.6 % against 0.65 %). By clip, 2 of 286 non-bird clips are
+named, under either rule.
 Among the tracks already called (bird or once), the beat's amplitude separates the calls on birds from those on everything
-else with an AUC of 0.94 (stage) and 0.96 (paper) -- the 2026-10-19 figure's definition. Over every track with a measured
+else with an AUC of 0.95 (stage) and 0.96 (paper) -- the 2026-10-19 figure's definition. Over every track with a measured
 amplitude (400) it is 0.90 and 0.91, and among the tracks with no beat of their own still 0.88 and 0.89: most of the
 separation is the birds' faintness, not their beat (the diagnostic-accuracy survey reads 0.82 over all 432). The two rules
-as two raters on one set of tracks (the biology survey's X6): a bird call or not, raw agreement 97.2 %, chance 78.8 %, kappa
-0.87, positive agreement 88.5 % (46 called by both, 3 by the stage's rule alone, 9 by the paper's); by class, kappa 0.94 on
-birds, 0.75 airplanes, 0.59 drones, 0.92 helicopters; named or not, 98.6 %, 86.7 %, 0.90, positive agreement 90.3 %.
+as two raters on one set of tracks (the biology survey's X6): a bird call or not, raw agreement 97.2 %, chance 79.5 %, kappa
+0.86, positive agreement 88.0 % (44 called by both, 3 by the stage's rule alone, 9 by the paper's); by class, kappa 0.94 on
+birds, 0.75 airplanes, 0.33 drones (1 called by both, 4 by the paper's rule alone), 0.92 helicopters; named or not, 98.8 %,
+86.9 %, 0.91, positive agreement 91.8 %.
 
 **Flow, and how the set was read (STARD 2015; QUADAS-2).** From the labels to the calls, under the stage's rule (the
 paper's in brackets where it differs):
@@ -5224,8 +5462,10 @@ to the digit (42 of 42, stage). Each move has its cause in the measurement's own
   floor, and **DRONE_059 at 15 %, named "Beats like a bird" under the stage's rule** (5 % under the paper's), a new false
   alarm of 0.4.3. A third of DRONE_059's frames are held (a 20-a-second source in a 30-a-second file, perhaps), and the
   held-pictures test misses the cadence by a hair (the word's balance 0.84 against BALANCED's 0.85), so the band stays at 12
-  Hz and the holds' own rhythm at fps/3 is heard as the object's; 50-Hz mains fold to the same 10 Hz. The suite holds it as
-  a false alarm of record, with that cause.
+  Hz and the holds' own rhythm at fps/3 is heard as the object's; 50-Hz mains fold to the same 10 Hz. The suite held it as
+  a false alarm of record, with that cause, until 2026-11-13: a word short of the line is read in blocks since (section
+  35), DRONE_059's and DRONE_098's are cadences in most of theirs, the band's top is 8 Hz and both calls are gone; DRONE_023
+  (its holds in runs: one block of five) keeps its 5 % under the floor.
 - **The capped point disc** (2026-10-24): helicopters 024 and 027 at 3.5-3.9 Hz (7.8 % and 3.6 %), as the aperture study
   predicted (helicopters 5 -> 9 there); 027 under the floor, and 024 over it since the floor went to 7 %: named under both
   rules, its shake read and not at the beat.
@@ -5249,17 +5489,17 @@ read:
 |---|---|---|---|---|
 | frames: 60-149 frames | 9 of 43 (21 %; 10-36) | 0 of 17 (0 %; 0-20) | 8 of 43 (19 %; 8-33) | 0 of 17 (0 %; 0-20) |
 | frames: 150-299 frames | 8 of 22 (36 %; 17-59) | 0 of 11 (0 %; 0-28) | 8 of 22 (36 %; 17-59) | 0 of 11 (0 %; 0-28) |
-| frames: 300 frames or more | 13 of 60 (22 %; 12-34) | 3 of 279 (1 %; 0-3) | 11 of 60 (18 %; 10-30) | 2 of 279 (1 %; 0-3) |
-| size: under 14 px wide | 11 of 48 (23 %; 12-37) | 1 of 66 (2 %; 0-8) | 10 of 48 (21 %; 10-35) | 0 of 66 (0 %; 0-5) |
+| frames: 300 frames or more | 13 of 60 (22 %; 12-34) | 2 of 279 (1 %; 0-3) | 11 of 60 (18 %; 10-30) | 2 of 279 (1 %; 0-3) |
+| size: under 14 px wide | 11 of 48 (23 %; 12-37) | 0 of 66 (0 %; 0-5) | 10 of 48 (21 %; 10-35) | 0 of 66 (0 %; 0-5) |
 | size: 14-20 px | 15 of 66 (23 %; 13-35) | 0 of 118 (0 %; 0-3) | 13 of 66 (20 %; 11-31) | 0 of 118 (0 %; 0-3) |
 | size: 20 px or more | 4 of 11 (36 %; 11-69) | 2 of 123 (2 %; 0-6) | 4 of 11 (36 %; 11-69) | 2 of 123 (2 %; 0-6) |
 | contrast: under 10 grey levels | 5 of 39 (13 %; 4-27) | 0 of 31 (0 %; 0-11) | 6 of 39 (15 %; 6-31) | 0 of 31 (0 %; 0-11) |
 | contrast: 10-40 grey levels | 17 of 53 (32 %; 20-46) | 0 of 84 (0 %; 0-4) | 14 of 53 (26 %; 15-40) | 0 of 84 (0 %; 0-4) |
-| contrast: 40 or more | 8 of 33 (24 %; 11-42) | 3 of 192 (2 %; 0-4) | 7 of 33 (21 %; 9-39) | 2 of 192 (1 %; 0-4) |
-| frame rate: 30 a second | 30 of 125 (24 %; 17-32) | 3 of 307 (1 %; 0-3) | 27 of 125 (22 %; 15-30) | 2 of 307 (1 %; 0-2) |
+| contrast: 40 or more | 8 of 33 (24 %; 11-42) | 2 of 192 (1 %; 0-4) | 7 of 33 (21 %; 9-39) | 2 of 192 (1 %; 0-4) |
+| frame rate: 30 a second | 30 of 125 (24 %; 17-32) | 2 of 307 (1 %; 0-2) | 27 of 125 (22 %; 15-30) | 2 of 307 (1 %; 0-2) |
 | distance: CLOSE | 8 of 29 (28 %; 13-47) | 1 of 61 (2 %; 0-9) | 8 of 29 (28 %; 13-47) | 1 of 61 (2 %; 0-9) |
 | distance: MEDIUM | 17 of 39 (44 %; 28-60) | 1 of 146 (1 %; 0-4) | 13 of 39 (33 %; 19-50) | 1 of 146 (1 %; 0-4) |
-| distance: DISTANT | 5 of 57 (9 %; 3-19) | 1 of 100 (1 %; 0-5) | 6 of 57 (11 %; 4-22) | 0 of 100 (0 %; 0-4) |
+| distance: DISTANT | 5 of 57 (9 %; 3-19) | 0 of 100 (0 %; 0-4) | 6 of 57 (11 %; 4-22) | 0 of 100 (0 %; 0-4) |
 
 The set holds no track at 60 frames a second, so no rate of it speaks for the Galileo flyers, which sit there; and the
 non-birds are nearly all long tracks (279 of 307 at 300 frames or more), so their false-alarm rate on short tracks rests on
@@ -5285,9 +5525,9 @@ controls, each of a kind that says what it must give, under both rules:
 |---|---|---|
 | bird | its own beat at a wingbeat's rate (whether the report names a bird, the record holds) | the labelled set's distant, medium and close birds; Galileo flyers 1-5 |
 | flock | every member beats, each its own | PR135's six (frames 1240-1389) |
-| non-bird | never "Beats like a bird" | the labelled set's distant and close drone, distant and medium airplane, distant and close helicopter, and AIRPLANE_064 (named on 2026-10-19 from an 8-Hz beat at 15 %; the camera's shake at the beat, item 17, has kept it from being named since 2026-10-31); the WA9ONY-5 balloon; PR23, PR055, PR071 |
+| non-bird | never "Beats like a bird" | the labelled set's distant and close drone, distant and medium airplane, distant and close helicopter, and AIRPLANE_064 (named on 2026-10-19 from an 8-Hz beat at 15 %; the camera's shake at the beat, item 17, has kept it from being named since 2026-10-31); the WA9ONY-5 balloon; PR23, PR055, PR071; and DRONE_059, a false alarm of record until 2026-11-13 (a 20-a-second source's held frames heard at a third of the frame rate; a cadence in most of its blocks since, section 35) |
 | strobe | a light's flash train (item 13) | Svanström V_HELICOPTER_054 and _030 |
-| false alarm | held as the record has it, with its cause: non-birds the report names a bird on the whole set | DRONE_059 (10.00 Hz at 15 % under the stage's rule: a third of its frames held, a cadence the held-pictures test just misses, heard as a beat at fps/3), HELICOPTER_043 (a 2.09-Hz beat at 21 % under both rules: a fence line and poles passing behind it, which background apertures 25 px away do not see), HELICOPTER_024 (3.53 Hz at 7.8 %: named since the floor went to 7 %) |
+| false alarm | held as the record has it, with its cause: non-birds the report names a bird on the whole set | HELICOPTER_043 (a 2.09-Hz beat at 21 % under both rules: a fence line and poles passing behind it, which background apertures 25 px away do not see), HELICOPTER_024 (3.53 Hz at 7.8 %: named since the floor went to 7 %) |
 | miss | measured, and no bird named | a distant bird with no beat where one would show (gliding, most likely) |
 | no power | NO POWER | a distant dark bird the stage cannot decide on |
 
@@ -5302,8 +5542,8 @@ them (the bin nearest PURSUE's), and each must give its own row of the whole-set
 **The exact bound beside each control (B28).** For k events in n trials the exact 95 % interval is Clopper-Pearson's; with
 none, its upper end is 1 - 0.025^(1/n). One silent negative control bounds the false-alarm rate only under 97.5 %; the four
 of `test_golden` (PR23, the balloon, PR055, PR071) under 60 %, and three of them are not known non-birds from outside the
-tool at all. So the goldens and the sample are regressions: they find a change. The rate is the whole set's: 3 of 307
-non-bird tracks named, under 2.5 % (stage; one-sided 95 %), 2 of 307, under 2.0 % (paper). The suite prints the bound beside
+tool at all. So the goldens and the sample are regressions: they find a change. The rate is the whole set's: 2 of 307
+non-bird tracks named, under 2.0 % (one-sided 95 %), under either rule. The suite prints the bound beside
 each control and holds the rates of record (RECORD) to the table, a regression on the table with the rate from the set.
 
 **Controls and regressions (B28).** A control has its answer from outside the tool: a label, a data bar, a laser, a header,
@@ -5998,10 +6238,66 @@ Only when asked; a run without `--rd` is as before. H = 3 is a judgement call: w
 few parts in a thousand, so the local line is nearly flat and the quadratic is the check on it (the quadratic is used where
 each side has four frames or more, so its jackknife can leave one out; with fewer the line alone). Rendered (`tests/
 test_zoom.py`): x2 with the scale drifting 0.1 % a frame, H 2, read as x2.0045 (95 % 1.990-2.019) against 2.0056; two placebo
-cutoffs x0.9987 and x1.0014, no step. **On real clips it is not yet measured**: PR27, PR057a and PR144 were run on 2026-11-07
-(1920 x 1080, H 3 and ten placebos: 176 full-size fits a clip) and none finished in its hour -- each pair rebuilt both stretches'
-fixed patterns from twelve frames, which `zoom.fit_all` now builds once a stretch and lets go after its last fit. The placebo
-rates of real clips, and the burst's interval against PR27's x2.000, PR057a's x2.001 and PR144's x5.884, are open.
+cutoffs x0.9987 and x1.0014, no step. **On real clips** (2026-11-13; `mcdonald zoom --rd` on PR057a, PR144, PR27, PR105 and AARO's Puerto Rico clip, each
+1920 x 1080, H 3, ten placebos; 40 to 68 minutes a clip on two CPUs, 1.9 GB; the runs of 2026-11-07 had not finished in
+their hour, each pair then rebuilding both stretches' fixed patterns, which `zoom.fit_all` now builds once a stretch).
+
+| clip | the step | the burst's own pair | the jump, 95 % | the known ratio |
+|---|---|---|---|---|
+| PR057a, 32.8 s | x2 (the ladder's rung x1.9998) | x2.000 | x2.0004, 1.9924-2.0085 | held |
+| PR27, 82 s | x2 | x2.003 | x2.0025, 1.9954-2.0092 | held |
+| PR105, 94.6 s | x2 | x2.002 | x2.0008, 1.9933-2.0091 | held |
+| PR105, 125.7 s | x0.5 | x0.500 | x0.5005, 0.4924-0.5071 | held |
+| PR144, 2.5 s | x5.884 by hand (the rung x5.916 +- 0.5 %) | x5.810 | x5.8608, 5.7738-5.8969 | holds the hand's; the rung's centre is 0.3 % over its top |
+| PR057a, 53.8 s | the x5.9 rung | x5.855 | x4.92 (the quadratic's x5.80), 3.55-9.46 | held, by an interval a factor of 2.7 wide: its pairs disagree |
+| Puerto Rico, 20.5 s | the display's 135 to 675: x5.000 | x4.966 | x4.9149, 4.8932-4.9694 | not held: 0.6 % over its top |
+| Puerto Rico, 118.1 s | 675 to 2024: x2.9985 | x3.096 | x3.1270, 2.7795-3.4387 | held |
+| Puerto Rico, 142.6 s | x0.3335 | x0.327 | x0.3260, 0.3200-0.3300 | not held: 1.1 % over its top |
+
+The four steps of the x2 rung (PR105's x0.5 its return) are each read to about 0.4 %, and every interval holds the ratio. The Puerto Rico display
+prints its focal lengths as whole numbers, and the imagery's own scale differs from their ratios by 1 to 3 % by three
+routes (a hand fit, the burst's pair, this); the interval is the imagery's, and is narrower than that difference.
+
+*Placebos.* Of 50 cutoffs inside the states 48 gave an estimate, and **none called a step** (0 of 9, 10, 10, 9 and 10):
+the rate a step is found where there is none is under 6.1 % (exact, one-sided 95 %). **The interval alone is not a test
+of "nothing happened"**: 7 of the 48 did not hold x1 (15 %, where 5 % is its level), six of them on PR105 (x1.003 to
+x1.006, each to a part in a thousand). A placebo's jump is the scale between two frames next to each other, and where
+the scene's own scale drifts, a camera closing or a slow zoom, that is one frame's drift and not nothing. The estimate
+is right about the picture. What keeps it from being called a step is the no-step band (x1.08), not the interval, so
+"no step" from this reading means "under 8 %", not "none".
+
+*A defect found there, and fixed* (`zoom.rd_trusts`). On nine bursts the stage itself calls unknown the regression
+said "a step": it took a pair's scale wherever the fit gave a number off the grid's edge with a ZNCC of 0.15, and never
+asked the pair's own verdict (its peak's prominence, its lead over the rival scale). PR27's burst at 89 s, featureless
+haze, the trap section 17 names, read "x3.1271, 95 % x3.1271-x3.1271" from 15 pairs all stuck on one value of the grid.
+Now a pair's scale is taken only where its own fit is a step or no step, and pairs that all give one value are no
+estimate.
+
+*The five clips again, with the fix* (2026-11-14; 43-82 minutes a clip). The pairs of the nine bursts the stage
+calls unknown are now too few to trust, but for one: Puerto Rico at 185.6 s, where 12 of the 16 pairs are trusted on
+their own and agree, x2.9551 (2.9430-2.9672), though the burst's own pair is not (a step `zoom.confirm` would accept
+by its own rule, two pairs further out passing). The known steps:
+
+| clip | the step | before the fix | with it |
+|---|---|---|---|
+| PR057a, 32.8 s | x2 | x2.0004, 1.9924-2.0085 | the same |
+| PR057a, 53.8 s | the x5.9 rung | x4.92, 3.55-9.46, "a step" | x5.61 from 11 pairs, 0.97-32.4: **not a step at that level** |
+| PR27, 74.3 s (a picture step) | its pair's x1.205 | x0.859, 0.134-7.73 | x1.2039, 1.1552-1.2546, a step |
+| PR27, 82 s | x2 | x2.0025, 1.9954-2.0092 | the same |
+| PR27, 127.7 s (a picture step) | its pair's x0.852 | x0.8583, 0.7499-0.9926 | x0.8534, 0.8250-0.8828, a step |
+| PR105, 94.6 s | x2 | x2.0008, 1.9933-2.0091 | the same |
+| PR105, 125.7 s | x0.5 | x0.5005, 0.4924-0.5071 | x0.4996, 0.4984-0.5009 |
+| PR144, 2.5 s | x5.884 by hand | x5.8608, 5.7738-5.8969 | the same |
+| Puerto Rico, 20.5 s | x5.000 (the display) | x4.9149, 4.8932-4.9694 | the same: not held |
+| Puerto Rico, 118.1 s | x2.9985 | x3.1270, 2.7795-3.4387 | **too few pairs trusted** |
+| Puerto Rico, 142.6 s | x0.3335 | x0.3260, 0.3200-0.3300 | x0.3308, 0.2999-0.3648: held |
+
+Taking only the pairs whose own fit is trusted narrows the intervals where the pairs agree (PR27's two picture steps,
+PR105's x0.5) and widens or removes them where few do (PR057a's x5.9 rung, Puerto Rico's x3). Two known steps are lost
+to the reading that way, and none is read wrong. The placebos: 46 judged of 50, **none a step** (under 6.3 %, exact,
+one-sided 95 %); the same 7 intervals exclude x1, six of them PR105's drift, so the finding above stands unchanged.
+What `--rd` adds, then: an interval on a step that the pairs agree on, and a way to see that they do not. The
+single burst's pair (`zoom.fit_all`, `zoom.confirm`) stays the reading the states are built from.
 
 **The zoom ladder pooled (E16; `scale.ladder`, `credible`, `carry`).** International price comparison fits log price = country
 effect + product effect over rarely observed pairs (Summers 1973), and finance shrinks a stock's noisy beta towards the cross

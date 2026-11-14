@@ -5,6 +5,109 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`horizon` says which way refraction breaks each bound, and refuses a duct** (IDEAS.md W8; 2026-11-13). The stage
+takes the air's bending of light, the refraction coefficient, as 0 to 0.25. The real air near the sea does not keep
+to that, and each bound breaks one way only:
+
+- *A range "at most" is too short where the air bends light more* (warm air over a cold sea). From 7,000 ft, for an
+  object 2 degrees below the horizon, the sea lies 7 % farther at a coefficient of 0.5 and 17 % farther at 0.75.
+- *A height "at least" is too high over a sea warmer than the air*, where light bends away from the sea. For an
+  object 0.5 degrees above the horizon, the lowest height is 9 % less at -0.25 and 15 % less at -0.5.
+
+Every run that gives a bound now says so. There is a note in the case and a line under the bound in what the
+command prints. The fields carry it as `bounds.breaks_if_kappa_above` or `breaks_if_kappa_below`. Someone who knows
+the air can give another band with `mcdonald horizon --kappa=LOW,HIGH`, and the words follow it.
+
+A coefficient of 1 or more is a duct: light is bent as much as the Earth curves, and there is no horizon. The
+geometry used to divide by zero at 1 and hand back a negative range above it. The stage's own band never reached
+that. Now the stage says it cannot decide, with the reason. The command refuses a `--kappa` typed so (exit 2)
+before it looks for the video.
+
+The stage's own band is unchanged, so no bound it gave before moves (test_horizon holds the two published ones).
+`run` and the window's form take no band yet. No reference case file and no golden uses `horizon`. Method §27.
+
+**`integrity`'s shake test keeps every number it prints** (found by the work on `share rerun`, IDEAS.md G6;
+2026-11-13). The test compares the object's acceleration on screen with the background's, on each axis. Its
+sentence gave four numbers an axis and the count of frames, and its fields kept two numbers of the stronger axis
+alone. A rerun on another computer could then differ in a printed digit with no number to judge it by. PR135's
+objects 1, 2 and 4 did: "-646.24" on one computer and "-646.25" on the other. Now both axes' numbers are fields
+(`r_x`, `sigma_x`, `slope_x`, `slope_inverse_x`, the same for y, and `frames`), for the object and for the made-up
+disc the stage tests beside it. The three old fields keep their names and meaning. No verdict and no sentence
+changes; a case measured again gains fields.
+
+**A row of bright points is no longer read as lines drawn on the picture** (open since session 18;
+2026-11-13). `integrity` asks whether the object lies under the symbology it crosses: the text and lines the display
+draws over the picture. On PR-016, a row of birds in a video that AARO (the U.S. All-domain Anomaly Resolution
+Office) resolved, it flagged one bird as possibly added. Each bird is ringed dark by the sensor's edge enhancement,
+and the rings join along the row into a net of dark strokes. The test took the net for a drawn line that the bird
+was painted over. Where the row slid along itself, it took the trail of the dark gaps for text that the bird was
+painted over. Three rules now hold what is drawn apart from what is not:
+
+- *A drawn line is thin.* A group of strokes counts as a line only where it is no wider across than half a stroke's
+  width (2.5 pixels at 1080 rows). PR-016's nets are 6 to 8 pixels across.
+- *Text held for a stretch stays.* A place counts as text only where it is at the text's level on three quarters or
+  more of the frames the object is clear of it.
+- *A scene that holds still decides no text.* Where most of the picture never changes, a dark stroke of the scene
+  and a line of text look alike. There the text reading now says it cannot decide.
+
+On PR-016 the check no longer flags the bird, and neither does it flag PR47's bird in a row of three. The drawn
+tests still find a tracking gate and a number on the display, over and under an object, as before. On the labelled
+infrared set it flags none of 431 tracks, before or after. The cost: in a video whose scene holds still, a paste
+under drawn text is no longer caught by the text reading. No reference case file changes: none of their objects
+crossed symbology drawn frame by frame. Method §25; a golden on PR-016's own track.
+
+**Held pictures in a broken cadence lower the beat band's top; a drone is no longer named a bird** (IDEAS.md Dx6;
+2026-11-13). A video made from a slower source repeats frames in a cadence, and a beat is then heard only up to the
+source's own limit. The test for a cadence read the whole track at once, so one burst of extra repeats inside a
+cadence hid it. IR_DRONE_059 of the labelled infrared set is a 20-a-second source in a 30-a-second file, with one
+such burst of 18 frames. Its repeats' own rhythm, 10.0 times a second, was named a bird's beat at 15 % of its
+brightness. A track of 180 frames or more is now also read in blocks of 60 frames. Where more than half the blocks
+hold a cadence, the track does, and the band's top follows the source (8 Hz here).
+
+- Against main 4847926 judged again (the revised "comes back" rule in it), 3 of the labelled set's 432 tracks
+  move, under both beat rules.
+  IR_DRONE_059 loses its bird's name and its beat. IR_DRONE_098 loses a weaker call of the same kind (9.99 Hz at
+  4.8 %, which was under the floor and so never named). IR_BIRD_032, a bird named at 2.04 Hz, keeps its call and
+  its name. No bird of the record loses a call or a name. Non-birds named: 3 to 2 of 307.
+- On words with no slower clock (random repeats, repeats in runs, the pattern a video's compression makes), the block reading calls a
+  cadence in at most 0.15 % of tracks at 180 frames, and in none found from 450 frames.
+- No reference case file changes its call. PR44's object, the nearest, holds a cadence in two of its five blocks,
+  which is not most.
+
+**What `flicker` says of frames that are nearly the same** (IDEAS.md N7; 2026-11-13). The stage compares whole
+frames to find repeated pictures. Compression that copies a still sky makes most of a frame the same as the one
+before, while the object's own picture is new. On the Galileo cameras' videos the stage then said "the video holds
+pictures ... 64% of frames repeat the one before ... they are missing samples", which is not true of the object:
+on those frames a bird still moved 1.8 pixels, as on the rest. Outside a cadence the line now says: "64% of frames
+are nearly the same as the one before, more evenly than at random, not in a cadence. A held picture does that. So
+does compression that copies a still scene from frame to frame, while the object's own picture is new. Either way
+the video's clock is its frame rate, and a beat is heard up to 24.0 Hz". No number changes.
+
+**The zoom's regression reading on real videos, with one fault mended** (IDEAS.md E15; 2026-11-13). `mcdonald zoom
+--rd` reads a zoom step from the pairs of frames either side of it, with an interval. It tries the same reading at
+ten places where nothing happened. It had never finished on a real video. On five videos with known steps it now has:
+
+- Each of the four steps of two (PR057a, PR27, and PR105's step in and back out) is read to about 0.4 %, and each
+  interval holds the known ratio. PR144's step reads x5.86 (5.77 to 5.90) beside x5.884 by hand.
+- At 46 places where nothing happened, none was called a step: under 6.3 % at the 95 % level.
+- The interval alone is not a test of "nothing happened". At 7 of those 46 places it did not hold x1, six of them
+  on PR105, where the picture's scale drifts by a few parts in a thousand a frame. The reading is right about the
+  picture there. What keeps it from being called a step is the 8 % band a step must clear, so "no step" from this
+  reading means "under 8 %".
+- The fault: at nine bursts that the stage itself calls unknown, the regression said "a step". It had taken every
+  pair's scale without asking whether that pair's own fit could be trusted. Now it takes only pairs whose own fit
+  is a step or no step, and pairs that all give one value are no estimate. Eight of the nine now have too few pairs.
+  Two known steps are no longer read this way (PR057a's step near six and Puerto Rico's step of three), as their
+  trusted pairs disagree or are too few. The single pair across the burst, which the zoom's states are built from,
+  is unchanged.
+
+**The labelled set's record made again** (2026-11-13). The controls harness holds the flicker stage to a table of
+all 432 tracks of the labelled infrared set and to rates read from it. Two changes to the judging moved it, and the
+table was judged again from its saved curves, with no video. The revision of "a beat that comes back" moved one row:
+IR_BIRD_035, which the stage had refused, now answers "no beat" (birds answered 110 to 111 of 125, and 108 to 109
+under the paper's rule). The cadence read in blocks moved three rows, as above. No bird of the record lost a call or
+a name. Non-birds named: 3 to 2 of 307. Method §44's rates follow the new table.
+
 **Four readings beside the beat, which change no call** (2026-11-13; `mcdonald flicker`, `mcdonald run`; docs/method.md
 section 59; ROADMAP 0.3 objectives 4 and 5). The bird conclusion, the gates and every beat are as they were. The controls
 harness gives main's 118 checks line for line, and the labelled set's 432 tracks judged again give main's table row for

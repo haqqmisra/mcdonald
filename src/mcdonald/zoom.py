@@ -479,9 +479,21 @@ def rd_fit(pairs, alpha=RD_ALPHA):
         return None
     jack = np.array(jack)
     se = math.sqrt((n - 1) / n * float(((jack - jack.mean()) ** 2).sum()))
+    if se < 1e-9:                                         # every pair the same number: a fit stuck on one grid value, not a
+        return None                                       # measurement with no error (PR27's 89-s burst: 15 pairs, x3.1271)
     z = float(t_dist.ppf(1 - alpha / 2, max(n - 1, 1)))
     return dict(S=math.exp(lin), S_quadratic=math.exp(est), interval=[math.exp(est - z * se), math.exp(est + z * se)],
                 log_se=se, pairs=int(len(P)), frames_before=int(len(set(P[:, 0]))), frames_after=int(len(set(P[:, 1]))))
+
+
+def rd_trusts(x):
+    """Is one pair's fit (`forensics.zoom_fit_frames`' result) a scale the regression may rest on: a number, off the
+    grid's edge, matched, and trusted by the fit's own verdict -- "step" or "no step", not "unknown". Until 2026-11-13
+    the verdict was not asked, and the pairs of a burst the stage itself calls unknown gave "a step" with an interval:
+    on five real clips 9 such bursts, PR27's 89-s burst among them (featureless haze, the known trap), all 15 of its
+    pairs at one grid value and its interval of no width."""
+    return bool(x is not None and x.get("s") and not x.get("at_edge") and x["zncc"] >= vf.ZOOM_MIN_ZNCC
+                and x.get("verdict") in ("step", "no step"))
 
 
 def rd_step(r):
@@ -550,7 +562,7 @@ def rd(video, todo, rows, states, n_last, fps, masks=None, clip=None, h=RD_H, k=
     fits = fit_all(video, jobs, masks, clip, progress) if jobs else []
     got = {}
     for (kind, idx, i, j), x in zip(owner, fits):
-        if x is not None and x.get("s") and not x.get("at_edge") and x["zncc"] >= vf.ZOOM_MIN_ZNCC:
+        if rd_trusts(x):
             got.setdefault((kind, idx), []).append((i, j, float(x["s"])))
     bursts = []
     for bi, r in enumerate(rows):
@@ -573,7 +585,7 @@ def rd_said(d):
         head = f"  burst at frames {b['frames'][0]}-{b['frames'][1]} ({b['verdict']}"
         head += f", x{b['s']:.3f})" if b.get("s") else ")"
         if not r:
-            L.append(head + ": too few pairs fitted a scale")
+            L.append(head + ": too few pairs fitted a scale that can be trusted")
             continue
         L.append(head + f": x{r['S']:.4f} from {r['pairs']} pairs, {100 * (1 - RD_ALPHA):.0f} % x{r['interval'][0]:.4f}-"
                  f"x{r['interval'][1]:.4f} (the quadratic's x{r['S_quadratic']:.4f}); "
