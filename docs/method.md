@@ -6276,7 +6276,22 @@ four far features on AARO's PR-009 and PR-010 clips, three other birds of PR135'
 
 **Run once on tracks the rule had not seen** (the labelled infrared set of section 44, every one of its 432 tracks:
 airplanes, birds, drones, helicopters; and two more of the repository's vendored tracks, PR23's object and the
-helicopter of section 34's Santa Barbara hoist). TBD_SVAN
+helicopter of section 34's Santa Barbara hoist), read once after the rule was set and not changed after. Of the 432
+labelled tracks, **2 hang** (0.5 %; 0.06 to 1.7 %), 12 are beside it, 348 have nothing tied and 70 are "cannot say"
+(44 objects that hardly move on the screen, as the platform follows them, and 26 stacks too small to search: the
+frames are 320 by 256). Both that hang were looked at, and both are the ground: a bird (IR_BIRD_076, its second
+object) whose companion is a feature of the bright ground band 178 px under it, its angle drifting from 12 to 20
+degrees; and a helicopter (IR_HELICOPTER_002) whose companion is one ground feature after another, its angle
+sweeping in a sawtooth from +15 to -30 degrees (12 degrees of spread). Both passed the companion gate as section 6's
+far scene does. PR23's object and the Santa Barbara Huey: nothing tied.
+
+| unseen tracks | hangs | beside it | nothing tied | cannot say |
+|---|---|---|---|---|
+| airplanes (82) | 0 | 1 | 64 | 17 |
+| birds (125) | 1 | 9 | 99 | 16 |
+| drones (168) | 0 | 0 | 149 | 19 |
+| helicopters (57) | 1 | 2 | 36 | 18 |
+| PR23, the Santa Barbara Huey | 0 | 0 | 2 | 0 |
 
 **The known answers and the candidates, as the stage says them** (`tests/test_golden.py` holds each):
 
@@ -6300,6 +6315,9 @@ helicopter of section 34's Santa Barbara hoist). TBD_SVAN
 - *One line's direction is one number.* A line with no tie to the vertical passes one time in five, and the report
   says each line's own chance. The answer leans on a companion being there at all: 7 of 160 null tracks get one by
   the stage's own run, none of them near the vertical.
+- *A feature of the far scene that keeps the object's pace passes*, where it lies under the object (two of the 432
+  unseen tracks, the ground band under a bird and under a helicopter). Its angle drifts or sweeps; nothing here gates
+  on that (IDEAS.md H12).
 - *A neighbour that keeps its place under the object passes* (PR097's objects 7 and 8). `run` calls a companion a
   fellow member, and so beside it, only where that neighbour was followed as a member of the group.
 - *The picture's own turn* is read off the scene, and needs a scene: under 12 patches of texture (an empty sky, a
