@@ -376,7 +376,7 @@ found at 304 deg, radius 195.08 +- 0.70, +0.199 deg/s. Two frames read by eye in
 ones, every third, old code and new): PR43, PR48, PR149 and PR27 the same to the byte by chroma, PR144 and PR057a by
 hue; every frame chroma read before is read at the same place, and one or two more a clip are read where a tick was
 missing (PR144 277 -> 279 of 279, PR057a 658 -> 660, PR060 999 -> 1,000, PR061 976 -> 977). The reference case PR41
-had its pointer on half its frames for PR058's reason: 134 -> 266 of 266, -0.413 -> -0.409 deg/s. And hue reads five
+had its pointer on half its frames for PR058's reason: 134 -> 259 of 266, -0.413 -> -0.409 deg/s. And hue reads five
 pointers it read on no frame, agreeing with chroma where chroma's radius holds: PR43 (cyan, hue 179: 306.32 px against
 306.27), PR48 (magenta, 301: -0.1422 deg/s against -0.1428), PR27 (178: +0.3169 against +0.3157), and PR060 and PR061
 (182, 188: radius +- 1.10 and +- 0.59 px, +0.61 and +0.83 deg/s, where chroma's radius wanders 4-19 % and the stage
@@ -386,8 +386,9 @@ a reticle of three ticks to half a pixel where the mean of the four nearest is 3
 magenta "N" is still read by chroma alone (hue: no frame, before and after; not looked into). **PR141's "pointer" is
 no pointer** (found here, not fixed): the chroma method's glyphs sit at four fixed places 240-278 px from the
 boresight, and the circle fit of 2026-10-28 draws a circle 75-94 px off it through them, dropping over half the
-glyphs; its released reports give -9.9 and -5.0 deg/s for two objects on the same frames, and this code -8.3 for
-both. All are fictitious; a fit that drops most of its glyphs wants refusing, with a null.
+glyphs; its released reports give -9.9 and -5.0 deg/s for two objects on the same frames, and so does this code
+(a first cut of the reticle rule moved them; the one built does not). Both are fictitious; a fit that drops most of
+its glyphs wants refusing, with a null (IDEAS.md GL8).
 
 Pointing is therefore **not withheld** on any clip that draws a pointer,
 whatever a redaction tag says. Measured radii: PR144 310.9 ± 0.9 px, PR148
@@ -4648,7 +4649,7 @@ of 4 blocks, 11-26 px a frame), PR079 (6 of 8, 8-13), PR085 (12 of 17, 2-6), PR0
 and PR44 (3 of 3, 6). "For at least part of the track" on three of them, where the templates were left still on under
 nine pairs in ten: PR077 object 1 (85 %), PR099 object 2 (70 %), and PR44 (52 %), whose camera pans for six seconds of
 fourteen. On 8 they do not: PR097's six with the NO POWER (no block read) and PR141's two (one block of three, none of
-three) -- held, as before. No rate moves on any of the 31.
+three) -- held, as before, with the one sentence more under the held words. No rate moves on any of the 31.
 
 **The blocks' rule in `slew`** (`slew.fit_blocks`, 2026-11-02). `slew`'s own fit is in places: the scene's path chained from pairs, the pointer's
 angle, a hold, an offset per stretch, and a check that the two rates follow each other frame by frame (§17). A scene read 60 frames at a time
