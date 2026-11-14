@@ -6298,15 +6298,18 @@ report's sentences still read it (IDEAS RG3).
 | Svanström IR_BIRD_018, 035, 038, 044 | two birds each | 2; 132, 62, 206, 142 | false | cannot say: two members | wander: 2.7, 1.7, 3.9 and 2.3 px, 5 to 11 times the jitter |
 | a drone show on the Galileo Project's infrared cameras: 20 groups of six neighbours in five windows of 241 to 600 frames on two cameras (tracks of 2026-10-19, a centroid reader of that analysis, not the stage's) | a formation flown by computer, its figure changing slowly | 6; 241-600 | true on 7, "neither" on 13 | **one rigid body** on all 20: 0.02 to 0.19 px left | **keep their places** on all 20: at most 0.09 to 0.45 px about a steady change |
 | PR105's three points in a vertical line, frames 1075-2155 (session 19's reader; 444 frames with all three, not consecutive) | three unresolved points in a line that stays near the picture's vertical (measured 2026-11-09/10) | 3, 444 | "neither" | cannot say: three members | **keep their places**: at most 2.9 px, 1.5 to 1.9 times the jitter (the faint middle point jitters 1.4 px) |
+| PR097 about its object 1, frames 3755-3880 (the stage on the video) | not settled: four points within 6 px, separate birds by their beats | 2, 62 | true | cannot say: two members | keep their places: at most 0.37 px, 1.1 times the jitter (a reading, not a control) |
 | drawn: rigid bodies, formations, members that drift | by construction | 2-8; 60-300 | the paragraph above | the tables above | the tables above |
 
 Not read, and why: AARO's two Puerto Rico lanterns (frames 1640-2231: one dark blob of two lobes, 0 points a frame), PR098's
 two lines of two or three points (the points touch: one point a frame or none), PR105 as the stage follows it (the
 lower points are too faint: one point, or two for 78 frames, which keep to 0.47 px), four of the eight Svanström
 clips with two birds labelled (the second bird is out of reach or not a point), two clips of several labelled drones
-(one point), PR47's three out-of-focus rings (they touch; a reader written for them held three rings on 666 of 3,590
-frames, in runs of 20 at most: not used). So no lantern group and no rigid row but PR105's has been read; and no
-real object of several lights known to be one body (an aircraft at night) is among the controls.
+(one point), PR097's dark objects 7 and 8 (one point a frame about each), PR47's three out-of-focus rings (they touch;
+a reader written for them held three rings on 666 of 3,590 frames, in runs of 20 at most: not used). So no lantern group and no rigid row but PR105's has been read; and no
+real object of several lights known to be one body (an aircraft at night) is among the controls. PR135's exercise
+page, the one place its flock goes through this stage in a whole run, holds its answers with the readings in
+(`tests/test_golden.py --exercises 04`: 16 checks pass).
 
 **What it is not, and how it fails.**
 
