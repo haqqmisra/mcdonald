@@ -1,0 +1,195 @@
+
+T1: the height, from the readouts
+  PASS  the scene gives three readings of each or more  5 slant, 7 horizontal
+  PASS  a body holding its height holds it, to its error: passes  0.11 +- 1.17 m/s
+  PASS  the height difference is the scene's  3801.2 m
+  PASS  and the depression at the end  43.01 of 43.36 deg
+  PASS  a body climbing at 12 m/s, faster than any balloon: fails  12.29 +- 1.18 m/s
+  PASS  no ranges: cannot say
+
+T2: the straight line, from ranges and bearings
+  PASS  its velocity against the aircraft, within 3 m/s  [-67.0, 75.0] of [-67.0, 75.0]
+  PASS  its speed, with a bootstrap error  100.6 +- 0.09 m/s
+
+T2: the winds
+  PASS  a body drifting with the winds: the airspeed it needs is the aircraft's, passes  [170.4, 178.5] kn of 175
+  PASS  a drone crossing the heading against the winds' difference: cannot say (the test never fails)  the winds' difference across the heading does not lie the way the moti
+  PASS  and the airspeeds a 25-m/s drone would need are given
+  PASS  an airspeed beyond the aircraft's range: cannot say
+
+T2: the archive's winds
+  PASS  an hour's winds per sample  2
+  PASS  a level with no height placed by the hypsometric equation: its wind at that height (from the west, 10 kn)  [5.144, 0.0]
+  PASS  the upper level's (from the north, 30 kn)  [-0.0, -15.433]
+
+T1/T2 from the aircraft's own track: the path
+  PASS  an orbit fixes the object's velocity over the ground  [-6.1, -3.62] of [-6.0, -3.5], error 0.15
+  PASS  and its height and climb  251 m, -0.50 m/s
+  PASS  height above the ground given; the line of sight turns  181 m, 170 deg
+  PASS  T1: a slow sink holds its height, passes  it holds its height: -0.50 +- 0.01 m/s
+  PASS  the aircraft's own wind and airspeed, from its turn  [-9.03, -2.96] of [-9.0, -3.0], 100.0 m/s
+  PASS  the same rays given as ground points: the same path  [-6.103, -3.623]
+  PASS  a straight-flying aircraft cannot range what it sees: cannot say  the lines of sight do not fix its velocity: the aircraft flew straight: its path leaves a 
+
+T2 from the aircraft's own track: the winds
+  PASS  a drifter: every wind leaves it under their spread through the air, passes  it moved over the ground at 7.1 m/s toward 239 deg; the 6 winds at its height leave it 0.6-1.7 m/s t
+  PASS  a flier at 25 m/s through the air: fails  it moved over the ground at 26 m/s toward 166 deg; even the nearest wind at its height leaves it 24 
+  PASS  a passing T2 from the track is a strong test
+  PASS  5 m/s through the air: a slow flier's, cannot say
+
+T2 from the aircraft's own track: a model's winds carry their own error (2026-11-13)
+  PASS  3.5 m/s off a model's winds: within the model's own error, passes  it moved over the ground at 4.1 m/s toward 258 deg; the 2 winds at its height leave it 3.3-3.6 m/s through the air, with
+  PASS  the same off observed winds: no model's error allowed, cannot say (the rule before 2026-11-13)  the winds at its height leave it 3.3-3.6 m/s through the air, beyond their own spread (0.4 m/s) and two errors of the fi
+  PASS  a flier at 25 m/s through the air still fails
+  PASS  each wind says where it came from  ['model', 'observed']
+
+T2 from the aircraft's own track: drifting must fit better than holding still (2026-11-13)
+  PASS  a body holding still in a 3 m/s wind: cannot say, where it passed before  holding still fits as well as drifting: the winds at its height are 3.0-3.1 m/s, and drifting leaves it 3.0-3.
+  PASS  a drifter in that light wind still passes: it needs well under the 3 m/s holding still would  own error (3); holding still would need 3.0-3.1 m/s, more than drifting does at every wind
+  PASS  a drifter in an 18 m/s wind: passes, holding still needing more at every wind  n error (3); holding still would need 18.0-18.8 m/s, more than drifting does at every wind
+  PASS  holding still in that 18 m/s wind: fails, as before
+
+T2 from the aircraft's own track: which winds bear on its height
+  PASS  the model's hours within one of the clip's time  2 of 4
+  PASS  a model held at its top level (100 m above its ground) for an object twice as high: counts, the note saying so  model, levels 60-150 m above the sea, held at its top level, 2.0 times the object's height above the model's ground (50 m)
+  PASS  a sounding that brackets it: interpolated, counts  6.11 m/s
+  PASS  a surface report far below it: read, not counted
+  PASS  between the report below and the aircraft's own wind above: the measured profile, counts  7.55 m/s
+
+T1/T2 from the aircraft's own track: a straight flight fixes nothing, whatever the fit's error says
+  PASS  a straight flight's path leaves a straight line by under 2 m: the path gate shuts  0.00 m
+  PASS  T1 and T2 cannot say, and say why  the lines of sight do not fix its velocity: the aircraft flew straight: its path leaves a straight line by 0 m
+  PASS  the landing the survey found (beside the aircraft, a 0.4 m/s error) is refused all the same: the refusal reads the path, not the error
+  PASS  the orbit: its path leaves a line by hundreds of metres, the range's bound under 0.05, nothing refused  910 m, bound 0.0009, model p 0.01
+  PASS  the gate's null: a straight flight whose positions are rounded to an arcsecond and a foot leaves a line by under 16 m (the gate opens at 20)  11.54-12.23 m
+  PASS  the gate's null: a straight flight whose positions are rounded to a tenth of an arcsecond leaves a line by under 2 m (the gate opens at 20)  1.26-1.58 m
+  PASS  and a 30-deg turn, rounded the same, opens it  300 m
+  PASS  the survey's phantom (trial 122) cannot say: the aircraft flew straight  landed at 2.3 % of the true range with a 1.01 m/s error; VELOCITY_FIX alone passed it; bound 0.343
+
+T1/T2 from the aircraft's own track: too few readings
+  PASS  resamples kept of 2,000: none at 6 or 7, 4.8 at 8, 69 at 9, 306 at 10, 1,210 at 12 (exact; the survey's 4.7, 69.5, 306, 1,257 by simulation)  {6: 0.0, 7: 0.0, 8: 4.8, 9: 69.3, 10: 305.5, 12: 1209.6}
+  PASS  so 9 readings are the least: the first to keep the 20 resamples the errors are read from
+  PASS  5 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 5 readings keep 0 of them, under the 20 the errors are read from
+  PASS  6 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 6 readings keep 0 of them, under the 20 the errors are read from
+  PASS  7 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 7 readings keep 0 of them, under the 20 the errors are read from
+  PASS  8 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 8 readings keep 5 of them, under the 20 the errors are read from
+  PASS  9 readings: fitted, with about 69 of the 2,000 resamples, T1 speaks  67 resamples
+  PASS  fit_track itself on 7 readings: no error, the covariance's errors alone, and `unfixed` says the bootstrap kept nothing
+
+T2 from the aircraft's own track: a model wind counts only near its levels
+  PASS  a 100-m-only file counts at 100, 250 and 400 m (within a factor of 4 of its level above its ground)
+  PASS  not at 500 or 3,960 m (it counted there until 2026-11-02); the note says which heights the file covers  model, levels 100-100 m above the sea, held at its top level, 39.6 times the object's height above the model's ground (0 m)
+  PASS  the same level as an observed source: not counted either
+  PASS  T2 on a body at 3,960 m moving with that 100-m wind: cannot say, naming the file's levels (it passed until 2026-11-02, and failed a body 30 m/s off it)  none of the winds given bears on its height (3960 m above the sea): only100: model, levels 100-100 m above the sea, held
+
+T3: the beat
+  PASS  a beat of its own: fails
+  PASS  a beat that holds across the video (a rotor's): fails
+  PASS  a beat in one stretch of many (a flame's, or chance) is not counted: passes on the whole stretch  no beat across the video: a beat in one stretch only (1 of 1
+  PASS  the same read from the finding where the envelope has no beat record
+  PASS  no beat: passes, with the smallest beat the injections show it could have seen
+  PASS  without injections, the smallest is the flicker rule's own threshold  0.3
+  PASS  no power: cannot say
+  PASS  no flicker run: cannot say
+
+T3: windows apart weighed against chance (2026-11-13)
+  PASS  40 windows that do not overlap: 40
+  PASS  50 windows an eighth apart over 855 frames: 7 that do not overlap  7
+  PASS  2 of 40 at the drift test's 9 % is chance; 12 of 40 is not  0.90, 1.9e-04
+  PASS  an envelope from before: 2 windows apart of 40 is chance, passes (the Galileo clouds' case)  no beat across the video: it beats in 2 windows apart of the 40 its track holds, as often as chance gives (90%
+  PASS  12 windows apart of 40: beyond chance, fails
+  PASS  a whole track that beats: fails, as before
+  PASS  the same from flicker's own new fields
+  PASS  2 windows apart of 5: chance at the census's rate, beyond it at the floor  0.071, 0.0038
+  PASS  background windows: each aperture's windows judged as the object's, few passing on grain alone  [0, 42]
+  PASS  one aperture alone has nothing to be held against: no measured chance
+
+T3 from two cameras watching at the same time (2026-11-13)
+  PASS  a beat one camera sees and another, able to see a third of it, does not: that camera's view, passes  no beat of its own: camera 1 (hideout-cam-1)'s beat at 2.44 Hz (5% of its brightness) is its own view: camera 2 (sphere-cam-2), wa
+  PASS  another camera agrees: fails   it beats at 2.44 Hz (camera 1 (hideout-cam-1); camera 2 (w) sees 2.47 Hz at 3%)
+  PASS  another camera too noisy to see a third of it (the Galileo cloud at 5 % and 0.8 %, floor 2 %): fails as before  era 1 (hideout-cam-1); no other camera could have seen a beat a third as strong)
+  PASS  one envelope: test_beat's own answer
+
+T4a: pieces shed, against the remains
+  PASS  the piece's speed against the remains is recovered  13.03 px/s of 13
+  PASS  0.65 lengths/s at 40 deg bounds the airspeed under 2 lengths/s: passes  passes, 1.01
+  PASS  pieces leaving at 3 lengths/s: it flies, fails  the pieces leave it at 3.00 lengths per second or more: it flies through the air
+  PASS  1.5 lengths/s at 40 deg: a slow flier's, cannot say  its airspeed is bounded only at 2.34 lengths per second, within a slow flier's
+  PASS  no depression: flight along the line of sight could hide, cannot say
+  PASS  no pieces: cannot say
+
+T4a: the cloud around it
+  PASS  carried by cloud at its own depth: passes
+  PASS  and that is a strong test: the verdict is tentative drift
+  PASS  carried by cloud it is only within: passes, but is no strong test (the verdict cannot say)
+  PASS  moving through the layer it is in: a depth offset could do that, cannot say  it moves through the cloud at 1.3-3.7 of its own diameters per second;
+  PASS  cloud at an unknown depth is no tracer: cannot say
+
+T4b: the remains
+  PASS  a steady sink excludes a falling wreck of every body under 20 m: passes (no band given: the reach by a + 3 sigma)  827.0 m
+  PASS  its own band: a bound on a steady change of speed, the nugget, a backtest light  0.156 px/s^2, 0.32 px, green
+  PASS  with its band the reach is the band's bound, said in the reading; the steady sink still passes  963.0 m
+  PASS  a 5-m wreck falling at g: fails  1.504 of 1.50 lengths/s^2
+  PASS  its band saw the change, so it gives no bound and the reach is a + 3 sigma; the band's acceleration is the fall's  band 1.455 +- 0.09 lengths/s^2
+  PASS  a drawn track with a slow wander: the band's bound is over three of the bootstrap's errors, its own error larger  bound 8.76, band error 2.63, bootstrap error 1.04 px/s^2; range 0.64 s against 0.50-s blocks
+  PASS  and test_wreck's reach is g cos(delta) over the band's bound  19.0 m, passes
+  PASS  a reach of 15 m passes (the pass needs 10 m)  15.0 m
+  PASS  a reach of 8 m cannot say  it excludes a falling wreck only below 8 m (their 
+  PASS  a 10-m body's own fall, measured to 0.05 lengths/s^2: fails  the remains accelerate down at 0.75 lengths/s^2, as a heavy 
+  PASS  a 20-m body's fall, measured to 0.05: fails (the fail rule's own constant, tried before the pass, whose reach it would meet)  reach 14.0 m
+  PASS  nothing struck: cannot say
+
+T4: other evidence, its parts together
+  PASS  a part passes and none fails: passes, its parts kept  T4a passes, none fails
+  PASS  a part fails: fails, whatever passed  T4b fails
+  PASS  no part decided (nothing shed, no strike): cannot say  no part decided (T4a: nothing to run on; T4b: nothing to run
+  PASS  the remains alone are no strong test: T4 passing on T4b cannot carry the verdict
+  PASS  a failing part decides, and the verdict names it  T4b: the remains fall as a heavy body
+
+the verdict
+  PASS  a strong test (a tracer at its own depth) passed and none failed: tentative drift
+  PASS  any test failed (a beat held across the video, a hovering rotor's): not drifting, whatever passed
+  PASS  T3 without power (cannot say) leaves a strong pass (T2) standing
+  PASS  no strong test passed (T1, T3 and T4b only): cannot say
+  PASS  nothing ran: cannot say
+
+Hellfire/Yemen: from its readings (no video)
+  PASS  T1: it holds its height  -0.92 +- 1.08 m/s
+  PASS  and the depression from the ranges  40.55 deg
+  PASS  T2: the winds need 179-191 kn of the aircraft, and lie the way its motion does  [179.1, 190.5] kn, 23.2 kn to the right
+  PASS  and what the winds leave the aircraft to fly sideways is to its left, 5-18 kn (their shortfall)  5.2-18.4 kn
+  PASS  T3: no beat over 41 %
+  PASS  T4a: the two pieces bound its airspeed under 2 lengths/s  1.93 L/s
+  PASS  and the pieces' speeds from their own bands (0.79 and 0.62 L/s) agree with the lines' within 10 %  bands [0.79, 0.62], lines [0.82, 0.68]
+  PASS  T4b: no falling wreck under ~17 m (16.5), by the band's bound (75 m by a + 3 sigma until 2026-11-02)  -0.082 +- 0.06, 17.0 m
+  PASS  the band: -0.17 +- 0.14 L/s^2, its error over twice the bootstrap's, a steady change over 0.45 would have shown; the wander outlasts the bootstrap's blocks  -0.17 +- 0.145, bound 0.451, range 0.75 s against 0.5-s blocks, green
+  PASS  T4: other evidence, both parts pass  T4a and T4b pass, none fails
+  PASS  three main tests, then other evidence with its two parts  T1, T2, T3, T4, T4a, T4b
+  PASS  verdict: tentative drift  consistent with wind-borne drift (tentative)
+
+Hellfire/Yemen: by the command line, on the clip
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/hellfire_yemen/x_burlison_1965438792493355291.mp4)
+
+Puerto Rico lanterns: from their readings (no video)
+  PASS  the path: 7.3-7.4 m/s toward 240 deg, 181 m above the field  7.37 m/s toward 240.4, 181 m
+  PASS  T1: a slow sink, passes  it holds its height: -0.60 +- 0.04 m/s
+  PASS  the aircraft's own wind from its turn  9.51 m/s from 70.6
+  PASS  T2: every wind at their height leaves them under 4 m/s through the air, passes  [1.37, 3.64] m/s
+  PASS  14 winds counted, as before the gates (2026-11-02): the aircraft's path left a line by 855 m, the range's bound 0.0025, all 2,000 resamples fitted  855 m, bound 0.0025, 2000 resamples
+  PASS  the model gate's F test is reported, not a refusal: p 0.054 on the known drifter  F 2.68, p 0.054
+  PASS  T3: a beat in one window of 109, one stretch, not counted: passes  no beat across the video: a beat in one stretch only (1 of 1
+  PASS  T4: nothing shed, nothing struck, cannot say  no part decided (T4a: no pieces tracked with the remains; T4
+  PASS  verdict: tentative drift  passed T2 and failed none; it names no object
+
+Puerto Rico lanterns: by the command line, from the aircraft's own track
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/aaro/videos/DOD_110692805-1920x1080-9000k.mp4)
+
+Santa Barbara Huey: from its beat (no video)
+  PASS  T1, T2 and T4: nothing to run on, cannot say  T1 cannot say, T2 cannot say, T3 fails, T4 cannot say, T4a cannot say, T4b cannot say
+  PASS  T3: the rotor's 10.645 Hz holds across the stretch: fails  its brightness beats across the video: it beats at 10.645 ± 
+  PASS  verdict: not drifting  T3: its brightness beats across the video: it beats at 10.645 ± 0.007 Hz, 5% of 
+
+Santa Barbara Huey: by the command line, from its beat alone
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/santa_barbara_2018/yt_7N8_g3pCK2o.mkv)
+
+ALL PASS  (3 skipped: Hellfire/Yemen command line, Puerto Rico command line, Santa Barbara command line)

@@ -1,0 +1,89 @@
+
+the exact bound a control's outcome gives (B28)
+  PASS  no false alarm in four negative controls bounds the rate only under 60 %  0 of 4: under 60.2 %
+  PASS  one silent negative control bounds it under 97.5 %  97.5 %
+  PASS  the labelled set's 11 of 286 non-bird clips called (2026-10-19) gives 1.9-6.8 %  1.94-6.78 %
+  PASS  none in 286 bounds a false-alarm rate only under 1.04 % (exact, one-sided 95 %): no count on about 300 tracks shows "under 1 %"  1.04 %
+  PASS  agreement corrected for chance (Cohen's kappa) is lower than raw agreement on a rare call  raw 0.90, kappa 0.62
+
+the controls, judged again from their saved curves (no video)
+  SKIP  sv_bird_distant: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_bird_distant.json.gz is not on this computer
+  SKIP  sv_bird_medium: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_bird_medium.json.gz is not on this computer
+  SKIP  sv_bird_close: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_bird_close.json.gz is not on this computer
+  SKIP  sv_bird_miss: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_bird_miss.json.gz is not on this computer
+  SKIP  sv_no_power: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_no_power.json.gz is not on this computer
+  SKIP  sv_drone_distant: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_drone_distant.json.gz is not on this computer
+  SKIP  sv_drone_close: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_drone_close.json.gz is not on this computer
+  SKIP  sv_airplane_distant: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_airplane_distant.json.gz is not on this computer
+  SKIP  sv_airplane_medium: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_airplane_medium.json.gz is not on this computer
+  SKIP  sv_helicopter_distant: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_helicopter_distant.json.gz is not on this computer
+  SKIP  sv_helicopter_close: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_helicopter_close.json.gz is not on this computer
+  SKIP  sv_airplane_064: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_airplane_064.json.gz is not on this computer
+  SKIP  sv_drone_059: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_drone_059.json.gz is not on this computer
+  SKIP  sv_helicopter_043: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_helicopter_043.json.gz is not on this computer
+  SKIP  sv_helicopter_024: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/sv_helicopter_024.json.gz is not on this computer
+  SKIP  flyer1: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/flyer1.json.gz is not on this computer
+  SKIP  flyer2: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/flyer2.json.gz is not on this computer
+  SKIP  flyer3: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/flyer3.json.gz is not on this computer
+  SKIP  flyer4: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/flyer4.json.gz is not on this computer
+  SKIP  flyer5: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/flyer5.json.gz is not on this computer
+  SKIP  pr135_flock: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/pr135_flock.json.gz is not on this computer
+  SKIP  pr23: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/pr23.json.gz is not on this computer
+  SKIP  pr055: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/pr055.json.gz is not on this computer
+  SKIP  pr071: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/pr071.json.gz is not on this computer
+  SKIP  wa9ony5: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/wa9ony5.json.gz is not on this computer
+  SKIP  v054: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/v054.json.gz is not on this computer
+  SKIP  v030: /Users/runner/work/mcdonald/data/mcdonald/controls/curves/v030.json.gz is not on this computer
+
+the labelled set's sample against the whole-set table
+  SKIP  /Users/runner/work/mcdonald/data/mcdonald/controls/svanstrom_tracks.csv is not on this computer
+
+the rates of record: the labelled set's whole-set table (432 tracks)
+  SKIP  /Users/runner/work/mcdonald/data/mcdonald/controls/svanstrom_tracks.csv is not on this computer
+
+which golden checks are controls, and which are regressions that follow the tool (B28)
+  PASS  every test_golden check is called a control or a regression  42 checks
+  PASS  every exercise page is called a control or a regression  ['01', '02', '03', '04']
+        controls (20): pr113_two_clicks, wa9ony5_no_beat, wa9ony5_swing, audio_cases, flyover_cases, pr051_zoom_with_no_blank, pr051_scene_path_against_the_data_bar, puerto_rico_k_from_the_data_bar, puerto_rico_lanterns_tau_against_their_range, puerto_rico_lanterns_over_the_doubling, yemen_line_of_sight_against_the_laser, flir1_frame_rate, flir1_zoom_and_release, flir1_readout, flir1_events, flir1_fields, flir1_versions, atflir_navy, svanstrom_helicopter_lights, held_pictures_known_cadences
+        regressions (22): pr144_window, pr144_full, pr43_streak_by_motion, pr43_speed_band, checklist_on_the_case_files, the_birds_bands_held_to_their_tracks, projective_held_to_the_jitter, flyer5_wingbeat, galileo_flyers_beat, pr135_flock, pr23_no_bird, pr071_string, pr055_nothing_tied, pr004_companion_and_no_pendulum, pr105_companion_is_not_followed_away, no_pendulum_on_the_birds, nothing_tied_leaves_nothing_in_the_record, pr051_released_track_against_the_scene, flir1_glyphs, pr43_dash_fitted_whole, aaro_blind, exercises
+        the exercise pages: all four answers follow the tool -- they find a change, not an error
+
+the exotica list (T9): one of everything the harness should hold
+        held      a flapping bird, still camera, 60 fps: flyer1, flyer2, flyer3, flyer4, flyer5
+        held      a flock, members out of step: pr135_flock
+        held      a bird of the labelled set, distant (under 5 px), medium and close: sv_bird_distant, sv_bird_medium, sv_bird_close
+        held      a bird the test does not hear (gliding, most likely): sv_bird_miss
+        held      a drone, distant and close: sv_drone_distant, sv_drone_close
+        held      an airplane, distant and medium: sv_airplane_distant, sv_airplane_medium
+        held      a helicopter, distant and close: sv_helicopter_distant, sv_helicopter_close
+        held      an anti-collision strobe's train: v054, v030
+        held      a propeller's line folded into the band: sv_airplane_064 (a candidate, not a finding)
+        held      held pictures' own rhythm heard as a beat (one frame in three held: fps/3): sv_drone_059 (named a bird today; M3's cadence test misses it)
+        held      a background crossing behind the object: sv_helicopter_043
+        held      a helicopter's own modulation heard in the capped point disc, over the floor: sv_helicopter_024
+        held      a balloon whose payload swings: wa9ony5 (and test_golden's swing)
+        held      an object lost against a hot roof: pr23
+        held      unidentified: a sphere among clouds, an object with a line below it: pr055, pr071
+        held      a track the stage cannot decide (NO POWER): sv_no_power
+        elsewhere a codec's cadence, held pictures (test_golden's held_pictures_known_cadences; no saved beat curve yet)
+        elsewhere sky lanterns (flames), infrared, airborne (test_golden's Puerto Rico lanterns (tau, range); no saved beat curve yet)
+        elsewhere a helicopter hovering, its rotor's held beat (test_drift's Santa Barbara UH-1H; no saved beat curve yet)
+        missing   a balloon with its payload resolved, in the thermal infrared (a sounding-balloon launch filmed in the infrared)
+        missing   a flare: illumination (minutes, under a canopy) and decoy (seconds, falling) (footage with a known flare)
+        missing   an insect near the lens (a clip with the insect known (Galileo flyer 1's insect is a candidate))
+        missing   a gliding or soaring bird, known to glide (the labelled set's misses looked at by eye, or a known glider)
+        missing   a drone with its light at night, and its own flash rate (footage taken for it)
+        missing   a visible-band airplane at night, with ADS-B (aircraft near an airport, filmed for it)
+        missing   an airborne helicopter and aircraft, from the flyers' cameras (expected from the Galileo cameras)
+        missing   a wind farm's obstruction lights, in step (a clip that shows them)
+        missing   a satellite or a star (autokinesis) (a known pass)
+        missing   sea glint; a ship's lights (a clip with a known ship)
+        missing   the sensor's own: fixed-pattern defects, overlay strokes (the codec's and the display's, saved as curves)
+  PASS  every control on the list is in the manifest, and every one in the manifest on it  16 kinds held here, 3 elsewhere, 11 missing
+
+the held-out third: the ledger of looks, and agreement as a difference (B17)
+  PASS  the ledger of looks: date, commit, gates, set, who, what was seen; the look of 2026-10-18 on ffa9f3f entered  5 lines
+  PASS  a difference held out minus tuning, with its interval resampling videos, holds the true difference  12.5 % against 5.0 %, +5.4 to +9.6 points
+
+10 PASS, 0 FAIL, 29 SKIP
+ALL PASS (29 skipped: sv_bird_distant, sv_bird_medium, sv_bird_close, sv_bird_miss, sv_no_power, sv_drone_distant, sv_drone_close, sv_airplane_distant, sv_airplane_medium, sv_helicopter_distant, sv_helicopter_close, sv_airplane_064, sv_drone_059, sv_helicopter_043, sv_helicopter_024, flyer1, flyer2, flyer3, flyer4, flyer5, pr135_flock, pr23, pr055, pr071, wa9ony5, v054, v030, the whole-set table, the rates of record)

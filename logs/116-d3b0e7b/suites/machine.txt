@@ -1,0 +1,6 @@
+Darwin sat12-bq165-b8776b75-0268-44ed-9a7f-e81847e2661a-16CBD15DA134.local 25.6.0 Darwin Kernel Version 25.6.0: Mon Oct 12 00:39:04 PDT 2026; root:xnu-12377.161.15.701.48~2/RELEASE_ARM64_VMAPPLE arm64
+ProductName:		macOS
+ProductVersion:		26.7.2
+BuildVersion:		25G332
+Apple M1 (Virtual)
+3
