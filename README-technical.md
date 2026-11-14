@@ -210,6 +210,7 @@ mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 mcdonald comotion CLIP.mp4 --track track.csv --diameter 72
 
 # Is the object several points moving together, and do they keep their places? (a formation does, a flock does not)
+# With four members or more: do they move as one rigid body, or as several? Each answer may be "cannot say"
 mcdonald groups CLIP.mp4 --track track.csv
 
 # Is something tied to the object -- a line, a payload -- and does it swing? (T -> metres of line)

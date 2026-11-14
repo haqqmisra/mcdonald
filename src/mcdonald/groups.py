@@ -40,6 +40,14 @@ Method (`members`, then `rigidity`):
    than SHUFFLE times it and by more than a pixel, and None between, or with fewer than
    two members long enough to ask.
 
+5. **Two calibrated readings beside it** (2026-11-13, `one_body` and `places`; docs/method.md section 60). One
+   rigid body or several: what is left off the best rank-3 fit of the group's centred positions (Tomasi & Kanade's
+   rank theorem; rank 2 with four members). Do the members keep their places: every separation over the group's
+   size, about a straight line in time. Each says the group moved only where the wander keeps going (a KPSS
+   statistic against the series' own blocks drawn again), stands over a line set on drawn rigid groups that carry
+   the detector's real errors, and is over a pixel; a separation that returns to its line (ADF) is not said to
+   wander. Each can answer "cannot say". `rigid` stands as it was.
+
 What it cannot do: say what the members are. Rigid or shuffling is a property of the
 formation in the image; birds, a formation of aircraft or drifting debris each still
 need the rest of the case. And the separations are in pixels, not metres, for the
@@ -314,9 +322,13 @@ DRAWS = 999              # block-bootstrap draws: the least p is 0.001
 TEST_SEED = 23           # the draws' seed: the same group reads the same every time
 TEST_MIN_FRAMES = 60     # frames the members share under which neither reading is made (section 60's power table)
 MOST_MEMBERS = 8         # the longest-followed members read: 28 pairs (the lines below were drawn for 2 to 8)
-PAIR_LINE = 3.0          # a separation's wander over its jitter: the largest pair of a drawn rigid group passes it ALPHA of the time
-RANK_LINE = {3: 2.5, 2: 3.0}   # what is left off rank 3 (rank 2, four members) over its jitter, the same way
-PX_FLOOR = 1.0           # px: the detector's own error on a planted dot stays under this 99 times in 100 (1.05 px)
+# The three lines below are from drawn groups that keep their places, or are one rigid body, each member carrying the
+# error series of one of the biology survey's planted dots (277 dots found again on 60 frames or more, in real frames
+# of 12 clips): 8,000 groups for each of 2, 3, 4, 5, 6 and 8 members and 60, 100, 150 and 180 frames (session 23's job
+# 1220). With white jitter the same ratios stay under 1.25, with an AR(1) jitter of lag-1 correlation 0.6 under 2.3.
+PAIR_LINE = 3.3          # a separation's wander over its jitter: the largest pair of such a group passes 3.27 or less 1 % of the time
+RANK_LINE = {3: 2.5, 2: 3.0}   # what is left off rank 3 (rank 2, four members) over its jitter: 1 % of them pass 2.40 (2.97) or less
+PX_FLOOR = 1.0           # px: the detector's own error on a planted dot stays under this 99 times in 100 (1.05 px, rms an axis)
 JITTER_LAGS = (1, 2, 3)  # frames apart the jitter's second differences are taken: the largest reading stands
 # MacKinnon (2010, "Critical values for cointegration tests", table 2, one series, constant and trend):
 # the critical value is b0 + b1 / n + b2 / n^2 + b3 / n^3 on n observations
@@ -446,10 +458,15 @@ def _off_rank(W, r):
 def _too_few(P, F):
     """Why neither reading can be made, or None."""
     if P < 2:
-        return "fewer than two members were followed long enough: there is no separation to read"
+        return "fewer than two members were followed long enough, so there is no distance between members to read"
     if F < TEST_MIN_FRAMES:
-        return (f"the members were followed together on {F} frames, under the {TEST_MIN_FRAMES} this reading needs")
+        return f"the members were followed together on {F} frames, under the {TEST_MIN_FRAMES} this reading needs"
     return None
+
+
+def _odds(p, draws=DRAWS):
+    """A draw's p in words: "about 1 time in 250"; "at most 1 time in 1,000" where no draw reached it."""
+    return f"{'at most' if p <= 1.0 / (1 + draws) else 'about'} 1 time in {round(1.0 / p):,}"
 
 
 def one_body(ids, frames, x, y, rng=None, draws=DRAWS):
@@ -470,16 +487,15 @@ def one_body(ids, frames, x, y, rng=None, draws=DRAWS):
     if _too_few(P, F):
         return dict(out, finding=_too_few(P, F))
     if P < 4:
-        return dict(out, finding=f"{P} members were followed together: one rigid body or several cannot be asked of "
-                                 "fewer than four (three points are a triangle, and any triangle can be the picture "
-                                 "of any other)")
+        return dict(out, finding=f"{P} members were followed together. Three points can be made to fit any rigid "
+                                 "body, so one rigid body or several cannot be asked of fewer than four")
     r = 3 if P >= 5 else 2
     W = np.vstack([x - x.mean(1, keepdims=True), y - y.mean(1, keepdims=True)])
     Wr, e, rms = _off_rank(W, r)
     jit = jitter_read(e, frames)
     if not np.isfinite(jit).all():
         return dict(out, rank=r, off_rank_px=rms, finding="the members were not seen on enough frames in a row to read "
-                                                          "their jitter")
+                                                          "their jitter, the scatter of a position from frame to frame")
     jit = float(np.sqrt((jit ** 2).sum() / (2.0 * P)))
     lag = lag_rule(F)
     _, num, s2 = kpss(e, False, lag)
@@ -496,19 +512,21 @@ def one_body(ids, frames, x, y, rng=None, draws=DRAWS):
     out.update(rank=r, off_rank_px=rms, jitter_px=jit, ratio=ratio, floor_px=floor, kpss=stat, p=p,
                ratio_line=RANK_LINE[r])
     body = "one rigid body" if r == 3 else "one flat rigid body"
-    left = f"{rms:.2f} px is left off the best {body}, {ratio:.1f} times the jitter at the frame scale ({jit:.2f} px)"
+    left = (f"What is left after the best {body[4:]} is taken out is {rms:.2f} pixels, {ratio:.1f} times their jitter "
+            f"(the scatter of a position from frame to frame, {jit:.2f} pixels)")
     large = ratio > RANK_LINE[r] and rms > floor
     if large and p < ALPHA:
+        grows = f"It keeps growing, which a rigid body with that jitter does {_odds(p, draws)}"
         if r == 3:
-            return dict(out, outcome=SEVERAL, finding=f"the {P} members do not move as one rigid body: {left}, and it "
-                        f"keeps going (p = {p:.3f} against the same body drawn with its own jitter): several objects")
-        return dict(out, finding=f"the 4 members do not move as one flat rigid body ({left}, and it keeps going, "
-                    f"p = {p:.3f}): several objects, or one solid body turning, which four points cannot tell apart")
+            return dict(out, outcome=SEVERAL, finding=f"the {P} members do not move as one rigid body: they are "
+                                                      f"several objects. {left}. {grows}")
+        return dict(out, finding=f"the 4 members do not move as one flat rigid body. {left}. {grows}. They are several "
+                                 "objects, or one solid body turning: four points cannot tell these apart")
     if large:
-        return dict(out, finding=f"the {P} members move against one another by more than their jitter and come back "
-                    f"({left}; p = {p:.3f} that it keeps going): one body that flexes, or several holding station")
-    return dict(out, outcome=ONE_BODY, finding=f"the {P} members move as the parts of {body} would: {left}, no more "
-                f"than the detector's own errors can make it (the lines: {RANK_LINE[r]:g} times, and {floor:.2f} px)")
+        return dict(out, finding=f"the {P} members move against one another by more than their jitter, and come back. "
+                                 f"{left}. That is one body that flexes, or several objects holding station")
+    return dict(out, outcome=ONE_BODY, finding=f"the {P} members move as the parts of {body} would. {left}. That is "
+                "no more than the detector's own errors can make it. A formation that holds its shape reads the same")
 
 
 def places(ids, frames, x, y, rng=None, draws=DRAWS):
@@ -565,23 +583,29 @@ def places(ids, frames, x, y, rng=None, draws=DRAWS):
                                  kpss=float(stat[c]), p=float(p[c]), adf=tau[c], adf_line=float(line),
                                  large=large, keeps_going=going, returns=bool(back), outcome=calls[-1]))
     n = len(calls)
-    unit = "px at the group's mean size" if P >= 3 else "px (two members: a zoom of the camera would change it too)"
+    zoom = "" if P >= 3 else ". A zoom of the camera would change their distance too"
+    jitter = "their jitter, the scatter of a position from frame to frame"
     top = max(out["pairs"], key=lambda q: q["wander_px"])
     w = [q for q in out["pairs"] if q["outcome"] == WANDER]
     if w:
-        return dict(out, outcome=WANDER, finding=f"the members do not keep their places: {len(w)} of the {n} "
-                    f"separations wander about a steady change and do not return, by up to {top['wander_px']:.1f} "
-                    f"{unit}, {max(q['ratio'] for q in w):.0f} times the jitter")
-    most = f"{top['wander_px']:.2f} {unit}, {max(q['ratio'] for q in out['pairs']):.1f} times the jitter"
+        said = (f"{len(w)} of the {n} distances between members wander and do not come back, by up to" if P >= 3 else
+                "The distance between the two members wanders and does not come back, by")
+        return dict(out, outcome=WANDER, finding=f"the members do not keep their places. {said} "
+                    f"{top['wander_px']:.1f} pixels about a steady change. That is "
+                    f"{max(q['ratio'] for q in w):.0f} times {jitter}{zoom}")
+    most = (f"at most {top['wander_px']:.2f} pixels about a steady change, "
+            f"{max(q['ratio'] for q in out['pairs']):.1f} times {jitter}{zoom}")
     if all(c == KEEP for c in calls):
-        return dict(out, outcome=KEEP, finding=f"the members keep their places: none of the {n} separations wanders "
-                    f"about a steady change by more than the detector's own errors can make it (at most {most})")
+        said = (f"None of the {n} distances between members wanders" if P >= 3 else
+                "The distance between the two members does not wander")
+        return dict(out, outcome=KEEP, finding=f"the members keep their places. {said} by more than the detector's "
+                                               f"own errors can make it. It is {most}")
     close = sum(not q["large"] for q in out["pairs"]) - sum(c == KEEP for c in calls)
     large = sum(q["large"] for q in out["pairs"])
-    why = (f"{large} of the {n} separations wander by more than the detector's own errors can make them, and "
-           "either return or do not keep going" if large else
+    why = (f"{large} of the {n} distances between members wander by more than the detector's own errors can make "
+           "them, but they come back or stop" if large else
            f"{close} of the {n} pairs are closer together than the detector's own errors can move them")
-    return dict(out, finding=f"whether the members keep their places cannot be said: {why} (at most {most})")
+    return dict(out, finding=f"whether the members keep their places cannot be said. {why}. The wander is {most}")
 
 
 def readings(tracks):

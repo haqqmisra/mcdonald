@@ -1638,7 +1638,7 @@ def test_yes_no_or_cannot_say_one_rigid_body_and_whether_members_keep_their_plac
           "40 frames together: neither reading is made", b["finding"])
     _, b = read("formation", members=2)
     _, b2 = read("formation", members=2, walk=0.4)
-    check(b["outcome"] == g.KEEP and not b["scaled"] and b2["outcome"] == g.WANDER and "zoom" in b2["finding"],
+    check(b["outcome"] == g.KEEP and not b["scaled"] and b2["outcome"] == g.WANDER and "a zoom of the camera" in b2["finding"],
           "two members: their one separation is read as it is, and the words say a zoom would change it too", b2["finding"][:120])
     ids, fr, x, y = _drawn_group(rng, "formation", members=2)
     x[:, 1] += 5.0 * np.sin(2 * np.pi * np.arange(150) / 50.0)
