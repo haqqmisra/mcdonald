@@ -6206,8 +6206,11 @@ Galileo flyers' tracks.
 the contrast over the ring's median within the aperture, as weights, twice), not the track it was given: a hand track,
 a label's box or a link's output need not hold a rhythm, and on the flyers the paper's tracks sit 0.8-2.4 px from the
 centroid (a steady offset). A frame whose picture the video holds is a missing sample only where the centroid also stood
-still on it (`still_held`, REPEAT_PX): an encoder that skips a still sky "holds" 45-78 % of the flyers' frames by their
-thumbnails, and the bird moves on nearly all of them.
+still on it (`still_held`: it moved less than REPEAT_SHARE = 0.25 of its typical step on the fresh frames, or less than
+REPEAT_PX = 0.02). An encoder that skips a still sky "holds" 45-78 % of the flyers' frames by their thumbnails, and the
+bird moves on nearly all of them; on a picture truly held the step is a twentieth of a fresh frame's or less (PR44,
+PR055, the labelled set's 20-a-second clips: 0.01-0.13 px against 0.3-4.9), and not nought, because the aperture it is
+read in has moved on with the track.
 
 **The reading** (`beatpos.reading`). The series less its running mean over 0.5 s (`flicker.DETREND_S`), in stretches of
 SEG_S = 4 s, half overlapping (a wingbeat wanders 2-5 % over 4.5 s, section 18: over a longer stretch its line smears).
@@ -6264,6 +6267,27 @@ frequency error of a line is the codec's, said apart (`codec`), and the next str
 the track's. A mask a resolution either side of each line was tried first and dropped: about PR135's 7.49 Hz it hid three
 of the six wingbeats. The reading at the brightness beat is held to the brightness's own error, the smaller: a beat the
 stage has told from the codec's line is not put back on it by the position's wider error.
+
+**Held pictures keep a cadence, and a steady motion steps at it.** A video made from a slower source holds pictures by a
+rule: 20 pictures a second on a grid of 30 holds every third (the labelled set's drones, PR44, PR055). Left out as
+missing samples, the held frames still leave a rhythm. The fresh pictures run on the source's clock, so each shows the
+scene a part of a frame off its own frame's time, by turns, and a steady motion read at the frames' times steps at the
+cadence: a sixtieth of a second, 0.45 px at 27 px a second. IR_DRONE_059, whose brightness "beat" at 10 Hz is that
+cadence's (section 47's false alarm), showed 0.2-0.5 px at 10.0 Hz in its position, and the reading as first built
+called it the object's own. Three things hold it now. The running mean is taken with the gaps filled across in a
+straight line (`_against_trend`), so that a window's mean sits at its middle whatever is missing from it. The samples'
+own spectral window is read (`sampling_lines`: a line where it stands at WINDOW_LINE = 0.01 or more and WINDOW_CHANCE =
+20 times what the same number of frames missing at random gives; one frame held in three gives 0.25 at a third of the
+frame rate, one in five 0.06 at a fifth and at two fifths), and its lines are the video's, as the codec's are. And the
+track's part at those lines is taken out before the covariance is fitted (`_less_cadence`: a cosine and a sine a line
+in each 4-s piece; `cadence_px`, its amplitude). Left in, the step reads as jitter, the drawn tracks come out white, and
+the track's own slow wander then stands above them as a "rhythm" (a drawn wander with no rhythm in it: 2.72 Hz at
+chance 0.003, `test_beat`). A brightness beat at the cadence is not read in the position
+(`at_beat["at_the_cadence_hz"]`, `own` None): what moves at that rate is the video's. The same holds within CLEAR_RES
+resolutions of the line (1 Hz for 4-s stretches): the step follows the object's speed, so what is left of it after a
+steady cosine is taken out lies in sidebands about the line (IR_DRONE_059: 0.34 px taken out at 10.00 Hz, 0.11 px left
+at 10.16). A rhythm of the object's own at the cadence goes out with it, and the reading says nothing there. The two bars are judgement, set where a cadence of
+one frame in ten still shows (0.012) and 60 frames missing at random from 300 do not (`test_beat`).
 
 **What else moves a centroid: a brightness over an uneven background.** Gain-proof is not lamp-proof. The centroid
 weighs the object's light and what is behind it together, so a brightness that beats over an uneven background leans

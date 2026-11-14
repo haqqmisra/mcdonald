@@ -355,6 +355,10 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
         amp = _amplitude(R, fps, hz, per_seg)
         err = _hz_err(R, fps, hz, per_seg, int(amp[1] >= amp[0]))
         at = flicker.at_line(hz, err, list(lines or ()), res)
+        if at is None and sampled:
+            # beside a cadence too: the step a held-picture cadence makes follows the object's speed, so what `_less_cadence`
+            # leaves of it lies in sidebands about the line (IR_DRONE_059: 0.11 px at 10.16 Hz beside its 10.00)
+            at = next((c for c in sampled if abs(hz - c) <= CLEAR_RES * res), None)
         if at is None:
             break
         if codec is None:
@@ -392,9 +396,14 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
                                p=float((1 + np.sum(zd[ok].max(axis=0) >= z[i])) / (1 + draws)))
     if beat and beat.get("hz"):
         out["at_beat"] = _at_beat(beat, S, Sd, fr, band, res, R, fps, per_seg, draws, lines)
-        if out["at_beat"]:                                   # the beat at the samples' own cadence: the position there went out with it
-            out["at_beat"]["at_the_cadence_hz"] = (flicker.at_line(float(beat["hz"]), beat.get("hz_err") or None, list(sampled), res)
-                                                   if sampled else None)
+        if out["at_beat"]:
+            # the beat at the samples' own cadence, or within CLEAR_RES resolutions of it: the position there went out with
+            # the cadence's step, and what is left beside it is that step's too. Not read, whatever stands there
+            ab = out["at_beat"]
+            ab["at_the_cadence_hz"] = next((c for c in sampled if min(abs(float(beat["hz"]) - c), abs(ab["at_hz"] - c),
+                                                                      abs(ab["position_hz"] - c)) <= CLEAR_RES * res), None)
+            if ab["at_the_cadence_hz"] is not None:
+                ab.update(line=False, agrees=False)
         if out["at_beat"] and out["at_beat"]["line"] and bright is not None:
             out["at_beat"]["without_brightness"] = _without(bright, background, frames, f0, n, w, out["at_beat"], Sd, fr, band, res, R,
                                                             fps, per_seg, draws)
@@ -693,8 +702,9 @@ def said(name, r, several=False):
                 f"by chance {r['p']:.2f} of the time. One of about {r['needed_px']:.2f} pixels would have shown three times in four."
                 + ("" if not ab else f" Its brightness beat at {ab['hz']:.2f} Hz is not in its position."
                    if ab.get("at_the_cadence_hz") is None else
-                   f" Its brightness beat at {ab['hz']:.2f} Hz is at the rate the video holds its pictures at, where a position cannot "
-                   "be read: what moves at that rate is the video's."))
+                   f" Its brightness beat at {ab['hz']:.2f} Hz is at the rate the video holds its pictures at "
+                   f"({ab['at_the_cadence_hz']:.2f} Hz), or beside it. A position cannot be read there: what moves at that rate is "
+                   "the video's."))
     tail = ""
     wb = (ab or {}).get("without_brightness")
     if ab and ab["line"] and wb and wb.get("px_per_brightness") is not None and wb.get("reach_px") is not None:
