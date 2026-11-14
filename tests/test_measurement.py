@@ -591,6 +591,54 @@ def test_a_pair_whose_templates_do_not_agree_is_not_held_still():
           and layers._how(True, (None, True), unmoved=True) == layers.UNMOVED and layers._how(True, None) == layers.MOVED,
           "and each pair's label is the one its rows carry")
 
+    # end to end, through `measure`: a drawn sea streaked along its own motion, 20 px a frame, noisy enough that the
+    # templates' matches scatter along the streaks (the drawing that reproduced PR058's failure: the session's notes)
+    import csv
+    import subprocess
+    from PIL import Image
+    from scipy import ndimage
+    h, w, frames, v = 480, 960, 70, 20
+    draw = np.random.default_rng(7)
+    sea = ndimage.gaussian_filter(draw.normal(0, 1, (h + 40, w + v * frames + 80)), (1.5, 250.0))
+    sea = ndimage.uniform_filter1d(sea / sea.std() * 28 + 128, 20, axis=1)                # smeared along its motion, as a sea in an exposure is
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "sea"
+        src.mkdir()
+        for n in range(1, frames + 1):
+            x = 40 + v * (frames - n)
+            g = sea[20:20 + h, x:x + w] + draw.normal(0, 20, (h, w))
+            Image.fromarray(np.clip(g, 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+        video = Path(td) / "sea.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray", str(video)], check=True)
+        clip = clipmod.Clip(video, src)
+        none = np.zeros((h, w), bool)
+        masks = dict(blocks=none, graphics=none, colour=True)
+
+        def shifts(out):
+            with open(f"{out}_layers.csv", newline="", encoding="utf-8") as f:
+                return np.array([float(r["all_dx5"]) for r in csv.DictReader(f) if r["all_dx5"] != ""])
+        rule = layers.lost_pairs
+        try:                                          # the rule taken out: the pairs that did not agree are "held still" (the bug, drawn)
+            layers.lost_pairs = lambda own, *a, **k: set()
+            was = layers.measure(clip, masks, k=5, out=str(Path(td) / "was"), procs=2, say=lambda *_: None)
+        finally:
+            layers.lost_pairs = rule
+        now = layers.measure(clip, masks, k=5, out=str(Path(td) / "now"), procs=2, say=lambda *_: None)
+        a, b = was.fields["held_still"], now.fields["held_still"]
+        da, db = shifts(Path(td) / "was"), shifts(Path(td) / "now")
+        check(a["still_again_share"] >= 0.15 and "not_read_share" not in a,
+              "a drawn sea crossing 20 px a frame along its own streaks, without the rule: the pairs whose templates did not agree are "
+              "held still even over a second, beside pairs that read 100 px (the bug, drawn)",
+              f"still over a second in {a['still_again_share']:.0%} of pairs; {(np.abs(da) < 20).sum()} pairs at under 20 px, {(da > 80).sum()} over 80")
+        check(b["still_again_share"] <= 0.05 and b.get("not_read_share", 0) >= 0.15 and len(db) >= 10 and np.abs(db - 100.0).max() <= 15.0
+              and "scene moved, not read" in now.result and not any("held still" in why for _, why in now.no_power),
+              "with it: those pairs are not read and not held, every pair read is within 15 px of the sea's 100 (none at zero), and the stage says so",
+              f"not read {b.get('not_read_share', 0):.0%}, still {b['still_again_share']:.0%}; {len(db)} pairs read, at {db.min():.1f} to {db.max():.1f} px; "
+              + now.result.get("scene moved, not read", "")[:60])
+        kept = np.load(max(src.glob("bg_layers_k5_*.npz"), key=lambda q: q.stat().st_mtime_ns))
+        check(set(kept.files) == {"tpl", "own"} and kept["own"].shape[1] == len(layers.OWN_COLS) and len(layers.lost_pairs(kept["own"])) >= 5,
+              "the held pairs' own fields are kept beside the templates, so the rule is read off the cache, not measured again")
+
 
 def test_held_still_pairs_share_their_second_pass():
     """2026-09-26 (the audit's §3.5, §5.4): a pair held still over k frames is measured again over

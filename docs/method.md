@@ -128,7 +128,13 @@ its templates", the level a choice; the null says how far a held pair stays unde
 
 *PR058 after it.* Held still in 5 % of pairs, not read in 45 %, no NO POWER; over the whole track 620 px/s against
 the background (16-84 %: 547-654; it was 588, 353-642, with the false zeros in), the layer read on 51 % of it, and
-the report's first line is "The object moved about 620 pixels a second against the background." *What it is not.* It
+the report's first line is "The object moved about 620 pixels a second against the background." A golden holds ten
+seconds of it (`tests/test_golden.py`: 37 % of pairs not read, none still, the sea at 578 px/s). *Drawn*
+(`tests/test_measurement.py`): a sea of streaks 250 px long, smeared along its motion, crossing 20 px a frame under
+noise nearly as strong as its texture. The first pass loses 34 of 65 pairs, every one with all its templates matched
+well on one side, at 100 px in the median; without the rule 40 % of pairs are still over a second, with it none are
+and 40 % are not read. A rigid drawn sea with little noise is read on every pair, and still streaks keep a share of
+0.03 at the most. *What it is not.* It
 does not read those pairs: the scatter along the streaks is the measurement's limit there (a consensus with a wider
 reach along a ridge would, and would change every clip's numbers: not done). A pair the second pass read (AGAIN), or
 one between a repeating picture's catch-ups (UNMOVED), keeps its reading. And a scene too fast for the search (over

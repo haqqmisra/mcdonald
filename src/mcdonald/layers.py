@@ -983,7 +983,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
 
 
 def _lost_said(hs):
-    return (f"in {hs['not_read_share']:.0%} of pairs: most of their templates matched well at a shift, not at zero, but did not agree "
+    share = f"{hs['not_read_share']:.0%}" if hs["not_read_share"] >= 0.005 else "under 1%"
+    return (f"in {share} of pairs: most of their templates matched well at a shift, not at zero, but did not agree "
             "on one (a scene streaked along its own motion gives this). The scene moved there and the pair has no reading; "
             "it is not counted as held still")
 
