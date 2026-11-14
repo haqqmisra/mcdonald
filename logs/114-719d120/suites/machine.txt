@@ -1,0 +1,6 @@
+Darwin iad20-gt1026-360f5c45-182b-480a-b66c-2edd6bbeb5e5-F2237A8D4E3D.local 25.6.0 Darwin Kernel Version 25.6.0: Mon Oct 12 00:39:04 PDT 2026; root:xnu-12377.161.15.701.48~2/RELEASE_ARM64_VMAPPLE arm64
+ProductName:		macOS
+ProductVersion:		26.7.2
+BuildVersion:		25G332
+Apple M1 (Virtual)
+3
