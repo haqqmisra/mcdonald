@@ -898,6 +898,16 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
     if scale is None:
         scale = kin.AngularScale.unknown("no graticule and no FOV given")
     band, series, band_why = None, None, None
+    # Which motion models survive (`projective.confidence_set`, E22) is read beside the band: neither needs the other,
+    # and each is a quarter of a minute of one process on a long track (2026-11-13: PR088's 3,558 frames, 13 and 15 s).
+    models_job = None
+    if not fit.get("held"):
+        from .progress import Beside
+        centre = (width / 2.0, height / 2.0) if height else None
+        through = scale.lens if height else None        # the track as a pinhole would have drawn it; none is the track itself
+        line = lens.drawn(track, through.k1, through.f, centre, through.k2) if through else track
+        _beside = Beside()
+        models_job = _beside.call(projective.confidence_set, line, fps, t0, t1, n0, n1)
     try:
         got = kin.speed_band(track, fps, t0, t1, n0, n1)
     except Exception as e:                       # noqa: BLE001 -- a covariance that will not fit is said; the line's rate stands
@@ -913,10 +923,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                  if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
     proj = turn = smear = proj_why = models = models_why = None
     if not fit.get("held"):
-        centre = (width / 2.0, height / 2.0) if height else None
-        through = scale.lens if height else None        # the track as a pinhole would have drawn it; none is the track itself
-        line = lens.drawn(track, through.k1, through.f, centre, through.k2) if through else track
-        try:
+        try:                                    # centre, through and line: set above, with the model set's start
             yard = (lens.carried(projective.band_of(line, fps, t0, t1, n0, n1), band, track, through.k1, through.f, centre,
                                  through.k2)
                     if through else band or {})             # the band's nugget is the track's own jitter
@@ -933,10 +940,12 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         elif proj and height and proj.get("fits") is False:     # no lens given, and a miss: could one alone be all of it?
             proj = dict(proj, lens_could=lens.could_be(track, fps, width, height, proj, t0, t1, n0, n1))
         smear = projective.smear(fit["v_px"], fps, D) if D else None
-        try:                                    # which motion models survive, as a computed set (E22)
-            models = projective.confidence_set(line, fps, t0, t1, n0, n1)
+        try:                                    # which motion models survive, as a computed set (E22): begun above
+            models = models_job.result()
         except Exception as e:                  # noqa: BLE001 -- a comparison that will not run is said, not fatal
             models, models_why = None, f"the comparison failed ({type(e).__name__}: {e})"
+        finally:
+            _beside.close()
     speed = red.speed()
     bl = kin.body_lengths_per_s(fit["v_px"], size_px) if size_px else None
     platform = platform_of(own_ship, layers) if bl else None

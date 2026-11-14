@@ -4302,6 +4302,8 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
     mine = st["mine"]
     # the background apertures judged as the object, begun now and read where they are written into the fields below
     ctrl_job = controls_started(beside, use, seg, bgs, ns, fps, lines, scale, top, gone=gone.get(first, ()), windows_too=nulls)
+    # ... and each object's steadiness (a drawn null of the whole stretch it was followed over): its beat stands from here on
+    steady_job = {n: beside.call(steadiness, deviation(use[n][seg[n][0]:seg[n][1]], fps), fps, fields["beat"][n]["hz"]) for n in obj}
     # ---- the look-alikes (item 9; 2026-10-16): where a supply's or the sampling's own rhythm would sit ----------------
     sound = []
     if video:                                              # the clip's own sound, where it has any (`mcdonald audio`)
@@ -4408,8 +4410,7 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
     steady = {}
     for n in obj:
         s0, s1 = seg[n]
-        steady[n] = dict(steadiness(deviation(use[n][s0:s1], fps), fps, fields["beat"][n]["hz"]),
-                         frames=[int(ns[s0]), int(ns[s1 - 1])])
+        steady[n] = dict(steady_job[n].result(), frames=[int(ns[s0]), int(ns[s1 - 1])])
     fields["steadiness"] = steady
     # ---- one stretch against its own continuum (item 15; 2026-10-30): before anything is said of a beat that is not kept
     unheld = [n for n in strong if not once_held(fields["beat"][n], cont[n])]

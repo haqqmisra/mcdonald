@@ -40,7 +40,7 @@ from scipy import ndimage
 from . import forensics as vf
 from . import gpu
 from . import scene as whole
-from .progress import PROCS_HELP, pool_of, pooled, size_of, to_stderr
+from .progress import PROCS_HELP, Ahead, pool_of, pooled, size_of, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 _G = {}
@@ -228,8 +228,17 @@ def second_pass(pool, starts, H, k, L, progress=None, stop=None, parts=None, tpl
     rows = vf.template_rows(H, tpl[0], tpl[2])
     parts = parts or max(1, size_of(pool) // max(len(starts), 1))
     parts = [[int(y) for y in p] for p in np.array_split(rows, min(len(rows), parts)) if len(p)]
-    got = pooled(None if pool else 0, _again_part, [(s, p) for s in starts for p in parts], progress=progress, stop=stop,
-                 what="Layers again", pool=pool)
+    ahead = None
+    if pool is None and gpu.active() is not None and starts:   # on a card, in this process: the windows' frames read ahead
+        L_ = min(_G["longer"], _G["clip"].n1 - _G["clip"].n0)
+        ahead = _G["ahead"] = Ahead(_read, [n for s in starts for n in (s, s + L_)])
+    try:
+        got = pooled(None if pool else 0, _again_part, [(s, p) for s in starts for p in parts], progress=progress, stop=stop,
+                     what="Layers again", pool=pool)
+    finally:
+        if ahead is not None:
+            _G.pop("ahead", None)
+            ahead.close()
     kept = []
     for s in starts:
         f = np.vstack([x for t, x, _ in got if t == s])
@@ -646,6 +655,15 @@ def glance(clip, masks, rows=None):
     return Found("layers", res, fields, no_power=npw, notes=notes)
 
 
+def _by_pair(tpl):
+    """{pair: its template rows, in their order}, the pairs in rising order: `tpl[tpl[:, 0] == a]` for every a, with the
+    table gone through once and not once a pair (2026-11-13: 3,673 pairs of 220,000 rows were 9 s of looking)."""
+    if not len(tpl):
+        return {}
+    t = tpl[np.argsort(tpl[:, 0], kind="stable")]
+    return {int(g[0, 0]): g for g in np.split(t, np.flatnonzero(np.diff(t[:, 0])) + 1)}
+
+
 def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, names=None, dark_below=None,
             out=None, procs=None, fresh=False, say=print, progress=None, stop=None, scene=False):
     """Every frame pair of the window: each layer's screen velocity, the rate of one layer
@@ -728,7 +746,7 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                unmoved=a in unmoved) for a, (f, still) in zip(pairs, first)])
         np.savez_compressed(cache, tpl=tpl)
 
-    lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}
+    lay = {a: vf.layers_of(rows_a, dark_below=dark_below) for a, rows_a in _by_pair(tpl).items()}
     how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN, STILL or UNMOVED, one per pair
     for a, h in how.items():                             # the same picture, repeated: no layer of it moved
         if h == UNMOVED:
