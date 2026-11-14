@@ -483,12 +483,13 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
             real = [(q, realise(q, n, fps, W, H, seed)) for q in group]
             ok = True
             for q, r in real:
-                inside = (r["x"] >= margin / 2) & (r["x"] <= W - margin / 2) & (r["y"] >= margin / 2) & (r["y"] <= H - margin / 2)
-                if r["x"] is None or not inside.all():
+                rx, ry = _where(q, r)
+                inside = (rx >= margin / 2) & (rx <= W - margin / 2) & (ry >= margin / 2) & (ry <= H - margin / 2)
+                if not inside.all():
                     ok = False
                     break
                 if over is not None:
-                    xi, yi = np.clip(np.round(r["x"]).astype(int), 0, W - 1), np.clip(np.round(r["y"]).astype(int), 0, H - 1)
+                    xi, yi = np.clip(np.round(rx).astype(int), 0, W - 1), np.clip(np.round(ry).astype(int), 0, H - 1)
                     if over[yi, xi].mean() > HIDDEN_MOST:
                         ok = False
                         break
@@ -496,9 +497,10 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
                     if p.get("group") is not None and p.get("group") == q.get("group"):
                         continue
                     a, b = max(q["first"], p["first"]), min(q["last"], p["last"])
-                    if a <= b and pr["x"] is not None:
-                        d = np.hypot(r["x"][a - q["first"]:b - q["first"] + 1] - pr["x"][a - p["first"]:b - p["first"] + 1],
-                                     r["y"][a - q["first"]:b - q["first"] + 1] - pr["y"][a - p["first"]:b - p["first"] + 1])
+                    if a <= b:
+                        px, py = _where(p, pr)
+                        d = np.hypot(rx[a - q["first"]:b - q["first"] + 1] - px[a - p["first"]:b - p["first"] + 1],
+                                     ry[a - q["first"]:b - q["first"] + 1] - py[a - p["first"]:b - p["first"] + 1])
                         if d.min() < apart:
                             ok = False
                             break
@@ -515,6 +517,16 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
                 placed.append((q, r))
         ident += max(len(group), 1) if preset.get("group") else 1
     return plants, skipped
+
+
+def _where(plant, real):
+    """(x, y) of a realised object over its frames, for the draw's checks: its path, or for one planted with the scene
+    (whose path is made only as the frames are read) the place it starts at, held: where the scene takes it is not
+    known when it is drawn."""
+    if real["x"] is not None:
+        return real["x"], real["y"]
+    m = len(real["frames"])
+    return np.full(m, float(plant["path"]["x"])), np.full(m, float(plant["path"]["y"]))
 
 
 TWIN_APART = 80.0       # px: a recorded path moved elsewhere keeps this far from where it was recorded

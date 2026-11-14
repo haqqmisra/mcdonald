@@ -161,7 +161,9 @@ def main():
     ap.add_argument("--plants", help="the objects, as a list in a file, in place of a draw")
     ap.add_argument("--twin", action="append", default=[], metavar="CSV",
                     help="a recorded track of a real object in this stretch (frame, x, y; with a `letter` column, one track a "
-                         "letter): a copy of it -- its path moved elsewhere in the frame, its contrast and width -- is planted too")
+                         "letter): a copy of it -- its path moved elsewhere in the frame, its contrast and width as `planted.look` "
+                         "reads them (a point of sigma 4 px at most, whatever the object's size) -- is planted too. CSV:dark or "
+                         "CSV:bright says its polarity; else the one that gives the larger contrast")
     ap.add_argument("--no-none", action="store_true", help="do not write the control (another seed of the same stretch has it)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", required=True)
@@ -204,7 +206,8 @@ def main():
         drawn["extra"] = twins
         for t in twins:
             print(f"  a copy of the recorded object {t['of']}: {'dark' if t['dark'] else 'bright'}, {t['contrast']:.0f} DN, "
-                  f"sigma {t['sigma']:.2f} px, on its path moved elsewhere", flush=True)
+                  + (f"a body {t['diameter']:.0f} px wide" if t["shape"] == "disc" else f"sigma {t['sigma']:.2f} px")
+                  + ", on its path moved elsewhere", flush=True)
     with clock.step("plant"):
         made = plant.make(video, args.n0, args.n1, plants, out, tag, args.seed, None if plants is not None else drawn,
                           null=not args.no_none, say=print)
@@ -314,6 +317,7 @@ def twins_of(files, video, work, n0, n1):
     clip = vf.Clip(video, Path(work) / Path(video).stem, a, st["n1"])
     out = []
     for k, f in enumerate(files):
+        f, _, said_dark = str(f).partition(":")              # CSV, or CSV:dark / CSV:bright where the polarity is known
         rows = list(csv.DictReader(ln for ln in open(f, encoding="utf-8") if ln.strip() and not ln.startswith("#")))
         xc, yc = next((x, y) for x, y in (("x_px", "y_px"), ("x", "y")) if x in rows[0])
         tracks = {}
@@ -324,14 +328,49 @@ def twins_of(files, video, work, n0, n1):
             if len(tr) < 3:
                 continue
             bright, dark = planted.look(clip, tr, False), planted.look(clip, tr, True)
-            con, sig, _ = dark if dark[0] > bright[0] else bright
-            out.append(dict(id=9001 + 100 * k + j, kind="twin", of=f"{Path(f).stem}{' ' + letter if letter else ''}", shape="point",
-                            sigma=float(sig), contrast=float(con), dark=bool(dark[0] > bright[0]), light=dict(kind="constant"),
+            is_dark = said_dark == "dark" if said_dark else dark[0] > bright[0]
+            con, sig, _ = dark if is_dark else bright
+            shape = dict(shape="point", sigma=float(sig))
+            if sig >= 3.99:                                  # at `planted.look`'s cap: wider than it reads. A body, then
+                wide = look_wide(clip, tr, is_dark)
+                if wide:
+                    con, shape = wide[0], dict(shape="disc", diameter=float(wide[1]), sigma=1.5, opaque=True)
+            out.append(dict(id=9001 + 100 * k + j, kind="twin", of=f"{Path(f).stem}{' ' + letter if letter else ''}", **shape,
+                            contrast=float(con), dark=bool(is_dark), light=dict(kind="constant"),
                             group=(9001 + 100 * k) if len(tracks) > 1 else None,
                             path=dict(kind="recorded", place="auto", track={str(n - a + 1): list(xy) for n, xy in sorted(tr.items())}),
                             first=min(tr) - a + 1, last=max(tr) - a + 1,
                             recorded={str(n - a + 1): list(xy) for n, xy in sorted(tr.items())}))
     return out
+
+
+def look_wide(clip, track, dark, half=32):
+    """(contrast in DN, width in px) of an object too wide for `planted.look`, which reads a 25-px patch against its own
+    median (PR113's dark object, 25 px across, fills the patch: it read 12 DN). Here the background is the median of
+    the outer 6 px of a 65-px patch, the contrast the object's 99.5th centile against it, and the width that of a
+    disc with the second moment of the pixels over half that contrast. Medians over about 20 frames; None where the
+    patch is never whole."""
+    ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
+    yy, xx = np.mgrid[-half:half + 1, -half:half + 1]
+    edge = np.maximum(np.abs(yy), np.abs(xx)) > half - 6
+    cons, r2 = [], []
+    for n in ns[::max(1, len(ns) // 20)]:
+        g = clip.grey(n).astype(float)
+        x, y = (int(round(v)) for v in track[n])
+        p = g[y - half:y + half + 1, x - half:x + half + 1]
+        if p.shape != (2 * half + 1, 2 * half + 1):
+            continue
+        d = (np.median(p[edge]) - p) if dark else (p - np.median(p[edge]))
+        peak = float(np.percentile(d, 99.5))
+        if peak <= 0:
+            continue
+        q = np.where(d > 0.5 * peak, d, 0.0)
+        cx, cy = float((xx * q).sum() / q.sum()), float((yy * q).sum() / q.sum())
+        r2.append(float((((xx - cx) ** 2 + (yy - cy) ** 2) * q).sum() / q.sum()))
+        cons.append(peak)
+    if not cons:
+        return None
+    return float(np.median(cons)), float(2.0 * np.sqrt(2.0 * np.median(r2)))
 
 
 def _brief(rec):

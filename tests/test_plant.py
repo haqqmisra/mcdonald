@@ -326,6 +326,10 @@ def test_a_draw_is_the_same_whatever_follows(tmp):
     check(len(flock) >= 3 and len(form) >= 3 and len(set(hz)) == len(hz) and np.ptp(sep) < 1e-6 and np.ptp(sepk) > 0.5,
           "a flock is three or more birds, each with its own beat, that change their places; a formation keeps its places",
           f"{len(flock)} and {len(form)} members; a formation pair's separation moves {np.ptp(sep):.2g} px, a flock pair's {np.ptp(sepk):.1f}")
+    sc, _ = plant.draw(4, 640, 480, 200, 30.0, seed=5, kinds=("twinkle", "scene", "dot", "still"), life=80, at_once=2)
+    check([p["path"]["kind"] for p in sc] == ["scene", "scene", "line", "still"] and sc[0]["light"]["kind"] == "twinkle",
+          "objects that go with the scene are drawn by where they start (their paths are made as the frames are read)",
+          str([(p["kind"], p["path"]["kind"]) for p in sc]))
     try:
         plant.draw(9, 640, 480, 100, 30.0, life=60, at_once=2)
         fits = True

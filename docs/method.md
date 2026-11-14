@@ -6172,7 +6172,11 @@ anywhere in the reference-data folder.
 
 **The scene's own motion** is measured as the frames go by (`plant._Scene`: each frame registered to a reference frame
 by `propose.onto`, the registration Find uses; the reference renewed every 15 frames or 24 px, because frame to
-frame half a pixel reads as a quarter). Every object's speed is given on the screen and against the scene. Find
+frame half a pixel reads as a quarter). Where an object is planted *with* the scene the shift is then finished by
+least squares on the picture's own gradients (`flicker.lk_shift`, at half the resolution): a correlation peak alone
+is good to about half a pixel a frame on a soft scene, and a bright point that jitters so about the scene is a faint
+mover that Find lists (it did, on the drawn video; with the finish its steps scatter by 0.07 px and Find does not).
+Every object's speed is given on the screen and against the scene. Find
 lists what moves against the background, so completeness is tabulated by the second. Where the scene has too little
 texture to register, or fits as well unshifted (PR135's sensor pattern, section 2), the scene reads as held still and
 the two speeds are the same.
@@ -6234,22 +6238,25 @@ measurement, and keep to what it allows. A recorded path that cannot be placed c
 (`path.frames_clear` says how much of it is).
 
 **How many objects one planted video can hold** (measured 2026-11-13). Twelve probes, drawn first so that they are
-the same objects in every run, with more and more fillers planted round them, on PR135 frames 1201-1480:
+the same objects in every run, with more and more fillers planted round them, on PR135 frames 1201-1480 (a sky, the
+scene read as held still) and on PR149 frames 1-240 (the sea, a still camera). Each cell: probes on Find's list, among
+its first 30 rows, followed over half their frames.
 
-| in the frame at once | probes on Find's list | among its first 30 rows | followed over half their frames |
-|---|---|---|---|
-| 12 (the probes alone) | 12 of 12 | 12 | 12 |
-| 16 (12 fillers taking turns) | 12 | 12 | 12 |
-| 24 | 12 | 12 | 12 |
-| 48 | 10 | 6 | 9 |
-| 70 | 7 | 6 | 5 |
-| 48, the fillers at 160 DN | 8 | 6 | 5 |
+| in the frame at once | PR135 | PR149 |
+|---|---|---|
+| 12 (the probes alone) | 12, 12, 12 | 9, 8, 8 |
+| 16 (12 fillers taking turns) | 12, 12, 12 | 9, 8, 8 |
+| 24 | 12, 12, 12 | 9, 8, 8 |
+| 48 | 10, 6, 9 | 9, 8, 7 |
+| 70 (PR135), 107 (PR149) | 7, 6, 5 | 6, 5, 5 |
+| 48, the fillers at 160 DN | 8, 6, 5 | 9, 7, 8 |
 
-Up to 24 at once every probe is still listed and followed, though its score moves by up to a factor of four and
-its place by a few rows (Find's score counts what else moves the same way; it keeps ten peaks a frame of each
-polarity). So a draw keeps to a few at a time (`plant.AT_ONCE`, 4; the pilot used 6 units, about a dozen points), no
-two nearer than 60 px (`plant.APART`), and an object's place "among the rows shown" is counted with the other
-planted objects' rows set aside (`rank_alone`).
+Up to 24 at once every probe fares as it does alone, though its score moves by up to a factor of four and its place
+by a few rows (Find's score counts what else moves the same way; it keeps ten peaks a frame of each polarity). On the
+sea three probes are not listed even alone and a fourth is row 268: the four that move 1 px a frame. So a draw keeps
+to a few at a time (`plant.AT_ONCE`, 4; the pilot used 6 units, about a dozen points), no two nearer than 60 px
+(`plant.APART`), and an object's place "among the rows shown" is counted with the other planted objects' rows set
+aside (`rank_alone`).
 
 **Two objects near each other are one row** (measured 2026-11-13, on the drawn video of `tests/test_plant.py`). A dark
 point planted alone is Find's first row, on 68 of its 72 frames. Planted again with a bright point whose path
