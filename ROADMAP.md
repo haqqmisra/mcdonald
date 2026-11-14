@@ -478,6 +478,11 @@ its own-track route (DR1-DR5); and `glide` (GL1), once the maintainer has looked
   one rigid body, M7) and the group's common motion; the
   choreography (moves in step across the whole group, where birds are out of step); light
   cadences; a steady hover with no beat; the thermal signature of a warm core.
+  *Since 2026-11-13 (session 23, method §60):* the formation's rigidity is two calibrated readings
+  in `groups`, beside its rigid call: one rigid body or several (the rank, M7 with B23) and
+  whether the members keep their places (S14's separations, E21's tests), each with "cannot say".
+  The drone show's groups of six read one rigid body and places kept; PR135's six read several
+  and wandering. Still to do: the choreography, and the blade-pass and thermal signatures.
 - **Helicopters** (55 ground-based clips in the labelled set; airborne footage expected from
   the same cameras as the flyers): main-rotor and tail-rotor blade-pass rates and their
   aliases (the IR modulation is the rotor rate times the blade count, doubled for an odd
@@ -522,6 +527,8 @@ its own-track route (DR1-DR5); and `glide` (GL1), once the maintainer has looked
   (two lanterns, infrared, airborne) is the one known example in hand. *Since 2026-10-20 (on main,
   from `beat-controls`):* a beat inside a flame's band is marked, and the bottom line says that
   neither the beat nor members out of step clear a flame, with `groups`' rigidity beside it.
+  *2026-11-13 (method §60):* `groups` follows no separate points on the Puerto Rico pair (the two
+  lanterns are one blob of two lobes), so its readings say nothing of lanterns yet.
 - **A background crossing.** The labelled set's one helicopter false call that a floor would
   keep (21 % at 2.1 Hz) was a fence line and poles passing behind it, which background
   apertures 25 px away do not see. Wanted: the scene behind the object's own path, read where

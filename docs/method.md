@@ -6299,3 +6299,218 @@ and they triangulate to the pipeline's positions within 0.5 %.
 2 km away. A search of the second site's detections found two candidates seen from both sites, too briefly to hear a
 wingbeat. A search of its pixels cannot work on these files: the encoder copies a still sky unchanged, and a far bird
 would be half a grey level.
+
+## 60. One rigid body or several, and do the members keep their places: two calibrated readings in `mcdonald groups` (M7, B23, E21, S14; added 2026-11-13)
+
+`groups` has called a group rigid or shuffling since 0.2 by two numbers set by hand: every pair's separation within
+RIGID = 2.0 times the members' position noise, or the median pair past SHUFFLE = 3.0 times it and a pixel. The call
+stands. Beside it the stage now makes two readings whose lines come from nulls, each with "cannot say" among its
+answers (`groups.one_body`, `groups.places`; the fields `one_body` and `places`, two lines of the stage's result, and
+an entry of its no-power list where a reading cannot say).
+
+**What each answers.**
+
+- *One rigid body, or several* (`one_body`; the pure-mathematics survey's M7). P points of one rigid body seen from
+  far off satisfy x = M X + t on every frame (an affine camera: weak perspective), so the 2F x P matrix of their
+  positions, each frame's mean over the points taken off, is M S: of rank 3 at most, 2 for a flat body or one that
+  does not turn in depth (Tomasi & Kanade 1992). A shift, roll, zoom or shear of the picture, frame by frame, changes
+  M and not the rank. Independent objects have no such bound. The reading takes what is left off the best rank-3
+  fit (Eckart & Young), as time series along the member-space directions the fit did not take: 2 (P - 4) of them, so
+  five members at least; with four members the fit is of rank 2 and a failure means "several, or one solid body
+  turning"; three points are a triangle and any triangle is an affine picture of any other, so nothing is asked.
+- *Do the members keep their places* (`places`; the economics survey's E21 on the seismology survey's S14). Every
+  pair's separation, divided by the group's size on that frame (the root mean square of all the separations) where
+  there are three members or more, so that a zoom, a roll or a shift of the whole picture changes nothing; quoted in
+  pixels at the group's mean size. Each is read about a straight line in time, as `rigidity` reads it: a steady change
+  of aspect is not a change of places. Two members have one separation and no size to divide by: it is read as it is,
+  and the words say a zoom would change it too.
+
+**When a reading says the group moved.** Three things must hold together, each with a null of its own:
+
+1. *It keeps going.* The KPSS statistic (Kwiatkowski, Phillips, Schmidt & Shin 1992): the squared partial sums of the
+   residuals over n², over their long-run variance in a Bartlett window of l = int(4 (n/100)^(1/4)) frames; about a
+   level for what is left off the rank (pooled over its series), about a trend for a separation. Its null is drawn
+   from the series itself: DRAWS = 999 times, its residuals are laid out again as blocks of l + 1 consecutive frames
+   in a shuffled order (a moving-block bootstrap; for the rank, added back to the fitted body and fitted again), and
+   p is the share of draws whose statistic reaches the measured one; for the separations, each draw's largest pair,
+   so that the group has one rate whatever its number of pairs. The draws keep the jitter's own size and its own
+   colour up to a block's length, whatever they are, and lose what lasts longer. p < ALPHA = 0.01.
+2. *It is large against the jitter.* The wander (what is left off the rank; a separation's rms about its line) over
+   the jitter read at the frame scale stands past RANK_LINE = 2.5 (3.0 at rank 2) or PAIR_LINE = 3.3. The jitter is
+   read on the series itself -- for a separation that is a double difference, across the two members and then in
+   time, which takes the camera's shake out (S14) -- as sqrt((g0 - gk) / 10) from second differences k frames apart
+   (white jitter gives g0 = 6 s² and an autocovariance gk = -4 s² at any k; `_noise`'s reading, at k = 1), the largest
+   over k = 1, 2, 3. The lines are the 99th percentiles on drawn rigid groups that carry the detector's real errors
+   (below).
+3. *It is large in pixels.* Past PX_FLOOR = 1 px for a separation, and past what a pixel on every member's place
+   would leave off the rank, sqrt((P - 1 - r) / P) px. A member that crosses the pixel grid slowly can turn its
+   whole error into a slow wander that no reading at the frame scale sees; 1.05 px is the 99th percentile of the
+   planted dots' own error (rms an axis), and it is the pixel `rigidity`'s rule already asked for.
+
+And for a separation a fourth: *it does not return.* The augmented Dickey-Fuller t ratio (a constant, a trend, l
+lagged differences) is not under MacKinnon's (2010) 5 % line. A pair WANDERS with all four. A pair KEEPS its
+separation where the wander is not large by 2 and 3: that is a measured bound, quoted with the answer, not a test
+that failed to reject; unless the lines themselves are wider than the separation (a pair closer together than the
+detector's own errors: cannot say). A large wander that does not keep going, or that returns (a cycle), is "cannot
+say": the tests disagree. The group wanders with any pair and keeps its places with every pair. For the rank:
+SEVERAL with 1 to 3 (five members or more); large and not going, "cannot say" (one body that flexes, or several
+holding station); else ONE RIGID BODY. Both readings need TEST_MIN_FRAMES = 60 frames that the members share
+(members are taken longest-followed first while that holds, MOST_MEMBERS = 8 at most).
+
+**Why it is not the residual in pixels against rigid bodies drawn with the jitter's measured colour** (the form M7
+and B23 proposed). Measured before anything was built:
+
+- The colour cannot be measured where it matters. An AR(1) jitter moves the lag-1 correlation of a member's second
+  differences from -2/3 (white) to -1/2 (a walk). PR135's six read -0.22 to -0.41, outside that range altogether:
+  each bird's centroid moves with its wings every four frames. A drone show on a camera that repeats its pictures
+  reads -0.49 to -0.65 and a jitter of 0.011 to 0.017 px for separations that hold to 0.06-0.09 px.
+- A stationarity test alone is too sharp: the drone show's figure changes by 0.1 to 0.4 px over 600 frames on patches
+  60-100 px across, its members jitter by 0.01-0.03 px against one another, and KPSS sees the change at p = 0.001.
+  It is a change, and no rearrangement.
+- ADF alone cannot say "keeps": a walk buried in ten times its step of jitter "returns" 63 to 95 % of the time
+  (table below). So ADF only keeps a large, going wander that comes back from being called a wander.
+
+**The published lines, as built** (drawn series with a trend added; 20,000 walks and white series a length, 4,000 of
+each other; session 23's job 1219):
+
+| frames (lags) | ADF: a walk "returns" (5 % stated) | ADF: white / AR(1) 0.6 / 0.8 returns | KPSS about a trend: white "keeps going" (5 % stated; at 1 %) | KPSS: AR(1) 0.6, at 5 % | KPSS: a walk keeps going | a walk under 10 x its step of jitter: ADF returns / KPSS goes |
+|---|---|---|---|---|---|---|
+| 60 (3) | 4.8 % | 75 / 33 / 14 % | 4.5 % (0.3 %) | 17 % | 71 % | 63 / 13 % |
+| 100 (4) | 4.4 % | 95.5 / 65 / 29 % | 4.5 % (0.4 %) | 15 % | 82 % | 78 / 27 % |
+| 150 (4) | 4.5 % | 100 / 95 / 63 % | 4.9 % (0.6 %) | 17 % | 92 % | 94 / 48 % |
+| 300 (5) | 5.0 % | 100 / 100 / 99 % | 5.1 % (0.8 %) | 14 % | 98 % | 95 / 83 % |
+| 600 (6) | 5.0 % | 100 / 100 / 100 % | 5.0 % (0.9 %) | 12.5 % | 99.8 % | 94 / 97 % |
+
+With the lags chosen by AIC (as most packages do) ADF's 5 % ran at 13.6 % on 50 frames and 7.4 % on 150, so the lag is
+fixed by the rule. A coloured jitter triples KPSS's rate against its table: hence the null drawn from the series' own
+blocks.
+
+**The lines, from the detector's own errors.** The biology survey (2026-11-01) planted 384 dots of known straight
+paths in real frames of 12 clips (PR135, PR077, PR079, PR085, PR097, PR113, PR141, PR149, PR23, PR44, Galileo flyers 2
+and 5), encoded them again with each clip's own settings and found them again with `forensics.source_candidates`; 277
+were found on 60 frames in a row or more. Their errors (found less planted) have memory and slips: rms 0.16 px an axis
+at the median, 0.58 at the 95th percentile, 1.05 at the 99th. Drawn: groups that keep their places under a shift, a
+roll and a zoom, and rigid bodies turning up to 60 degrees in depth, each member carrying one dot's error series;
+8,000 groups for each of 2, 3, 4, 5, 6 and 8 members and 60, 100, 150 and 180 frames (job 1220). The 99th percentile
+of the largest pair's wander over its jitter:
+
+| members | 60 | 100 | 150 | 180 frames |
+|---|---|---|---|---|
+| 2 | 2.22 | 2.21 | 2.10 | 2.79 |
+| 3 | 2.53 | 2.36 | 2.44 | 2.45 |
+| 4 | 2.69 | 2.50 | 2.55 | 2.86 |
+| 5 | 2.75 | 2.58 | 2.84 | 3.00 |
+| 6 | 2.90 | 2.62 | 3.05 | 3.11 |
+| 8 | 2.98 | 2.76 | 3.27 | 3.26 |
+
+Off rank 3 the same ratio's 99th percentile is 1.65 to 2.40, off rank 2 (four members) 2.32 to 2.97. With the pixel
+floor as well, the largest pair is large in at most 0.4 % of such groups (eight members, 60 frames) and in none of
+8,000 from 100 frames on; what is left off the rank in at most 0.08 %. Other jitters, the largest pair's 99th
+percentile: white 1.04-1.18; AR(1) with a lag-1 correlation of 0.3 1.16-1.43, of 0.6 1.43-1.93, of 0.8 2.08-2.99;
+pictures held two or three frames 1.19-1.76. Read at one frame's lag from the two members' own noise, as `rigidity`
+reads it, the same groups reach 2.7 at the 95th percentile and 4.0 at the 99th (three members, 60 frames).
+
+**The readings on drawn groups** (session 23's job on Harvard's cluster, 60409733: 100,480 groups, 320 for each of 314
+kinds; 2, 3, 4, 5, 6 and 8 members; 60, 150 and 300 frames; 999 draws a reading, as in the stage).
+
+*Groups that have not moved*: formations that keep their places under a shift, a roll of up to 20 degrees and a zoom of
+up to 10 %, each place also changing steadily by about a pixel; and rigid bodies about 40 px across turning up to 60
+degrees about a random axis, with a zoom and a pan.
+
+| jitter | formations: "wander" | "keep their places" | formations and bodies of five or more: "several" | "one rigid body" |
+|---|---|---|---|---|
+| white, 0.3 px | 0 of 5,760 | 99.7 % | 0 of 5,760 | 100 % |
+| AR(1), lag-1 correlation 0.3 | 0 of 5,760 | 99.7 % | 0 of 5,760 | 100 % |
+| AR(1), 0.6 | 0 of 5,760 | 99.8 % | 0 of 5,760 | 100 % |
+| AR(1), 0.8 | 0 of 5,760 | 99.9 % | 0 of 5,760 | 100 % |
+| pictures held two or three frames (0.1 px a picture) | 0 of 5,760 | 99.9 % | 0 of 5,760 | 100 % |
+| the planted dots' own errors (60 and 150 frames) | 0 of 3,840 | 99.8 % | 0 of 3,840 | 100 % |
+
+So "wander" was called on none of 32,640 formations and "several" on none of 32,640 formations and bodies of five
+members or more: under 0.01 % at 95 % confidence, where each of the three parts was set at 1 %. The rest of the formations (0.1-0.3 %) read "cannot
+say". Two things the table does not hide. A rigid body that turns in depth changes its members' distances in the
+picture, and `places` reads "wander" for 39 to 49 % of the turning bodies: so the stage adds to a wander that the
+first reading did not call several "one rigid body that turns would change them so" (`places.one_body_not_ruled_out`),
+and with fewer than five members it always does. And four members of a solid body that turns are not a flat body:
+61 to 65 % of them read "cannot say (several, or one solid body turning)".
+
+*Members that move on their own* (white jitter of 0.3 px; each member on a smooth path of its own, a walk in its
+velocity, so many pixels rms about its place; or walking a white step every frame). Share called, at 60 / 150 / 300
+frames:
+
+| each member | "wander", 2 members | 3 | 6 | 8 | "several", 5 members | 6 | 8 |
+|---|---|---|---|---|---|---|---|
+| drifts 1 px | 2 / 2 / 2 % | 2 / 4 / 2 | 16 / 19 / 22 | 27 / 28 / 29 | 7 / 5 / 6 % | 3 / 4 / 4 | 0 / 0 / 1 |
+| drifts 2 px | 23 / 32 / 32 | 31 / 39 / 45 | 85 / 93 / 93 | 97 / 100 / 100 | 47 / 61 / 64 | 70 / 81 / 74 | 88 / 92 / 91 |
+| drifts 4 px | 53 / 66 / 73 | 65 / 84 / 85 | 99 / 100 / 100 | 100 / 100 / 100 | 65 / 85 / 93 | 80 / 96 / 98 | 93 / 96 / 98 |
+| drifts 8 px | 59 / 87 / 89 | 87 / 97 / 98 | 100 / 100 / 100 | 100 / 100 / 100 | 65 / 91 / 97 | 82 / 96 / 99 | 89 / 98 / 98 |
+| walks 0.1 px a frame | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 1 | 0 / 0 / 3 | 0 / 0 / 1 | 0 / 0 / 0 | 0 / 0 / 0 |
+| walks 0.3 px a frame | 1 / 7 / 41 | 1 / 12 / 63 | 2 / 54 / 98 | 6 / 74 / 100 | 1 / 36 / 84 | 1 / 57 / 95 | 1 / 73 / 98 |
+| walks 1 px a frame | 4 / 30 / 70 | 8 / 53 / 86 | 32 / 91 / 100 | 46 / 99 / 100 | 14 / 67 / 85 | 25 / 89 / 98 | 31 / 95 / 98 |
+
+With the planted dots' errors in place of white jitter, members drifting 4 px read "wander" 87 % of the time at 60
+frames and 94.5 % at 150, and "several" 79 and 92 %. The miss the other way: members that each drift 2 px are said to
+keep their places 29 to 33 % of the time (all members and lengths), 4 px 7 to 9 %, 8 px 1 to 2 %. A drift of a pixel
+is under the floor and is not called, by design.
+
+**Today's rule on the same groups** (`rigidity`; 301,440 groups, the same job). Formations that keep their places read
+`rigid` true 100 % of the time with white jitter and with a lag-1 correlation of 0.3, 53 % at 0.6, 1.4 % at 0.8, 9 %
+with held pictures and 71 % with the planted dots' errors (92 % of groups of two, 46 to 52 % of groups of eight); the rest read
+"neither", and "shuffling" 0.1 % (planted errors) or never. Bodies turning in depth read "shuffling" 8 to 14 % of the
+time. Members drifting 4 px read "shuffling" 91 %, 8 px 99 %, 2 px 35 %. So the rule's "shuffling" is safe on
+formations and its "rigid" is lost to a coloured jitter (B23's trap, and W1's before it): the call stands, and the
+report's sentences still read it (IDEAS RG3).
+
+**The controls** (what each is known to be; session 23's notes have every number).
+
+| group | known to be | members, frames together | `rigid` (today's rule) | one rigid body or several | do they keep their places |
+|---|---|---|---|---|---|
+| PR135's flock, frames 1240-1392, the bird paper's six tracks | six birds | 6, 153 | false | **several**: 1.48 px left off rank 3 (the survey's 1.47), 3.7 times the jitter, at most 1 draw in 1,000 | **wander**: 8 of 15 separations, by up to 15.5 px, 3 to 17 times their jitter |
+| the same, as the stage follows it | | 6, 91 | false | **several**: 1.21 px, 3.0 times | **wander**: 7 of 15, up to 13.6 px |
+| the same, about one bird's track (three within reach) | | 3, 91 | false | cannot say: three members | wander: 3 of 3, up to 5.1 px (a rigid body turning not ruled out) |
+| Svanström IR_BIRD_027 | birds, labelled | 4, 104 | false | cannot say: not one flat body (2.49 px, 12.9 times), so several or one solid body turning | wander: 4 of 6, up to 7.5 px |
+| Svanström IR_BIRD_018, 035, 038, 044 | two birds each | 2; 132, 62, 206, 142 | false | cannot say: two members | wander: 2.7, 1.7, 3.9 and 2.3 px, 5 to 11 times the jitter |
+| a drone show on the Galileo Project's infrared cameras: 20 groups of six neighbours in five windows of 241 to 600 frames on two cameras (tracks of 2026-10-19, a centroid reader of that analysis, not the stage's) | a formation flown by computer, its figure changing slowly | 6; 241-600 | true on 7, "neither" on 13 | **one rigid body** on all 20: 0.02 to 0.19 px left | **keep their places** on all 20: at most 0.09 to 0.45 px about a steady change |
+| PR105's three points in a vertical line, frames 1075-2155 (session 19's reader; 444 frames with all three, not consecutive) | three unresolved points in a line that stays near the picture's vertical (measured 2026-11-09/10) | 3, 444 | "neither" | cannot say: three members | **keep their places**: at most 2.9 px, 1.5 to 1.9 times the jitter (the faint middle point jitters 1.4 px) |
+| PR097 about its object 1, frames 3755-3880 (the stage on the video) | not settled: four points within 6 px, separate birds by their beats | 2, 62 | true | cannot say: two members | keep their places: at most 0.37 px, 1.1 times the jitter (a reading, not a control) |
+| drawn: rigid bodies, formations, members that drift | by construction | 2-8; 60-300 | the paragraph above | the tables above | the tables above |
+
+Not read, and why: AARO's two Puerto Rico lanterns (frames 1640-2231: one dark blob of two lobes, 0 points a frame), PR098's
+two lines of two or three points (the points touch: one point a frame or none), PR105 as the stage follows it (the
+lower points are too faint: one point, or two for 78 frames, which keep to 0.47 px), four of the eight Svanström
+clips with two birds labelled (the second bird is out of reach or not a point), two clips of several labelled drones
+(one point), PR097's dark objects 7 and 8 (one point a frame about each), PR47's three out-of-focus rings (they touch;
+a reader written for them held three rings on 666 of 3,590 frames, in runs of 20 at most: not used). So no lantern group and no rigid row but PR105's has been read; and no
+real object of several lights known to be one body (an aircraft at night) is among the controls. PR135's exercise
+page, the one place its flock goes through this stage in a whole run, holds its answers with the readings in
+(`tests/test_golden.py --exercises 04`: 16 checks pass).
+
+**What it is not, and how it fails.**
+
+- The rank can only say that the members are *not* one body. A group whose figure stretches or shears as a whole (a
+  flock strung out along its course, turning together) is of rank 3 too: PR135's six leave only 1.2 to 1.5 px off rank
+  3 while their separations wander by 9 to 15 px. The second half of Tomasi and Kanade's method, the metric that makes
+  the motion matrices scaled rotations, would tell a stretch from a turn; it was tried and dropped, because a body that
+  turns little does not fix the metric (drawn rigid bodies fail it as often as PR135 does). And a formation that holds
+  station passes as one body: the words say "as the parts of one rigid body would".
+- The affine camera is the far field. A body whose depth is not small against its range changes shape in the picture
+  as it turns (perspective), by about its size in pixels times depth over range: 1 px for a 100-px body at a hundred
+  times its depth. Near, large bodies can read "several" on a long, clean track. Not measured on a real one.
+- A wander is told from jitter by being smooth. A member that takes a white step every frame (a random walk) has
+  steps as large as its jitter reading (0.95 of a step at a lag of three frames) while its wander about a line over
+  F frames is sqrt(F / 15) steps: a ratio of 0.27 sqrt(F), 3.3 at 150 frames, whatever the step. So white-step walks
+  are not called wandering on tracks under a few hundred frames (the table's middle rows), and a smooth drift of a
+  few pixels is. Recorded birds drift smoothly: PR135's pairs read 3 to 17 times their jitter.
+- "Keep their places" is a bound, not a proof: nothing wandered about a steady change by more than PAIR_LINE times
+  the jitter and a pixel. A steady change is allowed, so two members parting at a constant rate keep their places by
+  this reading, as by `rigidity`'s; the pair's `separation_px` and the stage's figure show it.
+- The lines are the package's detector on twelve clips' frames. Another detector's errors (a hand's marks; a member
+  tracker of one's own, as on the drone show) are held only by the draws from the series' own blocks and the pixel.
+- Members are read where the stage follows them as separate points. Two lobes that touch (AARO's two lanterns), points
+  that merge (PR098's lines), or points too faint for the member detector (PR105's lower two) give no reading at all.
+- A member lost and found again under another number is two short members; identities swapped where two members cross
+  make both wander. The readings are no better than the following.
+- 60 frames is the least, 8 members the most (the lines were drawn for 2 to 8), and the draws are seeded
+  (TEST_SEED), so one group reads the same every time.
+- Judgement left in it, said in the code: the lag rule and the block of l + 1; ADF's 5 % beside the others' 1 %; the
+  pixel floor taken at the planted dots' 99th percentile; 60 frames; 8 members.

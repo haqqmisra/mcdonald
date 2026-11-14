@@ -5,6 +5,46 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**A group of points: one rigid body or several, and do its members keep their places** (ROADMAP 0.5.x; IDEAS M7,
+B23, E21, S14; 2026-11-13).
+
+`mcdonald groups` has two new readings. They sit beside its "rigid or shuffling" call, which stands as it was. Each
+can answer "cannot say".
+
+- *One rigid body, or several.* The points of one rigid body can only change their arrangement in the picture in the
+  ways a turning body allows. The stage takes the best such body out of the members' positions and looks at what is
+  left. It needs four members or more, followed together on 60 frames. A formation that holds its shape reads as one
+  body too, and so does a group whose shape stretches as a whole.
+- *Do the members keep their places.* Every distance between two members is read against the group's size, so a
+  zoom, a roll or a shift of the picture changes nothing. A steady change counts as keeping a place. A distance that
+  wanders off and does not come back does not.
+
+Both say a group moved only where three things hold. The motion keeps going, by a test against the group's own
+jitter (the scatter of a position from frame to frame) drawn again. It is larger than about 3 times that jitter. And
+it is larger than a pixel. The last two thresholds are not chosen by eye. They are what the detector's own errors
+reach 1 time in 100, measured on 277 dots planted in real frames of 12 videos and found again.
+
+Measured on 100,480 drawn groups of 2 to 8 members and 60 to 300 frames. Groups that keep their places were called
+"wander" 0 times in 32,640, and rigid groups "several" 0 times in 32,640. That held for white jitter, for jitter with
+memory, for a camera that repeats its pictures and for the detector's own errors. Members that each drift 4 pixels on
+a path of their own are called "wander" 53 to 100 % of the time, and "several" 65 to 98 %. The share grows with the
+number of members and the length of the track. A drift of 1 pixel is not called, on purpose. One rigid body that
+turns also changes the distances between its members in the picture. So a "wander" that the first reading did not
+call "several" says that one turning body is not ruled out. With fewer than five members it always says so.
+
+On the controls: PR135's six birds read "several" and "wander" (8 of their 15 distances wander, by up to 15 pixels).
+Four videos of two birds from the labelled infrared set read "wander". A drone show filmed by the Galileo Project's
+cameras reads "one rigid body" and "keep their places" on all 20 groups of six drones tried, to within half a pixel.
+PR105's three points in a line, read from an earlier measurement, keep their places to within 3 pixels. The stage
+cannot follow as separate points AARO's two lanterns, PR098's lines of points or PR47's three rings, so it says
+nothing of them.
+
+No reference report changes: the fourteen reference case files hold no group (PR135's six birds are measured one by
+one there, with the groups step left out). A report of a group gains two lines under Measurements, and a reading that
+cannot say is counted among the tests that could not decide. The report's own sentences about a group still read the
+old call; which they should read is a decision for the maintainer. PR135's exercise page, where its flock goes
+through this step in a whole run, holds its answers unchanged. Method note: `docs/method.md`, section 60.
+
 **`drift` asks more of its own inputs before it decides: four report-changers from the second drift screen** (IDEAS.md
 DR2-DR5; 2026-11-13). All four are in the route that works from the aircraft's own track (`--platform`, `--los`) or in
 what the tests say when an input is missing. Of the three known answers, the Yemen video and the Santa Barbara hoist
