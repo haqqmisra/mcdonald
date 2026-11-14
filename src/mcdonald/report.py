@@ -178,6 +178,9 @@ FIGURE_CAPTIONS = (
                "rises and falls means its speed changed."),
     ("_admissible", "Every distance, and every speed toward or away from the camera, that fits what was measured. The "
                     "shaded area is what the video allows."),
+    ("_load", "How hard the object's turn would press on it at each speed. The red curve is the turn that was measured. Each "
+              "mark is one kind of object, drawn at the greatest load it is built or known to bear, across the speeds it "
+              "flies at. A kind could have flown the turn only where its mark reaches left of the curve."),
     ("_beat", "The object's brightness over time, and how strongly each rhythm is in it. A peak the background beside the "
               "object does not share is the object's own beat."),
     ("_controls", "Each dot is one labelled track of thermal video: birds in blue, aircraft, drones and helicopters in amber. "
@@ -697,6 +700,7 @@ class Case:
         if sm is not None:
             rows.append(("smear", "Π_s", f"{sm:.2f} widths a frame", "the displacement in one frame over the object's width: above 1 it streaks "
                                                                      "within a frame; above 2 an interlaced source's fields separate"))
+        rows += self._envelope_rows()
         ta, tr = self.tau(), self.tau_reading()
         if ta:
             rows.append(("time to contact", "τ = R / |Ṙ|", f"{pm(abs(ta['tau_s']), ta.get('tau_err_s'))} s, " + ("closing" if ta["tau_s"] > 0 else "receding"),
@@ -780,6 +784,33 @@ class Case:
         if tf.get("object_size_px"):
             return tf["object_size_px"], SPOT_DEFAULT if default else SPOT_SIZE
         return None, "needs a track, or the object's length given"
+
+    def body_lengths(self):
+        """The speed in body lengths a second against the class table (`envelopes.body_lengths`, method section 61): the
+        kinematics stage's reading where a length was given; else, where the camera stage measured the object's length in
+        place of the tracker's default spot (`extent`'s LENGTH_SIZE), the same reading from that length, made here because
+        that stage runs after kinematics. None in a case from before the reading."""
+        from . import envelopes
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        b = kf.get("body_lengths")
+        if not b or b.get("size_px"):
+            return b
+        p, how = self.extent()
+        if p and how == LENGTH_SIZE and kf.get("v_px_per_s") is not None:
+            return envelopes.body_lengths(kf["v_px_per_s"], p, how, None, b.get("platform"))
+        return b
+
+    def _envelope_rows(self):
+        """The summary's rows for the two readings against the class table (method section 61): the speed in body lengths
+        as a lower bound, and the turn as a load-factor curve. Each row carries its own NO POWER, with why."""
+        from . import envelopes
+        kf = self.stages.get("kinematics", {}).get("fields") or {}
+        rows = []
+        if kf.get("body_lengths") is not None:
+            rows.append(("speed in body lengths", "v / L") + envelopes.lengths_said(self.body_lengths()))
+        if kf.get("load_curve") is not None:
+            rows.append(("turn as a load factor", "n = √(1 + (ωV/g)²)") + envelopes.load_said(kf["load_curve"]))
+        return rows
 
     # what the first line and the bottom line say of a rate read over a picture that held still on screen
     AS_HELD = "in the picture, as the camera held it"
@@ -1062,13 +1093,76 @@ class Case:
             row("v_own", "platform speed", "missing", None, "not given")
         return rows
 
+    def value_of_information(self):
+        """How much knowing each missing unknown would settle a stated question about the object's own speed
+        (`kinematics.value_of_information`, D8; method section 61), from what the case holds: the rate, the frame's width,
+        and whichever of k, R, the aspect angle and the camera's speed the ledger has as constrained -- a field of view
+        that is a guess counts as missing -- with the stages' bounds on the range, the slew's floor on k, tau and the depth
+        bound. None with no rate of the object's own (no track, or one the camera held)."""
+        from .kinematics import value_of_information
+        st = lambda name: self.stages.get(name, {}).get("fields") or {}
+        kf, sf, sl = st("kinematics"), st("scale"), st("slew")
+        v, W = kf.get("v_px_per_s"), sf.get("fov_px") or (self.clip or {}).get("width")
+        if v is None or not W or (kf.get("fit") or {}).get("held"):
+            return None
+        assumed = "ASSUMED" in (sf.get("k_from") or "")
+        k = sf.get("k_px_per_rad") if sf.get("k_px_per_rad") and not assumed else None
+        if k is None and sl.get("k_px_per_deg"):
+            k = sl["k_px_per_deg"] * 180.0 / math.pi
+        floor = sl.get("c_px_per_deg") or (sl.get("c_at_least_px_per_deg") if sl.get("floor_stands") else None)
+        R, _, R_assumed = self.ranged()
+        lo, hi, _ = self.range_bounds()
+        ta = self.tau()
+        key = (v, W, k, floor, R, R_assumed, lo, hi, kf.get("theta_deg"), (ta or {}).get("tau_s"), self.depth_rate_max(),
+               (kf.get("parallax") or {}).get("v_own"), kf.get("square_per_px"))
+        if getattr(self, "_voi", (None, None))[0] != key:
+            known_R = R is not None and not R_assumed
+            self._voi = (key, value_of_information(
+                v * (kf.get("square_per_px") or 1.0), W, k=k, k_min=floor * 180.0 / math.pi if floor and k is None else None,
+                R=R if known_R else None, R_min=None if known_R else lo, R_max=None if known_R else hi,
+                theta_deg=kf.get("theta_deg"), tau_s=(ta or {}).get("tau_s") if kf.get("theta_deg") is None else None,
+                rate_max=self.depth_rate_max(), v_own=(kf.get("parallax") or {}).get("v_own")))
+        return self._voi[1]
+
     def _ledger(self):
         L = ["## The four unknowns", "", "| unknown | where it stands | value | by | what would close it |",
              "|---|---|---|---|---|"]
         for r in self.ledger():
             L.append(f"| {r['name']}, {r['symbol']} | {r['status']} | {'**' + r['value'] + '**' if r['value'] else '—'} "
                      f"| {r['by']} | {r['closes'] or '—'} |")
-        return L + [""]
+        return L + [""] + self._asks()
+
+    def _asks(self):
+        """Under the four unknowns: which missing quantity is worth asking for first (`value_of_information`), in a few
+        sentences and a table. Nothing where there is no rate, or nothing is missing."""
+        from .kinematics import VOI_NAMES, VOI_PRECISION, VOI_PRECISION_DEG, information_said
+        voi = self.value_of_information()
+        if not voi or not voi.get("power"):
+            return []
+        pc = lambda x: "under 1 %" if 0 < x < 0.005 else "over 99 %" if 0.995 < x < 1 else f"{100 * x:.0f} %"
+        L = ["### Which missing quantity to ask for first", "",
+             "The table above says what is missing. This one asks how much each missing quantity would settle two questions "
+             "about the object's own speed, if a source gave it "
+             f"(to within {100 * VOI_PRECISION:.0f} %, or {VOI_PRECISION_DEG:.0f}° for the aspect angle). "
+             "The answer depends on how one weighs what is not known, so it is worked out two ways. "
+             "The even way gives every field of view, range, range rate and camera speed the same weight. "
+             "The second way gives every factor of ten the same weight, and every direction, so that no choice of units changes it. "
+             "A quantity is ranked first only where both ways agree. "
+             "This ranks what to ask for; it says nothing about the object.", ""]
+        L += [f"- {s}" for s in information_said(voi)] + [""]
+        L += ["| question | missing quantity | weighed evenly: chance now | once known | share settled | every factor of ten alike: chance now | once known | share settled |",
+              "|---|---|---|---|---|---|---|---|"]
+        for i, q in enumerate(voi["questions"]):
+            a, b = (voi["measures"][m]["questions"][i] for m in ("evenly", "invariant"))
+            for s in voi["unknown"]:
+                cells = []
+                for x in (a, b):
+                    k = x["asks"][s]
+                    cells += [pc(x["p"]), f"{pc(k['p_lo'])} to {pc(k['p_hi'])}", "—" if k["share"] is None else f"{100 * k['share']:.0f} %"]
+                L.append(f"| Is its own speed {q['what']}? | {VOI_NAMES[s]} | " + " | ".join(cells) + " |")
+        return L + ["", "\"Chance now\" is the share of everything the video allows that answers yes. \"Once known\" is where that "
+                    "chance would lie, nine times in ten, after the quantity was given. \"Share settled\" is how much of the "
+                    "question's uncertainty the quantity would remove, counted in bits.", ""]
 
     def _summary(self):
         c = self.clip or {}
@@ -1612,6 +1706,8 @@ class Case:
                     S.append(f"Its size is then {reg['size_min']:.3g} to {reg['size_max']:.3g} m.")
                 S.append(f"Weighting every range and range rate evenly, 90 % of the speeds fall between {sp[0]:.0f} and {sp[2]:.0f} m/s, "
                          f"{reg['share_subsonic']:.0%} of them under the speed of sound.")
+        from . import envelopes                        # the two readings against the class table, where each has power (section 61)
+        S += envelopes.lengths_plain(self.body_lengths()) + envelopes.load_plain(kf.get("load_curve"))
         if S:
             S.insert(0, "The track still says something without the range, the field of view or the camera's own speed.")
         return S
@@ -2558,6 +2654,7 @@ class Case:
                                clip=self.clip, segment=self.segment, stages=self.stages, commands=self.commands, figures=self.figures,
                                notes=self.notes, started=self.started, measured_by=self.measured_by,
                                computed_on=self.computed_on, ledger=self.ledger(),
+                               value_of_information=self.value_of_information(),
                                mcdonald=__version__, python=platform.python_version(),
                                ffmpeg=_ffmpeg_version()),
                           indent=1, default=plain)

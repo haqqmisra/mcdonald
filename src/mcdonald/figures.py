@@ -790,6 +790,53 @@ def admissible(path, reg, k=None, p_px=None, width=FigureSize.NOTE):
     return str(path)
 
 
+def load_curve(path, c, width=FigureSize.NOTE):
+    """A turn as a load-factor curve (`envelopes.load_curve`, method section 61): the true airspeed along the bottom and
+    the load factor up, both on log scales. The red curve is what the turn rate read from the track takes at each speed,
+    n = sqrt(1 + (omega V / g)^2), with the band of rates the reading allows shaded. Each class of the table is a
+    horizontal mark at its limit load, from the least to the greatest speed it flies at: a class could have flown the turn
+    only where its mark reaches left of the curve. The class names go in a legend under the plot, by marker."""
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from matplotlib.ticker import NullLocator
+    from .envelopes import G
+    plt = setup()
+    w, lo, hi = c["omega_rad_per_s"], c["lo"], c["hi"]
+    rows = [r for r in c["limits"] if r.get("flies_m_s")]
+    v_hi = max([1000.0] + [r["flies_m_s"][1] * 1.3 for r in rows])
+    V = np.geomspace(1.0, v_hi, 400)
+    n = lambda om: np.sqrt(1.0 + (om * V / G) ** 2)
+    top = max([12.0] + [r["load_limit_g"] * 1.5 for r in rows])
+    fig, ax = plt.subplots(figsize=(width, width * 0.62), layout="constrained")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    keys = [Line2D([], [], color=RED, lw=1.8, label=f"this turn, {math.degrees(w):.0f}° a second")]
+    if hi > lo:
+        ax.fill_between(V, n(lo), n(hi), color=RED, alpha=0.14, lw=0)
+        keys.append(Patch(color=RED, alpha=0.14, label="the turn rates the track allows"))
+    ax.plot(V, n(w), "-", color=RED, lw=1.8)
+    for r, mk in zip(rows, ("o", "s", "^", "D", "v", "P", "X", "<", ">", "h", "*", "p")):
+        a, b = max(r["flies_m_s"][0], V[0]), r["flies_m_s"][1]
+        colour = BLUE if r["could"] else MUTED
+        face = colour if r["could"] else "white"
+        ax.plot([a, b], [r["load_limit_g"]] * 2, "-", color=colour, lw=1.4, marker=mk, ms=5, mfc=face)
+        keys.append(Line2D([], [], color=colour, lw=1.4, marker=mk, ms=5, mfc=face,
+                           label=f"{r['cls']}, limit {r['load_limit_g']:g}" + ("" if r["could"] else " (could not fly it)")))
+    ticks = [1, 2, 3, 5, 10] + ([20] if top > 20 else [])
+    ax.set_xlim(V[0], V[-1])
+    ax.set_ylim(1.0, top)
+    ax.set_yticks(ticks)
+    ax.set_yticklabels([str(v) for v in ticks])
+    ax.yaxis.set_minor_locator(NullLocator())
+    ax.set_xlabel("True airspeed (m/s)")
+    ax.set_ylabel("Load factor (lift over weight)")
+    ax.set_title("The turn as a load")
+    fig.legend(handles=keys, loc="outside lower center", ncol=2)
+    save(fig, path, dpi=200)
+    plt.close(fig)
+    return str(path)
+
+
 def report_figures(case, clip, track, prefix):
     """The report's figures for a case with a track: [paths] -- the track on its frame and the size against
     speed (none without a track, or without a rate), and the beat figure where the flicker stage found a beat
@@ -808,6 +855,9 @@ def report_figures(case, clip, track, prefix):
                           R_max=kf.get("range_max_m"))]
     if ((case.stages.get("kinematics") or {}).get("fields") or {}).get("band") and Path(f"{prefix}_speed.png").exists():
         out.append(f"{prefix}_speed.png")                  # the speed along the track with its band (section 32)
+    load = ((case.stages.get("kinematics") or {}).get("fields") or {}).get("load_curve") or {}
+    if load.get("power") and Path(f"{prefix}_load.png").exists():
+        out.append(f"{prefix}_load.png")                   # the turn as a load-factor curve (section 61)
     reg = case.admissible()
     if reg and not reg.get("empty"):                      # the admissible region in (R, Rdot) (section 33)
         try:

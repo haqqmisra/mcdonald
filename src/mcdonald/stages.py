@@ -911,7 +911,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                         v_top=kin.fastest_rate(track, fps, fit, band, t0, t1, n0, n1) if range_max is not None else None)
     D, D_from = ((size_px, "given") if size_px else ((blur or {}).get("object_fwhm_px"), "measured: the object's width at half its peak")
                  if (blur or {}).get("object_fwhm_px") else (extent_px, "the spot size the track was followed at"))
-    proj = turn = smear = proj_why = models = models_why = None
+    proj = turn = smear = proj_why = models = models_why = shape = span = None
     if not fit.get("held"):
         centre = (width / 2.0, height / 2.0) if height else None
         through = scale.lens if height else None        # the track as a pinhole would have drawn it; none is the track itself
@@ -933,6 +933,12 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
         elif proj and height and proj.get("fits") is False:     # no lens given, and a miss: could one alone be all of it?
             proj = dict(proj, lens_could=lens.could_be(track, fps, width, height, proj, t0, t1, n0, n1))
         smear = projective.smear(fit["v_px"], fps, D) if D else None
+        try:                                    # the bend and its time, for the turn rate: neither needs the width (Av10)
+            shape = turn or projective.turn(line, fps, 1.0, t0=t0, t1=t1, n0=n0, n1=n1)
+            tt = projective._points(line, fps, t0, t1, n0, n1)[1]
+            span = float(tt[-1] - tt[0]) if len(tt) > 1 else None
+        except Exception:                       # noqa: BLE001 -- no turn rate is then read, and the reading says so
+            shape = span = None
         try:                                    # which motion models survive, as a computed set (E22)
             models = projective.confidence_set(line, fps, t0, t1, n0, n1)
         except Exception as e:                  # noqa: BLE001 -- a comparison that will not run is said, not fatal
@@ -951,6 +957,16 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
                   band=band, projective=proj, turn=turn, smear=smear, models=models, width_px=dict(px=D, how=D_from) if D else None)
+    # two readings against the sourced class table (method section 61; IDEAS.md Av11 and Av10): the speed in body lengths
+    # as a lower bound, and the turn as a load-factor curve. Each carries its own power and why -- as tau's reading does,
+    # they add nothing to this stage's no-power list, which every report's count would then carry
+    from . import envelopes
+    still = platform or platform_of(own_ship, layers)
+    fields["body_lengths"] = envelopes.body_lengths(fit["v_px"], size_px, "given" if size_px else None,
+                                                    (blur or {}).get("resolved") if size_px else None, still)
+    fields["load_curve"] = (dict(power=False, why="the camera held the object in view, so the track's shape is the camera's",
+                                 platform=still, limits=[], conditions=[]) if fit.get("held") else
+                            envelopes.load_curve(shape, span, still, fields["body_lengths"]))
     if scale.stretched:                                   # the rate in square pixels along the track, and what it was worth (section 40)
         fields.update(pixel_aspect=scale.aspect, square_per_px=red.along, v_square_px_per_s=fit["v_px"] * red.along)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s" + (f" in the file's pixels; {fit['v_px'] * red.along:.1f} square px/s along the track "
@@ -964,6 +980,16 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                               "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")
     files, npw = [], []
     res.update(projective.said(proj, turn, smear))
+    for name, (value, how) in (("body lengths against the classes", envelopes.lengths_said(fields["body_lengths"])),
+                               ("turn as a load factor", envelopes.load_said(fields["load_curve"]))):
+        if value:                                 # a reading; where there is none, the summary's row says why
+            res[name] = f"{value}: {how}"
+    if out and fields["load_curve"]["power"] and fields["load_curve"]["limits"]:
+        try:
+            from . import figures
+            files.append(figures.load_curve(f"{out}_load.png", fields["load_curve"]))
+        except Exception as e:                   # noqa: BLE001 -- a figure that cannot be drawn is not a finding lost
+            print(f"  ! the load-factor figure was not drawn: {type(e).__name__}: {e}")
     if models:
         res["motion models"] = projective.models_said(models)
     elif not fit.get("held"):

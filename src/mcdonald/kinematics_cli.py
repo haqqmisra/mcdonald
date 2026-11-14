@@ -121,6 +121,18 @@ def _main(args):
         print("\n".join(stages.parallax(args.ground_speed, args.own_ship, args.line_of_sight)[2]))
     else:
         print(f"\nparallax: {dict(found.no_power).get('parallax', '')}")
+    for name in ("body lengths against the classes", "turn as a load factor"):      # the two readings against the class table
+        b = found.fields.get("body_lengths" if name.startswith("body") else "load_curve") or {}
+        print(f"\n{name}: " + (found.result[name] if name in found.result else "NO POWER -- " + str(b.get("why"))))
+    # which missing quantity would settle the most (D8, method section 61): from what this command was given
+    measured = scale.known and scale.source != "assumed FOV"         # a field of view that is a guess is still missing
+    voi = kin.value_of_information(fit["v_px"] * red.along, W / a, k=scale.k if measured else None, R=args.range_m,
+                                   R_max=args.range_max, theta_deg=red.theta_deg, v_own=(par or {}).get("v_own"))
+    found.fields["value_of_information"] = voi
+    said = kin.information_said(voi)
+    if said:
+        print("\nwhich missing quantity to ask for first (it ranks the asks, and says nothing of the object):")
+        print("\n".join("  " + s for s in said))
     if args.ladder and not scale.known:
         ladder = sc.fov_ladder(fit["v_px"], W, sc.FOV_LADDER)
         found.fields["if_the_fov_were"] = ladder
