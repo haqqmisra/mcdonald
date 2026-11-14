@@ -145,10 +145,8 @@ class AutoRun(QtCore.QObject):
         # person said how many they are looking for (the segment step, 2026-10-08), that many of the likeliest, weak
         # ones too, through the queue, which splits a group of points into its members where fewer were found
         asked = w.objects_expected
-        if asked:
-            rows = list(range(min(asked, len(p.proposals))))
-        else:
-            rows = [i for i, q in enumerate(p.proposals) if i == 0 or q.strength() != "weak"]
+        from . import propose
+        rows = propose.one_press_rows(p.proposals, asked)     # the rule, where a command line can call it too
         if len(rows) > 1 or (asked and asked > 1):
             self._several(rows=rows)
             return

@@ -447,6 +447,77 @@ the most single it is on (a member before a thing alone before a group): its row
 line names it (PR135 at 6: Find's third row, seen on 3 frames, was one of the second group's birds,
 on member object 8's track on all 21 frames both were followed on). Exercise 4 (`docs/exercises/04-pr135.md`) is this, step by step.
 
+### Many videos, with nobody looking
+
+`mcdonald batch` does the whole job on a list of videos, or on the whole catalog, with no one choosing an object:
+
+```bash
+mcdonald batch PR113 PR149 --out runs --json            # these videos, one after the other
+mcdonald batch --list videos.txt --out runs --pool 4    # a list, four videos side by side on this computer
+mcdonald batch --catalog --out runs --slurm --sbatch="--nice=100"   # every video, as a scheduler's job arrays
+mcdonald batch --out runs --status --json               # how each video stands; nothing is run
+mcdonald batch --out runs                               # go on with what is left
+```
+
+A list is a text file with one video a line: a path, a record id or a release's file name. To take
+only part of a video, add its first and last frame (`PR113 400-420`; on the command line,
+`PR113:400-420`).
+
+In each video it searches every frame with Find, 400 frames at a time. It keeps each spot that Find
+saw on 40 frames or more, with background all round it, and that is not part of a scrolling tape. A
+spot seen in two stretches of 400 frames is one spot. The spots are ordered by Find's own score, and
+the first twelve (`--most M`) each become an object: a folder `object-N`, marks at Find's own
+positions, then `run --each` as above. The rest are listed and not measured. `--quick` leaves out
+the two long steps, `layers` and `integrity`.
+
+**The marks are a rule's, and say so.** Each mark is recorded as an agent's, with the reason
+"taken by `mcdonald batch` ... with nobody looking". Every report says an agent chose the object,
+and every report is provisional. A row of the table is a spot that lasted. It is not an object
+anyone has identified: it may be a wave, a feature of the ground or a symbol on the display.
+Nothing a batch writes should be quoted before a person has looked at the object's track sheet.
+
+**What it leaves in `--out`.** One folder a video (`runs/pr113/`; a part of a video in
+`runs/pr113/segment-400-420/`), with:
+
+- `object-N/`: each object's marks, track, track sheet and report, as `run --each` writes them;
+- `<tag>_objects.md` and `.json`: the list of them;
+- `<tag>_batch.mcdonald`: one file to send, which `mcdonald share rerun` measures again to its numbers;
+- `find/wNN.json`: Find's proposals for each stretch, and `<tag>_refused.png`, samples of what was not kept;
+- `<tag>_batch.json` and `batch_state.json`: what was found and refused, and how the video stands.
+
+And over all the videos, `batch.tsv`, `batch.json` and `batch.md`: one row an object. A video with
+no object is a row too, and says why: nothing lasted, the picture never changes, or it failed, with
+the error. `mcdonald batch --out runs --table` writes the table again from the folders as they are.
+
+With `--json`, `results.units[]` has each video's `name`, `state` (`waiting`, `running`, `stalled`,
+`stopped`, `failed`, `done`), `step`, `error`, `make_same` and `wall_s`, and `results.tally` the
+counts: `by_outcome`, `by_label`, `by_grade`, `no_power_by_stage`, `other_make`. Each row of
+`batch.json` has the video (`id`, `file`, `first`, `last`), how Find saw the object (`found_strength`,
+`found_score`, `found_frames`), how far it was followed (`followed_frames`, `followed_first`,
+`followed_last`), the report's `label`, `headline` and `grade`, `rate_px_per_s`, `beat_hz`,
+`checklist` (each test's answer), `reasons`, `no_power_by_stage`, `seconds`, and `mcdonald` and
+`make`, the version and options that made it.
+
+**It can be stopped and started again.** A video that is done is not done twice. One that was
+stopped half way goes on from the stretches and objects it had finished. Options that change
+results (`--most`, `--quick`, `--window`) are kept with each video. A video done with other
+options, or by another version, is left as it is, and `--status` and every row say so; `--again`
+does it again and moves its old folder aside. The exit code is 0 when every video is done and 1
+when one failed or is not done yet.
+
+**The audit.** For each object the batch draws 59 frames of its track at random, more often near
+the track's ends, where a wrong frame moves the measured rate most. `object-N/<tag>_audit.png`
+shows the object ringed in each, numbered. Look at it, then record what you saw:
+
+```bash
+mcdonald batch --audit runs/pr113/object-1 --wrong none --by "your name" --agent
+mcdonald batch --audit runs/pr113/object-1 --wrong 3,17 --by "your name" --agent
+```
+
+If the ring is on the object in every one, at most 5 % of the track's weight rests on wrong frames
+(95 % confidence). The audit checks the frames of the track. It does not check that the spot is an
+object worth a report: that is still the look at the track sheet, and `report --i-looked`.
+
 ### Is it several points?
 
 A linked track is one position a frame. If what you marked is a group -- a
@@ -547,6 +618,7 @@ holds them to it.
 | `run` | `conclusion` (`label`, `headline`), `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
 | `run --each DIR` | `asked`, `tally.{asked, followed, members, groups, others, missing, same, sentence}` (with `--objects`); `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `group` ({object, member} for a member of a group's), `same_as` ({same_as, on, shared} for one followed on what another was), `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
 | `report DIR --index` | `objects[]` and `list`, as `run --each` gives them, read again from the folders |
+| `batch` | `out`; `units[]` (one a video: `k`, `name`, `folder`, `id`, `state`, `step`, `error`, `make_same`, `mcdonald`, `started`, `finished`, `alive_s`, `wall_s`, `host`, `job`, `attempts`, `peak_rss_mb`, `frames_on_disk`); `tally.{videos, by_outcome, objects, by_object_state, by_label, by_grade, no_power_by_stage, makes, this_make, other_make, sheets_looked, audits_looked, unit_seconds}`; with `--slurm`, `script`, `submit`, `jobs`, `table_job`, `classes[]` (`minutes`, `mem_mb`, `units`, `array`); with `--audit`, `audits.{object-N: {seed, draws, frames, whole, rule, drawn[] ({k, frame, x, y, weight, times}), sheet, looked ({by, agent, when, wrong, wrong_draws, bound, exact} or null)}}`. The table's rows are in `DIR/batch.json`, not in the envelope |
 
 A stage that could not decide is in `no_power`, not missing: `layers` on a
 window shorter than a second has `px_per_s` all null *and* says so there.

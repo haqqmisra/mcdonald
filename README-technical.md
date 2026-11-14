@@ -679,6 +679,40 @@ and "Open in the window" for the object whose track needs a hand. Measure's form
 of the video, which slow checks to make -- is used for every one of them. The window's own marks
 are not touched: an object in the list is a folder.
 
+### Many videos, with nobody looking (`batch`)
+
+`mcdonald batch` is the queue above with nobody choosing the objects, over a list of videos or the whole catalog
+(ROADMAP 0.6; [docs/method.md](docs/method.md) §54 says what its rules are and what a row of its table can be read as):
+
+```bash
+mcdonald batch PR113 PR149:1-158 --out runs                # these, one after the other, with every CPU
+mcdonald batch --list videos.txt --out runs --pool 4       # four videos side by side, each with a quarter of the CPUs
+mcdonald batch --catalog --out runs --slurm --sbatch="--nice=100 -p some_partition"   # job arrays, a size class each
+mcdonald batch --out runs --status                         # done, running, stalled, stopped, failed and why; nothing is run
+mcdonald batch --out runs                                  # go on: what is done is not done twice
+mcdonald batch --out runs --table                          # the table again, from the folders as they are
+mcdonald batch --audit runs/pr149/object-1 --wrong none --by "A. Reader"   # a look at an object's audit sheet, recorded
+```
+
+One unit of work is one video (`batch.run_unit`; `mcdonald batch --out DIR --unit K` is what a pool's worker and an
+array's task both run). In order: is there a picture that changes at all (`batch.picture`: a sound recording released
+as a video is a row that says so); the frames, whole and once, in a folder of the unit's own; Find over every frame in
+windows of 400 frames overlapping by 30 (`find/wNN.json`); the proposals seen on 40 frames or more, with background
+all round, not a scrolling tape, the same object in two windows made one (`batch.long_lived`, `batch.merged`: the beat
+sweep's rules, which `tools/sweep/` now calls); the first twelve by Find's score (`--most`) each an `object-N` folder
+with marks at Find's seeds, recorded as an agent's with the rule as its reason; `several.run_each` on them, every
+stage (`--quick` leaves out `layers` and `integrity`); the index; each object's audit (59 frames of its track drawn at
+random by leverage, `<tag>_audit.png` and `.json`) and `<tag>_refused.png`, samples of what the rules refused; one
+shared file, `<tag>_batch.mcdonald`, which `share rerun` measures again to its numbers; the unit's rows; and the
+frames removed (`--keep-frames`). `DIR/batch.tsv`, `.json` and `.md` are the table over all of them: a row an object,
+and a row for each video with none (nothing that lasted, a picture that does not change, a failure with its error).
+
+It is resumable (`batch_plan.json`, a `batch_state.json` and a lock a unit): a unit that is done is left, one killed
+half way goes on from the windows and objects it finished, and a unit done by another version or with other options
+(`batch.make_of`) is left as it is and said to be so by `--status`, in every row and at the head of `batch.md`.
+`--slurm` writes `DIR/batch.sbatch` (no partition, no account: those go through `--sbatch`) and submits one array a
+size class, then the table's job after them; `--slurm-print` writes the lines and submits nothing.
+
 ### Sharing an analysis (`share`)
 
 One file to send someone, so that they go on where you left off (Jacob, 2026-10-15): a zip ending in `.mcdonald`

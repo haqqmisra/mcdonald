@@ -457,7 +457,7 @@ def index(base, objects=None):
     seg = next((r["segment_said"] for r in rows if r["segment_said"]), None)     # the segment chosen: one for all of them
     if seg:
         L += [seg, ""]
-    for r in rows:
+    for t, r in zip(found, rows):
         mf = r["marked_frames"]
         kids = children(found, r["object"])
         L += [f"## Object {r['object']}" + (f" — frames {r['frames'][0]}–{r['frames'][1]}" if r["frames"] and r["frames"][0] is not None else ""), "",
@@ -487,6 +487,9 @@ def index(base, objects=None):
             L.append("- **track sheet:** " + ("looked at: the track is on the object in every frame" if r["track_sheet_looked_at"] else
                                               "not looked at yet, so the numbers for the object are provisional"
                                               + (f" ([the sheet]({r['track_sheet']}))" if r["track_sheet"] else "")))
+        audit = _audit_said(t)                           # frames drawn for a person to check (`mcdonald batch`), and who has
+        if audit:
+            L.append(f"- **audit:** {audit}")
         L += [f"- [the report]({r['report']}), in `{r['folder']}/`", ""]
     together = _together(found, twice)
     if together:
@@ -504,6 +507,20 @@ def index(base, objects=None):
                                                            asked=asked, tally=count, objects=rows,
                                                            together=[t for t, _ in together]), indent=1), encoding="utf-8")
     return page, rows
+
+
+def _audit_said(t):
+    """What an object's audit drew and whether anyone has recorded a look at it, where it has one (`mcdonald batch`
+    writes `<tag>_audit.json` and its sheet beside the report; `batch.audit_said`), else None."""
+    p = Path(f"{t.prefix}_audit.json")
+    if not p.exists():
+        return None
+    try:
+        from . import batch
+        a = json.loads(p.read_text(encoding="utf-8"))
+        return batch.audit_said(a, f"[the sheet]({t.folder.name}/{a['sheet']})" if a.get("sheet") else None)
+    except (OSError, ValueError, KeyError):
+        return None
 
 
 def _together(found, twice=None):

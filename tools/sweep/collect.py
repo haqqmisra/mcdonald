@@ -13,18 +13,18 @@ import glob
 import json
 import os
 import sys
+from pathlib import Path
 
-import numpy as np
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-SEEN = 40          # frames a proposal must be seen on
-ROUND = 0.3        # the share of them it must stand against the background all round
-SHARE = 5          # frames two proposals must share to be one
-APART = 15.0       # px: and their median distance on those frames under this
+# The rules are the package's own since 2026-11-13 (`mcdonald.batch`: `mcdonald batch` makes objects of Find's proposals
+# the same way). This file reads the pass's files and writes its table.
+from mcdonald.batch import APART, ROUND, SEEN, SHARE, long_lived, merged  # noqa: E402,F401
 
 
 def proposals(pid):
     """The kept proposals of prop/<pid>/*.json, seen longest first: [{tag, rank, dark, seen, a, b, t, strength, bg}]."""
-    out = []
+    windows = {}
     for f in sorted(glob.glob(f"prop/{pid}/*.json")):
         if os.path.getsize(f) == 0:
             continue
@@ -32,33 +32,8 @@ def proposals(pid):
             d = json.load(open(f, encoding="utf-8"))
         except ValueError:
             continue
-        tag = os.path.basename(f)[:-5]
-        for p in (d.get("results") or {}).get("proposals", []):
-            if (p["strength"] in ("strong", "fair", "weak") and p["seen_in"] >= SEEN and p["background_all_round"] >= ROUND
-                    and not p["scrolling_tape"]):
-                t = {int(k): v for k, v in p["track"].items()}
-                out.append(dict(tag=tag, rank=p["rank"], dark=p["dark"], seen=p["seen_in"], a=min(t), b=max(t), t=t,
-                                strength=p["strength"], bg=p["against_background_px_per_frame"]))
-    out.sort(key=lambda p: -p["seen"])
-    return out
-
-
-def merged(props):
-    """The proposals as objects: one seen in two windows is one, its track the union, in order of first frame."""
-    objs = []
-    for p in props:
-        for o in objs:
-            com = set(p["t"]) & set(o["t"])
-            if (len(com) >= SHARE and p["dark"] == o["dark"]
-                    and np.median([np.hypot(p["t"][k][0] - o["t"][k][0], p["t"][k][1] - o["t"][k][1]) for k in com]) < APART):
-                o["t"].update(p["t"])
-                o["src"].append((p["tag"], p["rank"]))
-                o["a"], o["b"] = min(o["a"], p["a"]), max(o["b"], p["b"])
-                break
-        else:
-            objs.append(dict(p, src=[(p["tag"], p["rank"])], t=dict(p["t"])))
-    objs.sort(key=lambda o: o["a"])
-    return objs
+        windows[os.path.basename(f)[:-5]] = (d.get("results") or {}).get("proposals", [])
+    return long_lived(windows)[0]
 
 
 def main(argv=None):
