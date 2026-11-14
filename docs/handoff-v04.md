@@ -1,4 +1,30 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.4 released 2026-11-14; session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 22, continued overnight (2026-11-13/14): 0.5.4 out, the next round on a branch
+
+**0.5.4 released** by the "GP Triangulation" session on Jacob's word (2026-11-14 morning): version commit e748ad4
+(code = 4847926, its N3 revision on top of this session's commits), tag v0.5.4, GitHub release, PyPI, the site, and
+Zenodo's version DOI 10.5281/zenodo.24220916 in CITATION.cff (e056f12, `origin/main`). Tested at e748ad4: Cannon's
+suites all pass, the Mac and Windows runs green (`macos-ci`/`windows-ci` at e748ad4). Everything of this session up
+to 5e6c468 went out in it: G3, the peaks read at once, the sound's look-alikes, the threads, the two card passes, G5,
+G6. `tests/test_controls.py` is now in every suite list (118 PASS on 4847926).
+
+**After it, on branch `s22-threads`** (worktree `/hugespace/models/mcdonald-s22`, rebased on e056f12; not on `main`
+until its checks pass):
+- b3c7602 (round G, checked: the fourteen-case gate 31 objects 0 differences; all suites on CPUs and the card):
+  `layers._by_pair`, `second_pass` reading ahead on a card, `flicker`'s steadiness beside the stage,
+  `stages.kinematics`' model set beside the speed band. PR088 object 2's main thread busy 97 s of 298 under py-spy
+  (338 s the morning before). Alternating whole runs on a crowded machine (job 2173): 461 and 472 s before, 442 and 413
+  after.
+- Uncommitted, round I, being checked (gate 2206 against reference 2181 on 4847926's code; suites 2207, 2208; timing
+  2209 against e056f12): under the paper rule `whole_passes` beside the object's drift; `kinematics._fitted_both` (the
+  two coordinates' REML fits side by side); `tether.stack_both`'s frame rows in bands across threads (STACK_BANDS);
+  `addon.download_mb` (Windows's wheels are 1,303 and 1,727 MB, not Linux's 1,350 and 1,820); and
+  **N3's `background_windows` on a process pool**: on PR088 the Flicker step went from 43-49 s (5e6c468) to 153-158 s
+  (4847926), the four apertures' windows taking turns on threads. The Triangulation session was told.
+
+**Corrected:** the add-on agent's note that Help's "Check for updates" breaks the no-pop-ups rule. It does not: the
+rule of 2026-10-07 keeps "the OS file dialogs, alerts and About" as windows. Nothing to change.
 
 ## Session 22 (2026-11-13): what was built from the brief below, and what was measured and left
 
