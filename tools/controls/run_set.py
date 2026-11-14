@@ -120,15 +120,42 @@ class Capture:
         flicker.judge, planted.dots = self._judge, self._dots
 
 
+def pictures_again(fields, fps, frames):
+    """The saved fields' reading of the pictures (`fields["pictures"]`) with its held word read again by the code as it
+    stands (`flicker.cadence`): which frames repeat (`held_k`) is the measurement, and the saved curves keep it; whether
+    they are a cadence, and so the band's top, is judged from that word, so a change to that judging needs no video
+    (2026-11-13: a cadence broken by a burst of holds, IR_DRONE_059). The GOP's picture types are the video's and are not
+    kept: a word the measurement gave to the encoder stays the encoder's, the places it read are carried over, and a
+    word that is a cadence only by the code as it stands is read without them. Changes the fields in place."""
+    pic = fields.get("pictures")
+    if not pic or pic.get("held_k") is None or (pic.get("held") or 0.0) < flicker.HELD_MIN:
+        return pic
+    w = np.zeros(max(frames - 1, 0), int)
+    w[[k - 1 for k in pic["held_k"] if 1 <= k <= len(w)]] = 1
+    was, places = pic.get("holds"), pic.get("places")
+    c = flicker.cadence(w, fps)
+    if was == "encoder" and c["holds"] == "cadence":
+        c.update(holds="encoder", cadence=False)
+    c["places"] = places
+    for k in ("blocks",):                               # a reading the code as it stands no longer gives is not kept
+        pic.pop(k, None)
+    pic.update(c)
+    rate = float(c["source_rate"]) if c["cadence"] else float(fps)
+    pic.update(rate=rate, top_hz=float(flicker.TOP * rate / 2))
+    return pic
+
+
 def replay(saved, rule, nulls=False):
     """`flicker.judge` (and the lights' train, item 13) on saved curves, under `rule`: the measurement's Found, made with no
     video. The astronomer's fold and the scene's own motion need the frames, and are not replayed. The fold changes no call;
     the scene's motion at a beat (`beat.shaken`, which keeps a bird from being named) is carried over from the measurement
-    (`saved["shake"][rule]`, `with_shake`) to a beat the replay finds at the same frequency, and is otherwise not read."""
+    (`saved["shake"][rule]`, `with_shake`) to a beat the replay finds at the same frequency, and is otherwise not read.
+    Whether the held frames are a cadence is judged again from the saved word (`pictures_again`)."""
     S = copy.deepcopy(saved)
     ns = list(range(S["ns"][0], S["ns"][1] + 1))
     raw = {k: list(v) for k, v in S["raw"].items()}
     fields = S["fields"]
+    pictures_again(fields, S["fps"], len(ns))
     fields["spans"] = {k: tuple(v) for k, v in fields["spans"].items()}
     pos = {k: (np.asarray(v[0], float), np.asarray(v[1], float)) for k, v in (S.get("positions") or {}).items()}
     lit = {k: [None if q is None else tuple(q) for q in v] for k, v in (S.get("lit") or {}).items()}

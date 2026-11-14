@@ -5385,6 +5385,100 @@ def test_with_both_axes_the_shake_test_keeps_every_number_it_prints():
           "under 40 usable frames: no power, and the count it prints is a field", txt)
 
 
+# IR_DRONE_059 of the labelled infrared set (Svanström et al. 2021), its 316 pairs of frames as `flicker.pictures` read
+# them (1: the frame repeats the one before): a 20-a-second source on a 30-a-second grid, with 18 frames of extra holds
+# from its 65th frame and two holds misread. And PR44's object, frames 1-301 of its reference case: a bird's own beat
+# (3.06 Hz), its frames repeating about one in two, never quite in step.
+DRONE_059 = ("0100100100100100100100100100100100100100100100100100100100100100101101111100101101100100100100100100"
+             "1001001001001001001001001000001001001001001001001001001001001001001001001001001001001001001001001001"
+             "0010010010010010010010010010010010010010010010010010010000010010010010010010010010010010010010010010"
+             "0100100100100000")
+PR44 = ("0011001010101100101010111001101011010101011101010100100100100101001111001010101101101010110010101001"
+        "1010101001101010101100101010110101101010010110011001011010110110101011001010001100101011010011010010"
+        "1010101011010010100101001010100101010001010110011010101100101010111010110010110011001010101101001100")
+
+
+def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
+    """IDEAS.md Dx6 (2026-11-13): M3's balance is read over the whole word, and a burst of holds inside a cadence spoils
+    every window over it. IR_DRONE_059, a 20-a-second source on a 30-a-second grid, read 0.843 against the line's 0.85:
+    the band kept the grid's 12 Hz, and the holds' own rhythm, 10.00 Hz = fps/3, was named a bird's beat at 15 % of its
+    brightness -- the labelled set's false alarm of record. A word short of the line is now read again in blocks of 60
+    frames, each as M3 reads a word, and is a cadence where more than half of them are. Held here: the drone's own word
+    and drawn ones are a cadence at 20 pictures a second, the band's top 8 Hz; PR44's word (a bird, two blocks of five)
+    and the kinds M3 keeps out (random, runs, the encoder's places in a GOP of five) are not; a point drawn beating at a
+    third of the frame rate on the drone's own word is no longer heard; and what the stage says of frames that are
+    nearly the same outside a cadence no longer says the pictures were held (IDEAS.md N7).
+
+    The name sorts after every other test's but one on purpose (see the shake test above)."""
+    print("\nflicker: a cadence broken by a burst of holds (Dx6), and what is said of frames nearly the same (N7)")
+    from mcdonald import flicker
+    rng = np.random.default_rng(20261114)          # its own generator
+    w = np.array([int(c) for c in DRONE_059])
+    c = flicker.cadence(w, 30.0)
+    bl = c.get("blocks") or {}
+    check(abs(c["balance"] - 0.8426) < 1e-3 and c["balance"] < flicker.BALANCED and c["cadence"] is True and c["holds"] == "cadence"
+          and (bl.get("cadence"), bl.get("of")) == (4, 5) and abs(c["source_rate"] - 20.0) <= 0.3 and c["every"] is None,
+          "IR_DRONE_059's own word: short of the line as a whole (0.843), a cadence in 4 of its 5 blocks, 20 pictures a second",
+          f"{c['holds']}; whole {c['balance']:.3f}; blocks {[round(b, 2) for b in bl.get('balance', [])]}; {c['source_rate']:.2f} a second")
+    p = flicker.pictures(_thumbs(w, rng), 30.0)
+    said = flicker.said_pictures(p)
+    check(p["cadence"] is True and abs(p["rate"] - 20.0) <= 0.3 and abs(p["top_hz"] - 8.0) <= 0.15 and len(p["held_k"]) == int(w.sum())
+          and "in a cadence over most of the track: in 4 of its 5 stretches" in said and "only up to 8." in said,
+          "so the band's top is 8 Hz, under the holds' own 10 Hz, and the stage says where the cadence holds", said)
+    blocks = flicker.cadence_blocks(w)
+    check([(b["first"], b["last"]) for b in blocks] == [(1, 63), (64, 126), (127, 190), (191, 253), (254, 316)]
+          and [b["cadence"] for b in blocks] == [True, False, True, True, True] and blocks[1]["slope"] is None
+          and flicker.cadence_blocks(w[:59]) == [] and "blocks" not in flicker.cadence(w[:170], 30.0),
+          "the blocks: as many of 60 frames or a little more as the word holds, every frame in one; the burst's block alone "
+          "is no cadence; under three blocks a word is read whole, as before",
+          str([(b["first"], b["last"], round(b["balance"], 2)) for b in blocks]))
+    # drawn: one frame in three held, at a random phase, with a burst of extra holds and two holds misread
+    kept = []
+    for _ in range(40):
+        v = np.diff(np.floor(np.arange(301) / 3 + rng.random())).astype(int)
+        a = int(rng.integers(20, 250))
+        v[a:a + 20] = 1
+        v[rng.choice(np.flatnonzero(v), 2, replace=False)] = 0
+        got = flicker.cadence(v, 30.0)
+        whole = got["balance"] >= flicker.BALANCED and got["balance"] > got["balance_random"][1]
+        kept.append((whole, got["cadence"], got["source_rate"]))
+    check(sum(k[0] for k in kept) <= 4 and all(k[1] for k in kept) and all(abs(k[2] - 20.0) <= 0.5 for k in kept),
+          "40 drawn words, one frame in three held, each with a burst of 20 held frames and two holds misread: few are a "
+          "cadence as a whole, every one is in most of its blocks, at 20 pictures a second",
+          f"{sum(k[0] for k in kept)} of 40 as a whole, {sum(k[1] for k in kept)} now; {min(k[2] for k in kept):.2f}-{max(k[2] for k in kept):.2f} a second")
+    # what must stay out
+    c44 = flicker.cadence(np.array([int(ch) for ch in PR44]), 30.0)
+    check(c44["cadence"] is False and c44["holds"] == "uneven" and (c44["blocks"]["cadence"], c44["blocks"]["of"]) == (2, 5),
+          "PR44's word (a bird's reference case): two of its five blocks are a cadence, not most -- it stays as it was",
+          f"{c44['holds']}; whole {c44['balance']:.3f}; blocks {[round(b, 2) for b in c44['blocks']['balance']]}")
+    for kind, say in (("random", "at random"), ("runs", "in runs")):
+        got = [flicker.cadence(_word(kind, 600, rng), 30.0) for _ in range(20)]
+        check(not any(g["cadence"] for g in got) and all(g["holds"] == kind for g in got),
+              f"20 words of 600 frames held {say}: none a cadence, by the whole word or by its blocks",
+              f"blocks that are one: {sum((g.get('blocks') or {}).get('cadence', 0) for g in got)} of "
+              f"{sum((g.get('blocks') or {}).get('of', 0) for g in got)}")
+    table = np.array([0.0, 0.35, 0.42, 0.54, 0.75])    # Galileo flyer 5's holds by place in its GOP of five
+    got = [flicker.cadence((rng.random(900) < np.tile(table, 180)).astype(int), 60.0) for _ in range(20)]
+    check(not any(g["cadence"] for g in got),
+          "20 words of 900 frames held by place in a GOP of five, as the Galileo flyers' encoder holds them: none a cadence",
+          f"blocks that are one: {sum(g['blocks']['cadence'] for g in got)} of {sum(g['blocks']['of'] for g in got)}")
+    # the report-changer, drawn: a point beating 15 % at a third of the frame rate on the drone's own held word
+    clip = _HeldWhere(w, _Beating.fps / 3, 0.15)
+    f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, 317)}}, say=lambda *a: None).fields
+    pic = f["pictures"]
+    check(pic["cadence"] is True and abs(pic["top_hz"] - 8.0) <= 0.2 and f["beats"] is not True,
+          "a point beating 15 % at a third of the frame rate, on a video that holds frames as the drone's does: the top is "
+          "8 Hz and no beat is heard at 10 (the whole word's balance left the top at 12 Hz)",
+          f"{pic['holds']}, top {pic['top_hz']:.2f} Hz; {str(f.get('finding'))[:110]}")
+    # N7: frames nearly the same, outside a cadence, are not said to be held pictures
+    for g in got[:1] + [c44]:
+        line = flicker.said_pictures(dict(g, held=0.5, top_hz=12.0))
+        check("not in a cadence" in line and "repeat the one before" not in line and "holds pictures" not in line
+              and "missing samples" not in line and "compression that copies a still scene" in line,
+              "outside a cadence the stage says the frames are nearly the same, and the two things that make them so; it "
+              "does not say the pictures were held", line)
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for

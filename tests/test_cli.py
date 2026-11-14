@@ -77,6 +77,18 @@ def as_json(stdout):
         return None
 
 
+def said_instead(what, rc, out, err, most=4000):
+    """A command asked for --json printed none: its exit code, its stdout and the end of its stderr, whole, so that the
+    log of a run that failed once in six (`mark --set ... --link` on marks across the object and its decoy, 2026-11-07,
+    which then printed only "None") says what the command did do. A signal that killed it is a negative exit code."""
+    print(f"    {what}: no JSON on stdout. Exit code {rc}" + (f" (killed by signal {-rc})" if isinstance(rc, int) and rc < 0 else ""))
+    print(f"    stdout ({len(out)} characters): {out[-most:]!r}")
+    print(f"    stderr ({len(err)} characters), its end:")
+    for line in err[-most:].splitlines():
+        print(f"      | {line}")
+    sys.stdout.flush()
+
+
 def planted_video(td, clip=None, name="planted"):
     """PlantedClip as a video file: its frames, encoded losslessly (FFV1), so that what
     ffmpeg hands back is what was planted. (Or another drawn clip, under another name.)"""
@@ -260,9 +272,11 @@ def drive_marking(clip, video, td, found):
     rc, out, err = mcdonald("mark", video, "--no-window", "--link", "--json", "--n0", 1, "--n1", 24, "--out", Path(td) / "case2",
                             "--workdir", work, "--set", sets[0], "--set", f"object@{b}={clip.DECOY[0]},{clip.DECOY[1]}")
     d2 = as_json(out)
+    if d2 is None:
+        said_instead("mark --set (one mark on the object, one on the decoy) --link --json", rc, out, err)
     L2 = ((d2 or {}).get("results", {}).get("link") or {}).get("object", {})
     check(d2 is not None and (L2.get("concerns") or d2["exit"] == 5), "marks that are not on one thing give a link with concerns, or none at all",
-          "; ".join(L2.get("concerns", []))[:110] or str((d2 or {}).get("error")))
+          "; ".join(L2.get("concerns", []))[:110] or (f"no JSON on stdout: exit {rc}" if d2 is None else str(d2.get("error"))))
     check(d2 is not None and any("no --why" in n for n in d2["notes"]), "and marks set without --why are told that the record has no reason in it")
     return case
 
@@ -628,6 +642,25 @@ def drive_the_other_commands(video, td, case, ran):
 
 
 from mcdonald.stages import SHEET_NEEDED, SHEET_PROVISIONAL as SHEET  # noqa: E402   the one line --i-looked takes off the top
+
+
+def test_a_command_that_printed_no_json_is_shown_whole():
+    """Where a command asked for --json gives none, the check that wanted it says what the command did say
+    (`said_instead`): its exit code (a signal's, by name), its stdout and the end of its stderr. Until 2026-11-13 the
+    check on marks across the object and its decoy printed "None", and a failure seen once in six runs on a loaded
+    machine left nothing to find its cause by."""
+    print("\ncli: a command that printed no JSON is shown whole")
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        said_instead("mark --link --json", -9, "", "linking the object from 2 marks\nBrokenProcessPool: a worker died\n")
+        said_instead("mark --link --json", 1, "half a line", "Traceback (most recent call last):\nValueError: x\n")
+    said = buf.getvalue()
+    check("mark --link --json: no JSON on stdout. Exit code -9 (killed by signal 9)" in said
+          and "stdout (0 characters): ''" in said and "      | BrokenProcessPool: a worker died" in said
+          and "Exit code 1\n" in said and "stdout (11 characters): 'half a line'" in said and "      | ValueError: x" in said,
+          "its exit code (a signal's, said so), its stdout and its stderr's end, line by line", said.splitlines()[0].strip())
 
 
 def test_the_commands_print_utf8_into_a_pipe():

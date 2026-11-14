@@ -398,6 +398,17 @@ BALANCE_P = 0.01     # its least: what a short word reaches by chance. It does i
                      # line it stops 92 % at 60 frames, of those held in runs 32 %, by GOP place 19 %, and from 180 frames next to none
                      # (at a share of 0.1 and 60 frames, 2.1 % of random words pass the line alone, none with this)
 CADENCE_Q = 60       # frames: the longest period a cadence is named by ("p of every q frames repeat", the slope's continued fraction)
+# A cadence broken by a burst of holds (IDEAS.md Dx6; 2026-11-13). The balance is read over the whole word, and a burst
+# inside a cadence -- a stall, a stretch the encoder copies, holds misread -- spoils every window over it. IR_DRONE_059 of
+# the labelled set is a 20-a-second source on a 30-a-second grid, 010010... through 316 frames but for 18 frames of extra
+# holds and two holds misread: it read 0.843 against the line's 0.85, kept the grid's band, and its holds' own rhythm,
+# 10.00 Hz = fps/3 at 15 % of its brightness, was named a bird's beat. A word short of the line is read again in blocks
+# (`cadence_blocks`), each as M3 reads a word, and is a cadence where most of them are.
+CADENCE_BLOCK = MIN_FRAMES   # frames a block: the shortest stretch a beat is heard on, and the shortest the line was set on
+CADENCE_BLOCKS = 3   # blocks a word needs before it is read so (180 frames): with fewer, "most" is one block or both
+#                      More than half, not the least count chance allows: the band is lowered for the whole track, so most
+#                      of the track has to be on the slower clock. A judgement call in what it asks; its false alarms are
+#                      measured (method section 35: words with no slower clock, M3's families) and stated there.
 PLACE_MIN = 20       # frames: a place in the GOP (frames since the last I frame) is read only where the stretch has this many
 PLACES_SAID = 16     # places kept in the fields, the I frame's first
 ENCODER_I = 0.05     # a balanced word is the encoder's where under this share of its I frames are held -- an encoder skips
@@ -2119,11 +2130,38 @@ def places(w, types, a):
                 encoder=bool(share[0] < ENCODER_I and misses_places < misses_cadence))
 
 
+def cadence_blocks(w):
+    """The held word cut into blocks of CADENCE_BLOCK frames or a little more -- as many whole blocks as it holds, every
+    frame in one -- each read as `cadence` reads a word: [dict(first, last, held, balance, cadence, slope)], first and
+    last the block's places in the word from 1. A block is a cadence where its least balance is BALANCED or more and
+    above all but BALANCE_P of the random words of its share and length, with HELD_MIN of its frames held; `slope` is
+    its own then (`slope`), else None. [] for a word shorter than one block."""
+    w = np.asarray(w, int)
+    m = len(w) // CADENCE_BLOCK
+    if m < 1:
+        return []
+    edges = np.linspace(0, len(w), m + 1).round().astype(int)
+    out = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        v = w[lo:hi]
+        bal, ok = least_balance(v), False
+        if bal is not None and bal >= BALANCED and v.mean() >= HELD_MIN:
+            rnd = random_balance(len(v), float(v.mean()))
+            ok = rnd is not None and bal > rnd[1]
+        out.append(dict(first=int(lo) + 1, last=int(hi), held=float(v.mean()), balance=bal, cadence=bool(ok),
+                        slope=float(slope(v)[0]) if ok else None))
+    return out
+
+
 def cadence(w, fps, types=None):
     """Is a held word a cadence -- a slower source on the frame grid -- or are its holds missing samples (M3, the pure-
     mathematics survey's sections 2.1-2.2)? First its balance: the least share, over the windows of BALANCE_L frames,
     holding within one frame of the word's share of their length (`least_balance`), against random words of its share
-    and length (`random_balance`): a cadence is balanced, BALANCED or more and above all but BALANCE_P of them. Then,
+    and length (`random_balance`): a cadence is balanced, BALANCED or more and above all but BALANCE_P of them. A word
+    short of that with CADENCE_BLOCKS blocks or more is read again block by block (`cadence_blocks`; 2026-11-13): a
+    cadence broken by a burst of holds, or by frames misread, is one in most of its blocks, and where more than half of
+    them are a cadence the word is, its slope the median of theirs (`blocks`: how many of how many, and each block's
+    least balance; `source_rate` from that slope). Then,
     for a balanced word with `types` (each frame's picture type, or a callable reading them -- read only here), its GOP
     (`places`): a word the encoder's places foretell better, with its I frames fresh, is the encoder's. {holds, cadence,
     balance, balance_random, slope, strip, source_rate, every, places}: `holds` is "cadence", "encoder", "runs" (under
@@ -2146,6 +2184,14 @@ def cadence(w, fps, types=None):
         holds = "cadence"
     else:
         holds = "runs" if b < rnd[0] else "random" if b <= rnd[1] else "uneven"
+        blocks = cadence_blocks(w)                       # a cadence broken by a burst: most of its blocks are one
+        if len(blocks) >= CADENCE_BLOCKS:
+            good = [x["slope"] for x in blocks if x["cadence"]]
+            out["blocks"] = dict(of=len(blocks), cadence=len(good), balance=[x["balance"] for x in blocks],
+                                 slope=float(np.median(good)) if good else None)
+            if 2 * len(good) > len(blocks):
+                holds, a = "cadence", float(np.median(good))
+                out["source_rate"] = float(fps * (1 - a))    # the blocks' own: the whole word's slope has the burst in it
     if holds == "cadence" and types is not None:
         try:
             got = types() if callable(types) else types
@@ -2163,15 +2209,30 @@ HOLDS_SAID = {"runs": "in runs", "random": "at random", "uneven": "more evenly t
 
 
 def said_pictures(pic):
-    """The stage's line for a video that holds pictures (`pictures`): in a cadence, the pictures a second and the band's
-    top they set; otherwise how they fall, and that the band's top is the frame rate's."""
+    """The stage's line for a video whose frames repeat (`pictures`): in a cadence, the pictures a second and the band's
+    top they set -- over most of the track, where a burst of holds breaks it (`cadence_blocks`); otherwise how they
+    fall, and that the band's top is the frame rate's.
+
+    Outside a cadence it does not say the pictures were held (IDEAS.md N7, 2026-11-13). `pictures` compares whole
+    frames, and an encoder that copies a still sky makes most of a frame the same as the one before while the object's
+    own picture is new on every frame: 70 % of a Galileo Dalek clip's frames read so, where the object steps 1.4 px a
+    frame and never stands still. Until then the line said "the video holds pictures in runs (70% of frames repeat the
+    one before) ...: they are missing samples", which is true of a stalled picture and false of that clip. It says
+    what was measured, and the two things that make it."""
     if pic.get("cadence"):
         pq = pic.get("every")
         per = f", {pq[0]} of every {pq[1]}" if pq else ""
+        bl = pic.get("blocks") or {}
+        if bl.get("cadence"):                             # a cadence by most of its blocks: broken in the rest
+            return (f"the video holds pictures in a cadence over most of the track: in {bl['cadence']} of its {bl['of']} "
+                    f"stretches of about {CADENCE_BLOCK} frames, and broken in the rest. {pic['held']:.0%} of frames repeat the "
+                    f"one before. It carries {pic['rate']:.1f} pictures a second, so a beat is heard only up to "
+                    f"{pic['top_hz']:.1f} Hz")
         return (f"the video holds pictures in a cadence ({pic['held']:.0%} of frames repeat the one before{per}), so it "
                 f"carries {pic['rate']:.1f} pictures a second, and a beat is heard only up to {pic['top_hz']:.1f} Hz")
-    return (f"the video holds pictures {HOLDS_SAID.get(pic.get('holds'), 'unevenly')} ({pic['held']:.0%} of frames repeat "
-            f"the one before), not in a cadence: they are missing samples, not a slower clock, and a beat is heard up to "
+    return (f"{pic['held']:.0%} of frames are nearly the same as the one before, {HOLDS_SAID.get(pic.get('holds'), 'unevenly')}, "
+            "not in a cadence. A held picture does that. So does compression that copies a still scene from frame to frame, "
+            "while the object's own picture is new. Either way the video's clock is its frame rate, and a beat is heard up to "
             f"{pic['top_hz']:.1f} Hz")
 
 
