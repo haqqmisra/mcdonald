@@ -651,6 +651,42 @@ def test_pr144_window():
           "a single blended rate would be the regression this test exists to catch")
 
 
+def test_pr058_a_sea_streaked_along_its_motion_and_a_magenta_pointer():
+    """PR058 (IDEAS.md GL4 and GL5, 2026-11-13; docs/method.md sections 1 and 5), ten seconds of the stretch they were found
+    on: a sea streaked along its own motion crossing the picture at about 20 px a frame behind an object the sensor
+    follows, and a magenta north pointer over a reticle that shows two to four of its four ticks. `layers` called half
+    the pairs "held still even over a second" there and the report said the picture held still; the pairs whose
+    templates sit along the sea's own shift without agreeing are now not read, not held. `symbology` read no frame, by
+    colour or by hue, about a boresight 54 px off; it reads the pointer both ways about the reticle's own crossing."""
+    print("\nPR058, frames 11100-11400 -- a sea streaked along its own motion, and a magenta pointer")
+    video, why = have_clip("PR058")
+    if not video:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR058")
+        return
+    window = ["--n0", "11100", "--n1", "11400"]
+    with tempfile.TemporaryDirectory() as td:
+        lay = json.loads(run(["layers", str(video)] + window + ["--no-scene", "--out", td, "--fresh", "--json"], td))
+        north = {m: json.loads(run(["symbology", str(video)] + window + ["--method", m, "--out", str(Path(td) / m), "--json"], td))["results"]
+                 for m in ("auto", "hue")}
+    f = lay["results"]
+    hs, rate = f["held_still"], (f["px_per_s"]["all"] or {}).get("median")
+    check(hs.get("not_read_share", 0) > 0.2 and hs["still_again_share"] < 0.2 and not any("held still" in w for _, w in lay["no_power"]),
+          "PR058: the pairs whose templates did not agree are not read, and the scene is not called held still",
+          f"not read {hs.get('not_read_share', 0):.0%}, still over a second {hs['still_again_share']:.0%}")
+    check(rate is not None and 540 <= rate <= 700, "PR058: the sea crosses the picture at about 600 px/s", f"{rate}")
+    for m, F in north.items():
+        rad, rot = F.get("radius") or {}, (F.get("rotation") or [{}])[0]
+        check(math.hypot(F["boresight"]["x"] - 640.5, F["boresight"]["y"] - 359.5) <= 2.0 and F["frames_solved"] >= 80
+              and abs(rad.get("mean_px", 0) - 195.2) <= 1.5 and F["radius_is_fixed"] and 0.1 <= rot.get("dtheta_dt", 0) <= 0.3,
+              f"PR058, symbology by {m}: the boresight at the reticle's crossing, the pointer on most frames at 195 px, turning about 0.2 deg/s",
+              f"{F['method']}: ({F['boresight']['x']:.1f}, {F['boresight']['y']:.1f}), {F['frames_solved']} of {F['frames_tried']} frames, "
+              f"radius {rad.get('mean_px', float('nan')):.2f} +- {rad.get('sd_px', float('nan')):.2f} px, {rot.get('dtheta_dt', float('nan')):+.3f} deg/s")
+    c = north["hue"].get("pointer_colour") or {}
+    check(north["auto"]["method"] == "chroma" and c.get("hue_deg") is not None and abs((c["hue_deg"] - 305 + 180) % 360 - 180) <= 20,
+          "PR058: by itself the stage reads it by chroma, and by hue it finds the pointer drawn in magenta", f"hue {c.get('hue_deg')}")
+
+
 def test_pr43_speed_band():
     """PR43's streak (the Technical Note: a rate rising from about 7 to 33 px/frame over frames 50-75), on the track
     its reference case file holds: `fit_v_px` refuses it as not uniform; the speed band (docs/method.md section 32)
