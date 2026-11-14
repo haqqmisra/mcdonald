@@ -400,6 +400,42 @@ def test_the_zncc_window_variance_is_summed_in_float64():
     g = vf.good(f)
     check(len(g) >= 4 and np.allclose(g[:, 3:5], (7, -3), atol=0.05),
           "and a drawn shift is found to 0.05 px, as before", f"{len(g)} templates, median ({np.median(g[:, 3]):+.3f}, {np.median(g[:, 4]):+.3f})")
+    # 2026-11-14: every placement's normalisation and mask count are read from the tables once a frame
+    # (`forensics.placed`) and each template's region takes its part, where each template read its own region's box
+    # sums (a quarter of `layers` on a CPU). The same four table entries in the same order: the same fields to the
+    # bit, held here against the way it was, with masks inside the frame and at its edge, and a reach past the frame.
+    def per_template(ga, gb, bad_a, bad_b, tpl=128, stride=96, reach=60, zs=(4, -1)):
+        ha, hb = vf.bandpass(ga), vf.bandpass(gb)
+        H, W = ga.shape
+        S1, S2, SB = vf.integral(hb), vf.integral(hb.astype(np.float64) ** 2), vf.integral(bad_b)
+        out = [[] for _ in zs]
+        for y0 in vf.template_rows(H, tpl, stride):
+            for x0 in range(16, W - tpl - 16, stride):
+                if bad_a[y0:y0 + tpl, x0:x0 + tpl].any():
+                    continue
+                ys, ye, xs, xe = max(0, y0 - reach), min(H, y0 + tpl + reach), max(0, x0 - reach), min(W, x0 + tpl + reach)
+                s1, s2 = vf.box_of(S1, ys, ye, xs, xe, tpl, tpl), vf.box_of(S2, ys, ye, xs, xe, tpl, tpl)
+                c = vf.zncc(ha[y0:y0 + tpl, x0:x0 + tpl], hb[ys:ye, xs:xe], norm=np.sqrt(np.maximum(s2 - s1 * s1 / (tpl * tpl), 1e-6)))
+                c = np.where(vf.box_of(SB, ys, ye, xs, xe, tpl, tpl) > 0, -1.0, c)
+                mean = float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())
+                for z, rows in zip(zs, out):
+                    q = vf._peak(c, y0 - ys, x0 - xs, z, tpl)
+                    if q is not None:
+                        rows.append((7, x0 + tpl / 2, y0 + tpl / 2) + q[:6] + (mean,) + q[6:])
+        return [np.array(r, dtype=np.float64).reshape(-1, len(vf.SHIFT_COLS)) for r in out]
+    moved_ = roll(base, 7, -3)
+    bad_a, bad_b = bad.copy(), bad.copy()
+    bad_a[150:190, 300:420] = True                         # a block over the picture
+    bad_b[150:190, 300:420] = True
+    bad_b[:6], bad_b[:, -6:] = True, True                  # and the frame's edge in frame b
+    same, rows = True, 0
+    for kw in (dict(reach=60), dict(reach=900, stride=144), dict(reach=40, tpl=64, stride=48)):
+        new = vf.shift_field(base, moved_, bad_a, bad_b, a=7, zeros=(4, -1), **kw)
+        old = per_template(base, moved_, bad_a, bad_b, zs=(4, -1), **kw)
+        rows += sum(len(f) for f in old)
+        same = same and all(np.array_equal(x, y, equal_nan=True) for x, y in zip(new, old))
+    check(same and rows > 40, "each placement's normalisation and mask read once a frame: the fields the same to the bit as "
+                              "when each template read its own region's", f"{rows} rows over three searches")
 
 
 def _breathing_clip(td, v, frames=70, h=480, w=640):

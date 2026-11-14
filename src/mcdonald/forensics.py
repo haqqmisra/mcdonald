@@ -329,6 +329,14 @@ def integral(a):
     return np.cumsum(np.cumsum(np.pad(np.asarray(a, dtype=np.float64), ((1, 0), (1, 0))), 0), 1)
 
 
+def placed(S1, S2, SB, H, W, tpl):
+    """(norm, masked) for every tpl x tpl placement of an H x W frame, from its summed-area tables (`integral`) of the
+    frame, its square and its mask: each placement's own factor of the ZNCC's denominator, sqrt(N var) of the frame
+    under it, and whether any masked pixel lies under it. [i, j] is the placement whose corner is at row i, column j."""
+    s1 = box_of(S1, 0, H, 0, W, tpl, tpl)
+    return np.sqrt(np.maximum(box_of(S2, 0, H, 0, W, tpl, tpl) - s1 * s1 / (tpl * tpl), 1e-6)), box_of(SB, 0, H, 0, W, tpl, tpl) > 0
+
+
 def box_of(c, y0, y1, x0, x1, h, w):
     """`boxsum(a[y0:y1, x0:x1], h, w)` from `integral(a)`."""
     return (c[y0 + h:y1 + 1, x0 + w:x1 + 1] - c[y0:y1 + 1 - h, x0 + w:x1 + 1]
@@ -601,6 +609,12 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
     # frame b, once, in float64 -- not two box sums a template window in float32 (2026-09-26, §4.5:
     # the variance of a flat-sky window came out as rounding noise, and matched anything)
     S1, S2, SB = integral(hb), integral(hb.astype(np.float64) ** 2), integral(bad_b)
+    # ... and from them every placement's normalisation and mask count over the whole frame, once (`placed`), which
+    # each template's search region then takes its part of: until 2026-11-14 each template read its own region's
+    # box sums, and the regions overlap forty times over (a quarter of `layers`' time on a CPU, PR26 object 2). A
+    # placement's value is the same four table entries subtracted in the same order either way, so the same bits.
+    norm_all, masked_all = placed(S1, S2, SB, H, W, tpl)
+    del S1, S2, SB
     out = [[] for _ in zs]
     for y0 in template_rows(H, tpl, stride) if only is None else only:
         for x0 in range(16, W - tpl - 16, stride):
@@ -608,9 +622,9 @@ def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4
                 continue
             ys, ye = max(0, y0 - reach), min(H, y0 + tpl + reach)
             xs, xe = max(0, x0 - reach), min(W, x0 + tpl + reach)
-            s1, s2 = box_of(S1, ys, ye, xs, xe, tpl, tpl), box_of(S2, ys, ye, xs, xe, tpl, tpl)
-            c = zncc(ha[y0:y0 + tpl, x0:x0 + tpl], hb[ys:ye, xs:xe], norm=np.sqrt(np.maximum(s2 - s1 * s1 / (tpl * tpl), 1e-6)))
-            c = np.where(box_of(SB, ys, ye, xs, xe, tpl, tpl) > 0, -1.0, c)
+            here = (slice(ys, ye - tpl + 1), slice(xs, xe - tpl + 1))       # the region's placements, by their corners
+            c = zncc(ha[y0:y0 + tpl, x0:x0 + tpl], hb[ys:ye, xs:xe], norm=norm_all[here])
+            c = np.where(masked_all[here], -1.0, c)
             head = (a, x0 + tpl / 2, y0 + tpl / 2)
             mean = float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())
             for z, rows in zip(zs, out):
