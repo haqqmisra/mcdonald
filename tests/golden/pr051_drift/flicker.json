@@ -1,13 +1,12 @@
 {
  "command": "flicker",
- "mcdonald": "0.5.1",
+ "mcdonald": "0.5.3",
  "inputs": {
   "video": "/models/data/mcdonald/pr051/yt_nKtJslcHlCQ_1080p60_h264.mp4",
-  "track": "/hugespace/models/mcdonald/tests/golden/pr051_release_track.csv",
-  "workdir": "/scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/work",
+  "track": "/scratch/mcdonald/s23-2026-11-13/drift/../snaps/drift-all-b/tests/golden/pr051_release_track.csv",
   "n0": 4201,
   "n1": 4437,
-  "out": "/scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/out"
+  "out": "/scratch/mcdonald/s23-2026-11-13/drift/pr051/flicker/out"
  },
  "clip": {
   "video": "/models/data/mcdonald/pr051/yt_nKtJslcHlCQ_1080p60_h264.mp4",
@@ -48,7 +47,7 @@
   }
  },
  "files": [
-  "/scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/out/yt_nktjslchlcq_1080p60_h264_flicker.csv"
+  "/scratch/mcdonald/s23-2026-11-13/drift/pr051/flicker/out/yt_nktjslchlcq_1080p60_h264_flicker.csv"
  ],
  "results": {
   "frames": 237,
@@ -258,7 +257,7 @@
     "at_the_codec_line_hz": null,
     "edge": true,
     "over_drift": 4.422133329059358,
-    "drift_needed": 6.858863231116422,
+    "drift_needed": 6.858863231116427,
     "above_top": false
    },
    "background +0,+25": {
@@ -339,7 +338,7 @@
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
      "over_drift": 0.842925024443896,
-     "drift_needed": 6.368082759881423,
+     "drift_needed": 6.368082759881426,
      "edge": false,
      "fundamental_hz": 2.622377622377622,
      "fundamental_err": 0.4217460920881196,
@@ -353,15 +352,15 @@
      "last": 4335,
      "hz": 2.278971028971029,
      "hz_err": 0.4072597102522864,
-     "amplitude": 0.02635705826293648,
-     "stands": 48.877136657224874,
+     "amplitude": 0.026357058262936484,
+     "stands": 48.877136657224895,
      "resolution_hz": 0.4995004995004995,
      "floor": 0.04750310252277422,
      "shared": true,
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
-     "over_drift": 0.9154327850857862,
-     "drift_needed": 6.368082759881418,
+     "over_drift": 0.9154327850857865,
+     "drift_needed": 6.36808275988142,
      "edge": true,
      "fundamental_hz": 2.278971028971029,
      "fundamental_err": 0.4072597102522864,
@@ -382,8 +381,8 @@
      "shared": true,
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
-     "over_drift": 3.4782907309627817,
-     "drift_needed": 6.36808275988142,
+     "over_drift": 3.4782907309627813,
+     "drift_needed": 6.368082759881421,
      "edge": true,
      "fundamental_hz": 1.5297202797202796,
      "fundamental_err": 0.3564271644565707,
@@ -405,7 +404,7 @@
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
      "over_drift": 5.559883158177024,
-     "drift_needed": 6.368082759881424,
+     "drift_needed": 6.368082759881421,
      "edge": false,
      "fundamental_hz": 1.717032967032967,
      "fundamental_err": 0.2746010810463474,
@@ -448,8 +447,8 @@
      "shared": false,
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
-     "over_drift": 5.2578331324135466,
-     "drift_needed": 6.3680827598814185,
+     "over_drift": 5.257833132413547,
+     "drift_needed": 6.3680827598814265,
      "edge": false,
      "fundamental_hz": 1.5609390609390608,
      "fundamental_err": 0.3765701671491957,
@@ -463,15 +462,15 @@
      "last": 4410,
      "hz": 1.9667832167832167,
      "hz_err": 0.2546227987199387,
-     "amplitude": 0.06889829993605474,
-     "stands": 272.15005829206217,
+     "amplitude": 0.06889829993605477,
+     "stands": 272.1500582920623,
      "resolution_hz": 0.4995004995004995,
      "floor": 0.06409855351055224,
      "shared": true,
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
-     "over_drift": 3.318012584344968,
-     "drift_needed": 6.368082759881417,
+     "over_drift": 3.3180125843449693,
+     "drift_needed": 6.36808275988142,
      "edge": true,
      "fundamental_hz": 1.9667832167832167,
      "fundamental_err": 0.2546227987199387,
@@ -493,7 +492,7 @@
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
      "over_drift": 2.1100820601445736,
-     "drift_needed": 6.368082759881422,
+     "drift_needed": 6.368082759881421,
      "edge": true,
      "fundamental_hz": 2.0916583416583414,
      "fundamental_err": 0.22861224871897948,
@@ -515,7 +514,7 @@
      "at_the_codec_line_hz": null,
      "codec_by_resolution_hz": null,
      "over_drift": 1.562694972818372,
-     "drift_needed": 6.368082759881422,
+     "drift_needed": 6.36808275988142,
      "edge": true,
      "fundamental_hz": 2.278971028971029,
      "fundamental_err": 0.30792192680371344,
@@ -543,6 +542,8 @@
     "windows_passing_by_resolution": 0,
     "whole_passes": false,
     "windows_apart": 0,
+    "windows_independent": 1,
+    "windows_chance_p": null,
     "comes_back": false,
     "lookalike": [],
     "double_lookalike": [],
@@ -697,9 +698,9 @@
     },
     "common_mode": {
      "components": 2,
-     "r2": 0.4781273574224586,
+     "r2": 0.4781273574224587,
      "r2_scene": 0.42080200242608923,
-     "share_of_controls": 0.6346613876929893,
+     "share_of_controls": 0.6346613876929894,
      "frames": [
       4201,
       4437
@@ -707,8 +708,8 @@
      "before_hz": 1.9600652512044914,
      "before_amplitude": 0.05735266096518096,
      "after_hz": 2.1339420073597286,
-     "after_amplitude": 0.04347078784955809,
-     "after_stands": 243.23566704700974,
+     "after_amplitude": 0.04347078784955807,
+     "after_stands": 243.23566704700906,
      "mode_hz": 2.623958320160851,
      "mode_at_the_codec_line_hz": null
     },
@@ -722,9 +723,9 @@
   "continuum": {
    "object": {
     "hz": 1.9600652512044914,
-    "ratio": 1.3639616789430289,
-    "needed95": 4.233342932493118,
-    "needed99": 5.76484829287114,
+    "ratio": 1.363961678943029,
+    "needed95": 4.233342932493117,
+    "needed99": 5.764848292871171,
     "p": 0.713,
     "runs": 2000,
     "frames": [
@@ -741,23 +742,23 @@
     ],
     "line": {
      "hz": 2.149748985192023,
-     "F": 1.9960175641042437,
-     "p": 0.2165169469566181,
+     "F": 1.9960175641042412,
+     "p": 0.2165169469566184,
      "p_band": 0.999959681364609,
-     "amplitude": 0.037026723042100425,
+     "amplitude": 0.037026723042100404,
      "strongest": {
       "hz": 9.689677411196397,
-      "F": 18.886017188951232,
-      "p": 0.0025755118726137837,
-      "amplitude": 0.006466371393859648
+      "F": 18.886017188951254,
+      "p": 0.002575511872613776,
+      "amplitude": 0.006466371393859646
      },
      "lines": [
       {
        "hz": 9.689677411196397,
-       "F": 18.886017188951232,
-       "p": 0.0025755118726137837,
+       "F": 18.886017188951254,
+       "p": 0.002575511872613776,
        "p_band": 0.10142209349908027,
-       "amplitude": 0.006466371393859648,
+       "amplitude": 0.006466371393859646,
        "at_the_codec_line_hz": null
       }
      ],
@@ -975,10 +976,10 @@
     },
     "coherence": {
      "background +0,+25": {
-      "gamma2": 0.027107177026211262,
+      "gamma2": 0.027107177026211265,
       "level": 0.7845565309968117,
       "above": false,
-      "phase_deg": -95.01479668894149,
+      "phase_deg": -95.01479668894147,
       "phase_err_deg": 132.57468033845277,
       "looks": 4
      },
@@ -987,11 +988,11 @@
       "level": 0.7845565309968117,
       "above": false,
       "phase_deg": -153.30059476039432,
-      "phase_err_deg": 9.777279943094834,
+      "phase_err_deg": 9.777279943094864,
       "looks": 4
      },
      "background +0,-25": {
-      "gamma2": 0.027970997282756982,
+      "gamma2": 0.02797099728275698,
       "level": 0.7845565309968117,
       "above": false,
       "phase_deg": -174.88395725109922,
@@ -1007,7 +1008,7 @@
       "looks": 4
      },
      "scene level": {
-      "gamma2": 0.6364780767787862,
+      "gamma2": 0.6364780767787864,
       "level": 0.7845565309968117,
       "above": false,
       "phase_deg": -176.41452050822576,
@@ -1047,11 +1048,11 @@
      0.1706,
      0.1154
     ],
-    "stat": 1.4200361149407745,
-    "clock_99": 10.196386413714203,
+    "stat": 1.4200361149406195,
+    "clock_99": 10.196386413719198,
     "p": 0.6069651741293532,
     "wanders": false,
-    "wander_share": 0.14920310016578273,
+    "wander_share": 0.1492031001657696,
     "power": true,
     "why": null,
     "frames": [
@@ -1067,7 +1068,7 @@
     "hz": 1.9442582733721971,
     "amplitude": 0.050100489148856446,
     "over_drift": 4.943654170343782,
-    "drift_needed": 6.858863231116419,
+    "drift_needed": 6.858863231116421,
     "windows_passing": 0,
     "windows": 9
    },
@@ -1076,7 +1077,7 @@
     "hz": 2.1339420073597286,
     "amplitude": 0.04003540878394559,
     "over_drift": 4.128613464439147,
-    "drift_needed": 6.858863231116416,
+    "drift_needed": 6.858863231116419,
     "windows_passing": 0,
     "windows": 9
    },
@@ -1084,8 +1085,8 @@
     "passes": false,
     "hz": 3.193009522123446,
     "amplitude": 0.033335015217476,
-    "over_drift": 5.1352543647490965,
-    "drift_needed": 6.547236049201926,
+    "over_drift": 5.135254364749091,
+    "drift_needed": 6.5472360492019295,
     "windows_passing": 0,
     "windows": 9
    },
@@ -1093,8 +1094,8 @@
     "passes": false,
     "hz": 2.54492343099938,
     "amplitude": 0.037005723386496055,
-    "over_drift": 4.193170642428164,
-    "drift_needed": 6.646093321813434,
+    "over_drift": 4.193170642428165,
+    "drift_needed": 6.646093321813438,
     "windows_passing": 0,
     "windows": 9
    }
@@ -1299,7 +1300,7 @@
    "yt_nKtJslcHlCQ_1080p60_h264.mp4: 1920x1080, 59.940 fps, frames 4201-4437",
    "  aperture follows the object: object 74.0 px across in radius -> aperture 88.8 px, ring 92-117 px, re-centred each frame",
    "  the video holds pictures in a cadence (50% of frames repeat the one before, 1 of every 2), so it carries 30.0 pictures a second, and a beat is heard only up to 12.0 Hz",
-   "wrote /scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/out/yt_nktjslchlcq_1080p60_h264_flicker.csv",
+   "wrote /scratch/mcdonald/s23-2026-11-13/drift/pr051/flicker/out/yt_nktjslchlcq_1080p60_h264_flicker.csv",
    "the codec: an I frame every 278, an anchor every 2; no rhythm of its anchors under Nyquist",
    "frames 4201-4437: 237, resolution 0.25 Hz",
    "  object: 1.96 \u00b1 0.26 Hz, 5.7% of its brightness, 327 times the band's median, 4.4 times what its drift makes there (6.9 needed; empty apertures in real frames pass that line 9 % of the time under 4.5 Hz)",
