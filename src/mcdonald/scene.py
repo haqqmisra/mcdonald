@@ -526,7 +526,7 @@ def said(s):
     if s["not_read"]:
         L.append("  not read: " + "; ".join(f"{n}: {w}" for w, n in sorted(s["not_read"].items(), key=lambda kv: -kv[1])))
     L.append(f"  a floor: a coded clip loses motion fainter than about {s['floor_dn_rms']:.0f} DN rms, so unread means none above that, "
-             "not none. Blocks are this stage's own, in <tag>_scene.csv: no other stage takes them.")
+             "not none. Blocks are this stage's own, in <tag>_scene.csv: no other stage takes a rate from them.")
     return L
 
 

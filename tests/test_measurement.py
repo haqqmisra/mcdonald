@@ -464,8 +464,14 @@ def test_a_scene_behind_a_pattern_that_breathes():
         a, b = dict(plain.fields), dict(asked.fields)
         b.pop("scene")
         extra = {k: v for k, v in asked.result.items() if k not in plain.result}
-        check(a == b and plain.no_power == asked.no_power and {k: v for k, v in asked.result.items() if k in plain.result} == plain.result,
-              "every field, line and NO POWER `layers` gave is what it was")
+        check(a == b and {k: v for k, v in asked.result.items() if k in plain.result} == plain.result,
+              "every field and line `layers` gave is what it was")
+        was, now = [w for t, w in plain.no_power if t == "layers"], [w for t, w in asked.no_power if t == "layers"]
+        check(len(asked.no_power) == len(plain.no_power) and len(now) == 1 and "held still" not in now[0] and layers.UNDER_WORDS in now[0]
+              and "1 of 1 blocks" in now[0] and "not measured" in now[0] and "held still on screen" in was[0]
+              and layers.scene_state(asked.fields)["state"] == "under" and layers.scene_state(plain.fields)["state"] == "held",
+              "its NO POWER stands, and no longer calls a scene held still that the block reading read moving (2026-11-13, IDEAS.md GL4)",
+              now[0][:150])
         check(list(extra) == ["the scene under the sensor's pattern"] and "1 of 1" in extra[list(extra)[0]] and "6.0" in extra[list(extra)[0]],
               "and one line beside the NO POWER says the scene was read, at its speed (the maintainer's choice: beside, not in its place)",
               str(extra)[:150])
@@ -542,6 +548,48 @@ def test_the_block_reading_and_its_gate():
     empty = [dict(start=1, vx=None, passed=False, reason="too few frames")]
     check(scene.judged(empty)[0]["passed"] is False and scene.summary(empty)["read"] == 0 and scene.said(scene.summary(empty)),
           "a block with nothing to read is counted and said, not an error")
+
+
+def test_a_pair_whose_templates_do_not_agree_is_not_held_still():
+    """PR058 (2026-11-13, IDEAS.md GL4): a sea streaked along its own motion crosses the picture at 20 px a frame behind an
+    object the sensor follows. Half of `layers`' pairs were "held still even over a second", in runs of two or three
+    between pairs that read 110 px, and the report said the picture behind the object held still. In such a pair
+    nearly every template is matched well 94-115 px along the streaks, but each is sure only across them, they do not
+    agree to the 6 px a consensus asks, and the second pass, over 30 frames, looks for a shift of 600 px inside 245. A
+    pair is held where its templates match at no shift, not where they fail to agree on one: a pair left STILL whose own
+    field, zero allowed, has most of its templates matched well away from zero -- and those sit, in the median, away
+    from zero too -- moved and was not read (`layers.LOST`). A scene truly held, one with nothing in it to match, a
+    still scene of long streaks whose matches scatter about zero, and a pair the second pass read, are as before."""
+    print("\nlayers: a pair whose templates do not agree is not held still")
+    from mcdonald import layers
+    rng = np.random.default_rng(58)
+
+    def field(dx, pk=0.9, a=0):
+        return np.array([[a, 100 + 40 * i, 200, x, -1.0 if abs(x) > 5 else 0.0, pk, pk - 0.02, 0.1, 0.0, 100.0, 400.0, 400.0, 0.0, 12.0]
+                         for i, x in enumerate(dx)])
+    sea = list(rng.uniform(94, 115, 30)) + [48.0, 53.0, 57.0, 128.0, 146.0] + [0.0] * 5          # PR058's 11199: 42 placed, 9 at zero
+    still = list(rng.normal(0, 0.3, 40))                                                         # a scene, or a pattern, at no shift
+    streaks = list(rng.normal(0, 25, 40))                                  # still, and streaked: matched anywhere along the streaks
+    own = {"a sea crossing along its streaks": layers.own_field(field(sea)), "a held scene": layers.own_field(field(still)),
+           "a still scene of long streaks": layers.own_field(field(streaks)), "nothing to match": layers.own_field(field(sea, pk=0.2)),
+           "five templates": layers.own_field(field(sea[:5]))}
+    check(own["a sea crossing along its streaks"][:4] == (40, 40, 35, 5) and abs(own["a sea crossing along its streaks"][4] - 104) < 6
+          and own["a held scene"][:4] == (40, 40, 0, 40) and own["nothing to match"][1:3] == (0, 0) and layers.own_field(np.zeros((0, 14))) == (0, 0, 0, 0, 0.0, 0.0)
+          and own["a still scene of long streaks"][2] <= 20,
+          "a held pair's own field in numbers: templates placed, matched well, those past 5 px on the median shift's side of zero, at zero, "
+          "and the median shift", str({k: tuple(round(x, 1) for x in v) for k, v in own.items()}))
+    rows = lambda how: np.array([(i, how) + v for i, v in enumerate(own.values())], float)
+    names = list(own)
+    lost = layers.lost_pairs(rows(layers.STILL))
+    check({names[i] for i in lost} == {"a sea crossing along its streaks"},
+          "of the pairs left still, the one whose templates sit along the sea's shift moved and was not read; a held scene, a still "
+          "scene of streaks (its matches scatter either side of zero), one with nothing to match and one with too few templates stay held",
+          str(sorted(names[i] for i in lost)))
+    check(not layers.lost_pairs(rows(layers.AGAIN)) and not layers.lost_pairs(rows(layers.UNMOVED)) and not layers.lost_pairs(np.zeros((0, len(layers.OWN_COLS)))),
+          "a pair the second pass read over a second, or one between a repeating picture's catch-ups, keeps its reading")
+    check(layers._how(False, None) == layers.MOVED and layers._how(True, (None, True)) == layers.STILL and layers._how(True, (None, False)) == layers.AGAIN
+          and layers._how(True, (None, True), unmoved=True) == layers.UNMOVED and layers._how(True, None) == layers.MOVED,
+          "and each pair's label is the one its rows carry")
 
 
 def test_held_still_pairs_share_their_second_pass():

@@ -793,11 +793,47 @@ class Case:
         sensor can hold a match at zero). The object's rate against the background is then not measured, whatever
         number the step read of it: what the track gives is its motion in the picture, as the camera held it. IMG_5611
         (2026-11-01): the phone followed the object, which moved 98 px/s against the clouds while the track read 6
-        px/s, and the first line said "the object moved about 0° a second in the image"."""
-        return any("held still on screen" in str(why) for _, why in (self.stages.get("layers") or {}).get("no_power") or [])
+        px/s, and the first line said "the object moved about 0° a second in the image".
+
+        Also true where the step's blocks of frames read the background moving under a pattern fixed on the sensor
+        (`moved_under`, 2026-11-13): the rate against the background is not measured there either, and only the words
+        differ -- the picture did not hold still."""
+        from .layers import UNDER_WORDS
+        return any("held still on screen" in str(why) or UNDER_WORDS in str(why)
+                   for _, why in (self.stages.get("layers") or {}).get("no_power") or [])
+
+    def moved_under(self):
+        """The background's speed in pixels a second where the layers step found no motion pair by pair and its blocks of
+        frames read the background moving under a pattern fixed on the sensor (`layers.scene_state`: "under"), else
+        None. "Held still on screen" is then not what the pixels show (IDEAS.md GL4): on PR41 the step held 98 % of its
+        pairs at no motion while 13 of 13 blocks read the sea crossing the picture at 25-31 pixels a frame. Read from the
+        step's fields, so a case file written before this, with the old no-power beside a block reading, says it too."""
+        from .layers import scene_state
+        st = scene_state((self.stages.get("layers") or {}).get("fields"), (self.clip or {}).get("fps"))
+        return st["px_per_s"] if st and st["state"] == "under" and st.get("px_per_s") else None
+
+    # the first line's sentences after a rate read over a background that moved under the sensor's pattern
+    MOVED_UNDER_SAID = ("The background behind it moved across the picture at about {:.0f} pixels a second. A pattern fixed on the "
+                        "camera's sensor hid that motion from the match between frames, so the object's motion against the "
+                        "background is not measured.")
+
+    def not_against_said(self):
+        """The first line's sentence or two on why the rate is not one against the background: the picture behind held
+        still on screen, or it moved under a pattern fixed on the sensor."""
+        under = self.moved_under()
+        return self.MOVED_UNDER_SAID.format(under) if under else self.HELD_STILL_SAID
 
     def held_still_said(self):
-        """The bottom line's sentences on it, after a rate read over a picture that held still."""
+        """The bottom line's sentences on it, after a rate read over a picture that held still -- or, where the blocks
+        of frames read the background moving under the sensor's pattern, over one that did not."""
+        under = self.moved_under()
+        if under:
+            return [f"The background behind the object moved across the picture at about {under:.0f} pixels a second while it was tracked.",
+                    "That speed was read from whole blocks of 60 frames.",
+                    "A pattern fixed on the camera's sensor held the match between single frames at no motion, so the object's "
+                    "motion against the background is not measured.",
+                    "The speed above is its motion as the camera held it.",
+                    "A camera that follows an object keeps it nearly still in the picture while the background streams past."]
         return ["The picture behind the object held still on screen while it was tracked.",
                 "So this is its motion as the camera held it, not against the background, which is not measured.",
                 "A camera following the object across an empty sky looks the same as a camera held still over a slow scene, "
@@ -1172,7 +1208,7 @@ class Case:
         else:
             S = ["The object crossed the view at about " + _deg(omega) + " a second" + (", as the camera held it." if still else ".")]
             if still:
-                S.append(self.HELD_STILL_SAID)
+                S.append(self.not_against_said())
         no_speed = held or still                    # a speed across the line of sight needs the rate against the world
         if p and how == SPOT_DEFAULT:               # the tracker's default is no measurement: no kind placed by it (IDEAS.md N5)
             S.append(f"Its size in the picture is not measured: the track was followed at a {p:.0f}-pixel spot, "
@@ -1322,7 +1358,7 @@ class Case:
             bits.append(self.at_each_distance())
         elif rate is not None:                       # what is missing is said in the paragraph under it, once
             bits.append(f"The object moved about {rate:.0f} pixels a second {against}."
-                        + (" " + self.HELD_STILL_SAID if against == self.AS_HELD else "")
+                        + (" " + self.not_against_said() if against == self.AS_HELD else "")
                         + " Its real speed and size cannot be found from this video alone.")
         beats = own_beats(ff)
         hypothesis = False
@@ -1647,7 +1683,7 @@ class Case:
         if sc.get("power"):
             S.append(self.BREAK_VERDICT[sc["verdict"]])
         elif sc:
-            S.append(("The picture behind it held still on screen" if "held still on screen" in sc.get("why", "") else
+            S.append(("The picture behind it held still on screen" if "held still on screen" in sc.get("why", "") and not self.moved_under() else
                       "The background's motion was not measured around that moment")
                      + ", so nothing here can say whether that change was the camera's.")
         from .camera import EVENT_NEAR                  # the camera stage's own "at the event": a date sharp to the frame is matched as its steps are
@@ -1802,8 +1838,10 @@ class Case:
                 if self.behind_held_still():
                     L += [f"At a distance of R meters, it would move {w} × R meters a second across the line of sight, "
                           "relative to where the camera pointed.",
-                          "The camera held a still picture, so its motion against the background is not measured, and this is "
-                          "no floor on its speed."]
+                          ("The background moved behind it and could not be followed from frame to frame, so its motion against the "
+                           "background is not measured, and this is no floor on its speed." if self.moved_under() else
+                           "The camera held a still picture, so its motion against the background is not measured, and this is "
+                           "no floor on its speed.")]
                 else:
                     L.append(f"At a distance of R meters, it would move at least {w} × R meters a second across the line "
                              "of sight, as the camera held it.")
@@ -1939,13 +1977,20 @@ class Case:
         hs = st("layers").get("held_still") or {}
         still = hs.get("still_again_share") if hs.get("share_of_pairs") is not None else None
         held = self.behind_held_still() or (still is not None and still > 0.5)
-        camera_still, camera_moved = still is not None and still >= 0.9, still is not None and still <= 0.1
+        # ... unless the step's blocks of frames read the background moving under a pattern fixed on the sensor
+        # (`moved_under`, 2026-11-13): the camera's row then answers "Yes", as it does where the pairs read it moving,
+        # and the row of the object's motion "Can't tell", in the words it has where a track crossed a moving background
+        under = self.moved_under()
+        camera_still, camera_moved = still is not None and still >= 0.9 and not under, still is not None and still <= 0.1
         if still is not None:
             longer = hs.get("again_over_frames") or hs.get("over_frames")
             zooms = [z for z in (st("camera").get("zoom_steps") or []) if z.get("applied", True)]
             zoom = ("; the picture zoomed " + {1: "once", 2: "twice"}.get(len(zooms), f"{len(zooms)} times")) if zooms else ""
             both = "a camera following it over an empty sky and a still camera over a slow scene both give"
-            if held and camera_still:
+            if under:
+                add("camera", "layers", YES, f"the background moved across the picture at about {under:.0f} pixels a second, read from "
+                                             "whole blocks of frames under a pattern fixed on the camera's sensor" + zoom)
+            elif held and camera_still:
                 add("camera", "layers", CANT, f"the picture behind the object held still on screen (in {still:.0%} of the frame pairs, even over "
                                               f"{longer} frames), which {both}, so whether the camera moved is not measured" + zoom)
             elif held:
@@ -1962,7 +2007,7 @@ class Case:
         rate, against = self.rate()
         kf = st("kinematics")
         if rate is not None:
-            if against == "across the picture" and camera_moved:
+            if (against == "across the picture" and camera_moved) or (against == self.AS_HELD and under):
                 add("moves", "kinematics", CANT, f"it moves about {rate:.0f} pixels a second across the picture, but so did the background, "
                                                  "and its rate against the background was not measured")
             else:

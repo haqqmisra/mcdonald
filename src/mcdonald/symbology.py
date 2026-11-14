@@ -24,6 +24,9 @@ Three detection routes, because the overlays differ:
 
     chroma      coloured symbology (PR149 magenta, PR144 orange): segment by
                 saturation, then identify glyphs by shape and position.
+    hue         one glyph in one saturated colour, in a box where one is given:
+                warm (PR144's orange "N") where a warm glyph shows, else the hue
+                the frames' own glyph has (PR058's magenta "N", `glyph_hue`).
     template    monochrome symbology (PR148 white-on-black): NCC of the first
                 frame's glyph *gradient magnitude*, searched independently
                 every frame. Gradient, because the sea brightness behind the
@@ -86,9 +89,42 @@ def chroma_glyphs(rgb, chroma=40, min_area=12, max_side=60):
     return out
 
 
+HUE_WIDTH = 30.0         # deg either side of a glyph's own hue: one named colour's sixth of the circle. PR058's "N" keeps
+#                          nine in ten of its pixels within 9 deg of its hue (the worst of 565 frames: 23), and its hue itself
+#                          moves 298-319 deg from frame to frame, the codec's doing
+
+
+def hue_of(rgb):
+    """Each pixel's hue in degrees, 0-360: red 0, yellow 60, green 120, cyan 180, blue 240, magenta 300 (meaningless on a grey
+    pixel, which a chroma test keeps out)."""
+    r, g, b = (rgb[..., i].astype(np.float64) for i in range(3))
+    return np.degrees(np.arctan2(np.sqrt(3.0) * (g - b), 2.0 * r - g - b)) % 360.0
+
+
+def _hue_mask(sub, chroma, warm, hue):
+    """The pixels of one saturated colour: warm (red over blue by `warm`: PR144's orange) where `hue` is None, else within
+    HUE_WIDTH of that hue."""
+    m = vf.chroma_of(sub) > chroma
+    if hue is None:
+        return m & (sub[..., 0] > sub[..., 2] + warm)
+    return m & (np.abs((hue_of(sub) - hue + 180.0) % 360.0 - 180.0) <= HUE_WIDTH)
+
+
+def _glyph_sized(lab, min_h, max_h, min_w, max_w, min_area):
+    """The labelled components as tall, as wide and as large as a glyph: [(area, slice, label)]."""
+    out = []
+    for i, sl in enumerate(ndimage.find_objects(lab), start=1):
+        h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+        a = int((lab[sl] == i).sum())
+        if min_h <= h <= max_h and min_w <= w <= max_w and a >= min_area:
+            out.append((a, sl, i))
+    return out
+
+
 def hue_glyphs(rgb, box=None, chroma=70, warm=60, min_h=10, max_h=None, min_w=8,
-               max_w=None, min_area=20):
-    """A single warm-coloured glyph (PR144's orange "N") inside a search box.
+               max_w=None, min_area=20, hue=None):
+    """A single glyph in one saturated colour inside a search box: warm (PR144's orange "N") unless `hue` names
+    another, in degrees (`hue_of`; PR058's magenta "N" is at 305: `glyph_hue` finds it).
 
     Returns its bounding-box centre, which for an "N" is a better centre than
     the centroid: the diagonal stroke biases the mean toward one side. At most 30 px
@@ -99,28 +135,91 @@ def hue_glyphs(rgb, box=None, chroma=70, warm=60, min_h=10, max_h=None, min_w=8,
     max_w = max_w or (60 if box else 30)
     y0, y1, x0, x1 = box or (0, rgb.shape[0], 0, rgb.shape[1])
     sub = rgb[y0:y1, x0:x1].astype(int)
-    m = (vf.chroma_of(sub) > chroma) & (sub[..., 0] > sub[..., 2] + warm)
-    lab, _ = ndimage.label(ndimage.binary_closing(m, iterations=1))
+    lab, _ = ndimage.label(ndimage.binary_closing(_hue_mask(sub, chroma, warm, hue), iterations=1))
     best = None
-    for i, sl in enumerate(ndimage.find_objects(lab), start=1):
-        h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
-        a = int((lab[sl] == i).sum())
-        if min_h <= h <= max_h and min_w <= w <= max_w and a >= min_area \
-                and (best is None or a > best[2]):
+    for a, sl, _ in _glyph_sized(lab, min_h, max_h, min_w, max_w, min_area):
+        if best is None or a > best[2]:
             best = ((sl[1].start + sl[1].stop - 1) / 2 + x0,
                     (sl[0].start + sl[0].stop - 1) / 2 + y0, a)
     return None if best is None else (best[0], best[1])
 
 
+HUE_FRAMES = 0.5         # of the frames looked at, the share that must show a glyph of the one hue for it to be the pointer's
+
+
+def glyph_hue(frames_rgb, box=None, chroma=70, min_h=10, max_h=None, min_w=8, max_w=None, min_area=20):
+    """The hue a pointer is drawn in, where it is not warm: over a few frames, the largest glyph-sized patch of saturated
+    colour in each (any hue), and the hue most of them share. (hue in degrees, frames that show it, frames looked at), or
+    (None, 0, n) where under HUE_FRAMES of the frames show one hue within HUE_WIDTH.
+
+    `hue_glyphs` asked for red over blue by 60 levels, PR144's orange. A magenta glyph has as much blue as red: PR058's
+    "N" (2026-11-13, IDEAS.md GL5) is drawn at R 182, G 108, B 169, and of the 92-120 of its pixels saturated enough, none
+    passed, on any frame. The colour is the display's choice, so it is read off the frames."""
+    max_h = max_h or (60 if box else 30)
+    max_w = max_w or (60 if box else 30)
+    found = []
+    for rgb in frames_rgb:
+        y0, y1, x0, x1 = box or (0, rgb.shape[0], 0, rgb.shape[1])
+        sub = rgb[y0:y1, x0:x1].astype(int)
+        lab, _ = ndimage.label(ndimage.binary_closing(vf.chroma_of(sub) > chroma, iterations=1))
+        sized = _glyph_sized(lab, min_h, max_h, min_w, max_w, min_area)
+        if sized:
+            _, sl, i = max(sized, key=lambda q: q[0])
+            h = np.radians(hue_of(sub[sl])[lab[sl] == i])
+            found.append(float(np.degrees(np.arctan2(np.sin(h).mean(), np.cos(h).mean())) % 360.0))
+    n = len(frames_rgb)
+    if not found:
+        return None, 0, n
+    f = np.array(found)
+    off = lambda c: np.abs((f - c + 180.0) % 360.0 - 180.0)
+    centre = f[int(np.argmax([(off(c) <= HUE_WIDTH).sum() for c in f]))]
+    near = off(centre) <= HUE_WIDTH
+    if near.sum() < HUE_FRAMES * n:
+        return None, int(near.sum()), n
+    h = np.radians(f[near])
+    return float(np.degrees(np.arctan2(np.sin(h).mean(), np.cos(h).mean())) % 360.0), int(near.sum()), n
+
+
 # ---- boresight ----------------------------------------------------------------------
+RETICLE_WITHIN = 0.20    # of the frame's height: a reticle's ticks lie nearer the middle of the picture than this, inside the ring
+#                          the pointer is looked for in (`north_from_chroma`'s r_frac)
+
+
+def reticle_ticks(rgb, glyphs=None):
+    """The reticle's coloured ticks: of the four glyphs nearest the middle of the picture, those within RETICLE_WITHIN of
+    it. Four on most displays. PR058's MTS-B shows two to four of its four from frame to frame (the two upright ones are
+    2 px wide, and the codec's colour, kept at half the picture's resolution, loses one or both on 351 of 615 frames), and
+    the fourth nearest glyph is then the north pointer, 195 px out."""
+    g = glyphs if glyphs is not None else chroma_glyphs(rgb)
+    cx0, cy0 = rgb.shape[1] / 2, rgb.shape[0] / 2
+    r = lambda d: np.hypot(d["cx"] - cx0, d["cy"] - cy0)
+    return [d for d in sorted(g, key=r)[:4] if r(d) <= RETICLE_WITHIN * rgb.shape[0]]
+
+
 def reticle_from_chroma(rgb, glyphs=None):
-    """Boresight as the mean of the four coloured ticks nearest frame centre."""
+    """Boresight from the reticle's coloured ticks (`reticle_ticks`): the mean of the four, where four show. Where fewer
+    do, each tick gives the coordinate it points along -- a tick wider than tall is on the boresight's row, one taller
+    than wide on its column -- and two ticks on opposite sides give the other by their midpoint. Until 2026-11-13 it was
+    the mean of the four coloured glyphs nearest the middle whatever they were: on PR058 three ticks and the north
+    pointer, a boresight 54 px off (650.6, 306.8 for 640, 360), which would have read the pointer's turn 39 % fast."""
     g = glyphs if glyphs is not None else chroma_glyphs(rgb)
     if len(g) < 4:
         return None
+    ticks = reticle_ticks(rgb, g)
+    if len(ticks) == 4:
+        return float(np.mean([t["cx"] for t in ticks])), float(np.mean([t["cy"] for t in ticks]))
     cx0, cy0 = rgb.shape[1] / 2, rgb.shape[0] / 2
-    g = sorted(g, key=lambda d: np.hypot(d["cx"] - cx0, d["cy"] - cy0))[:4]
-    return float(np.mean([t["cx"] for t in g])), float(np.mean([t["cy"] for t in g]))
+    wide, tall = [t for t in ticks if t["w"] > t["h"]], [t for t in ticks if t["h"] > t["w"]]
+
+    def along(own, other, c, mid):
+        """One coordinate: from the ticks on its line, else from the midpoint of two of the others on opposite sides."""
+        if own:
+            return float(np.mean([t[c] for t in own]))
+        lo, hi = [t[c] for t in other if t[c] < mid], [t[c] for t in other if t[c] >= mid]
+        return float((np.mean(lo) + np.mean(hi)) / 2) if lo and hi else None
+
+    x, y = along(tall, wide, "cx", cx0), along(wide, tall, "cy", cy0)
+    return None if x is None or y is None else (x, y)
 
 
 def tophat(g, size=9):
@@ -246,8 +345,9 @@ def north_from_chroma(rgb, bore=None, r_frac=(0.20, 0.36)):
     bore = bore or reticle_from_chroma(rgb, g)
     if bore is None:
         return None
+    ticks = reticle_ticks(rgb, g)                   # the four nearest the middle on most displays: what is left may be the pointer
     cx0, cy0 = rgb.shape[1] / 2, rgb.shape[0] / 2
-    rest = sorted(g, key=lambda d: np.hypot(d["cx"] - cx0, d["cy"] - cy0))[4:]
+    rest = [d for d in sorted(g, key=lambda d: np.hypot(d["cx"] - cx0, d["cy"] - cy0)) if not any(d is t for t in ticks)]
     best = None
     for d in rest:
         r = np.hypot(d["cx"] - bore[0], d["cy"] - bore[1])
@@ -536,8 +636,25 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
         kw["min_ncc"] = min_ncc
         if search:
             kw["search"] = tuple(search)
-    trial = None
-    if auto and method != "chroma":             # chroma was chosen because it solved a frame already
+    trial, colour = None, None
+    if method == "hue":
+        # What colour is it drawn in? Warm, as PR144's orange "N", where a warm glyph shows on any of TRIAL frames spread
+        # over the clip: every clip read so until 2026-11-13 is read so still. Else the hue the frames' own glyph has
+        # (`glyph_hue`: PR058's magenta "N", which the warm test passed on no frame).
+        tried = trial_frames(frames)
+        got = north_series(clip, tried, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop,
+                           what=f"Trying {method}", procs=procs, **kw)
+        colour = dict(hue_deg=None, how="warm: red over blue, as an orange or red glyph is")
+        if not len(got):
+            hue, shown, of = glyph_hue([clip.rgb(n) for n in tried], box=box)
+            if hue is not None:
+                kw["hue"] = hue
+                colour = dict(hue_deg=hue, how=f"the glyph's own, on {shown} of {of} frames spread over the clip", width_deg=HUE_WIDTH)
+                got = north_series(clip, tried, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop,
+                                   what=f"Trying {method}", procs=procs, **kw)
+        if auto:
+            trial = dict(frames=len(tried), solved=len(got))
+    elif auto and method != "chroma":           # chroma was chosen because it solved a frame already
         tried = trial_frames(frames)
         got = north_series(clip, tried, bore, method=method, tpl_box=tpl_box, progress=progress, stop=stop,
                            what=f"Trying {method}", procs=procs, **kw)
@@ -554,6 +671,9 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
                   corner_brackets=None if not bb else dict(width_px=float(bb[0]), height_px=float(bb[1]),
                                                            of_frame=[bb[0] / clip.W, bb[1] / clip.H]))
     result = dict(boresight=f"({bore[0]:.1f}, {bore[1]:.1f})  [{how}]")
+    if colour and colour["hue_deg"] is not None:    # only where it is not warm: every other clip's fields are what they were
+        fields["pointer_colour"] = colour
+        result["pointer colour"] = f"hue {colour['hue_deg']:.0f} deg (red 0, green 120, blue 240), {colour['how']}"
     if bb:
         result["corner brackets"] = (f"{bb[0]:.0f} x {bb[1]:.0f} px -- these mark the NEXT "
                                      "field of view and must not be read as a zoom ratio")
@@ -637,8 +757,8 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
             npw.append(("north pointer", "the pointer's radius is not fixed, and it is drawn at a constant radius: "
                                          "frames were mislocated, so the angles are unreliable"
                                          + ("; in a picture with colour of its own, other coloured features pass for "
-                                            "glyphs: a warm pointer is read by --method hue --box Y0,Y1,X0,X1 round it "
-                                            "(AARO's MTS-B red triangle, 2026-10-26), any other by --method template "
+                                            "glyphs: a coloured pointer is read by --method hue --box Y0,Y1,X0,X1 round it "
+                                            "(AARO's MTS-B red triangle, 2026-10-26), a white or grey one by --method template "
                                             "--tpl-box X0,Y0,X1,Y1" if method == "chroma" else "")))
     else:
         npw.append(("north pointer", "fewer than three frames solved, so no rotation can be fitted"))
@@ -730,6 +850,10 @@ NOT_COLOURED = ("A pointer drawn in white or grey, as on PR135 and PR148, is fou
 def said(fields):
     """What `mcdonald symbology` prints of the readings, from their fields."""
     L = []
+    c = fields.get("pointer_colour")
+    if c:
+        L.append(f"the pointer is drawn at hue {c['hue_deg']:.0f} deg (red 0, green 120, blue 240): {c['how']}; glyphs within "
+                 f"{c['width_deg']:.0f} deg of it are read")
     r = fields["radius"]
     if r:
         L.append(f"radius {r['mean_px']:.2f} +/- {r['sd_px']:.2f} px "
@@ -808,7 +932,8 @@ def main():
                          "view and the camera (NAR, IR) are taken so too")
     ap.add_argument("--bore", help="x,y of the boresight (default: frame centre, or the "
                                    "coloured reticle when one is found)")
-    ap.add_argument("--box", help="y0,y1,x0,x1 to search for a warm-coloured glyph (hue)")
+    ap.add_argument("--box", help="y0,y1,x0,x1 to look for the pointer's glyph in, by its colour (hue): warm where a warm glyph "
+                                  "shows, else the colour the glyph there has")
     ap.add_argument("--tpl-box", help="x0,y0,x1,y1 of the glyph in the first frame (template)")
     ap.add_argument("--min-ncc", type=float, default=0.7)
     ap.add_argument("--search", metavar="DX,UP,DOWN", help="how far the template looks from the glyph's first place, px "

@@ -154,6 +154,23 @@ REPEAT_SHARE = 0.8
 # moving along its streaks keeps its same-place correlation high (PR051's terrain: 100 px across, still score 0.7-0.95),
 # and that field found the step (frames 439-441: 108 px, nine templates, against the data bar's 99). It keeps its own.
 HELD_BUT_MOVED = 5.0      # px: past the +-4 px zone about zero, as `_kept`'s 5
+# LOST: a pair both passes left STILL whose own field says the scene moved (2026-11-13, IDEAS.md GL4; method section 1).
+# "Held still" was what a pair was called whenever its templates, zero shift left out, reached no consensus and the
+# second pass, over a second, found no motion either. On PR058 -- a sea streaked along its own motion, crossing the
+# picture at 20 px a frame behind an object the sensor follows -- that was half the pairs, in runs of two or three
+# between pairs that read 110 px. In such a pair nearly every template is matched well (a peak near 0.9) 94-115 px along
+# the streaks, the sea's own shift; but each is sure only across its streaks, their places scatter along them by more
+# than a consensus allows (6 px), and the second pass looks over 30 frames, where the sea has gone 600 px, far beyond
+# its search. Nothing in such a pair sits at zero: with zero shift allowed, 1-9 of its 36-42 templates do. A pair is
+# held still where its templates match at no shift, not where they fail to agree on one: where more than LOST_AWAY of a
+# STILL pair's templates, zero allowed, are matched well (`forensics.PK_MIN`) on one side of zero, past any shift a
+# held pair has (`_kept`'s 5 px, along the median shift's own direction: a still scene of long streaks, or stripes on
+# the sensor, scatters its matches along the streaks either side of zero, and neither side is most of them), the scene
+# moved and the pair was not read. It has no shift, it is not counted as held, and a rate is carried across it as across
+# any pair with no reading. LOST_AWAY and LOST_FEW are held against still cameras and the reference cases in the method note.
+LOST = 5
+LOST_AWAY = 0.5           # the share of a STILL pair's templates matched well away from zero above which it moved: most
+LOST_FEW = 8              # templates a pair must have placed to be judged so: as many as a consensus needs
 
 
 def _first(a):
@@ -278,20 +295,55 @@ def repeating(pairs, first, k, L, n0, n1):
     return windows, {a for a in zero if window_start(a, k, L, n0, n1) in windows}
 
 
+def _how(still, again, unmoved=False):
+    """How a pair was measured: MOVED; held still, AGAIN where its window (`again` = (rows, still_too)) moved and STILL
+    where it did not; UNMOVED between a repeating picture's catch-up steps."""
+    if still and unmoved:
+        return UNMOVED
+    if still and again is not None:
+        return STILL if again[1] else AGAIN
+    return MOVED
+
+
 def _rows(a, f, still, again, k, L, unmoved=False):
     """Pair a's rows as `measure` keeps them, two columns after vf.SHIFT_COLS: how it was measured
     (MOVED with its own rows; a held-still pair with its window's, `again` = (rows, still_too),
     the pair's number on them: AGAIN where the window moved, STILL where it did not; UNMOVED with
     its own rows, between a repeating picture's catch-up steps) and over how many frames."""
-    how, over = MOVED, k
-    if still and unmoved:
-        how = UNMOVED
-    elif still and again is not None:
-        g, still_too = again
-        f = g.copy()
+    how, over = _how(still, again, unmoved), k
+    if how in (AGAIN, STILL):
+        f = again[0].copy()
         f[:, 0] = a
-        how, over = (STILL if still_too else AGAIN), L
+        over = L
     return np.hstack([f, np.tile([how, over], (len(f), 1))])
+
+
+OWN_COLS = "a how placed strong away at_zero med_dx med_dy".split()
+
+
+def own_field(fz):
+    """A held pair's own field, zero shift allowed, in six numbers: the templates placed; those matched well (a peak of
+    `forensics.PK_MIN` or more); the median shift of those, x and y; how many of them lie more than 5 px (`_kept`'s limit:
+    no held pair has such a shift) along that median's own direction -- on its side of zero, so that matches scattered
+    either side of zero, as a still scene of long streaks scatters them, never make a majority; and the templates whose
+    best match is inside the zone about zero that the first search leaves out (`AT_ZERO`). In OWN_COLS' order."""
+    if not len(fz):
+        return 0, 0, 0, 0, 0.0, 0.0
+    well = fz[:, 5] >= vf.PK_MIN
+    mx, my = (float(v) for v in np.median(fz[well, 3:5], 0)) if well.any() else (0.0, 0.0)
+    r = float(np.hypot(mx, my))
+    along = (fz[:, 3] * mx + fz[:, 4] * my) / r if r > 0 else np.zeros(len(fz))
+    return len(fz), int(well.sum()), int((well & (along > 5)).sum()), int((np.hypot(fz[:, 3], fz[:, 4]) <= AT_ZERO).sum()), mx, my
+
+
+def lost_pairs(own, away=None, few=None):
+    """The pairs left STILL whose own fields say the scene moved (see LOST): more than LOST_AWAY of the templates placed
+    are matched well on one side of zero, past any shift a held pair has. `own` is rows of OWN_COLS, one a pair the first
+    pass called held."""
+    away, few = LOST_AWAY if away is None else away, LOST_FEW if few is None else few
+    c = {name: i for i, name in enumerate(OWN_COLS)}
+    return {int(r[c["a"]]) for r in np.asarray(own, float).reshape(-1, len(OWN_COLS))
+            if int(r[c["how"]]) == STILL and r[c["placed"]] >= few and r[c["away"]] > away * r[c["placed"]]}
 
 
 def _pair(a):
@@ -609,6 +661,48 @@ def over_track(trk, vel, k, fps, half):
     return {n: rel[i] for i, n in enumerate(a)}, float(np.mean(np.isin(a, hn)))
 
 
+# What the scene did where the templates did not follow it (2026-11-13, IDEAS.md GL4). `layers`' NO POWER -- over
+# SCENE_SHARE of the pairs left STILL -- says the templates found no motion; it was worded "the scene is held still on
+# screen", and the report took that for its first line. A pattern fixed on the sensor holds templates at no shift over a
+# scene that streams past (method section 41), and the blocks' reading (`scene`) then says so: on 18 of the 26 objects
+# of the reference case files with this NO POWER it read half their blocks or more, at 2-33 px a frame. Where the
+# blocks say the scene moved, "held still" is not what the pixels show. The rule for a clip: UNDER_SHARE of the blocks
+# asked or more were read, and at least two unless the clip had only one. A block's false reading is under 0.91 % at 95 %
+# (0 of 326 blocks with no scene, method section 41), so this passes a clip with no moving scene at most 0.91 % of the
+# time where one block was all it had, and at most 0.05 % with two or more (two of four is the likeliest: six pairs of
+# blocks at 0.91 % squared), if blocks read falsely one by one and not together.
+# UNDER_SHARE, a half, is a choice of what "the scene moved" is said of -- most of the stretch -- not a level set from a null.
+UNDER_SHARE = 0.5
+UNDER_WORDS = "under a pattern fixed on the sensor"        # in this stage's NO POWER where the blocks say the scene moved
+
+
+def scene_state(fields, fps=None):
+    """What the scene behind the object did on screen, for every reader of "held still" (the report's first line, bottom
+    line and checklist, `stages.platform_of`, `breaks`' event study), from this stage's fields: dict(state, ...) with
+    `state` one of
+
+      "read"   the templates followed it: left still over a second in SCENE_SHARE of the pairs or fewer;
+      "under"  they did not, and whole blocks of frames show it moving under a pattern fixed on the sensor (the rule
+               above), with `read` and `blocks`, `px_per_frame` (the read blocks' median speed) and, given `fps`,
+               `px_per_s`;
+      "held"   they did not, and no such reading says it moved: held still on screen, or nothing in it to read.
+
+    None where the stage measured no pairs (a look at one pair; no layers stage)."""
+    hs = (fields or {}).get("held_still") or {}
+    still = hs.get("still_again_share") if hs.get("share_of_pairs") is not None else None
+    if still is None:
+        return None
+    if still <= SCENE_SHARE:
+        return dict(state="read", still_again_share=still)
+    sc = fields.get("scene") or {}
+    read, blocks = sc.get("read") or 0, sc.get("blocks") or 0
+    if blocks and read >= UNDER_SHARE * blocks and read >= min(2, blocks) and sc.get("speed_px_frame"):
+        v = float(sc["speed_px_frame"]["median"])
+        return dict(state="under", still_again_share=still, read=int(read), blocks=int(blocks), px_per_frame=v,
+                    px_per_s=None if not fps else v * float(fps))
+    return dict(state="held", still_again_share=still, read=int(read), blocks=int(blocks))
+
+
 def glance(clip, masks, rows=None):
     """One frame pair at the start of the window: how many motion groups, and how fast
     each texture class crosses the screen. Seconds, where `measure` is minutes -- and a
@@ -677,7 +771,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                       "unmoved between catch-ups", CATCH_UP, MIN_SWITCHES, MAX_BETWEEN, AT_ZERO, REPEAT_SHARE, "held but moved", HELD_BUT_MOVED,
                       "each template's own error", vf.PEAK_ERR_SCALE, vf.PEAK_FLOOR_PX, vf.PK_GAP,
                       "the vote along the streaks", vf.VOTE_LEAD, vf.VOTE_FLOOR_PX, "zero left out read first",
-                      "a tint is not symbology", vf.TINT_FIFTH, vf.TINT_SHARE)
+                      "a tint is not symbology", vf.TINT_FIFTH, vf.TINT_SHARE,
+                      "each held pair's own field kept", AT_ZERO, vf.PK_MIN)
                      + (() if size == TEMPLATES else ("templates", size)))
     # ... and what computes them, where it is a graphics card: its templates agree with the CPU's to a hundredth of
     # their own errors and not to the last bit (method section 52), so they are kept apart. A run on the CPU never
@@ -688,7 +783,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
     if cache.exists() and not fresh:
-        tpl = np.load(cache)["tpl"]
+        kept = np.load(cache)
+        tpl, own = kept["tpl"], kept["own"]
         gpu.took_part(card)
         say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
     else:
@@ -724,12 +820,18 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                 pool.join()
             if gpu.card() is not None:
                 gpu.card().tidy()
-        tpl = np.vstack([_rows(a, f, still, again.get(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None, k, L,
-                               unmoved=a in unmoved) for a, (f, still) in zip(pairs, first)])
-        np.savez_compressed(cache, tpl=tpl)
+        window = lambda a, still: again.get(window_start(a, k, L, clip.n0, clip.n1)) if still and L > k else None
+        tpl = np.vstack([_rows(a, f, still, window(a, still), k, L, unmoved=a in unmoved) for a, (f, still) in zip(pairs, first)])
+        # ... and of each pair the first pass called held, what its own field said, zero allowed (`own_field`): the
+        # window's rows take its place in `tpl`, and whether it was held or only not agreed is in its own (`lost_pairs`)
+        own = np.array([(a, _how(still, window(a, still), a in unmoved)) + own_field(f) for a, (f, still) in zip(pairs, first) if still],
+                       np.float64).reshape(-1, len(OWN_COLS))
+        np.savez_compressed(cache, tpl=tpl, own=own)
 
-    lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0])}
+    lost = lost_pairs(own)                               # left STILL, their own fields matched well away from zero: not read
+    lay = {int(a): vf.layers_of(tpl[tpl[:, 0] == a], dark_below=dark_below) for a in np.unique(tpl[:, 0]) if int(a) not in lost}
     how = {int(r[0]): int(r[-2]) for r in tpl}           # MOVED, AGAIN, STILL or UNMOVED, one per pair
+    how.update({a: LOST for a in lost})                  # ... or LOST: no shift, and not held
     for a, h in how.items():                             # the same picture, repeated: no layer of it moved
         if h == UNMOVED:
             own = lay[a]["all"][2] if lay[a].get("all") else None   # its own field's covariance: it agreed on zero
@@ -792,10 +894,12 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                    apart_px_per_s=float(np.median(two)) if len(two) >= 5 else None,
                                    inside_a_group_share=float(np.median([l["inliers"] for l in lay.values()])))
     h = np.array(list(how.values()))
-    fields["held_still"] = dict(over_frames=k, share_of_pairs=float(np.mean(h != MOVED)) if len(h) else 0.0,
+    fields["held_still"] = dict(over_frames=k, share_of_pairs=float(np.mean(np.isin(h, (AGAIN, STILL, UNMOVED)))) if len(h) else 0.0,
                                 again_over_frames=longer,
                                 still_again_share=float(np.mean(h == STILL)) if len(h) else 0.0,
                                 unmoved_share=float(np.mean(h == UNMOVED)) if len(h) else 0.0)
+    if lost:                                             # only where there are such pairs: every other clip's fields are what they were
+        fields["held_still"]["not_read_share"] = float(np.mean(h == LOST))
     # each pair's shift error over k frames, from its templates' own errors scaled to their scatter (K9)
     e = np.array(list(err.values())).reshape(-1, 2)
     fields["shift_error_px"] = (dict(over_frames=k, pairs=len(e), median=[float(x) for x in np.median(e, 0)],
@@ -837,10 +941,18 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                                       + (f"; {hs['unmoved_share']:.0%} of pairs sit between the catch-up steps of a picture "
                                          "that repeats, and were taken as unmoved, not measured again"
                                          if hs.get("unmoved_share") else ""))
+    if hs.get("not_read_share"):
+        result["scene moved, not read"] = _lost_said(hs)
     under = whole.reported(fields.get("scene"))
     if under:
         result["the scene under the sensor's pattern"] = under
-    if hs["still_again_share"] > 0.5:
+    state = scene_state(fields)
+    if state and state["state"] == "under":       # the blocks say it moved: "held still" is not what the pixels show
+        npw.append(("layers", f"the templates found no motion of the scene even over {longer} frames in {hs['still_again_share']:.0%} of pairs, "
+                              f"but the scene moved {UNDER_WORDS}: whole blocks of frames read it at about {state['px_per_frame']:.0f} px a "
+                              f"frame on {state['read']} of {state['blocks']} blocks (method 41). A background rate from the pairs is the "
+                              "pattern's, not the scene's, so the object's rate against the background is not measured"))
+    elif hs["still_again_share"] > SCENE_SHARE:
         npw.append(("layers", f"the scene is held still on screen even over {longer} frames in "
                               f"{hs['still_again_share']:.0%} of pairs: a background rate there is an upper limit, "
                               f"not a measurement (a pattern on the sensor can hold it at zero)"))
@@ -851,6 +963,12 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
         figure(Path(f"{out}_layers.png"), clip, names, w, par, {a: l["groups"] for a, l in lay.items()}, say=say)
         files.append(f"{out}_layers.png")
     return Found("layers", result, fields, no_power=npw, notes=notes, files=files + written, carry=dict(reach=reach))
+
+
+def _lost_said(hs):
+    return (f"in {hs['not_read_share']:.0%} of pairs: most of their templates matched well at a shift, not at zero, but did not agree "
+            "on one (a scene streaked along its own motion gives this). The scene moved there and the pair has no reading; "
+            "it is not counted as held still")
 
 
 def _templates_said(t):
@@ -893,6 +1011,8 @@ def said(fields):
                  f"{h['again_over_frames']}; still over those too in {h['still_again_share']:.0%} (an upper limit there)"
                  + (f"; {h['unmoved_share']:.0%} between the catch-up steps of a picture that repeats, unmoved"
                     if h.get("unmoved_share") else ""))
+    if h and h.get("not_read_share"):
+        L.append("scene moved, not read " + _lost_said(h))
     m = fields["motion_groups"]
     L.append(f"motion groups: two in {m['two_in_share_of_pairs']:.1%} of pairs"
              + (f", {m['apart_px_per_s']:.0f} px/s apart (median)" if m["apart_px_per_s"] is not None else "")

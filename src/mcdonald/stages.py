@@ -825,7 +825,8 @@ KIN_NOTES = ("The track is not uniform straight-line motion", "Reported rates ar
 def platform_of(own_ship=None, layers=None):
     """Whether the camera moved while the object was tracked, for the speed in body lengths (B7, 2026-11-02): dict(moving,
     why), `moving` True where the aircraft's own speed is given (`own_ship`) or the layers step saw the background move
-    across the picture (its `held_still`: still again in under half the frame pairs), None where the picture behind the
+    across the picture (its `held_still`: still again in under half the frame pairs; or its blocks of frames read the
+    background moving under a pattern fixed on the sensor, `layers.scene_state`), None where the picture behind the
     object held still on screen -- a camera held still over a slow scene and a camera following the object over a sky
     with nothing to read both look so, and the step cannot tell them apart (`report.Case.behind_held_still`), so the
     rate is the object's as the camera held it -- and False where nothing says the camera moved (no layers step: the row
@@ -845,6 +846,12 @@ def platform_of(own_ship=None, layers=None):
     still = hs.get("still_again_share") if hs.get("share_of_pairs") is not None else None
     if still is None:
         return dict(moving=False, why=None)
+    from .layers import scene_state
+    state = scene_state(layers) or {}
+    if state.get("state") == "under":           # the pairs found no motion, the blocks of frames did (2026-11-13, IDEAS.md GL4)
+        return dict(moving=True, why=f"the background moved across the picture, about {state['px_per_frame']:.0f} px a frame by whole blocks "
+                                     f"of frames ({state['read']} of {state['blocks']}; a pattern fixed on the sensor held the pairs at no "
+                                     "motion): the camera turned or moved, and the rate over the size holds the camera's motion")
     if still > 0.5:
         return dict(moving=None, why=f"the picture behind it held still on screen ({still:.0%} of the frame pairs), so the rate is its "
                                      "motion as the camera held it: a camera following the object over a sky with nothing to read "
