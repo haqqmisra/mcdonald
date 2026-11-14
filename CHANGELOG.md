@@ -395,6 +395,8 @@ New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_r
 `winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
 has each rule, its null and what it costs.
 
+## 0.5.5 (2026-11-14)
+
 **A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone
 now runs beside the rest, each piece the same function on the same arguments: the scene's held-still pairs looked
 up once, not once a pair (`layers`); the second pass's frames read ahead on a graphics card; a beat's steadiness,
