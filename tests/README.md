@@ -285,7 +285,7 @@ python3 tests/test_drift.py
 
 Portable, about a minute. `mcdonald tether` asks whether something is tied to the
 object and swings; a pendulum's period read off the video gives its line in
-metres with no range and no field of view (`docs/method.md` § 6). Its 45 checks
+metres with no range and no field of view (`docs/method.md` § 6). Its 78 checks
 are built the same way as the two above, with the answer known by construction:
 a period becomes the line it was made from; a planted companion is told from the
 frame's edges and from the scene; the overlay's strokes are masked and a dark
@@ -300,8 +300,20 @@ all of them. And three drawn clips go through the whole stage: a companion that 
 stronger spot of the scene passes, 9 px away and right over it, is found again on
 every frame where it hangs; a pendulum is followed along its swing and gives its
 period; and where nothing is tied the record holds no swing, and the finding says
-the ring that was searched. It runs with the suites here (`tools/suites.sbatch`)
-and on the Mac and Windows runners.
+the ring that was searched. Since session 23 it holds the stage's first answer too,
+"does something hang under it?" (`docs/method.md` § 55): a drawn dot under the
+object hangs, whichever end of the pair the track sits on and whether it swings
+or not; level with the object it is beside it; nothing tied is said of the ring
+and of the object's own picture; an object that hardly moves on the screen, or a
+picture that turns by more than the gate, is "cannot say". The companion's place
+read against the object's own picture comes back to a tenth of a pixel on a plain
+sky. A bar that starts at the object and points down the picture is a line that
+starts at it, a bar through the object is not, and a bright stem that the stroke
+mask takes with a bright head is given back to that reading. The scene's own
+turn and scale are read back from a turned picture, and a scene with depth
+sliding past (a shear along its motion) is not read as a turn. And PR135's six
+recorded birds, as fifteen pairs, do not hang. It runs with the suites here
+(`tools/suites.sbatch`) and on the Mac and Windows runners.
 
 ```bash
 python3 tests/test_tether.py
@@ -315,7 +327,11 @@ companion never followed away), PR077 object 1 and PR135 object 2 (no pendulum o
 a bird), PR149, PR29 and PR28 (nothing tied, nothing in the record, the ring
 said). The gate's numbers were set against a null, which `tools/tether_null.py`
 rebuilds from the reference-data folder (`tether_null/`), and the swing's
-threshold on drawn wanders (`tools/tether_wander_rate.py`).
+threshold on drawn wanders (`tools/tether_wander_rate.py`). The hang answer's
+goldens ride on the same cases: WA9ONY-5 and PR-004 hang, PR105's lower point
+hangs, PR28's stem is a line that starts at the object, PR071's string hangs,
+PR135's neighbour is beside it, and PR055, PR077, PR149 and PR29 have nothing
+tied; `tools/tether_null.py stage` and `hang` count the four answers on the null.
 
 ## `test_golden.py` — do the real clips still give the published numbers?
 
