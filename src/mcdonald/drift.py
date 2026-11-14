@@ -222,6 +222,13 @@ def test_tracer(L, rels, delta_deg, depth="same", comotion=None):
                                     for r in rels],                # the same from each difference track's own band
                fastest_L_per_s=[round(s_lo, 2), round(s_hi, 2)])
     if delta_deg is None:
+        # What shows across the line of sight is the least its airspeed can be, whatever the depression: flight along
+        # the line of sight only adds to it. So pieces that leave at a flier's rate fail with no depression given
+        # (until 2026-11-13 the missing depression was asked for first, and such pieces could not say: IDEAS.md DR5)
+        if s_lo >= FLY_MIN:
+            return dict(out, outcome=FAIL, reading=(
+                f"the pieces leave it at {s_lo:.2f} lengths per second or more: it flies through the air (at any "
+                "depression of the line of sight, which is not known: flight along it could only add to that)"))
         return dict(out, outcome=CANNOT, reading="the depression of the line of sight is not known, so flight along it "
                                                  "could hide an airspeed")
     sd = math.sin(math.radians(delta_deg))
@@ -550,7 +557,19 @@ MODEL_WIND_ERR = 3.0    # m/s: how far a model's wind may miss the air's own mot
 VELOCITY_FIX = 5.0      # m/s: two errors of the fitted velocity over this, and T2 cannot tell a drifter from a slow flier
 NEAR_LEVEL = 4.0        # a single level (observed, or a model file's outermost) within this factor of the object's height
                         # (above the ground; a model's, above its own ground) counts
+SHEAR_AT_KM = 10.3      # m/s, and
+SHEAR_POWER = 0.57      # the wind's own change with height (`wind_change`): between two levels of one radiosonde sounding dz
+                        # apart the wind's vector changes by less than SHEAR_AT_KM (dz / 1 km)^SHEAR_POWER nine times in
+                        # ten. Measured on IGRA v2 soundings (NOAA; 18 stations, 8,125 soundings at 00 and 12 UTC, 2026):
+                        # the 90th percentile of the change by height difference, 50 m to 6.4 km, set on the even-numbered
+                        # stations and held on the odd ones (0.87 of soundings, 0.89 of pairs lie under it; method
+                        # section 34; IDEAS.md DR4, 2026-11-13). One law for every height: by height band the constant
+                        # runs 8.6-12.0 and the power 0.46-0.60, by station the 90th percentile at 1.2 km 7-14 m/s
 TURN_MIN = 30.0         # deg of heading change before the aircraft's own wind can be told from its airspeed
+HEADING_P = 0.01        # the heading box is taken as the direction of flight unless the aircraft's own positions ask for
+                        # an offset between the two: an F test of the fit with one constant added to every heading over
+                        # the fit without (`aircraft_wind`). The level is the test's own false-alarm rate, measured on
+                        # drawn turns with the display's rounding (the notes of session 23, 2026-11-13; method section 34)
 # Whether the rays fix a path at all is read from the rays and the aircraft's path, never from where the fit landed: on
 # a cost flat along range the 28 starts land anywhere, and the errors at a short landing are small in m/s because they
 # scale with the range found -- a phantom flying beside the aircraft at 1-2 % of the true range, which passed
@@ -853,7 +872,37 @@ def _covariance(jac, scale):
     return A @ (jac.T * scale) @ jac @ A
 
 
-def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
+def az_reference(fit, R, sig, plane, tm, scale, known=None):
+    """What a constant error of the display's azimuth reference does to the path (2026-11-13, IDEAS.md DR2). Every ray's
+    azimuth rests on one reference, the display's own true north (an inertial heading, or a ground point the display
+    worked out with one). An error in it turns every ray about its own aircraft position by the same angle, which the
+    rays' scatter cannot show, and the path fitted to them moves: on the Puerto Rico turn a degree moves the velocity
+    by 1.4 m/s, three times the error the scatter gives it, and on PR051's by 4. So the same rays are fitted again with
+    a seventh parameter, one constant added to every azimuth, and that fit's covariance (read with the same errors as
+    the first: `scale`) says how far the rays themselves fix the reference (`err_deg`) and how each of the six moves
+    with it. `known` (deg; `--az-ref-err`) is how well the reference is known beforehand: the two are combined as
+    independent knowledge, and None or inf leaves it to the rays alone. Returns dict(fitted_deg, err_deg, used_deg,
+    part, pull), `part` the error each of the six parameters takes from the reference, to be added in quadrature to
+    its error from the rays' scatter, `pull` the same for one degree; or None where the seventh parameter cannot be
+    fitted. The path itself stays the six-parameter fit: the reference is taken as right, and its error is carried."""
+    from scipy.optimize import least_squares
+
+    def res(q):
+        return _residuals(dict(R, az=R["az"] + q[6]), sig, plane, tm)(q[:6])
+    try:
+        g = least_squares(res, np.r_[fit.x, 0.0], x_scale=[1000, 1000, 100, 10, 10, 1, 1.0])
+        C = _covariance(g.jac, scale)
+    except (ValueError, np.linalg.LinAlgError):
+        return None
+    if not np.all(np.isfinite(C)) or not C[6, 6] > 0:
+        return None
+    sd = math.sqrt(C[6, 6])
+    used = sd if known is None or not math.isfinite(known) else 1.0 / math.sqrt(1.0 / known ** 2 + 1.0 / sd ** 2)
+    return dict(fitted_deg=float(g.x[6]), err_deg=float(sd), used_deg=float(used), part=np.abs(C[:6, 6]) / sd ** 2 * used,
+                pull=np.abs(C[:6, 6]) / sd ** 2)
+
+
+def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err=None):
     """The object's straight, steady path through the rays `R` (from `rays`): east, north and height at the readings'
     mean time on a map about the aircraft's mean position, and their rates; least squares in angle (azimuth weighted by
     the cosine of the depression; `sig`, deg, the errors given), its errors from the covariance read with the errors
@@ -924,6 +973,25 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000):
                    toward_sd_deg=float(btw.std()), velocity_err_m_s=max(sd_v, float(math.hypot(err[3], err[4]))),
                    speed_p05_p95=[float(x) for x in np.percentile(bsp, [5, 95])],
                    climb_err_m_s=float(max(err[5], B[:, 5].std())))
+    # the azimuth reference: what the rays' scatter cannot show, added in quadrature to what it can
+    az_ref_err = float(sig[0]) if az_ref_err is None else float(az_ref_err)     # by default, as well as an azimuth is given
+    ref = az_reference(fit, R, sig, plane, tm, scale, az_ref_err) if cov is not None else None
+    out.update(velocity_err_rays_m_s=out["velocity_err_m_s"], climb_err_rays_m_s=out["climb_err_m_s"],
+               height_err_rays_m=out["height_err_m"], az_reference_known_deg=az_ref_err)
+    if ref is None:
+        out.update(az_reference_err_deg=None, az_reference_fitted_deg=None, az_reference_pull_m_s=None,
+                   velocity_err_reference_m_s=None, velocity_err_m_s=float("inf"), climb_err_m_s=float("inf"),
+                   height_err_m=float("inf"))
+    else:
+        part = ref["part"]
+        vref = float(math.hypot(part[3], part[4]))
+        out.update(az_reference_err_deg=ref["err_deg"], az_reference_fitted_deg=ref["fitted_deg"],
+                   az_reference_used_deg=ref["used_deg"], az_reference_pull_m_s=float(math.hypot(ref["pull"][3], ref["pull"][4])),
+                   az_reference_pull_climb_m_s=float(ref["pull"][5]), velocity_err_reference_m_s=vref,
+                   velocity_err_m_s=float(math.hypot(out["velocity_err_m_s"], vref)),
+                   v_err_m_s=[float(math.hypot(err[3], part[3])), float(math.hypot(err[4], part[4]))],
+                   climb_err_m_s=float(math.hypot(out["climb_err_m_s"], part[5])),
+                   height_err_m=float(math.hypot(out["height_err_m"], part[2])))
     return out
 
 
@@ -950,8 +1018,27 @@ def unfixed(path):
 def aircraft_wind(platform, fps, pos_err_m=10.0):
     """The wind at the aircraft's own height from its turn: its positions are a start, plus the wind times the time,
     plus its airspeed along its heading integrated (the heading interpolated between readings in 0.1-s steps); least
-    squares at `pos_err_m` a position. None unless the headings are given and turn by TURN_MIN or more."""
+    squares at `pos_err_m` a position. None unless the headings are given and turn by TURN_MIN or more.
+
+    The heading box is not taken on trust as the direction of flight (2026-11-13, IDEAS.md DR2). The same positions are
+    fitted again with one constant added to every heading, and the offset is seen (`heading_offset_seen`) where two
+    things hold: an F test of that fit over the first (1 and 2n - 6 degrees of freedom) passes at HEADING_P, and the
+    constant is larger than half a step of the heading box by two of its errors (`heading_step_deg`: a box that
+    prints whole degrees cannot say where in the degree the heading is, and that rounding alone passes the F test far
+    more often than its level says where the positions are fine: 28 % of drawn turns at a tenth of an arcsecond).
+    Where it is seen, the wind, the airspeed and the errors are the second fit's, `heading_offset_deg` the constant
+    (the aircraft flew that far right of its heading box) and `w_as_displayed` the wind the box alone would have
+    given. Where it is not, the wind is the first fit's, as before, and its error the larger of the two fits' with
+    what an offset inside the box's own step would do (the step over root 12, through the wind's pull on the offset):
+    the offset the positions could hide is carried. On PR051's upload the box alone gives 21.6 m/s from 211 deg, a misfit
+    of 17 m at a 3-m scatter; with the aircraft 14.7 +- 1.3 deg right of its box, 11.2 m/s from 266 deg. The Puerto
+    Rico turn asks for none (-0.23 +- 0.15 deg, p 0.12). Both fits' errors are read with the position error given and
+    scaled up by a misfit, never down: a rounded heading leaves errors that run on from reading to reading, and the
+    positions' own scatter then understates them (two such errors held the true wind 74-87 times in 100 on drawn
+    turns of 157 deg). `fixed` is False where two errors of the wind exceed VELOCITY_FIX: the turn is too short to
+    tell the wind from the offset and the airspeed, and T2 does not count such a wind."""
     from scipy.optimize import least_squares
+    from scipy.stats import f as f_dist
     fr = sorted(f for f in platform if platform[f][3] is not None)
     if len(fr) < 6:
         return None
@@ -963,24 +1050,69 @@ def aircraft_wind(platform, fps, pos_err_m=10.0):
     E, N = plane.xy(np.array([platform[f][0] for f in fr]), np.array([platform[f][1] for f in fr]))
     tt = np.arange(t[0], t[-1] + 1e-9, 0.1)
     hh = np.interp(tt, t, h)
-    s = np.interp(t, tt, np.concatenate([[0.0], np.cumsum(0.5 * (np.sin(hh[1:]) + np.sin(hh[:-1])) * 0.1)]))
-    c = np.interp(t, tt, np.concatenate([[0.0], np.cumsum(0.5 * (np.cos(hh[1:]) + np.cos(hh[:-1])) * 0.1)]))
+
+    def along(b):
+        return (np.interp(t, tt, np.concatenate([[0.0], np.cumsum(0.5 * (np.sin(hh[1:] + b) + np.sin(hh[:-1] + b)) * 0.1)])),
+                np.interp(t, tt, np.concatenate([[0.0], np.cumsum(0.5 * (np.cos(hh[1:] + b) + np.cos(hh[:-1] + b)) * 0.1)])))
+    s, c = along(0.0)
 
     def res(q):
         return np.r_[(q[0] + q[2] * (t - t[0]) + q[4] * s - E) / pos_err_m,
                      (q[1] + q[3] * (t - t[0]) + q[4] * c - N) / pos_err_m]
 
+    def res_b(q):
+        sb, cb = along(q[5])
+        return np.r_[(q[0] + q[2] * (t - t[0]) + q[4] * sb - E) / pos_err_m,
+                     (q[1] + q[3] * (t - t[0]) + q[4] * cb - N) / pos_err_m]
+
     f = least_squares(res, [E[0], N[0], 0.0, 0.0, 60.0])
     chi2 = 2 * f.cost / max(1, len(f.fun) - 5)
     err = np.sqrt(np.diag(np.linalg.inv(f.jac.T @ f.jac)) * max(1.0, chi2))
     alt = np.array([platform[f_][2] for f_ in fr])
-    return dict(w=np.array(f.x[2:4]), err_m_s=float(math.hypot(err[2], err[3])), airspeed_m_s=float(f.x[4]),
-                height_m=float(alt.mean()), heights_m=[float(alt.min()), float(alt.max())],
-                heading_turn_deg=float(math.degrees(h.max() - h.min())), chi2_dof=float(chi2))
+    out = dict(w=np.array(f.x[2:4]), err_m_s=float(math.hypot(err[2], err[3])), airspeed_m_s=float(f.x[4]),
+               height_m=float(alt.mean()), heights_m=[float(alt.min()), float(alt.max())],
+               heading_turn_deg=float(math.degrees(h.max() - h.min())), chi2_dof=float(chi2),
+               heading_offset_deg=0.0, heading_offset_err_deg=None, heading_offset_p=None, heading_offset_seen=False,
+               w_as_displayed=None, fixed=True)
+    dof = len(f.fun) - 6
+    if dof >= 1:
+        try:
+            g = least_squares(res_b, np.r_[f.x, 0.0], x_scale=[100, 100, 1, 1, 10, 0.1])
+            chi2b = 2 * g.cost / dof
+            errb = np.sqrt(np.diag(np.linalg.inv(g.jac.T @ g.jac)) * max(1.0, chi2b))
+            F = max(0.0, 2 * f.cost - 2 * g.cost) / chi2b if chi2b > 0 else float("inf")
+            pb = float(f_dist.sf(F, 1, dof))
+            box = np.array([platform[f_][3] for f_ in fr], float)
+            step = next((10.0 ** -d for d in range(4) if np.allclose(box * 10 ** d, np.round(box * 10 ** d), atol=1e-6)), 0.0)
+            out.update(heading_offset_err_deg=float(math.degrees(errb[5])), heading_offset_p=pb, heading_offset_F=float(F),
+                       heading_step_deg=step)                                    # the heading box's own step, deg
+            if pb < HEADING_P and abs(math.degrees(g.x[5])) - 2 * math.degrees(errb[5]) > step / 2:
+                out.update(w=np.array(g.x[2:4]), err_m_s=float(math.hypot(errb[2], errb[3])), airspeed_m_s=float(g.x[4]),
+                           chi2_dof=float(chi2b), heading_offset_deg=float(math.degrees(g.x[5])), heading_offset_seen=True,
+                           w_as_displayed=np.array(f.x[2:4]))
+            else:
+                # not seen: the wind is the first fit's. Its error is the larger of the two fits', and with it what an
+                # offset inside the box's own step would do: anywhere in the step is as likely (its rms, step over
+                # root 12), through the wind's pull on the offset in the second fit
+                C = np.linalg.inv(g.jac.T @ g.jac)
+                pull = math.hypot(C[2, 5], C[3, 5]) / C[5, 5]                    # m/s for a radian of offset
+                out.update(err_m_s=float(math.hypot(max(out["err_m_s"], math.hypot(errb[2], errb[3])),
+                                                    pull * math.radians(step) / math.sqrt(12.0))),
+                           heading_offset_fitted_deg=float(math.degrees(g.x[5])))
+        except (ValueError, np.linalg.LinAlgError):
+            out.update(err_m_s=float("inf"))
+    out["fixed"] = bool(math.isfinite(out["err_m_s"]) and 2 * out["err_m_s"] <= VELOCITY_FIX)
+    return out
 
 
 def _from(w):
     return (math.degrees(math.atan2(w[0], w[1])) + 180) % 360
+
+
+def wind_change(dz_m):
+    """How far the wind at one height may differ from the wind read `dz_m` above or below it, m/s: the change nine
+    soundings in ten stay under (SHEAR_AT_KM, SHEAR_POWER). 2.8 m/s over 100 m, 6.1 over 400, 12.6 over 1,422."""
+    return SHEAR_AT_KM * (abs(float(dz_m)) / 1000.0) ** SHEAR_POWER if dz_m else 0.0
 
 
 def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own=None):
@@ -1011,12 +1143,13 @@ def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own
                     continue
             if zs[0] <= height_m <= zs[-1]:
                 out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=True, source="model",
+                                level_gap_m=0.0,
                                 note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, interpolated"))
                 continue
             k = 0 if height_m < zs[0] else -1
             ratio = max(hm(zs[k]), hm(height_m)) / min(hm(zs[k]), hm(height_m))
             out.append(dict(label=f"{Path(path).stem} {t}", w=_at(zs, us, height_m), counts=ratio <= NEAR_LEVEL,
-                            source="model", note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, held at its "
+                            source="model", level_gap_m=float(abs(zs[k] - height_m)), note=f"model, levels {zs.min():.0f}-{zs.max():.0f} m above the sea, held at its "
                                  f"{'lowest' if k == 0 else 'top'} level, {ratio:.1f} times the object's height above the "
                                  f"model's ground ({gm:.0f} m)"))
     srcs = {}
@@ -1030,25 +1163,33 @@ def track_winds(height_m, ground_m=None, model=(), when=None, observed=None, own
         if zs[0] <= height_m <= zs[-1] and len(zs) > 1:
             lz = np.log([hz(z) for z in zs]) if ground_m is not None else zs
             w = _at(lz, us, math.log(hz(height_m)) if ground_m is not None else height_m)
-            out.append(dict(label=s, w=w, counts=True, source="observed",
+            out.append(dict(label=s, w=w, counts=True, source="observed", level_gap_m=0.0,
                             note=f"observed, interpolated between {zs[0]:.0f}-{zs[-1]:.0f} m"))
             continue
         k = int(np.argmin(np.abs(zs - height_m)))
         ratio = max(hz(zs[k]), hz(height_m)) / min(hz(zs[k]), hz(height_m))
         out.append(dict(label=s, w=us[k], counts=ratio <= NEAR_LEVEL, source="observed",
+                        level_gap_m=float(abs(zs[k] - height_m)),
                         note=f"observed at {zs[k]:.0f} m, {ratio:.1f} times the object's height"))
         if zs[-1] < height_m:
             below[s] = (zs[-1], us[-1])
     if own is not None:
         ratio = max(hz(own["height_m"]), hz(height_m)) / min(hz(own["height_m"]), hz(height_m))
-        out.append(dict(label="the aircraft's own", w=own["w"], counts=ratio <= NEAR_LEVEL, source="own",
+        fixed = own.get("fixed", True)
+        seen = (f"; its positions put it {abs(own['heading_offset_deg']):.1f} deg "
+                f"{'right' if own['heading_offset_deg'] > 0 else 'left'} of its heading box" if own.get("heading_offset_seen") else "")
+        lo, hi = own["heights_m"]                               # the heights the aircraft flew its turn through
+        out.append(dict(label="the aircraft's own", w=own["w"], counts=ratio <= NEAR_LEVEL and fixed, source="own",
+                        err_m_s=own.get("err_m_s"), level_gap_m=float(max(lo - height_m, height_m - hi, 0.0)),
                         note=f"from its turn, {own['heights_m'][0]:.0f}-{own['heights_m'][1]:.0f} m, {ratio:.1f} times "
-                             "the object's height"))
-        if own["height_m"] > height_m:
+                             "the object's height" + seen + ("" if fixed else
+                             f"; the turn does not fix it (two errors {2 * own['err_m_s']:.1f} m/s, over {VELOCITY_FIX:g})")))
+        if own["height_m"] > height_m and fixed:
             for s, (z, w) in below.items():
                 f = (math.log(hz(height_m)) - math.log(hz(z))) / (math.log(hz(own["height_m"])) - math.log(hz(z)))
                 out.append(dict(label=f"between {s} and the aircraft's own", w=w + f * (own["w"] - w), counts=True,
-                                source="profile",
+                                source="profile", err_m_s=f * own["err_m_s"] if own.get("err_m_s") is not None else None,
+                                level_gap_m=0.0,
                                 note="measured profile, interpolated in the logarithm of height"))
     return out
 
@@ -1103,13 +1244,20 @@ def test_wind_track(path, winds, readings=None):
     out.update(speed_m_s=round(path["speed_m_s"], 2), toward_deg=round(path["toward_deg"], 1),
                velocity_err_m_s=round(ev, 2))
     if not math.isfinite(ev) or 2 * ev > VELOCITY_FIX:
+        ref, rays = path.get("velocity_err_reference_m_s"), path.get("velocity_err_rays_m_s")
+        if ref is not None and rays is not None and math.isfinite(ev) and 2 * rays <= VELOCITY_FIX:
+            return dict(out, outcome=CANNOT, reading=(      # the rays' scatter alone would fix it: the reference does not
+                f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): they "
+                f"leave the display's azimuth reference open to {path['az_reference_err_deg']:.1f} deg, and a constant "
+                f"error of one degree in every azimuth moves the velocity by {path['az_reference_pull_m_s']:.1f} m/s"))
         return dict(out, outcome=CANNOT, reading=(
             f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): the "
             f"line of sight turned {path['los_turn_deg']:.0f} deg; a straight-flying aircraft cannot range what it sees"))
     rows = []
     for w in winds:
         need = V - w["w"]
-        rows.append(dict(wind=w["label"], counts=w["counts"], note=w["note"], speed_m_s=round(float(np.hypot(*w["w"])), 2),
+        rows.append(dict(wind=w["label"], counts=w["counts"], note=w["note"], level_gap_m=w.get("level_gap_m"),
+                         speed_m_s=round(float(np.hypot(*w["w"])), 2),
                          from_deg=round(_from(w["w"]), 1), needs_m_s=round(float(np.hypot(*need)), 2),
                          direction_diff_deg=round((path["toward_deg"] - (_from(w["w"]) + 180) + 180) % 360 - 180, 1)))
     out["winds"] = rows
@@ -1127,13 +1275,30 @@ def test_wind_track(path, winds, readings=None):
     spread = max(0.25, float(np.max(np.linalg.norm(W[:, None] - W[None], axis=-1))))
     model = any(w.get("source") == "model" for w in winds if w["counts"])
     err = MODEL_WIND_ERR if model else 0.0
-    tol = spread + 2 * ev + err
+    own2 = max([2 * w["err_m_s"] for w in winds if w["counts"] and w.get("err_m_s") is not None], default=0.0)
+    wind_err = max(err, own2)                              # the largest of the counted winds' own errors
+    # how far in height the nearest counted wind was read from the object, and the wind's own change over that much
+    # (IDEAS.md DR4): none where a wind was interpolated to its height, and a wind given without a level is taken at it
+    gap = min((w.get("level_gap_m") or 0.0) for w in winds if w["counts"])
+    shear = wind_change(gap)
+    tol = spread + 2 * ev + wind_err + shear
     out.update(needs_m_s=[round(min(need), 2), round(max(need), 2)], winds_spread_m_s=round(spread, 2),
-               winds_counted=len(need), model_wind_err_m_s=err, tolerance_m_s=round(tol, 2))
-    allows = (f"their own spread ({spread:.1f} m/s), two errors of the fit ({2 * ev:.1f}) and a model's own error "
-              f"({err:g})") if model else f"their own spread ({spread:.1f} m/s) and two errors of the fit ({2 * ev:.1f})"
+               winds_counted=len(need), model_wind_err_m_s=err, winds_own_err_m_s=round(wind_err, 2),
+               winds_level_gap_m=round(gap, 0), wind_change_m_s=round(shear, 2), tolerance_m_s=round(tol, 2))
+    terms = [f"their own spread ({spread:.1f} m/s)", f"two errors of the fit ({2 * ev:.1f})"]
+    if wind_err > 0:
+        terms.append(f"a model's own error ({err:g})" if err >= own2 else f"two errors of the aircraft's own wind ({own2:.1f})")
+    if shear > 0:
+        terms.append(f"the wind's own change over the {gap:.0f} m between its height and the nearest level a wind was read "
+                     f"at ({shear:.1f})")
+    allows = ", ".join(terms[:-1]) + " and " + terms[-1]
     still = [float(np.hypot(*w)) for w in W]               # the airspeed a body holding still over the ground would need
     out.update(hold_still_m_s=[round(min(still), 2), round(max(still), 2)], drift_beats_hold=bool(max(need) < min(still)))
+    if shear > VELOCITY_FIX and min(need) - tol < FLIER_MIN:
+        return dict(out, outcome=CANNOT, reading=(           # no wind near enough in height to tell a drifter by
+            f"no wind was read near its height: the nearest that counts was read {gap:.0f} m from it, and over that much "
+            f"height the wind changes by more than {shear:.1f} m/s in one sounding of ten, so it cannot tell a drifter "
+            f"from a slow flier (that wind leaves it {min(need):.1f}-{max(need):.1f} m/s through the air)"))
     if max(need) <= tol and not out["drift_beats_hold"]:
         return dict(out, outcome=CANNOT, reading=(
             f"holding still fits as well as drifting: the winds at its height are {min(still):.1f}-{max(still):.1f} m/s, and "
@@ -1197,7 +1362,16 @@ def test_beat(env):
     inj = r.get("injection") or {}
     if isinstance(inj, dict) and isinstance(inj.get("analytic"), dict):
         floor = inj["analytic"].get("with_floor")
-    if floor is None and r.get("noise_floor"):          # no injection run: the rule's own threshold
+    if floor is None:
+        # no injection run (every result out of `mcdonald run` or a case file): the track's own closed-form floor,
+        # what a beat needs in this track's own noise and over the background's flicker (`flicker.analytic`), which
+        # the stage records for each object and the report's beat row reads. Until 2026-11-13 the next rule was used
+        # here, and it says only how strong the background's beat is: on 18 of the 28 reference objects the track's
+        # own floor is higher, by up to 17 times (PR088 object 2: 2 % against 36 %; IDEAS.md DR5)
+        own = next((a for a in (r.get("analytic") or {}).values() if isinstance(a, dict)), None)
+        if own is not None:
+            floor = own.get("with_floor") if own.get("with_floor") is not None else None
+    if floor is None and r.get("noise_floor"):          # neither: the rule's own threshold, three times the background's
         from .flicker import ABOVE
         floor = ABOVE * float(r["noise_floor"])
     out.update(beats=beats, finding=r.get("finding"), smallest_beat_seen=round(floor, 2) if floor else None)
@@ -1327,7 +1501,7 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
             slant=None, horiz=None, own=None, bearings=None, heading_deg=None, winds=(), speeds=(10.0, 25.0, 50.0),
             air_min_kn=None, air_max_kn=None, flicker=None, seed=20261021,
             out=None, say=print, platform=None, los=None, los_sigma=(0.3, 0.1), observed_winds=None, ground_m=None,
-            when=None):
+            when=None, az_ref_err=None):
     """Every test the inputs allow, and the verdict. Returns a Found with fields `tests` and `verdict`. T1 and T2 come
     from the ranges (slant, horiz, own, bearings, heading_deg) or, given `platform` and `los` (`read_platform`,
     `read_los`), from the aircraft's own track and the lines of sight."""
@@ -1336,7 +1510,7 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
     # T1 first: the ranges, or the lines of sight, give the depression the others use
     if platform is not None and los is not None:
         R = rays(platform, los, fps)
-        track = fit_track(R, los_sigma, ground_m, rng) if len(R["t"]) >= READINGS_MIN else None
+        track = fit_track(R, los_sigma, ground_m, rng, az_ref_err=az_ref_err) if len(R["t"]) >= READINGS_MIN else None
         t1 = test_vertical_track(track, readings=len(R["t"]))
         delta_r = track["depression_deg"] if track else None
     else:
@@ -1368,7 +1542,15 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
         if own_w:
             tw["aircraft_wind"] = dict(from_deg=round(_from(own_w["w"]), 1), speed_m_s=round(float(np.hypot(*own_w["w"])), 2),
                                        err_m_s=round(own_w["err_m_s"], 2), airspeed_kn=round(own_w["airspeed_m_s"] / KN, 1),
-                                       heights_m=own_w["heights_m"], heading_turn_deg=round(own_w["heading_turn_deg"], 0))
+                                       heights_m=own_w["heights_m"], heading_turn_deg=round(own_w["heading_turn_deg"], 0),
+                                       heading_offset_deg=round(own_w["heading_offset_deg"], 2),
+                                       heading_offset_err_deg=own_w["heading_offset_err_deg"],
+                                       heading_offset_p=own_w["heading_offset_p"],
+                                       heading_offset_seen=own_w["heading_offset_seen"], fixed=own_w["fixed"])
+            if own_w["heading_offset_seen"]:
+                wd = own_w["w_as_displayed"]
+                tw["aircraft_wind"].update(as_displayed_from_deg=round(_from(wd), 1),
+                                           as_displayed_speed_m_s=round(float(np.hypot(*wd)), 2))
     else:                                                           # T2 from the ranges
         if slant is not None and horiz is not None and bearings is not None:
             line = fit_line(slant, horiz, bearings, fps, rng)
@@ -1434,6 +1616,31 @@ def said(fields):
                  f"(a factor of {math.exp(min(g['range_bound'], 20.0)):.2f}), an accelerating path over a straight one p "
                  f"{g['model_p'] if g['model_p'] is None else round(g['model_p'], 3)}; {g['boots']} of {g['boots_of']:,} "
                  f"resamples fitted")
+        if g.get("az_reference_err_deg") is not None:
+            k = g.get("az_reference_known_deg")
+            known = (f"; it is taken as known to {k:g} deg beforehand, {g['az_reference_used_deg']:.2f} with the lines of sight"
+                     if k is not None and math.isfinite(k) else "; nothing else is taken as known of it")
+            L.append(f"\nthe display's azimuth reference: the lines of sight themselves fix it to {g['az_reference_err_deg']:.2f} "
+                     f"deg{known}. A constant error of one degree in every azimuth moves the velocity by "
+                     f"{g['az_reference_pull_m_s']:.2f} m/s and the climb by {g['az_reference_pull_climb_m_s']:.2f} m/s. The "
+                     f"errors above carry it: from the rays' scatter alone, two errors of the velocity are "
+                     f"{2 * g['velocity_err_rays_m_s']:.2f} m/s and the climb's error is {g['climb_err_rays_m_s']:.2f} m/s")
+        elif "az_reference_err_deg" in g:
+            L.append("\nthe display's azimuth reference: the lines of sight do not fix it, so the velocity and the climb are open")
+    own = next((t.get("aircraft_wind") for t in fields["tests"] if t.get("aircraft_wind")), None)
+    if own:
+        line = (f"\nthe aircraft's own wind, from its turn of {own['heading_turn_deg']:.0f} deg: {own['speed_m_s']:.1f} m/s from "
+                f"{own['from_deg']:.0f} deg +- {own['err_m_s']:.1f}, its airspeed {own['airspeed_kn']:.0f} kn")
+        if own.get("heading_offset_seen"):
+            line += (f". Its positions put it {abs(own['heading_offset_deg']):.1f} +- {own['heading_offset_err_deg']:.1f} deg "
+                     f"{'right' if own['heading_offset_deg'] > 0 else 'left'} of its heading box (1 fit in "
+                     f"{_one_in(own['heading_offset_p'])} would ask for that by chance); the box alone would give "
+                     f"{own['as_displayed_speed_m_s']:.1f} m/s from {own['as_displayed_from_deg']:.0f} deg")
+        elif own.get("heading_offset_p") is not None:
+            line += ". Its positions ask for no offset between its heading box and its direction of flight"
+        if own.get("fixed") is False:
+            line += f". The turn does not fix this wind (two errors over {VELOCITY_FIX:g} m/s), and T2 does not count it"
+        L.append(line)
     L.append(f"\nVERDICT: {fields['verdict']} -- {fields['why']}")
     return L
 
@@ -1467,6 +1674,10 @@ def main():
                                   "dep_deg, or frame,tgt_lat,tgt_lon,tgt_elev_m the ground point the display prints; "
                                   "optionally off_right_deg,off_down_deg, the object off the boresight)")
     ap.add_argument("--los-sigma", default="0.3,0.1", help="the lines of sight's errors a priori, azimuth,depression deg")
+    ap.add_argument("--az-ref-err", type=float, metavar="DEG",
+                    help="how well the display's azimuth reference (its true north) is known, deg: an error every line "
+                         "of sight shares. By default the azimuth error of --los-sigma; inf leaves it to the lines of "
+                         "sight themselves")
     ap.add_argument("--obs-winds", help="T2 from the track: observed winds (source,height_m above the sea,from_deg,"
                                         "speed_m_s), e.g. a METAR, a sounding")
     ap.add_argument("--ground-m", type=float, help="the ground's height above the sea under the object, m")
@@ -1522,7 +1733,7 @@ def _main(args):
                     platform=read_platform(args.platform) if args.platform else None,
                     los=read_los(args.los) if args.los else None,
                     los_sigma=tuple(float(x) for x in args.los_sigma.split(",")), observed_winds=observed,
-                    ground_m=args.ground_m, when=args.when)
+                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err)
     print("\n".join(said(found.fields)))
     return found
 

@@ -262,10 +262,11 @@ def test_track_errors_from_the_rays_own_scatter():
           and all(0.75 < s / d < 1.35 for s, d in zip(wide["sigma_deg"], drawn)),
           "the same rays with errors given three times too wide: the rays' own scatter takes their place, and it is the "
           "scatter they were drawn with", f"{wide['sigma_deg'][0]:.3f} and {wide['sigma_deg'][1]:.3f} deg of {drawn}")
-    check(0.7 < wide["velocity_err_m_s"] / told["velocity_err_m_s"] < 1.4 and 0.7 < wide["climb_err_m_s"] / told["climb_err_m_s"] < 1.4,
-          "and the path's errors are those of the right errors given, not three times them",
-          f"velocity {wide['velocity_err_m_s']:.3f} against {told['velocity_err_m_s']:.3f} m/s, climb "
-          f"{wide['climb_err_m_s']:.3f} against {told['climb_err_m_s']:.3f}")
+    check(0.7 < wide["velocity_err_rays_m_s"] / told["velocity_err_rays_m_s"] < 1.4
+          and 0.7 < wide["climb_err_rays_m_s"] / told["climb_err_rays_m_s"] < 1.4,
+          "and the path's errors from the rays' scatter are those of the right errors given, not three times them",
+          f"velocity {wide['velocity_err_rays_m_s']:.3f} against {told['velocity_err_rays_m_s']:.3f} m/s, climb "
+          f"{wide['climb_err_rays_m_s']:.3f} against {told['climb_err_rays_m_s']:.3f}")
     check(np.allclose(wide["v_m_s"], told["v_m_s"], atol=1e-2) and wide["range_bound"] < told["range_bound"] * 1.5,
           "the path itself is unchanged (the errors given weigh azimuth against depression as before); only its errors, "
           "and the range's bound, are read anew", f"bound {wide['range_bound']:.4f} against {told['range_bound']:.4f}")
@@ -305,6 +306,112 @@ def test_track_errors_from_the_rays_own_scatter():
     said = "\n".join(drift.said(dict(tests=[], verdict="", why="", ground_path=dict(wide, above_ground_m=None))))
     check("fit better than the errors given for them allow" in said and "the rays' own scatter" in said,
           "and the command's own words say where the errors came from")
+
+
+def boxed(platform, off=0.0):
+    """The platform's readings as a display prints them: a heading box in whole degrees, the aircraft flying `off` deg
+    to the right of it."""
+    return {f: (la, lo, alt, float(round((h - off) % 360) % 360)) for f, (la, lo, alt, h) in platform.items()}
+
+
+def test_track_the_heading_box_is_not_taken_as_the_direction_of_flight():
+    """DR2 (IDEAS.md; 2026-11-13). `aircraft_wind` took the heading box as the direction of flight. On PR051's upload
+    the aircraft's own positions put it 14.2 +- 0.3 deg right of its box on both legs, and the wind the box alone gives
+    (21.6 m/s from 211 deg) is 17 m/s from the one its path gives; T2 then failed a body within 4-6 m/s of the wind.
+    An aircraft drawn with a known angle between its box and its flight must give back that angle and the true wind;
+    one drawn without must be left alone; and a turn too short to tell the wind from the angle must say so."""
+    print("\nT2 from the aircraft's own track: the heading box is not taken as the direction of flight")
+    platform, los, truth = orbit(h_obj=600.0)
+    own = drift.aircraft_wind(boxed(platform), FPS)
+    miss = float(np.hypot(*(own["w"] - truth["w_air"])))
+    check(not own["heading_offset_seen"] and own["heading_offset_deg"] == 0.0 and miss < 0.3 and own["heading_step_deg"] == 1.0
+          and own["fixed"] and miss < 2 * own["err_m_s"] < 1.5,
+          "a box that reads the direction of flight, in whole degrees: no offset is seen, the wind is the true one",
+          f"{np.round(own['w'], 2).tolist()} of {truth['w_air'].tolist()} +- {own['err_m_s']:.2f}, the offset's p {own['heading_offset_p']:.2f}")
+    crab = drift.aircraft_wind(boxed(platform, 14.2), FPS)
+    miss = float(np.hypot(*(crab["w"] - truth["w_air"])))
+    shown = float(np.hypot(*(crab["w_as_displayed"] - truth["w_air"])))
+    check(crab["heading_offset_seen"] and abs(crab["heading_offset_deg"] - 14.2) < 0.4 and miss < 0.3 and crab["fixed"],
+          "the aircraft flying 14.2 deg right of its box: the offset is seen and read, and the wind is the true one",
+          f"{crab['heading_offset_deg']:.2f} +- {crab['heading_offset_err_deg']:.2f} deg, the wind {np.round(crab['w'], 2).tolist()}")
+    check(shown > 10.0, "where the box alone would have put the wind 10 m/s or more off (PR051's case)",
+          f"{np.round(crab['w_as_displayed'], 1).tolist()}, {shown:.1f} m/s from the true wind")
+    small = drift.aircraft_wind(boxed(platform, 0.4), FPS)
+    miss = float(np.hypot(*(small["w"] - truth["w_air"])))
+    check(not small["heading_offset_seen"] and miss <= 2 * small["err_m_s"],
+          "an offset inside the box's own step (0.4 deg) is not seen, and the wind's error carries it",
+          f"the wind {miss:.2f} m/s off, its error {small['err_m_s']:.2f}")
+    # T2 whole, the aircraft's own wind the only one, on a body that drifts with it and on one that flies
+    drifter, flier = truth["w_air"], truth["w_air"] + 25.0 * np.array([0.5, -0.866])
+    for off in (0.0, 14.2):
+        pl, lo, _ = orbit(h_obj=600.0, v_obj=tuple(drifter), climb=0.0)
+        p = drift.fit_track(drift.rays(pl, lo, FPS), (0.1, 0.03), nboot=200)
+        o = drift.aircraft_wind(boxed(pl, off), FPS)
+        t2 = drift.test_wind_track(p, drift.track_winds(p["height_m"], None, own=o))
+        check(t2["outcome"] == drift.PASS and "two errors of the aircraft's own wind" in t2["reading"],
+              f"a drifter, the box {'true' if not off else 'off by 14.2 deg'}: passes, the wind's own error in the tolerance",
+              t2["reading"][45:170])
+        if off:
+            old = drift.test_wind_track(p, [dict(label="the box alone", w=o["w_as_displayed"], counts=True, note="")])
+            check(old["outcome"] == drift.FAIL, "which the wind from the box alone failed (\"it flies\"), as the stage did until now",
+                  old["reading"][:90])
+        pl, lo, _ = orbit(h_obj=600.0, v_obj=tuple(flier), climb=0.0)
+        p = drift.fit_track(drift.rays(pl, lo, FPS), (0.1, 0.03), nboot=200)
+        t2 = drift.test_wind_track(p, drift.track_winds(p["height_m"], None, own=drift.aircraft_wind(boxed(pl, off), FPS)))
+        check(t2["outcome"] == drift.FAIL, f"a flier at 25 m/s through the air, the box {'true' if not off else 'off'}: fails all the same")
+    # too little turn: the wind cannot be told from the offset and the airspeed
+    pl, lo, _ = orbit(h_obj=600.0, seconds=25.0)
+    short = drift.aircraft_wind(boxed(pl, 14.2), FPS)
+    W = drift.track_winds(600.0, None, own=short)
+    check(short is not None and 40 < short["heading_turn_deg"] < 45 and not short["fixed"] and not W[0]["counts"]
+          and "does not fix it" in W[0]["note"],
+          "a turn of 41 deg: two errors of the wind are over 5 m/s with the offset open, and the wind is not counted",
+          f"error {short['err_m_s']:.1f} m/s; {W[0]['note'][-60:]}")
+    check(drift.aircraft_wind(boxed(orbit(seconds=17.0)[0]), FPS) is None, "a turn under 30 deg gives no wind, as before")
+
+
+def test_track_the_azimuth_reference_is_carried():
+    """DR2's second half (2026-11-13). Every ray's azimuth rests on the display's own true north. An error in it turns
+    every ray alike, the rays' scatter cannot show it, and the fitted velocity moves (Puerto Rico: 1.4 m/s a degree,
+    three times its quoted error). Rays drawn with a known constant azimuth error must move the path by the pull the
+    fit reports, and the errors must hold the truth when that error is allowed for and not when it is ruled out."""
+    print("\nT1/T2 from the aircraft's own track: a constant error of the display's azimuths is carried")
+    platform, los, truth = orbit()
+    R = drift.rays(platform, los, FPS)
+    p = drift.fit_track(R, (0.1, 0.03), nboot=0)
+    exact = drift.fit_track(R, (0.1, 0.03), nboot=0, az_ref_err=1e-9)
+    free = drift.fit_track(R, (0.1, 0.03), nboot=0, az_ref_err=float("inf"))
+    check(p["az_reference_known_deg"] == 0.1 and abs(exact["velocity_err_m_s"] - exact["velocity_err_rays_m_s"]) < 1e-6
+          and exact["velocity_err_m_s"] < p["velocity_err_m_s"] < free["velocity_err_m_s"]
+          and p["velocity_err_rays_m_s"] == exact["velocity_err_rays_m_s"],
+          "by default the reference is as well known as an azimuth is given to be (0.1 deg here): the velocity's error lies "
+          "between a reference taken as exact and one left to the rays",
+          f"{exact['velocity_err_m_s']:.3f} < {p['velocity_err_m_s']:.3f} < {free['velocity_err_m_s']:.3f} m/s; the rays fix it "
+          f"to {p['az_reference_err_deg']:.2f} deg")
+    check(np.allclose(p["v_m_s"], exact["v_m_s"]) and np.allclose(p["v_m_s"], free["v_m_s"]),
+          "the path itself does not move with what is known of the reference")
+    off = drift.fit_track(drift.rays(platform, {f: dict(L, az=L["az"] + 1.0) for f, L in los.items()}, FPS), (0.1, 0.03),
+                          nboot=0, az_ref_err=1.0)
+    moved = float(np.hypot(*(np.array(off["v_m_s"]) - np.array(p["v_m_s"]))))
+    check(abs(moved / p["az_reference_pull_m_s"] - 1) < 0.15 and p["az_reference_pull_m_s"] > 0.5,
+          "every azimuth a degree off: the velocity moves by the pull the fit reports for a degree",
+          f"{moved:.2f} m/s against {p['az_reference_pull_m_s']:.2f}")
+    miss = float(np.hypot(*(np.array(off["v_m_s"]) - truth["v"])))
+    check(miss <= 2 * off["velocity_err_m_s"] and miss > 2 * off["velocity_err_rays_m_s"],
+          "with the reference given as known to a degree, two errors hold the true velocity; the rays' scatter alone "
+          "would not have", f"{miss:.2f} m/s off, two errors {2 * off['velocity_err_m_s']:.2f} (the rays' alone {2 * off['velocity_err_rays_m_s']:.2f})")
+    t1 = drift.test_vertical_track(off)
+    check(t1["outcome"] == drift.PASS, "T1 still passes: the climb is hardly moved", t1["reading"])
+    # where only the reference leaves the velocity open, T2 says so
+    fixed = dict(p, velocity_err_m_s=3.0, velocity_err_rays_m_s=1.0, velocity_err_reference_m_s=2.83, az_reference_err_deg=2.5,
+                 az_reference_pull_m_s=1.15)
+    t2 = drift.test_wind_track(fixed, [dict(label="w", w=truth["v"], counts=True, note="")])
+    check(t2["outcome"] == drift.CANNOT and "azimuth reference open to 2.5 deg" in t2["reading"],
+          "a velocity the rays' scatter would fix and the reference leaves open: cannot say, naming the reference",
+          t2["reading"][:150])
+    said = "\n".join(drift.said(dict(tests=[], verdict="", why="", ground_path=dict(p, above_ground_m=None))))
+    check("the display's azimuth reference" in said and "taken as known to 0.1 deg beforehand" in said,
+          "and the command's own words give the reference, its pull and what the rays alone would give")
 
 
 def test_track_t2_a_drifter_fits_the_winds_and_a_flier_does_not():
@@ -393,6 +500,63 @@ def test_track_t2_holding_still_against_drifting():
     platform, los, _ = orbit(v_obj=(0.0, 0.0), climb=0.0)
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     check(drift.test_wind_track(p, strong)["outcome"] == drift.FAIL, "holding still in that 18 m/s wind: fails, as before")
+
+
+def test_track_t2_one_wind_far_from_its_height():
+    """DR4 (IDEAS.md; 2026-11-13). One wind alone has no spread, so T2 held it at 0.25 m/s and took it as the wind at
+    the object's height wherever it counted: within a factor of 4 in height. On PR051 the aircraft's own wind, read
+    1,422 m above the object, decided a fail. The wind's own change with height is now allowed for, as radiosondes
+    measure it (`drift.wind_change`: nine soundings in ten change less), and a wind read so far from the object that
+    this change is over 5 m/s cannot pass T2 or fail a slow flier."""
+    print("\nT2 from the aircraft's own track: one wind read far from the object's height")
+    check(drift.wind_change(0) == 0.0 and abs(drift.wind_change(100) - 2.8) < 0.15 and abs(drift.wind_change(400) - 6.1) < 0.2
+          and abs(drift.wind_change(1422) - 12.6) < 0.3 and drift.wind_change(-400) == drift.wind_change(400),
+          "the wind's change with height, nine soundings in ten: 2.8 m/s over 100 m, 6.1 over 400, 12.6 over 1,422",
+          f"{drift.wind_change(100):.2f}, {drift.wind_change(400):.2f}, {drift.wind_change(1422):.2f}")
+    table = [r for r in drift.read_rows(reference_data.GOLDEN / "shear_soundings.csv")
+             if (r["low_m"], r["high_m"]) == ("0", "16000")]
+    ratio = [drift.wind_change(float(r["dz_median_m"])) / float(r["p90"]) for r in table]
+    under = [float(r["p68"]) < drift.wind_change(float(r["dz_median_m"])) < float(r["p95"]) for r in table]
+    check(len(table) == 7 and all(0.85 < x < 1.15 for x in ratio) and all(under),
+          "the law against the soundings' own table (8,125 soundings at 18 stations): within 15 % of the 90th percentile at "
+          "every height difference from 50 m to 6.4 km, between the 68th and the 95th", f"{min(ratio):.2f}-{max(ratio):.2f}")
+    wind = np.array([-6.0, -3.5])
+    platform, los, _ = orbit(v_obj=tuple(wind), climb=0.0)                      # a drifter 250 m above the sea
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+
+    def level(height, w):                                                       # one observed wind level, as --obs-winds gives it
+        return [dict(source="one level", height_m=height, from_deg=drift._from(w), speed_m_s=float(np.hypot(*w)))]
+    W = drift.track_winds(p["height_m"], None, observed=level(p["height_m"] + 100.0, wind + np.array([1.6, 1.2])))
+    t2 = drift.test_wind_track(p, W)
+    check(W[0]["counts"] and abs(W[0]["level_gap_m"] - 100.0) < 1e-6 and t2["outcome"] == drift.PASS
+          and abs(t2["wind_change_m_s"] - drift.wind_change(100.0)) < 0.01 and "the wind's own change over the 100 m" in t2["reading"],
+          "one wind read 100 m above a drifter and 2 m/s off its own wind: within the wind's change over 100 m, passes "
+          "(it could not say until now)", t2["reading"][45:230])
+    W = drift.track_winds(p["height_m"], None, observed=level(p["height_m"] + 650.0, wind + np.array([8.8, 6.6])))
+    t2 = drift.test_wind_track(p, W)
+    old = drift.test_wind_track(p, [dict(W[0], level_gap_m=None)])
+    check(W[0]["counts"] and old["outcome"] == drift.FAIL,
+          "one wind read 650 m above a drifter and 11 m/s off its own wind (one sounding in twenty changes that much): "
+          "taken as the wind at its height, as until now, T2 fails the drifter", old["reading"][:110])
+    check(t2["outcome"] == drift.CANNOT and "no wind was read near its height" in t2["reading"] and t2["winds_level_gap_m"] == 650
+          and t2["wind_change_m_s"] > drift.VELOCITY_FIX,
+          "with the wind's change over 650 m allowed for: cannot say, and says that no wind was read near its height",
+          t2["reading"][:200])
+    W = drift.track_winds(p["height_m"], None, observed=level(p["height_m"] + 650.0, wind))
+    check(drift.test_wind_track(p, W)["outcome"] == drift.CANNOT,
+          "the same level with the drifter's own wind on it: cannot say either (a wind that far off cannot pass a body)")
+    flier = wind + 40.0 * np.array([0.5, -0.866])
+    platform, los, _ = orbit(v_obj=tuple(flier), climb=0.0)
+    pf = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    t2 = drift.test_wind_track(pf, drift.track_winds(pf["height_m"], None, observed=level(pf["height_m"] + 650.0, wind)))
+    check(t2["outcome"] == drift.FAIL and "the wind's own change over the 650 m" in t2["reading"],
+          "a body 40 m/s through the air is failed all the same: beyond that change by a flier's 10 m/s", t2["reading"][:120])
+    near = dict(label="at its height", w=wind, counts=True, note="", level_gap_m=0.0)
+    far = dict(label="far above", w=wind + np.array([8.8, 6.6]), counts=True, note="", level_gap_m=650.0)
+    t2 = drift.test_wind_track(p, [near, far])
+    check(t2["winds_level_gap_m"] == 0 and t2["wind_change_m_s"] == 0.0 and t2["winds_spread_m_s"] > 10,
+          "with a second wind at its own height nothing is added: the winds' own spread says how they differ",
+          f"spread {t2['winds_spread_m_s']} m/s")
 
 
 def test_track_winds_at_the_objects_height():
@@ -602,6 +766,18 @@ def test_t3_the_flicker_stages_answers():
     from mcdonald.flicker import ABOVE
     check(out["outcome"] == drift.PASS and abs(out["smallest_beat_seen"] - round(ABOVE * 0.1, 2)) < 1e-9,
           "without injections, the smallest is the flicker rule's own threshold", f"{out['smallest_beat_seen']}")
+    # an envelope out of `mcdonald run` or a case file has no injection run; it carries the track's own closed-form floor
+    case = {"results": {"beats": False, "noise_floor": 0.0069, "analytic": {"object": {"amplitude": 0.084, "with_floor": 0.084}}}}
+    out = drift.test_beat(case)
+    check(out["outcome"] == drift.PASS and out["smallest_beat_seen"] == 0.08 and "over 8%" in out["reading"],
+          "without injections but with the track's own floor (a case file's result): the smallest beat is the track's own, "
+          "8 %, not three times the background's 0.7 % (PR097 object 4, as the stage read it until 2026-11-13: 2 %)",
+          out["reading"])
+    case["results"]["injection"] = {"analytic": {"with_floor": 0.3}}
+    check(drift.test_beat(case)["smallest_beat_seen"] == 0.3, "an injection run's floor still comes first")
+    bare = {"results": {"beats": False, "noise_floor": 0.1, "analytic": {"object": {"amplitude": 0.05, "with_floor": None}}}}
+    check(abs(drift.test_beat(bare)["smallest_beat_seen"] - round(ABOVE * 0.1, 2)) < 1e-9,
+          "a track's floor recorded without the background's part falls back to the rule's own threshold")
     check(drift.test_beat({"results": {"beats": None}})["outcome"] == drift.CANNOT, "no power: cannot say")
     check(drift.test_beat(None)["outcome"] == drift.CANNOT, "no flicker run: cannot say")
 
@@ -681,6 +857,14 @@ def test_t4a_pieces_left_slowly_bound_the_airspeed():
     check(out["outcome"] == drift.CANNOT, "1.5 lengths/s at 40 deg: a slow flier's, cannot say", out["reading"][:80])
     out = drift.test_tracer((20.0, 20.0), [r], None)
     check(out["outcome"] == drift.CANNOT, "no depression: flight along the line of sight could hide, cannot say")
+    out = drift.test_tracer((20.0, 20.0), [fast], None)
+    check(out["outcome"] == drift.FAIL and "at any depression" in out["reading"],
+          "pieces leaving at 3 lengths/s with no depression given: fails all the same, since what shows across the line of "
+          "sight is the least its airspeed can be (it could not say until 2026-11-13)", out["reading"][:80])
+    for dep in (2.0, 40.0, 88.0):
+        check(drift.test_tracer((20.0, 20.0), [fast], dep)["outcome"] == drift.FAIL, f"as they do at a depression of {dep:g} deg")
+    out = drift.test_tracer((20.0, 20.0), [mid], None)
+    check(out["outcome"] == drift.CANNOT, "1.5 lengths/s with no depression: still cannot say")
     out = drift.test_tracer((20.0, 20.0), [None], 40.0)
     check(out["outcome"] == drift.CANNOT, "no pieces: cannot say")
 
@@ -866,6 +1050,12 @@ def test_hellfire_yemen_from_its_readings():
           f"{t4b['band_accel_L_per_s2']} +- {t4b['band_accel_err']}, bound {t4b['band_accel_max_L_per_s2']}, range "
           f"{t4b['band_range_s']} s against {t4b['bootstrap_block_s']}-s blocks, {t4b['band_light']}")
     check(t4["outcome"] == drift.PASS, "T4: other evidence, both parts pass", t4["reading"])
+    rels = [drift.relative(g["remains"], q, FPS, np.random.default_rng(20261021)) for q in g["pieces"]]
+    fast = drift.test_tracer(g["L"], [dict(r, speed_px_s=5 * r["speed_px_s"]) for r in rels], None)
+    slow = drift.test_tracer(g["L"], rels, None)
+    check(fast["outcome"] == drift.FAIL and fast["fastest_L_per_s"][0] > 4 and slow["outcome"] == drift.CANNOT,
+          "the same pieces five times faster and no depression given: T4a fails (4 lengths/s or more at any depression); "
+          "at their own speed and no depression it cannot say, as before", f"{fast['fastest_L_per_s']} L/s")
     check([t["test"] for t in found.fields["tests"]] == ["T1", "T2", "T3", "T4"]
           and [q["test"] for q in t4["parts"]] == ["T4a", "T4b"],
           "three main tests, then other evidence with its two parts", ", ".join(T))
