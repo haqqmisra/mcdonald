@@ -310,12 +310,13 @@ def rigidity(tracks):
 #     member that crosses the pixel grid slowly can turn all of its error into a slow wander, which no reading at the
 #     frame scale sees.
 #
-# None is enough alone. The first, alone, calls a drone show that holds its figure to 0.3 px "several" (the figure does
-# change, by 0.1 px, and 600 frames see that). The second rests on a frame-scale reading of the jitter, which a jitter
-# with a long memory fools (B23), and reads 0.01-0.03 px on a camera that repeats its pictures. The third knows nothing
-# of a faint member's larger jitter. Why the brief's first form was not built -- the residual in pixels against rigid
-# bodies drawn with an AR(1) jitter of the measured colour: that colour cannot be measured on the groups that matter
-# (PR135's birds move with their wings every four frames, the drone show's camera holds its pictures): section 60.
+# None is enough alone. The first, alone, calls a drone show that holds its figure to under half a pixel "several"
+# (the figure does change, by 0.1 to 0.4 px over 600 frames, and members that jitter by 0.01-0.03 px against one
+# another let a test see that). The second rests on a frame-scale reading of the jitter, which a jitter with a long
+# memory fools (B23). The third knows nothing of a faint member's larger jitter. Why the form first proposed (M7,
+# B23) was not built -- the residual in pixels against rigid bodies drawn with an AR(1) jitter of the measured colour:
+# that colour cannot be measured on the groups that matter (PR135's birds move with their wings every four frames,
+# the drone show's camera holds its pictures): section 60.
 ALPHA = 0.01             # each part of "moved" is held to this rate on its own null
 ADF_ALPHA = 0.05         # a separation that wanders as a random walk "returns to its line" this often (MacKinnon 2010)
 DRAWS = 999              # block-bootstrap draws: the least p is 0.001
@@ -326,15 +327,17 @@ MOST_MEMBERS = 8         # the longest-followed members read: 28 pairs (the line
 # error series of one of the biology survey's planted dots (277 dots found again on 60 frames or more, in real frames
 # of 12 clips): 8,000 groups for each of 2, 3, 4, 5, 6 and 8 members and 60, 100, 150 and 180 frames (session 23's job
 # 1220). With white jitter the same ratios stay under 1.25, with an AR(1) jitter of lag-1 correlation 0.6 under 2.3.
-PAIR_LINE = 3.3          # a separation's wander over its jitter: the largest pair of such a group passes 3.27 or less 1 % of the time
-RANK_LINE = {3: 2.5, 2: 3.0}   # what is left off rank 3 (rank 2, four members) over its jitter: 1 % of them pass 2.40 (2.97) or less
+PAIR_LINE = 3.3          # a separation's wander over its jitter: the largest pair's 99th percentile on such groups is 3.27 at most
+RANK_LINE = {3: 2.5, 2: 3.0}   # what is left off rank 3 (rank 2, four members) over its jitter: 99th percentile 2.40 (2.97) at most
 PX_FLOOR = 1.0           # px: the detector's own error on a planted dot stays under this 99 times in 100 (1.05 px, rms an axis)
 JITTER_LAGS = (1, 2, 3)  # frames apart the jitter's second differences are taken: the largest reading stands
 # MacKinnon (2010, "Critical values for cointegration tests", table 2, one series, constant and trend):
-# the critical value is b0 + b1 / n + b2 / n^2 + b3 / n^3 on n observations
+# the critical value is b0 + b1 / n + b2 / n^2 + b3 / n^3 on n observations. Held on 20,000 drawn walks a length
+# (60 to 600 frames, the lag rule's lags): 0.8-1.0 % under the 1 % line, 4.4-5.0 % under the 5 % line (section 60).
 ADF_LINE = {0.01: (-3.95877, -9.0531, -28.428, -134.155), 0.05: (-3.41049, -4.3904, -9.036, -45.374),
             0.10: (-3.12705, -2.5856, -3.925, -22.380)}
 # Kwiatkowski, Phillips, Schmidt & Shin (1992), table 1: the statistic's upper tail about a level, and about a trend
+# (white series about a trend pass the 5 % line 4.5-5.1 % of the time at 60 to 600 frames; the stage draws its own null)
 KPSS_LINE = {False: {0.10: 0.347, 0.05: 0.463, 0.025: 0.574, 0.01: 0.739},
              True: {0.10: 0.119, 0.05: 0.146, 0.025: 0.176, 0.01: 0.216}}
 ONE_BODY, SEVERAL, KEEP, WANDER, CANNOT = "one rigid body", "several", "keep their places", "wander", "cannot say"
