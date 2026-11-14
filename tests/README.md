@@ -549,6 +549,24 @@ Without the reference-data folder it skips the curves and still checks the rest.
 After a change to the photometry (what the curves are, not what is judged from them) the saved curves
 are stale: `tools/controls/README.md` says how to make them again.
 
+## `test_plant.py` — does `mcdonald plant` write what its truth table says? (2026-11-13)
+
+Portable, about a minute; no video data. It needs an ffmpeg with libx264 and says so where there is none. A drawn
+video (a textured scene drifting 2 px a frame under a redaction block, with grain, through libx264) has six objects
+planted in it. After the encoder each is within 0.25 px of where the truth table has it (the median; 1 px at most),
+at 0.75 to 1.15 of its contrast and 0.75 to 1.25 of its width, read on the planted video less the control. Two runs
+with one seed are the same file, byte for byte; with nothing planted the file is the control's, and the control is
+the drawn video to an encoder's error. Nothing is written under the block; an object brighter than the picture is cut
+at its ceiling and the table says so. The scene's drift is read to 0.15 px a frame, and an object planted with the
+scene moves as it does. A planted file says what it is (its tags, `clip.planted`, the report's first lines) and is
+refused where it could pass for footage. The lights are what they are called; a draw does not depend on what follows
+it. And end to end: Find lists the planted objects that move against the scene, not the one planted with it, and none
+of them in the control.
+
+```bash
+python3 tests/test_plant.py
+```
+
 ## `test_gpu.py` — is the graphics card's arithmetic the CPU's? (2026-11-12)
 
 Portable, about a minute; no video data, and no graphics card needed. Since 2026-11-12 the steps that match one

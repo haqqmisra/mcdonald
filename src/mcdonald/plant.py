@@ -19,6 +19,7 @@ What it writes, in --out (default ./<tag>/planted):
     <tag>_planted_<n0>_<n1>_s<seed>_truth.json   every object: its kind, its light, its path, and frame by frame
                                                   where it is, how bright, whether it clipped or went under the overlay
     <tag>_planted_<n0>_<n1>_s<seed>_truth.csv    the same rows as a table
+    <tag>_planted_<n0>_<n1>_s<seed>_truth.png    each object as the encoder left it, the control under it: to look at
     <tag>_planted_<n0>_<n1>_none.mp4             the same stretch encoded the same way with nothing planted: the control
 
 **A planted video is a test article, never footage.** Nothing in this package invents detail, and this is the one
@@ -311,9 +312,10 @@ def light(spec, n, fps, rng, exposure=0.0):
     twinkle    a point through turbulent air: exp of a Gaussian series whose spectrum is flat to `corner_hz` and
                falls as f^(-8/3) past it (Kolmogorov), through a detector of time constant `tau_s`; `index` is
                the standard deviation of the brightness over its mean (the scintillation index's root).
-    strobe     pulses `hz` times a second, on for `duty` of each period, at `depth` times the steady light added
-               while on; what a frame records is the share of its exposure the pulse is on (of the whole frame
-               time where the exposure is 0).
+    strobe     pulses `hz` times a second, on for `duty` of each period, over a steady light: while a pulse is on,
+               `depth` times the steady light is added. A frame records the share of its exposure the pulse was on
+               (of the whole frame time where the exposure is 0), so a pulse shorter than a frame is never missed
+               and never read at its full height.
     """
     kind = spec.get("kind", "constant")
     t = np.arange(n) / float(fps)
@@ -355,7 +357,7 @@ def light(spec, n, fps, rng, exposure=0.0):
         k = 64
         u = t[:, None] + e * (np.arange(k)[None, :] + 0.5) / k - e / 2
         on = ((u * hz + phase / (2 * np.pi)) % 1.0) < duty
-        return 1.0 + depth * on.mean(1) / max(duty, 1e-9) * duty / min(1.0, max(duty, e * hz))
+        return 1.0 + depth * on.mean(1)
     raise ValueError(f"no light of kind {kind!r}: {', '.join(LIGHTS)}")
 
 
@@ -510,6 +512,43 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
     return plants, skipped
 
 
+TWIN_APART = 80.0       # px: a recorded path moved elsewhere keeps this far from where it was recorded
+
+
+def place_recorded(plants, masks, W, H, n, fps, seed, margin=MARGIN):
+    """Say where each recorded path goes that asks to be placed (`path.place` is "auto"): turned about the frame's
+    centre, or moved whole by one of a few offsets -- whichever keeps most of its frames inside the margin and out
+    from under the overlay, and TWIN_APART px or more from where it was recorded (so the copy never touches the
+    object it copies). The members of a group are moved together. Changes the plants' `path` in place."""
+    over = None if masks is None else (masks["blocks"] | masks["graphics"])
+    groups = {}
+    for p in plants:
+        pt = p.get("path") or {}
+        if pt.get("kind") == "recorded" and pt.get("place") == "auto":
+            groups.setdefault(p.get("group", ("alone", p["id"])), []).append(p)
+    ways = [dict(mirror=True, dx=0.0, dy=0.0)] + [dict(mirror=False, dx=float(dx), dy=float(dy))
+                                                   for dx in (0, -W // 3, W // 3, -W // 6, W // 6) for dy in (0, -H // 3, H // 3, -H // 6, H // 6)
+                                                   if (dx, dy) != (0, 0)]
+    for members in groups.values():
+        best = None
+        for way in ways:
+            good = total = 0
+            for p in members:
+                here = dict(p, path=dict(p["path"], place=None, **way))
+                was = dict(p, path=dict(p["path"], place=None, mirror=False, dx=0.0, dy=0.0))
+                r, r0 = realise(here, n, fps, W, H, seed), realise(was, n, fps, W, H, seed)
+                ok = (r["x"] >= margin) & (r["x"] <= W - margin) & (r["y"] >= margin) & (r["y"] <= H - margin)
+                ok &= np.hypot(r["x"] - r0["x"], r["y"] - r0["y"]) >= TWIN_APART
+                if over is not None:
+                    xi, yi = np.clip(np.round(r["x"]).astype(int), 0, W - 1), np.clip(np.round(r["y"]).astype(int), 0, H - 1)
+                    ok &= ~over[yi, xi]
+                good, total = good + int(ok.sum()), total + len(ok)
+            if best is None or good > best[0]:
+                best = (good, total, way)
+        for p in members:
+            p["path"].update(best[2], place="placed", frames_clear=round(best[0] / max(best[1], 1), 3))
+
+
 def realise(plant, n, fps, W, H, seed):
     """One object's draws over its own frames: dict(frames -- of the planted video, from 1 --, x, y (None for a path
     made with the scene), light). The generator is the object's own (`_rng`), so nothing else changes them."""
@@ -527,8 +566,9 @@ def stamp(Y, plant, x, y, level, vel, lv, hide=None, UV=None):
     """Write one object into the luma plane `Y` (uint8, changed in place) at (x, y) with `level` times its contrast.
     `vel` is its motion this frame (px), for a picture drawn out over its exposure; `lv` the stretch's levels
     (`survey`); `hide` the overlay's mask (nothing is written under it); `UV` the two chroma planes, greyed under an
-    opaque body. Returns dict(bg -- the median luma about it before --, added -- the codes written, summed --,
-    clipped, hidden -- the share of it under the overlay), or None where it is off the frame."""
+    opaque body. Returns dict(bg -- the median luma about it before --, added -- the codes written, summed --, peak --
+    the most any pixel was changed by, in codes: its contrast as written --, clipped, hidden -- the share of it under
+    the overlay), or None where it is off the frame."""
     H, W = Y.shape
     s = float(plant.get("sigma", 1.5))
     disc = plant.get("shape") == "disc"
@@ -570,7 +610,8 @@ def stamp(Y, plant, x, y, level, vel, lv, hide=None, UV=None):
             sub = P[(y0 + 1) // 2:(y0 + 1) // 2 + a.shape[0], (x0 + 1) // 2:(x0 + 1) // 2 + a.shape[1]]
             a = a[:sub.shape[0], :sub.shape[1]]
             sub[...] = np.rint(sub + a * (128.0 - sub)).astype(np.uint8)
-    return dict(bg=bg, added=float(out.astype(np.float32).sum() - was.sum()), clipped=clipped, hidden=hidden)
+    diff = out.astype(np.float32) - was
+    return dict(bg=bg, added=float(diff.sum()), peak=float(np.abs(diff).max()), clipped=clipped, hidden=hidden)
 
 
 def _label(W, H):
@@ -595,13 +636,16 @@ def _sha256(path, block=1 << 22):
 
 
 def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null=True, align=True, label=False,
-         say=lambda *a: None, progress=None, stop=None):
+         look=True, scene=True, say=lambda *a: None, progress=None, stop=None):
     """Write `plants` into frames n0..n1 of `video` and encode the stretch as the video is encoded: the planted file,
     its truth table (JSON and CSV) and, with `null`, the same stretch with nothing planted. `plants` is a list of
     objects (dicts: see `draw`), or `drawn` is dict(k, kinds, contrast, ...) for `draw` to make them on the stretch
-    as it is cut (after `align`). Returns dict(planted, truth, table, none, truth_data) -- or raises `Stop` with why
+    as it is cut (after `align`). With `look`, a picture of every object as the encoder left it (`sheet`). With
+    `scene`, the scene's own shift from each frame to the next is measured as the frames go by (`propose.onto`, the
+    registration Find uses) and each object's speed is given against it as well as on the screen. Returns
+    dict(planted, truth, table, none, sheets, truth_data) -- or raises `Stop` with why
     it cannot (no libx264; an odd frame size; a place a planted file may not go)."""
-    from . import planted, propose
+    from . import planted
     video = Path(video)
     why = refused(out, video)
     if why:
@@ -630,11 +674,22 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
         if plants is None:
             d = dict(drawn or {})
             k = int(d.pop("k", 0))
-            plants, skipped = draw(k, W, H, n, fps, seed=seed, masks=masks, **d) if k else ([], [])
+            fill = d.pop("fill", None)
+            extra = [dict(p) for p in d.pop("extra", None) or []]        # objects given beside the draw: placed first, kept clear of
+            for p in extra:
+                p["first"], p["last"] = max(1, int(p.get("first", 1))), min(n, int(p.get("last", n)))
+            place_recorded(extra, masks, W, H, n, fps, seed)
+            plants, skipped = draw(k, W, H, n, fps, seed=seed, masks=masks, taken=extra, **d) if k else ([], [])
+            plants = extra + plants
+            if fill:                                       # more objects round the first ones, which stay as they were drawn
+                fill = dict(fill)
+                more, sk = draw(int(fill.pop("k")), W, H, n, fps, seed=seed, masks=masks, first_id=10001, taken=plants, **fill)
+                plants, skipped = plants + more, skipped + sk
         plants = [dict(p) for p in plants]
         for i, p in enumerate(plants, 1):
             p.setdefault("id", i)
             p["first"], p["last"] = max(1, int(p.get("first", 1))), min(n, int(p.get("last", n)))
+        place_recorded(plants, masks, W, H, n, fps, seed)
         real = {p["id"]: realise(p, n, fps, W, H, seed) for p in plants}
         if len(real) != len(plants):
             raise ValueError("two planted objects have the same id")
@@ -642,7 +697,7 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
         f_planted, f_none = out / f"{stem}_s{seed}.mp4", out / f"{stem}_none.mp4"
         hide = masks["blocks"] | masks["graphics"]
         with_scene = [p for p in plants if (p.get("path") or {}).get("kind") == "scene"]
-        scene_at = {p["id"]: [float(p["path"]["x"]), float(p["path"]["y"])] for p in with_scene}
+        scene_at = {p["id"]: [float(p["path"]["x"]), float(p["path"]["y"])] for p in with_scene}     # as the frames go by
         say(f"  frames {a}-{n1} of {video.name}" + (f" (begun at the I frame before {n0})" if a != n0 else "")
             + f": {len(plants)} object{'s' if len(plants) != 1 else ''} to write in; encoding like the video: "
             f"{st['bit_rate'] / 1e6:.2f} Mb/s over this stretch, {st['bframes']} B frames between anchors, "
@@ -659,7 +714,9 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
             encs.append(subprocess.Popen(_encode_command(f_none, W, H, st, comment(0, video.name, a, n1, seed)),
                                          stdin=subprocess.PIPE, stderr=open(tmp / "none.log", "wb")))
         mark = _label(W, H) if label else None
-        rows, prev, got = [], None, 0
+        rows, got = [], 0
+        moving = _Scene(~hide) if (scene or with_scene) else None
+        scene_from = {}
         try:
             for m in range(1, n + 1):
                 buf = dec.stdout.read(size)
@@ -675,15 +732,12 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
                         P[(H - mark.shape[0] - 4) // 2:(H - 4) // 2 + 1, 2:(4 + mark.shape[1]) // 2 + 1] = 128
                 if null:
                     encs[1].stdin.write(frame.tobytes())
-                if with_scene:                             # the scene's own shift since the last frame, for what moves with it
-                    g = Y.astype(np.float32)
-                    if prev is not None:
-                        dx, dy = propose.onto(prev, g, ~hide)[1]
-                        for p in with_scene:
-                            if p["first"] < m <= p["last"]:
-                                scene_at[p["id"]][0] += dx
-                                scene_at[p["id"]][1] += dy
-                    prev = g
+                if moving is not None:                     # where the scene has got to: what moves with it follows it,
+                    at = moving.at(m, Y.astype(np.float32))    # and every object's speed is also said against it
+                    for p in with_scene:
+                        if p["first"] <= m <= p["last"]:
+                            o = scene_from.setdefault(p["id"], at)
+                            scene_at[p["id"]] = [float(p["path"]["x"]) + at[0] - o[0], float(p["path"]["y"]) + at[1] - o[1]]
                 for p in plants:
                     if not p["first"] <= m <= p["last"]:
                         continue
@@ -700,6 +754,7 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
                                      light=round(float(r["light"][i]), 4), on=w is not None,
                                      bg=None if w is None else round(w["bg"], 1),
                                      added=None if w is None else round(w["added"], 1),
+                                     peak=None if w is None else round(w["peak"] / lv["codes_per_dn"], 1),
                                      clipped=bool(w and w["clipped"]), hidden=0.0 if w is None else round(w["hidden"], 3)))
                 encs[0].stdin.write(frame.tobytes())
                 if progress is not None:
@@ -732,14 +787,17 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
     by = {}
     for r in rows:
         by.setdefault(r["id"], []).append(r)
+    drift = moving.velocity() if moving is not None else {}
     for p in plants:
         mine = [r for r in by.get(p["id"], []) if r["on"]]
         p.update(frames_on=len(mine), frames_clipped=sum(r["clipped"] for r in mine),
                  frames_hidden=sum(r["hidden"] > 0.5 for r in mine),
                  contrast_codes=round(float(p["contrast"]) * lv["codes_per_dn"], 2),
+                 contrast_written=None if not mine else round(float(np.median([r["peak"] for r in mine if r["hidden"] <= 0.5] or [0.0])), 1),
                  fwhm_px=round(2.3548 * float(p.get("sigma", 1.5)), 2),
                  speed_px_per_frame=None if len(mine) < 2 else round(float(np.median(
                      [math.hypot(b["x"] - a_["x"], b["y"] - a_["y"]) for a_, b in zip(mine, mine[1:])])), 3),
+                 speed_against_scene=_against(mine, drift),
                  track={str(r["frame"]): [r["x"], r["y"]] for r in mine},
                  light_by_frame={str(r["frame"]): r["light"] for r in mine})
     truth = dict(
@@ -749,20 +807,83 @@ def make(video, n0, n1, plants=None, out=".", tag=None, seed=1, drawn=None, null
         source=dict(video=video.name, bytes=video.stat().st_size, sha256=_sha256(video)),
         stretch=dict(n0=a, n1=n1, asked=[n0, n1], frames=n, width=W, height=H, fps=fps, fps_exact=str(info["fps"])),
         frame_numbers="`frame` is the planted video's, from 1; `source_frame` the video's it was made from",
-        units=dict(contrast="grey levels of the extracted frames (DN), the object's peak over what is behind it",
+        units=dict(contrast="grey levels of the extracted frames (DN), the object's peak over what is behind it, as asked",
+                   contrast_written="the same as written: the median over its frames of the most a pixel was changed by "
+                                    "(less than asked where the picture's floor or ceiling cut it, or its light was low)",
+                   peak="that, frame by frame (DN)",
                    contrast_codes="the same in the file's luma codes", sigma="px", speed="px a frame", hz="Hz"),
         settings=st, levels=lv, labelled=bool(label), plants=plants, skipped=skipped,
         overlay=dict(share=float(hide.mean()), still_scene=bool(masks.get("still_scene"))),
+        scene=None if moving is None else dict(
+            speed_px_per_frame=round(float(np.median([math.hypot(*v) for v in drift.values()] or [0.0])), 3),
+            held_still=round(float(np.mean([math.hypot(*v) < 0.05 for v in drift.values()] or [1.0])), 3),
+            how=("the background's shift from a reference frame to each frame, by the registration Find uses "
+                 "(`propose.onto`), the reference renewed every 15 frames or 24 px; a scene with too little texture "
+                 "to register, or one that fits as well unshifted, reads as held still"),
+            at={str(m): [round(x, 2), round(y, 2)] for m, (x, y) in moving.places.items()}),
         files=dict(planted=f_planted.name, none=f_none.name if null else None))
     f_truth, f_table = out / f"{stem}_s{seed}_truth.json", out / f"{stem}_s{seed}_truth.csv"
     f_truth.write_text(json.dumps(truth, indent=1, default=_plain), encoding="utf-8")
     with open(f_table, "w", newline="", encoding="utf-8") as f:
         f.write(f"# {comment(len(plants), video.name, a, n1, seed)}\n")
-        w = csv.DictWriter(f, ["frame", "source_frame", "id", "x", "y", "light", "on", "bg", "added", "clipped", "hidden"])
+        w = csv.DictWriter(f, ["frame", "source_frame", "id", "x", "y", "light", "on", "bg", "added", "peak", "clipped", "hidden"])
         w.writeheader()
         w.writerows(rows)
+    sheets = sheet(truth, out, out / f"{stem}_s{seed}_truth.png") if look else []
     return dict(planted=str(f_planted), truth=str(f_truth), table=str(f_table), none=str(f_none) if null else None,
-                truth_data=truth)
+                sheets=sheets, truth_data=truth)
+
+
+class _Scene:
+    """Where the scene has got to on each frame, as a displacement from the stretch's first frame: `at(m, g)` for frame
+    m's luma. Each frame is registered to a reference frame by `propose.onto` (the registration Find uses: one shift
+    for the whole picture, kept only where it fits better than none), and the reference is renewed once the scene has
+    moved `reach` px from it or after `most` frames -- so a shift is read over a baseline long enough to read it on
+    (frame to frame, half a pixel reads as a quarter), and the errors of a long pan do not add up frame by frame."""
+
+    def __init__(self, ok, reach=24.0, most=15):
+        self.ok, self.reach, self.most = ok, reach, most
+        self.ref = self.ref_m = None
+        self.base = (0.0, 0.0)
+        self.places = {}
+
+    def at(self, m, g):
+        from . import propose
+        if self.ref is None:
+            self.ref, self.ref_m, here = g, m, (0.0, 0.0)
+        else:
+            dx, dy = propose.onto(self.ref, g, self.ok)[1]
+            here = (self.base[0] + float(dx), self.base[1] + float(dy))
+            if math.hypot(dx, dy) > self.reach or m - self.ref_m >= self.most:
+                self.ref, self.ref_m, self.base = g, m, here
+        self.places[m] = here
+        return here
+
+    def velocity(self, half=5):
+        """{frame: (vx, vy)} px a frame, each from the places `half` frames either side (fewer at the ends)."""
+        ms = sorted(self.places)
+        out = {}
+        for m in ms:
+            a, b = max(ms[0], m - half), min(ms[-1], m + half)
+            if b > a:
+                out[m] = ((self.places[b][0] - self.places[a][0]) / (b - a), (self.places[b][1] - self.places[a][1]) / (b - a))
+        return out
+
+
+def _against(rows, drift, half=5):
+    """An object's speed against the scene, px a frame: the median over its frames of its own velocity (over `half`
+    frames either side) less the scene's there. None where the scene was not measured or the object has under 3 frames."""
+    if not drift or len(rows) < 3:
+        return None
+    at = {r["frame"]: (r["x"], r["y"]) for r in rows}
+    ms = sorted(at)
+    out = []
+    for m in ms:
+        a, b = max(ms[0], m - half), min(ms[-1], m + half)
+        if b > a and m in drift and a in at and b in at:
+            v = ((at[b][0] - at[a][0]) / (b - a), (at[b][1] - at[a][1]) / (b - a))
+            out.append(math.hypot(v[0] - drift[m][0], v[1] - drift[m][1]))
+    return round(float(np.median(out)), 3) if out else None
 
 
 def _plain(o):
@@ -773,6 +894,82 @@ def _plain(o):
     if isinstance(o, np.bool_):
         return bool(o)
     return str(o)
+
+
+# ---- looking at what was planted ----------------------------------------------------------------------------------
+def _luma_frames(video, frames, W, H):
+    """{frame: H x W uint8 luma} of the frames asked for, by one pass of ffmpeg over the file."""
+    frames = sorted(set(int(n) for n in frames))
+    if not frames:
+        return {}
+    sel = "+".join(f"eq(n,{n - 1})" for n in frames)
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(video), "-vf", f"select='{sel}',extractplanes=y",
+                        *every_frame(), "-frames:v", str(len(frames)), "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True)
+    a = np.frombuffer(r.stdout, np.uint8)
+    got = len(a) // (W * H)
+    return dict(zip(frames, a[:got * W * H].reshape(got, H, W)))
+
+
+def sheet(truth, folder, out, per=6, box=48, zoom=4, page=10):
+    """The planted objects as the encoder left them, for someone to look at before a recovery curve is believed: a row
+    for each object, `per` frames spread over its life, each a `box`-px crop about where the truth table has it,
+    enlarged without interpolation, with the same place in the control (nothing planted) under it where the control
+    was written. The levels are the extracted frames'. `page` objects to a picture: `out`, then `<out>_2.png` and
+    on. Returns the pictures written."""
+    from PIL import Image, ImageDraw
+    from .figures import pil_font
+    folder = Path(folder)
+    st, lv = truth["stretch"], truth["levels"]
+    W, H = st["width"], st["height"]
+    plants = [p for p in truth["plants"] if p.get("track")]
+    if not plants:
+        return []
+    want = {}
+    for p in plants:
+        ns = sorted(int(n) for n in p["track"])
+        want[p["id"]] = sorted({ns[int(round(i))] for i in np.linspace(0, len(ns) - 1, min(per, len(ns)))})
+    every = {n for v in want.values() for n in v}
+    A = _luma_frames(folder / truth["files"]["planted"], every, W, H)
+    B = _luma_frames(folder / truth["files"]["none"], every, W, H) if truth["files"].get("none") else {}
+    k = 1.0 / lv["codes_per_dn"]
+    black = STUDIO[0] if lv["codes_per_dn"] < 1 else 0
+
+    def crop(F, n, x, y):
+        g = F.get(n)
+        t = np.full((box, box), 24, np.uint8)
+        if g is None:
+            return t
+        xi, yi, r = int(round(x)), int(round(y)), box // 2
+        x0, x1, y0, y1 = max(xi - r, 0), min(xi + r, W), max(yi - r, 0), min(yi + r, H)
+        if x1 > x0 and y1 > y0:
+            t[y0 - (yi - r):y1 - (yi - r), x0 - (xi - r):x1 - (xi - r)] = np.clip((g[y0:y1, x0:x1].astype(np.float32) - black) * k, 0, 255)
+        return np.repeat(np.repeat(t, zoom, 0), zoom, 1)
+    font, cell, bar = pil_font(14), box * zoom, 22
+    rows_h = cell * (2 if B else 1) + bar + 6
+    files = []
+    for k0 in range(0, len(plants), page):
+        part = plants[k0:k0 + page]
+        im = Image.new("L", (per * (cell + 4) + 4, len(part) * rows_h), 17)
+        dr = ImageDraw.Draw(im)
+        for i, p in enumerate(part):
+            y = i * rows_h
+            lt = p.get("light") or {}
+            words = (f"object {p['id']}: {p.get('kind') or p.get('shape')}, {'dark' if p.get('dark') else 'bright'}, "
+                     f"{p['contrast']:g} DN asked, {p.get('contrast_written')} written, sigma {p.get('sigma'):g} px"
+                     + (f", {p['diameter']:g} px wide" if p.get("diameter") else "")
+                     + (f", {p['speed_px_per_frame']:g} px a frame" if p.get("speed_px_per_frame") is not None else "")
+                     + (f", light {lt.get('kind')}" + (f" {lt['hz']:.1f} Hz" if lt.get("hz") else "") if lt.get("kind", "constant") != "constant" else "")
+                     + f"; frames {', '.join(map(str, want[p['id']]))}")
+            dr.text((6, y + 3), words[:int(im.size[0] / 7.6)], fill=235, font=font)
+            for j, n in enumerate(want[p["id"]]):
+                x, yy = p["track"][str(n)]
+                im.paste(Image.fromarray(crop(A, n, x, yy)), (4 + j * (cell + 4), y + bar))
+                if B:
+                    im.paste(Image.fromarray(crop(B, n, x, yy)), (4 + j * (cell + 4), y + bar + cell + 2))
+        path_ = str(out) if not k0 else str(out).replace(".png", f"_{k0 // page + 1}.png")
+        im.save(path_)
+        files.append(path_)
+    return files
 
 
 # ---- holding a search against the truth table ----------------------------------------------------------------
@@ -824,8 +1021,10 @@ def recovered(truth, proposals, px=12.0):
         for i, (tr, p) in enumerate(props, 1):             # every row on it, not only the first: none of them is "another"
             if i not in taken and on_path(tr, path_, float(p.get("size_px") or 0.0), px):
                 taken.add(i)
-        rows.append(dict(id=pl["id"], kind=pl.get("kind"), group=pl.get("group"), contrast=pl["contrast"], sigma=pl.get("sigma"),
-                         diameter=pl.get("diameter"), speed=pl.get("speed_px_per_frame"), dark=bool(pl.get("dark")),
+        rows.append(dict(id=pl["id"], kind=pl.get("kind"), group=pl.get("group"), contrast=pl["contrast"],
+                         contrast_written=pl.get("contrast_written"), sigma=pl.get("sigma"),
+                         diameter=pl.get("diameter"), speed=pl.get("speed_px_per_frame"),
+                         speed_scene=pl.get("speed_against_scene"), dark=bool(pl.get("dark")),
                          light=(pl.get("light") or {}).get("kind"), hz=(pl.get("light") or {}).get("hz"),
                          frames=pl.get("frames_on", len(path_)) - pl.get("frames_hidden", 0),
                          clipped=pl.get("frames_clipped", 0), found=hit is not None,
@@ -899,6 +1098,9 @@ def main():
     ap.add_argument("--no-align", action="store_true", help="begin exactly at --n0, not at the I frame at or before it")
     ap.add_argument("--label", action="store_true", help="write a line of text into every frame saying it is a test video "
                                                          "(for a copy meant to be shown; it changes what is encoded)")
+    ap.add_argument("--no-sheet", action="store_true", help="do not write the picture of the planted objects")
+    ap.add_argument("--no-scene", action="store_true", help="do not measure how the scene moves from frame to frame (each "
+                    "object's speed is then given on the screen only)")
     ap.add_argument("--score", metavar="TRUTH", help="hold a search against a truth table and plant nothing: with --proposals")
     ap.add_argument("--proposals", metavar="JSON", help="with --score: what `mcdonald look --propose --more --json` printed "
                                                        "for the planted video")
@@ -936,7 +1138,8 @@ def main():
         d = json.loads(Path(args.plants).read_text(encoding="utf-8"))
         plants = d if isinstance(d, list) else d.get("plants") or []
         for p in plants:                                   # a truth table's objects carry what `make` adds: taken off again
-            for k in ("frames_on", "frames_clipped", "frames_hidden", "contrast_codes", "fwhm_px", "speed_px_per_frame",
+            for k in ("frames_on", "frames_clipped", "frames_hidden", "contrast_codes", "contrast_written", "fwhm_px", "speed_px_per_frame",
+                      "speed_against_scene",
                       "track", "light_by_frame"):
                 p.pop(k, None)
     else:
@@ -949,7 +1152,8 @@ def main():
         from .progress import to_stderr
         try:
             res = make(video, args.n0, args.n1, plants, out, tag, args.seed, drawn, null=not args.no_none,
-                       align=not args.no_align, label=args.label, say=print, progress=to_stderr())
+                       align=not args.no_align, label=args.label, look=not args.no_sheet, scene=not args.no_scene, say=print,
+                       progress=to_stderr())
         except ValueError as e:
             raise Stop(str(e), 2)
         t = res["truth_data"]
@@ -959,18 +1163,24 @@ def main():
         print(f"wrote {res['truth']} and {Path(res['table']).name}: where each object is in every frame")
         if res["none"]:
             print(f"wrote {res['none']}: the same frames encoded the same way with nothing added, the control")
+        if res["sheets"]:
+            print(f"wrote {res['sheets'][0]}" + (f" (and {len(res['sheets']) - 1} more)" if len(res["sheets"]) > 1 else "")
+                  + ": each object as the encoder left it, with the same place in the control under it. Look at it before "
+                  "trusting what a search finds of them.")
         if st.get("types_same") is not None:
             print(f"  the encoder gave {100 * st['types_same']:.0f} % of the frames the picture type the video gives them, "
                   f"at {st['bit_rate_made'] / 1e6:.2f} Mb/s for the video's {st['bit_rate'] / 1e6:.2f}")
         for s in t["skipped"]:
             print(f"  one {s['kind']} was not planted: {s['why']}")
     if args.json:
-        files = [res["planted"], res["truth"], res["table"]] + ([res["none"]] if res["none"] else [])
+        files = [res["planted"], res["truth"], res["table"]] + ([res["none"]] if res["none"] else []) + res["sheets"]
         notes = ["A planted video is a test article, not footage: its name, its container's comment and the truth table "
                  "beside it say so, and every case made from it carries `clip.planted`.",
                  f"Not repeated from the video, because no file records it: {NOT_RECOVERED}. The control for that is the "
                  "stretch encoded the same way with nothing planted."]
         results = {k: v for k, v in t.items() if k != "plants"}
+        if results.get("scene"):
+            results["scene"] = {k: v for k, v in results["scene"].items() if k != "at"}
         results["plants"] = [{k: v for k, v in p.items() if k not in ("track", "light_by_frame")} for p in t["plants"]]
         results["said"] = lines
         emit(envelope("plant", inputs, None, files, results, notes=notes))
