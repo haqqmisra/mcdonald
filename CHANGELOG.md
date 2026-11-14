@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.4 (2026-11-14)
 
 **A beat is now held against the clip's own sound** (a change to reports; the maintainer's choice of 2026-11-13).
 `flicker` lists the rhythms a supply, a codec or the sampling can put into a brightness curve, its look-alikes, and
