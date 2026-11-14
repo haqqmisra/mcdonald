@@ -1135,7 +1135,7 @@ class Case:
     def _asks(self):
         """Under the four unknowns: which missing quantity is worth asking for first (`value_of_information`), in a few
         sentences and a table. Nothing where there is no rate, or nothing is missing."""
-        from .kinematics import VOI_NAMES, VOI_PRECISION, VOI_PRECISION_DEG, information_said
+        from .kinematics import VOI_NAMES, VOI_PRECISION, VOI_PRECISION_DEG, _left, information_said
         voi = self.value_of_information()
         if not voi or not voi.get("power"):
             return []
@@ -1159,7 +1159,9 @@ class Case:
                 cells = []
                 for x in (a, b):
                     k = x["asks"][s]
-                    cells += [pc(x["p"]), f"{pc(k['p_lo'])} to {pc(k['p_hi'])}", "—" if k["share"] is None else f"{100 * k['share']:.0f} %"]
+                    # a share of a question one way leaves (all but) settled is a share of nothing: a dash, as the sentence says
+                    cells += [pc(x["p"]), f"{pc(k['p_lo'])} to {pc(k['p_hi'])}",
+                              "—" if k["share"] is None or not _left(x) else f"{100 * k['share']:.0f} %"]
                 L.append(f"| Is its own speed {q['what']}? | {VOI_NAMES[s]} | " + " | ".join(cells) + " |")
         return L + ["", "\"Chance now\" is the share of everything the video allows that answers yes. \"Once known\" is where that "
                     "chance would lie, nine times in ten, after the quantity was given. \"Share settled\" is how much of the "

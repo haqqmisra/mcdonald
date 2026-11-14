@@ -449,6 +449,8 @@ def test_the_ledger_carries_the_asks():
     check("### Which missing quantity to ask for first" in text and text.count("| Is its own speed") == 8,
           "the report's ledger has the table: two questions by four unknowns")
     check("it says nothing about the object" in text, "and says what it is not")
+    first = next(line for line in L if line.startswith("| Is its own speed under 30 m/s?"))
+    check(first.split(" | ")[4] == "—", "a question the even way leaves all but settled has a dash for its share there, not a share of nothing", first)
     prose = [s for line in L if line and not line.startswith(("|", "#")) for s in line.lstrip("- ").split(". ")]
     words_ok(prose, "the asks' words")
     import json
