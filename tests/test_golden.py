@@ -398,10 +398,10 @@ def test_exercises(only=None):
 
 def test_checklist_on_the_case_files():
     """The checklist (Ravi, 2026-11-01) on every object of every reference case file: each row answered in one of its five
-    words, with why; PR135's bird as the standard -- whether the camera moved not measured (its picture held still on screen,
-    which the layers step cannot tell from a following camera; 0.4.2), the object moves across the picture, not straight and
-    steady, beats as a wingbeat does, something moves with it, none of integrity's checks could decide, no real speed, the
-    track not yet checked by eye."""
+    words, with why; PR135's bird as the standard -- the camera moved (its blocks of frames read the background crossing the
+    picture under the pattern that held the templates; 2026-11-13. Until then "not measured: its picture held still on
+    screen", 0.4.2), the object's motion against that background not measured, not straight and steady, beats as a wingbeat
+    does, something moves with it, none of integrity's checks could decide, no real speed, the track not yet checked by eye."""
     print("\nthe checklist on the reference case files")
     import zipfile
     from mcdonald.report import ANSWERS, CANT, CHECKS, Case, NO, NOT_YET, YES
@@ -431,16 +431,34 @@ def test_checklist_on_the_case_files():
           f"{len(seen)} objects in {len(files)} case files: every row answered in one of the five words, with why, and the table under "
           "each conclusion", "; ".join(bad[:3]))
     pr135 = seen.get("pr135/object-1") or {}
-    # chosen: Can't tell since 2026-11-07 -- measured on the paper's track given with --track, which says nothing of who placed it
-    want = dict(video=NO, camera=CANT, moves=YES, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=CANT, checked=NOT_YET)
+    # chosen: Can't tell since 2026-11-07 -- measured on the paper's track given with --track, which says nothing of who placed it.
+    # camera and moves since 2026-11-13 (IDEAS.md GL4): the file's own block reading has the background crossing the picture at
+    # 15-21 px a frame on 3 of 4 blocks, under the pattern that held the templates, so the picture did not hold still: the camera
+    # moved (it was Can't tell, "held still on screen"), and the object's motion against the background is Can't tell (it was Yes,
+    # "about 103 pixels a second across the picture, which held still")
+    want = dict(video=NO, camera=YES, moves=CANT, straight=NO, closing=CANT, beat=YES, lookalike=YES, flash=NO, added=CANT, real=NO, chosen=CANT, checked=NOT_YET)
     want["with"] = YES
     check(all(pr135.get(k, {}).get("answer") == a for k, a in want.items()) and pr135.get("beat", {}).get("said", "").startswith("7.8 times a second")
-          and pr135.get("moves", {}).get("said") == "about 103 pixels a second across the picture, which held still"
-          and "whether the camera moved is not measured" in pr135.get("camera", {}).get("said", ""),
-          "PR135 object 1: whether the camera moved is Can't tell (0.4.2: its picture held still on screen, the layers step's own no-power, which a camera "
-          "following the bird over an empty sky gives too; 0.4.1 said No), it moves 103 pixels a second across the picture (0.4.1: that step gives no rate "
-          "against the background there), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright feature moves with it, none of "
-          "integrity's checks could decide, no real speed, the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+          and pr135.get("moves", {}).get("said") == "it moves about 103 pixels a second across the picture, but so did the background, and its rate "
+                                                    "against the background was not measured"
+          and pr135.get("camera", {}).get("said") == "the background moved across the picture at about 569 pixels a second, read from whole blocks of "
+                                                     "frames under a pattern fixed on the camera's sensor",
+          "PR135 object 1: the camera moved (the background crossed the picture at about 569 pixels a second by its blocks of frames; until "
+          "2026-11-13 Can't tell, 'held still on screen'), its 103 pixels a second across the picture is not a rate against that background (Can't "
+          "tell; it was Yes, 'which held still'), not straight and steady, beats 7.8 times a second as a wingbeat does, a bright feature moves with "
+          "it, none of integrity's checks could decide, no real speed, the track not yet checked", str({k: r["answer"] for k, r in pr135.items()}))
+    # the same on every object whose blocks say the background moved, and no other (method section 41's list)
+    moved = sorted(k for k, v in seen.items() if "camera" in v and "whole blocks of frames" in v["camera"]["said"] or "blocks of frames read it" in v.get("camera", {}).get("said", ""))
+    held = sorted(k for k, v in seen.items() if "camera" in v and "held still on screen" in v["camera"]["said"])
+    check(moved == ["pr077/object-1", "pr077/object-2", "pr079/object-1", "pr085/object-1", "pr088/object-1", "pr088/object-2", "pr099/object-1",
+                    "pr099/object-2", "pr099/object-3", "pr135/object-1", "pr135/object-2", "pr135/object-3", "pr135/object-4", "pr135/object-5",
+                    "pr135/object-6", "pr41/object-1", "pr44/object-1"]
+          and held == ["pr097/object-1", "pr097/object-2", "pr097/object-3", "pr097/object-4", "pr097/object-5", "pr097/object-8", "pr141/object-1",
+                       "pr141/object-2"]
+          and all(seen[k]["camera"]["answer"] == YES and seen[k]["moves"]["answer"] == CANT for k in moved)
+          and all(seen[k]["camera"]["answer"] == CANT for k in held),
+          "the 17 objects whose blocks read the background moving under the sensor's pattern say the camera moved, and the 8 with no such "
+          "reading that the picture held still on screen (Can't tell), as before", f"moved {len(moved)}, held {len(held)}: {held}")
     # the beat row's "No" only where a bird's beat would have shown, and integrity's agreement (2026-11-07, method section 47)
     beat = {k: v["beat"]["answer"] for k, v in seen.items() if "beat" in v}
     deaf = sorted(k for k, a in beat.items() if a == CANT and "too noisy to show a bird's" in seen[k]["beat"]["said"])
@@ -649,6 +667,42 @@ def test_pr144_window():
     check(got.get("object vs sea", 0) - got.get("object vs cloud tops", 0) > 50,
           "PR144/300-500: the two layers are still distinguishable",
           "a single blended rate would be the regression this test exists to catch")
+
+
+def test_pr058_a_sea_streaked_along_its_motion_and_a_magenta_pointer():
+    """PR058 (IDEAS.md GL4 and GL5, 2026-11-13; docs/method.md sections 1 and 5), ten seconds of the stretch they were found
+    on: a sea streaked along its own motion crossing the picture at about 20 px a frame behind an object the sensor
+    follows, and a magenta north pointer over a reticle that shows two to four of its four ticks. `layers` called half
+    the pairs "held still even over a second" there and the report said the picture held still; the pairs whose
+    templates sit along the sea's own shift without agreeing are now not read, not held. `symbology` read no frame, by
+    colour or by hue, about a boresight 54 px off; it reads the pointer both ways about the reticle's own crossing."""
+    print("\nPR058, frames 11100-11400 -- a sea streaked along its own motion, and a magenta pointer")
+    video, why = have_clip("PR058")
+    if not video:
+        print(f"  SKIP  {why}")
+        SKIP.append("PR058")
+        return
+    window = ["--n0", "11100", "--n1", "11400"]
+    with tempfile.TemporaryDirectory() as td:
+        lay = json.loads(run(["layers", str(video)] + window + ["--no-scene", "--out", td, "--fresh", "--json"], td))
+        north = {m: json.loads(run(["symbology", str(video)] + window + ["--method", m, "--out", str(Path(td) / m), "--json"], td))["results"]
+                 for m in ("auto", "hue")}
+    f = lay["results"]
+    hs, rate = f["held_still"], (f["px_per_s"]["all"] or {}).get("median")
+    check(hs.get("not_read_share", 0) > 0.2 and hs["still_again_share"] < 0.2 and not any("held still" in w for _, w in lay["no_power"]),
+          "PR058: the pairs whose templates did not agree are not read, and the scene is not called held still",
+          f"not read {hs.get('not_read_share', 0):.0%}, still over a second {hs['still_again_share']:.0%}")
+    check(rate is not None and 540 <= rate <= 700, "PR058: the sea crosses the picture at about 600 px/s", f"{rate}")
+    for m, F in north.items():
+        rad, rot = F.get("radius") or {}, (F.get("rotation") or [{}])[0]
+        check(math.hypot(F["boresight"]["x"] - 640.5, F["boresight"]["y"] - 359.5) <= 2.0 and F["frames_solved"] >= 80
+              and abs(rad.get("mean_px", 0) - 195.2) <= 1.5 and F["radius_is_fixed"] and 0.1 <= rot.get("dtheta_dt", 0) <= 0.3,
+              f"PR058, symbology by {m}: the boresight at the reticle's crossing, the pointer on most frames at 195 px, turning about 0.2 deg/s",
+              f"{F['method']}: ({F['boresight']['x']:.1f}, {F['boresight']['y']:.1f}), {F['frames_solved']} of {F['frames_tried']} frames, "
+              f"radius {rad.get('mean_px', float('nan')):.2f} +- {rad.get('sd_px', float('nan')):.2f} px, {rot.get('dtheta_dt', float('nan')):+.3f} deg/s")
+    c = north["hue"].get("pointer_colour") or {}
+    check(north["auto"]["method"] == "chroma" and c.get("hue_deg") is not None and abs((c["hue_deg"] - 305 + 180) % 360 - 180) <= 20,
+          "PR058: by itself the stage reads it by chroma, and by hue it finds the pointer drawn in magenta", f"hue {c.get('hue_deg')}")
 
 
 def test_pr43_speed_band():

@@ -334,6 +334,9 @@ GOLDEN_KINDS = {
     "test_pr113_two_clicks": ("control", "the Technical Note's two documented clicks and its hand-measured 142 px/frame"),
     "test_pr144_window": ("regression", "the tool's own numbers of 2026-09-19"),
     "test_pr144_full": ("regression", "the tool's published numbers (method section 4)"),
+    "test_pr058_a_sea_streaked_along_its_motion_and_a_magenta_pointer": ("regression", "the tool's own readings of 2026-11-13 (GL4, GL5); "
+                                                                         "the sea's rate agrees with two readings outside the tool (a hand "
+                                                                         "correlation, the turbine towers), the pointer with two frames read by eye"),
     "test_pr43_streak_by_motion": ("regression", "the link's own frames since 0.4.0"),
     "test_pr43_speed_band": ("regression", "the band on the reference case's track"),
     "test_checklist_on_the_case_files": ("regression", "the checklist's answers on the case files the tool made"),

@@ -5,6 +5,47 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**The report no longer says the picture held still behind an object where the pixels show it moving** (2026-11-13;
+IDEAS.md GL4, found on PR058). Two things, one in the measurement and one in the words:
+
+- *A pair of frames whose templates did not agree was called held still.* On PR058 a sea streaked along its own
+  motion crosses the picture at 20 pixels a frame behind an object the sensor follows. Half of `layers`' frame pairs
+  were "held still even over a second", and the report said "The object moved about 588 pixels a second in the
+  picture, as the camera held it. The picture behind it held still on screen". In those pairs nearly every template
+  was matched well along the sea's own shift, but they did not agree to the 6 pixels a consensus asks, and the second
+  look, over a second, searched 245 pixels for a sea that had gone 600. A pair is now held where its templates match at
+  no shift. One whose templates are matched well away from zero, most of them on one side, moved and was not read:
+  it has no shift, and it is not counted as held (`held_still.not_read_share`). PR058 now reads "The object moved
+  about 620 pixels a second against the background" (held still in 5 % of pairs, not read in 45 %). On five still
+  cameras no pair of 5,213 comes near the rule; on the fourteen reference case files it takes 11 pairs of 11,948 (ten
+  on PR088's object 2, one on PR113, whose checklist says "held still in 46 %" for 48 %).
+- *Where whole blocks of frames read the background moving, the words follow them.* `layers` cannot follow a scene
+  under a pattern fixed on the sensor, and says so (its NO POWER); `scene` reads such a scene by whole blocks of 60
+  frames. The report took the NO POWER for "The picture behind it held still on screen" on clips whose blocks read the
+  background crossing the picture at hundreds of pixels a second. Now, where more blocks are read than a clip with no
+  moving scene gives one time in a hundred, it says so: "The background behind it moved across the picture at about
+  805 pixels a second. A pattern fixed on the camera's sensor hid that motion from the match between frames, so the
+  object's motion against the background is not measured." (PR41). The checklist's camera row answers Yes there, and
+  the row of the object's motion Can't tell. **No rate changes**: the object's rate is still its motion as the camera
+  held it. This changes the words of 17 of the 31 reference reports: PR077's two objects, PR079, PR085, PR088's two,
+  PR099's three, PR135's six, PR41 and PR44 (on PR077 object 1, PR099 object 2 and PR44 "for at least part of the
+  track"). Where no block is read the words stand, with one sentence more under them, on the 8 others (PR097's six,
+  PR141's two): a background that crosses the picture faster than the search can follow looks the same as one that
+  held still. The exercise pages for PR44 and PR135 quote the new first lines.
+
+**A north pointer is read in the colour it is drawn in** (2026-11-13; IDEAS.md GL5, found on PR058). `symbology
+--method hue` read no frame of PR058's magenta "N": it asked for a warm glyph, red over blue, as PR144's orange one
+is, and a magenta glyph has as much blue as red. It now reads the pointer's colour off the frames where no warm glyph
+shows. And the boresight was the mean of the four coloured glyphs nearest the middle of the picture; where a reticle
+shows three of its four ticks, the fourth was the pointer itself. A reticle's two or three ticks are now recognised as
+such. PR058: boresight (640.5, 359.5) for (650.6, 306.8); the pointer read on 613 of 615 frames at a radius of
+195.2 ± 0.6 pixels, turning 0.200 degrees a second. Every frame read before on the pointer clips is read at the same
+place (PR43, PR48, PR149, PR27 to the byte; PR144, PR057a, PR060, PR061 one or two frames more each). The reference
+case PR41 gains 125 of the 132 frames it had lost the same way (its pointer is read on 259 of 266, and its turn reads
+-0.409 degrees a second for -0.413). Hue now also reads the cyan and magenta pointers of PR43, PR48, PR27, PR060 and
+PR061. Found and not changed: PR141's reports carry a "pointer" that is no pointer (coloured features at four fixed
+places and a circle through them); a guard is on the ideas bank.
+
 **`mcdonald plant`: what could the search have found?** (ROADMAP 0.6, objective 4, begun 2026-11-13; method §62).
 A search that lists what it found does not say what it would have missed. The new command writes synthetic objects
 into a stretch of a video's own frames. It encodes the stretch again as the video is encoded, and keeps a truth table

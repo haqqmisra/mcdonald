@@ -376,6 +376,7 @@ HOLD_MIN = 0.07                  # the two halves' coherence: above all 258 sear
 SLOWEST = 1.0                    # reduced px/frame: under this the first lag drops out of S, which steps up on a ring. 9 of the coded null's 13
 #                                  strongest blocks sit on it (0.78-0.97), and on PR123 "reads" hold their speed and turn every block
 FINE_FROM = 4.0                  # reduced px/frame: the upper band is believed only this far from the residue it keeps about zero
+FALSE_READ = 0.0091              # a block with no scene is read at most this often: the 95 % bound of 0 of 326 (method section 41)
 
 
 def judge(b):
@@ -526,7 +527,7 @@ def said(s):
     if s["not_read"]:
         L.append("  not read: " + "; ".join(f"{n}: {w}" for w, n in sorted(s["not_read"].items(), key=lambda kv: -kv[1])))
     L.append(f"  a floor: a coded clip loses motion fainter than about {s['floor_dn_rms']:.0f} DN rms, so unread means none above that, "
-             "not none. Blocks are this stage's own, in <tag>_scene.csv: no other stage takes them.")
+             "not none. Blocks are this stage's own, in <tag>_scene.csv: no other stage takes a rate from them.")
     return L
 
 

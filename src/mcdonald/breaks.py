@@ -294,10 +294,12 @@ def _slope_weights(tt):
     return c / float(c @ c)
 
 
-def against_scene(brk, frames, t, x, y, thetas, scene, fps, held_share=None):
+def against_scene(brk, frames, t, x, y, thetas, scene, fps, held_share=None, under=None):
     """The event study at the break `brk` (`of_track`'s): the object's change of velocity, the scene's (`scene_path`'s) over
     the same frames, and the abnormal change, each coordinate with its error, and the verdict. `held_share` is `layers`'
-    share of pairs held still even over a second: past `layers.SCENE_SHARE` there is no scene to set the object against.
+    share of pairs held still even over a second: past `layers.SCENE_SHARE` there is no scene to set the object against
+    (`under`, `layers.scene_state`'s reading where its blocks of frames say the scene moved all the same: the words then say
+    so, and the study is as powerless -- a block's one velocity over two seconds dates nothing to the frame).
     The verdict reads two tests at EVENT_P: whether the abnormal change is there (both coordinates, chi-square on two degrees
     of freedom), and whether the scene changed the way the object did (its change along the object's, `share` of it, one
     coordinate, past the two-sided z): the scene changed that way and nothing is left over, "the camera's"; something is left
@@ -306,6 +308,10 @@ def against_scene(brk, frames, t, x, y, thetas, scene, fps, held_share=None):
     Returns dict(power (False with `why` where it cannot decide), frames (the two windows), object, scene, abnormal (px/s,
     [x, y]), each's *_err, p_abnormal, share, share_err, z_scene, verdict)."""
     from . import layers
+    if held_share is not None and held_share > layers.SCENE_SHARE and under:
+        return dict(power=False, why=f"the scene moved {layers.UNDER_WORDS} and was read only by whole blocks of frames "
+                                     f"({under['read']} of {under['blocks']}, about {under['px_per_frame']:.0f} px a frame): there is no "
+                                     "frame-by-frame motion of the background to set the change against")
     if held_share is not None and held_share > layers.SCENE_SHARE:
         return dict(power=False, why=f"the scene is held still on screen even over a second in {held_share:.0%} of its frame "
                                      "pairs: the background's motion is an upper limit there, not a measurement")
@@ -536,7 +542,10 @@ def of_stage(track, fps, band, t0=None, t1=None, n0=None, n1=None, scene_csv=Non
         brk["scene"] = dict(power=False, why="the background was not measured (the layers step did not run)")
         return brk
     frames, t, x, y = kept_points(track, fps, t0, t1, n0, n1)
-    brk["scene"] = against_scene(brk, frames, t, x, y, thetas_of(band), scene, fps, held_share=held)
+    from . import layers
+    state = layers.scene_state(layers_fields)
+    brk["scene"] = against_scene(brk, frames, t, x, y, thetas_of(band), scene, fps, held_share=held,
+                                 under=state if state and state["state"] == "under" else None)
     return brk
 
 

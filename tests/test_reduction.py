@@ -131,8 +131,8 @@ def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
     F = f.fields
     check(F["method"] == "hue" and F["trial"] == dict(frames=sym.TRIAL, solved=0) and F["frames_solved"] == 0,
           "a white pointer: hue is tried on 20 frames and solves none", str(F["trial"]))
-    check(white.read <= 2 * sym.TRIAL + 3, "and the other 80 frames are not read (the 20 twice: to try, and to list glyphs)",
-          f"{white.read} frames read")
+    check(white.read <= 3 * sym.TRIAL + 3, "and the other 80 frames are not read (the 20 three times: to try a warm glyph, to look for "
+          "one of another colour, and to list glyphs)", f"{white.read} frames read")
     check("--method template --tpl-box" in f.no_power[0][1], "it says what finds a white pointer", f.no_power[0][1][:60])
     g = F["glyphs_to_try"] or []
     check(len(g) >= 1 and np.hypot(g[0]["x"] - 239.5, g[0]["y"] - 51.5) < 8 and "--tpl-box " + ",".join(map(str, g[0]["tpl_box"]))
@@ -145,6 +145,142 @@ def test_symbology_auto_gives_up_early_on_a_pointer_it_cannot_see():
           "an orange pointer passes the trial and every frame is read", f"{F['frames_solved']} solved")
     check(sym.measure(_Overlay((255, 255, 255)), step=3, method="hue").fields["frames_tried"] == 100,
           "hue asked for by name is not second-guessed: every frame is tried")
+
+
+def _coded_420(frames, crf=23):
+    """RGB frames through libx264 with its colour at half the picture's resolution (4:2:0), as every released video's is,
+    and back: uint8, T x H x W x 3. None where this ffmpeg has no libx264."""
+    import subprocess
+    import tempfile
+    a = np.asarray(frames, np.uint8)
+    T, H, W, _ = a.shape
+    with tempfile.TemporaryDirectory() as td:
+        f = str(Path(td) / "coded.mp4")
+        made = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-framerate", "30", "-i", "-",
+                               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", str(crf), f], input=a.tobytes(), capture_output=True)
+        if made.returncode:
+            return None
+        out = subprocess.run(["ffmpeg", "-v", "error", "-i", f, "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"], capture_output=True).stdout
+    return np.frombuffer(out, np.uint8).reshape(-1, H, W, 3)
+
+
+class _Display:
+    """An MTS-B's display drawn as PR058 shows it, 640 x 480: a purple reticle about (320, 240) -- two arms, an upright
+    tick above and, with `ticks=4`, one below -- four corner brackets, and a boxed "N" in `colour` that turns about the
+    reticle at `rate` deg/s, 130 px out, over a grey scene at `level`. `frames()` are the drawn pictures; `coded()` puts
+    them through the codec and gives a clip the stage reads."""
+    W, H, fps, n0, bore, radius, theta0 = 640, 480, 30.0, 1, (320.0, 240.0), 130.0, 10.0
+    PURPLE = (150, 70, 190)
+
+    def __init__(self, colour=(215, 90, 200), size=(12, 14), level=120, rate=0.2, n=60, ticks=3):
+        self.colour, self.size, self.level, self.rate, self.n1, self.ticks, self.pictures = colour, size, level, rate, n, ticks, None
+
+    def t(self, n):
+        return (n - self.n0) / self.fps
+
+    def at(self, n):
+        """Where the pointer's box is centred on frame n (its top-left corner is at whole pixels)."""
+        th = math.radians(self.theta0 + self.rate * self.t(n))
+        w, h = self.size
+        x0, y0 = round(self.bore[0] + self.radius * math.sin(th) - w / 2), round(self.bore[1] - self.radius * math.cos(th) - h / 2)
+        return x0 + (w - 1) / 2, y0 + (h - 1) / 2
+
+    def frames(self):
+        from scipy import ndimage
+        out = []
+        for n in range(self.n0, self.n1 + 1):
+            rng = np.random.default_rng(n)
+            a = np.repeat((self.level + ndimage.gaussian_filter(rng.normal(0, 1, (self.H, self.W)), 4) * 60 + rng.normal(0, 2, (self.H, self.W)))[:, :, None], 3, 2)
+            a[238:242, 294:312] = a[238:242, 328:346] = self.PURPLE                  # the reticle's arms
+            a[222:232, 318:322] = self.PURPLE                                        # the upright tick above
+            if self.ticks == 4:
+                a[248:258, 318:322] = self.PURPLE
+            for sx, sy in ((-1, -1), (1, -1), (-1, 1), (1, 1)):                      # the corner brackets, outside the pointer's ring
+                cx, cy = 320 + 170 * sx, 240 + 110 * sy
+                a[cy - 1:cy + 2, min(cx, cx - 10 * sx):max(cx, cx - 10 * sx) + 1] = self.PURPLE
+                a[min(cy, cy - 10 * sy):max(cy, cy - 10 * sy) + 1, cx - 1:cx + 2] = self.PURPLE
+            w, h = self.size
+            cx, cy = self.at(n)
+            x0, y0 = int(cx - (w - 1) / 2), int(cy - (h - 1) / 2)
+            a[y0:y0 + h, x0:x0 + w] = self.colour                                    # the box, and an "N" in it, darker
+            s = max(w // 6, 1)
+            dark = tuple(0.55 * c for c in self.colour)
+            a[y0 + 2:y0 + h - 2, x0 + 2:x0 + 2 + s] = a[y0 + 2:y0 + h - 2, x0 + w - 2 - s:x0 + w - 2] = dark
+            for i in range(h - 4):
+                x = x0 + 2 + round(i * (w - 4 - s) / max(h - 5, 1))
+                a[y0 + 2 + i, x:x + s] = dark
+            out.append(np.clip(a, 0, 255).astype(np.uint8))
+        return out
+
+    def coded(self):
+        self.pictures = _coded_420(self.frames())
+        return None if self.pictures is None else self
+
+    def rgb(self, n):
+        return self.pictures[n - self.n0]
+
+    def grey(self, n):
+        return self.pictures[n - self.n0].mean(2)
+
+
+def test_symbology_reads_a_pointer_in_the_colour_it_is_drawn_in():
+    """PR058 (2026-11-13, IDEAS.md GL5): a magenta "N", plain to the eye, that `--method hue` read on no frame, and that
+    `auto` did not reach by colour either. Two causes. The hue method asked for a warm glyph, red over blue by 60 levels,
+    as PR144's orange "N" is; a magenta one has as much blue as red (R 182, G 108, B 169) and none of its pixels passed.
+    And the boresight was the mean of the four coloured glyphs nearest the middle of the picture, taken to be the
+    reticle's ticks: PR058 shows three of its four ticks on the first frame, the fourth glyph was the pointer itself,
+    the boresight came out 54 px off, and the chroma method, having taken the pointer for a tick, had none left to find.
+    Drawn as PR058's display and put through the codec, with its colour at half resolution: a magenta "N" at three
+    sizes on a dark and a bright scene is found by its own hue, the warm test finds it on no frame, an orange one is read
+    as before, and the stage reads the pointer's turn about a boresight found from three ticks, by hue and by chroma."""
+    print("\nsymbology: a pointer in the colour it is drawn in, and a reticle that shows three of its four ticks")
+    if _coded_420(np.zeros((2, 16, 16, 3), np.uint8)) is None:
+        print("  SKIP  this ffmpeg has no libx264")
+        return
+    for level, scene in ((50, "a dark scene"), (190, "a bright scene")):
+        for size in ((10, 12), (12, 14), (20, 24)):
+            d = _Display(size=size, level=level, n=20).coded()
+            hue, shown, of = sym.glyph_hue([d.rgb(n) for n in range(1, 21)])
+            warm = sum(sym.hue_glyphs(d.rgb(n)) is not None for n in range(1, 21))
+            got = [sym.hue_glyphs(d.rgb(n), hue=hue) if hue is not None else None for n in range(1, 21)]
+            off = [math.hypot(p[0] - d.at(n)[0], p[1] - d.at(n)[1]) for n, p in zip(range(1, 21), got) if p is not None]
+            check(hue is not None and abs((hue - 305 + 180) % 360 - 180) <= 20 and shown >= 18 and warm == 0 and len(off) >= 18 and max(off) <= 1.5,
+                  f"a magenta N of {size[0]} x {size[1]} px on {scene}: its hue found, the glyph placed to 1.5 px by it, and by the warm test on no frame",
+                  f"hue {hue if hue is None else round(hue)} deg on {shown} of {of} frames; placed on {len(off)}, worst {max(off, default=float('nan')):.1f} px; warm on {warm}")
+    orange = _Display(colour=(255, 140, 20), n=20).coded()
+    warm = [sym.hue_glyphs(orange.rgb(n)) for n in range(1, 21)]
+    off = [math.hypot(p[0] - orange.at(n)[0], p[1] - orange.at(n)[1]) for n, p in zip(range(1, 21), warm) if p is not None]
+    check(len(off) >= 18 and max(off) <= 1.5, "an orange N is read by the warm test, as before", f"placed on {len(off)} of 20, worst {max(off, default=float('nan')):.1f} px")
+    # the reticle: four ticks give their mean, as before; three, each the coordinate it points along
+    four, three = _Display(ticks=4, n=2).coded(), _Display(ticks=3, n=2).coded()
+    b4, b3 = sym.reticle_from_chroma(four.rgb(1)), sym.reticle_from_chroma(three.rgb(1))
+    g = sorted(sym.chroma_glyphs(three.rgb(1)), key=lambda q: math.hypot(q["cx"] - 320, q["cy"] - 240))[:4]
+    was = (float(np.mean([q["cx"] for q in g])), float(np.mean([q["cy"] for q in g])))
+    check(b4 is not None and math.hypot(b4[0] - 320, b4[1] - 240) <= 1.5 and len(sym.reticle_ticks(four.rgb(1))) == 4,
+          "a reticle showing its four ticks: the boresight is their mean, as before", str(b4))
+    check(b3 is not None and math.hypot(b3[0] - 320, b3[1] - 240) <= 1.5 and len(sym.reticle_ticks(three.rgb(1))) == 3
+          and math.hypot(was[0] - 320, was[1] - 240) > 20,
+          "one showing three: each tick gives the coordinate it points along, where the mean of the four nearest glyphs took the pointer for a tick",
+          f"({b3[0]:.1f}, {b3[1]:.1f}); the four nearest: ({was[0]:.1f}, {was[1]:.1f})" if b3 else "none")
+    # the stage, on 90 frames of a pointer turning 2 deg/s (fast, so that 3 s show the turn): by hue, and by itself
+    d = _Display(rate=2.0, n=90).coded()
+    for kw, what in ((dict(method="hue"), "asked for by hue"), ({}, "left to choose (auto)")):
+        f = sym.measure(d, step=1, procs=0, **kw)
+        F = f.fields
+        rr = (F["rotation"] or [{}])[0]
+        check(F["frames_solved"] >= 80 and math.hypot(F["boresight"]["x"] - 320, F["boresight"]["y"] - 240) <= 1.5 and F["radius_is_fixed"]
+              and abs(F["radius"]["mean_px"] - 130) <= 1.5 and abs(rr.get("dtheta_dt", 0) - 2.0) <= 0.1 and not f.no_power,
+              f"the stage, {what}: the pointer read on most frames, its radius fixed at 130 px, its turn 2 deg/s",
+              f"{F['method']}: {F['frames_solved']} of 90, boresight ({F['boresight']['x']:.1f}, {F['boresight']['y']:.1f}), radius "
+              f"{(F['radius'] or {}).get('mean_px', float('nan')):.1f} px, {rr.get('dtheta_dt', float('nan')):+.2f} deg/s")
+        if kw:
+            c = F.get("pointer_colour") or {}
+            check(c.get("hue_deg") is not None and abs((c["hue_deg"] - 305 + 180) % 360 - 180) <= 20 and "pointer colour" in f.result,
+                  "and it says what colour it found the pointer drawn in", f.result.get("pointer colour", ""))
+        else:
+            check(F["method"] == "chroma", "by itself it reads it by chroma, the pointer no longer taken for a tick")
+    F = sym.measure(_Display(colour=(255, 140, 20), rate=2.0, n=90).coded(), step=1, procs=0, method="hue").fields
+    check("pointer_colour" not in F and F["frames_solved"] >= 80, "a warm pointer's fields are what they were: no colour is named", f"{F['frames_solved']} of 90")
 
 
 class _Turning(_Overlay):
@@ -2488,6 +2624,121 @@ def test_a_rate_over_a_picture_that_held_still_is_the_cameras_hold():
     check(report._deg(math.radians(130)) == "130°" and report._deg(math.radians(1.0)) == "1°" and report._deg(math.radians(0.5)) == "0.5°"
           and report._deg(math.radians(0.0834)) == "0.083°",
           "degrees a second: whole from 1° up, two figures under it")
+
+
+def test_a_background_that_moved_under_the_sensors_pattern_did_not_hold_still():
+    """PR058 and the reference cases (2026-11-13, IDEAS.md GL4): the layers step's no-power -- the templates found no
+    motion in over half the frame pairs -- was worded "the scene is held still on screen", and the first line, the bottom
+    line and the checklist said the picture behind the object held still. Where the step's blocks of frames read the
+    background moving under a pattern fixed on the sensor (method section 41), that is not what the pixels show: on PR41
+    13 of 13 blocks read the sea crossing the picture at 25-31 pixels a frame. The rule is `layers.scene_state`'s: half
+    the blocks asked or more, and two or more unless one was all there was. The rate against the background is still
+    not measured, so the rate stays "as the camera held it" and nothing is built on it; the words say the background
+    moved, the camera's row answers Yes and the row of the object's motion Can't tell. A case file written before this,
+    with the old no-power beside its block reading, says so too; one with no block reading reads as before."""
+    print("\nreport: a background that moved under the sensor's pattern did not hold still")
+    from mcdonald import breaks, layers, stages
+    old = ("layers", "the scene is held still on screen even over 30 frames in 98% of pairs: a background rate there is an "
+                     "upper limit, not a measurement (a pattern on the sensor can hold it at zero)")
+    new = ("layers", "the templates found no motion of the scene even over 30 frames in 98% of pairs, but the scene moved under a pattern "
+                     "fixed on the sensor: whole blocks of frames read it at about 27 px a frame on 13 of 13 blocks (method 41). A background "
+                     "rate from the pairs is the pattern's, not the scene's, so the object's rate against the background is not measured")
+
+    def fields(read=13, blocks=13, still=0.976):
+        sc = dict(blocks=blocks, read=read, speed_px_frame=dict(median=26.8, min=24.7, max=31.3) if read else None,
+                  velocity_px_frame=[-26.4, -4.9] if read else None, block_frames=60)
+        return dict(tracked=True, names={"striated": "striated"}, px_per_s={"all": dict(median=27.4)},
+                    over_track={"all": dict(median=27.4, windows=20, read_share=0.98)},
+                    held_still=dict(over_frames=5, share_of_pairs=0.976, again_over_frames=30, still_again_share=still, unmoved_share=0.0),
+                    scene=sc if blocks else None)
+
+    def case(npw=new, scale=False, **kw):
+        c = report.Case("t", "/tmp/x.mp4")
+        c.clip = dict(width=1280, height=720, fps=30.0)
+        c.add("track", {"frames": 600}, fields=dict(frames=600, first=1, last=600, object_size_px=9.0))
+        if scale:
+            report.Found("scale", {"k": "4102 px/rad"}, fields=dict(k_px_per_rad=4102.0, fov_deg=15.0)).into(c)
+        report.Found("kinematics", {"v_px": "27 px/s"}, fields=dict(v_px_per_s=27.4, omega_rad_per_s=27.4 / 4102.0 if scale else None)).into(c)
+        report.Found("layers", {}, fields=fields(**kw), no_power=[npw]).into(c)
+        return c
+    st = layers.scene_state(fields(), 30.0)
+    check(st["state"] == "under" and st["read"] == 13 and abs(st["px_per_s"] - 804.0) < 1e-9 and layers.scene_state(fields())["px_per_s"] is None,
+          "the state every reader takes: the pairs found no motion, the blocks read the scene moving, about 804 pixels a second", str(st))
+    pairs = ((1, 1), (1, 2), (2, 2), (1, 3), (2, 3), (2, 16), (2, 17), (3, 17), (5, 19), (3, 49), (4, 49), (0, 4), (0, 0))
+    states = {rb: layers.scene_state(fields(read=rb[0], blocks=rb[1]))["state"] for rb in pairs}
+    check(states == {(1, 1): "under", (1, 2): "held", (2, 2): "under", (1, 3): "held", (2, 3): "under", (2, 16): "under", (2, 17): "held",
+                     (3, 17): "under", (5, 19): "under", (3, 49): "held", (4, 49): "under", (0, 4): "held", (0, 0): "held"}
+          and [layers.blocks_needed(n) for n in (1, 2, 16, 17, 48, 49)] == [1, 2, 2, 3, 3, 4],
+          "the rule is a count: more blocks read than a clip with no moving scene gives one time in a hundred, at the block gate's own "
+          "false-read bound (one of one, two of 2 to 16, three of 17 to 48, ...); else held, as before", str(states))
+    most = {(r, b, s_): layers.scene_state(fields(read=r, blocks=b, still=s_))["most"] for r, b, s_ in ((13, 13, 0.976), (3, 4, 1.0), (5, 19, 0.976), (3, 3, 0.517))}
+    check(most == {(13, 13, 0.976): True, (3, 4, 1.0): True, (5, 19, 0.976): False, (3, 3, 0.517): False},
+          "and the blocks read stand for most of the track where half of those asked were read and the templates were left still on nine "
+          "pairs in ten; else for part of it", str(most))
+    check(layers.scene_state(fields(still=0.3))["state"] == "read" and layers.scene_state(dict(held_still=None)) is None
+          and layers.scene_state(None) is None,
+          "a scene the templates followed is read, whatever the blocks; a stage with no pairs has no state")
+    for which, npw in (("as the step words it now", new), ("in a case file from before, the old no-power beside its block reading", old)):
+        c = case(npw)
+        label, head = c.conclusion()
+        check(c.behind_held_still() and abs(c.moved_under()["px_per_s"] - 804.0) < 1e-9 and c.rate() == (27.4, c.AS_HELD)
+              and head == ("The object moved about 27 pixels a second in the picture, as the camera held it. The background behind it moved "
+                           "across the picture at about 804 pixels a second. A pattern fixed on the camera's sensor hid that motion from the "
+                           "match between frames, so the object's motion against the background is not measured. Its real speed and size "
+                           "cannot be found from this video alone.")
+              and "held still" not in head,
+              f"the first line, {which}: the rate as the camera held it, and a background that moved", head[:140])
+        bottom = c.bottom_line()
+        check("The background behind the object moved across the picture at about 804 pixels a second while it was tracked. That speed was read "
+              "from whole blocks of 60 frames. It comes from 13 of the 13 blocks where the match between single frames found no motion. A pattern "
+              "fixed on the camera's sensor held that match at no motion in 98% of the frame pairs. So the object's motion against the background "
+              "is not measured. The speed above is its motion as the camera held it." in bottom
+              and "held still" not in bottom and "empty sky" not in bottom and "Against the" not in bottom,
+              "the bottom line says the same, and no longer that the picture held still", bottom[:160])
+        rows = {r["key"]: r for r in c.checklist()}
+        check(rows["camera"]["answer"] == report.YES and rows["camera"]["said"] == "the background moved across the picture at about 804 pixels a "
+              "second, read from whole blocks of frames under a pattern fixed on the camera's sensor"
+              and rows["moves"]["answer"] == report.CANT and rows["moves"]["said"] == "it moves about 27 pixels a second across the picture, but so "
+              "did the background, and its rate against the background was not measured",
+              "the checklist: the camera moved (Yes), and the object's motion against the background is Can't tell",
+              f"{rows['camera']['answer']}; {rows['moves']['answer']}")
+    head = case(scale=True).conclusion()[1]
+    bottom = case(scale=True).bottom_line()
+    check(head.startswith("The object crossed the view at about 0.38° a second, as the camera held it. The background behind it moved across the "
+                          "picture at about 804 pixels a second.") and "moving at least" not in head and "held still" not in head
+          and "The background moved behind it and could not be followed from frame to frame, so its motion against the background is not "
+              "measured, and this is no floor on its speed." in bottom and "held a still picture" not in bottom,
+          "with a scale: no speed is built on a rate as the camera held it, and the words do not say the picture held still", head[:120])
+    c = case(still=0.517, read=3, blocks=3)              # PR44: a pan of six seconds in a track of fourteen
+    rows = {r["key"]: r for r in c.checklist()}
+    check("The background behind it moved across the picture for at least part of the track, at about 804 pixels a second where it was read. "
+          "A pattern" in c.conclusion()[1]
+          and "The background behind the object moved across the picture for at least part of the track, at about 804 pixels a second where it "
+              "was read. That speed was read from whole blocks of 60 frames. It comes from 3 of the 3 blocks" in c.bottom_line()
+          and "at no motion in 52% of the frame pairs." in c.bottom_line() and rows["camera"]["answer"] == report.YES
+          and rows["camera"]["said"] == "the background moved across the picture for at least part of the track: 3 of 3 blocks of frames read it "
+                                        "at about 804 pixels a second, under a pattern fixed on the camera's sensor",
+          "where the blocks read stand for part of the track (a pan in a track otherwise followed pair by pair; a few blocks of many), the "
+          "words say part", rows["camera"]["said"][:110])
+    c = case(old, read=1, blocks=3)
+    rows = {r["key"]: r for r in c.checklist()}
+    check(c.moved_under() is None and "The picture behind it held still on screen" in c.conclusion()[1] and rows["camera"]["answer"] == report.CANT
+          and rows["moves"]["said"] == "about 27 pixels a second across the picture, which held still",
+          "one block of three is not the scene: the picture held still on screen, as before")
+    c = case(old, blocks=0)
+    check(c.moved_under() is None and "The picture behind it held still on screen" in c.conclusion()[1]
+          and "nothing here can tell the two apart. A background that crosses the picture faster than the search can follow looks the same too."
+          in c.bottom_line(),
+          "and a case with no block reading reads as before -- with one sentence more under it: a background too fast for the search "
+          "is found no more than a still one (PR051's 4X hold, where the data bar has the ground crossing at over 200 pixels a picture)")
+    track = {n: (100.0 + 0.9 * n, 200.0 + 0.1 * n) for n in range(1, 301)}
+    h = stages.kinematics(track, 30.0, 1280, "t", size_px=12.0, layers=fields())
+    check(h.fields["platform"]["moving"] is True and "about 27 px a frame by whole blocks of frames (13 of 13" in h.fields["platform"]["why"]
+          and "not the object's own here" in dict(h.no_power)["body lengths"],
+          "the speed in body lengths: the background moved, so the camera turned or moved, and the row is no power", h.fields["platform"]["why"][:90])
+    r = breaks.against_scene(dict(frame=121, t_s=4.0), [], [], [], [], None, None, 30.0, held_share=0.976, under=st)
+    check(not r["power"] and "held still" not in r["why"] and "under a pattern fixed on the sensor" in r["why"],
+          "the event study has no frame-by-frame scene there either, and says why without calling it still", r["why"][:110])
 
 
 def test_a_field_of_view_and_a_range_give_the_least_speed():
