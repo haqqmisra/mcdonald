@@ -11,12 +11,14 @@ is, and what it must give, is `tests/golden/controls.csv`:
 - **non-birds get none** -- a drone, an airplane and a helicopter of the labelled set (a distant one of each), the
   WA9ONY-5 balloon, PR23, PR055 and PR071: the report never says "Beats like a bird" of them;
 - **the strobe helicopters keep their trains** (V_HELICOPTER_054 and _030, item 13);
-- **the false alarms of record stay as they are, with their causes** -- DRONE_059, named at 10.00 Hz, a third of the
-  frame rate: a third of its frames are held (a 20-a-second source in a 30-a-second file?) and the held-pictures test
-  (M3) misses the cadence by a hair, so the holds' own rhythm is heard as a beat; and HELICOPTER_043 (a fence line and
-  poles passing behind it): the non-birds the report names a bird on the whole set. A change that removes one is an
-  improvement to be checked and written down, not a silent pass. Since the floor went to 7 % (method section 43) a third:
-  HELICOPTER_024, a 3.53-Hz beat at 7.8 % that the capped point disc hears;
+- **the false alarms of record stay as they are, with their causes** -- HELICOPTER_043 (a fence line and poles passing
+  behind it), and, since the floor went to 7 % (method section 43), HELICOPTER_024, a 3.53-Hz beat at 7.8 % that the
+  capped point disc hears: the non-birds the report names a bird on the whole set. A change that removes one is an
+  improvement to be checked and written down, not a silent pass. One was removed so on 2026-11-13: DRONE_059, named at
+  10.00 Hz, a third of the frame rate. A third of its frames are held (a 20-a-second source in a 30-a-second file), the
+  held-pictures test (M3) missed the cadence by a hair (a burst of holds inside it: 0.843 against 0.85), and the holds'
+  own rhythm was heard as a beat. The word is read in blocks now (method section 35), the band's top is 8 Hz, and the
+  drone is held here as a non-bird;
 - **NO POWER stays NO POWER** where the stage could not decide.
 
 Each is held, rule by rule, to the outcome the manifest records (its `<rule>_beats`, `_named`, `_hz`, `_train` columns,
@@ -410,7 +412,7 @@ EXOTICA = [
     ("an anti-collision strobe's train", ("v054", "v030"), ""),
     ("a propeller's line folded into the band", ("sv_airplane_064",), "a candidate, not a finding"),
     ("held pictures' own rhythm heard as a beat (one frame in three held: fps/3)", ("sv_drone_059",),
-     "named a bird today; M3's cadence test misses it"),
+     "named a bird until 2026-11-13; a cadence in most of its blocks since, the band's top under the rhythm"),
     ("a background crossing behind the object", ("sv_helicopter_043",), ""),
     ("a helicopter's own modulation heard in the capped point disc, over the floor", ("sv_helicopter_024",), ""),
     ("a balloon whose payload swings", ("wa9ony5",), "and test_golden's swing"),

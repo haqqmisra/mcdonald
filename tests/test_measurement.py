@@ -764,6 +764,57 @@ def test_integrity_sees_symbology_drawn_frame_by_frame():
     v, txt, d = verdict("text", False, 10.0, 110.0, True)[0]
     check(v == "FLAG" and "drawn f" in txt, "the readout under the object: FLAG", txt)
 
+    # AARO's PR-016 (2026-11-13): a row of bright points, each ringed dark by the sensor's edge enhancement, under dark
+    # symbology. The rings join into a net along the row -- a rung between each two points, arcs above and below -- which
+    # runs through the point followed, in on one side and out on the other, and was read as a drawn line the point was
+    # laid over ("possibly added"). A drawn line is a thin stroke; the net is as wide as the points.
+    own = np.random.default_rng(16)                  # its own generator: the checks above keep their draws
+
+    class Row:
+        n0, n1, fps = 1, 40, 30.0
+
+        def __init__(self):
+            self.W, self.H = W, H
+            self.noise = {n: own.normal(0, 2.0, (H, W)) for n in range(1, 41)}
+            self.trk = {n: (150.0 + 0.3 * (n - 1), 120.0) for n in range(1, 41)}      # the row drifts, every member with it
+
+        def grey(self, n):
+            x, y = self.trk[n]
+            f = 110.0 + self.noise[n]
+            rs = [np.hypot(xx - (x + 13.0 * j), yy - y) for j in range(-8, 9)]        # points 13 px apart
+            for r in rs:
+                f = f - 60.0 * np.exp(-0.5 * ((r - 5.5) / 1.3) ** 2)                  # each one's dark ring
+            for r in rs:
+                core = np.exp(-0.5 * (r / 2.2) ** 2)
+                f = f * (1 - core) + 250.0 * core
+            f[cross] = 15.0                                                           # the symbology is dark here
+            return np.clip(f, 0, 255)
+
+        def rgb(self, n):
+            return np.repeat(self.grey(n)[:, :, None], 3, 2).astype(np.float32)
+
+    c = Row()
+    masks = vf.static_masks(c)
+    o = integrity.Obj(c, c.trk, 6.0, False)
+    thin, held = integrity.LINE_THIN, integrity.TEXT_HELD
+    try:
+        integrity.LINE_THIN, integrity.TEXT_HELD = np.inf, -1.0          # the test as it was until 2026-11-13
+        was = integrity.t_overlay(o, masks)
+    finally:
+        integrity.LINE_THIN, integrity.TEXT_HELD = thin, held
+    seen = integrity._overlay_drawn.seen
+    now = integrity.t_overlay(o, masks)
+    wide = integrity._overlay_drawn.seen["wide"]
+    check(vf.overlay_polarity(masks) == -1 and was[0] == "FLAG" and "lines drawn frame by frame" in was[1]
+          and len(seen["widths"]) >= 10 and min(seen["widths"]) > 2 * thin * vf.stroke_step(H),
+          "a row of bright points ringed dark, under dark symbology: with no word on a line's width the rings' net was a "
+          "line the point is drawn over (FLAG), though it is over twice too wide for a stroke on every frame",
+          f"{was[0]}: {was[1][:90]}; across {min(seen['widths']):.1f}-{max(seen['widths']):.1f} px rms, a stroke at most "
+          f"{thin * vf.stroke_step(H):.1f}")
+    check(now[0] == "NO POWER" and "lines drawn frame by frame" not in now[1] and len(wide) == len(seen["widths"]),
+          "a line is thin: the net is set aside on every frame, and nothing is said to be drawn under or over the point",
+          f"{now[0]}: {now[1][:90]}; set aside on {len(wide)} frames")
+
 
 def test_the_mark_gate_grows_with_the_spot_size():
     """2026-09-27: a spot may sit 6 px from a mark for spots up to 30 px, a fifth of the size above it. Find's

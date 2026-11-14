@@ -2523,6 +2523,40 @@ contrast test on the symbology's side), and the static test's words are kept whe
   `tests/test_measurement.py`: a gate on top of a dark object (PASS, 1.00), under it (FLAG, 0.25), white bars over a
   white object (no power), a readout drawn for 20 frames over a dark object (PASS, 0.00) and under it (FLAG, 0.98).
 
+**What is drawn is thin, and what is drawn for a stretch stays (added 2026-11-13).** AARO's PR-016 is a row of birds,
+and the test flagged the one it followed as possibly added, on both counts: "crosses lines drawn frame by frame ... in
+13 frames; over the object's middle 0.00 of their pixels keep the line's own level (76 DN, the object 255)" and "passes
+symbology drawn for a stretch (text) in 11 frames; its pixels move 1.02 as far toward the object's level". Reproduced on
+frames 467-690 of DOD_111415209.mp4 with the blind run's track, and looked at frame by frame. The clip's symbology is
+read as dark (its mask holds no static pixel; the reference frame's sharp pixels are dark). The birds are saturated
+points 15-20 px apart, each ringed dark by the sensor's edge enhancement, and:
+
+- *The line* is the rings, joined along the row into one net of dark strokes: a rail under the points, a rung between
+  each two, an arc over the bird. On the 13 frames it is 78-90 px long and 26-33 px across (6.2-8.3 px rms), 550-960
+  pixels, its axis within 5 px of the bird's centre. A group was "a straight stroke" where it was three times as long
+  as wide, however wide. Now a group taken for a line must also be no wider across its own axis, rms, than `LINE_THIN`
+  (0.5) of a stroke's width (`forensics.stroke_step`: 3 px to 576 rows, 4 to 800, 5 above; what `ridges` itself takes a
+  stroke to be): 1.5 px at 240-576 rows, 2.5 px at 1080. A stroke w px wide reads w / sqrt(12) (0.9 px for FLIR1's bars
+  spread to 4 px at 480 rows), and two pieces joined 2 px off each other's line 1 px more.
+- *The text* is the row sliding along itself, about 2 px a frame here: the window's far quarter (the 25th percentile
+  over 17 frames, meant to be the picture without the object) is dark wherever a dark gap passed on a quarter of the
+  frames, and those places read as strokes held for the stretch. Now the text's pixels at the object must be nearer
+  the text's level than the object's on `TEXT_HELD` (0.75) or more of the window's frames that the object is clear of
+  (1.5 sizes away): text held for a stretch is there on all of them, a passing gap on some.
+
+What is set aside is in the fields beside what is kept (`wide_frames`, `wide_width_px`; `passing_frames`,
+`passing_held`; and `moving_width_px`, `text_held` for the readings taken).
+
+OVERLAYNULL
+
+*How it fails.* (1) A drawn line wider than half a stroke's width for its picture's height is set aside: a bar drawn
+6 px wide at 1080 rows, or one blurred to that; `ridges` would mostly not have found it either (a stroke is "no wider
+than about" its step). (2) Text shown for under three quarters of the 17-frame window (under about 13 frames, 0.4 s) is
+not read near its start and end, and a readout that changes digit every few frames may never be. (3) Neither gate
+knows a ring from a line that happens to be thin: a single bright point's own ring is an arc, not a straight stroke
+through it, and was never taken; two points exactly either side of a third give a rung on each side, which `_collinear`
+joins only if each is itself a straight stroke along the row (they lie across it).
+
 ## 26. A clip with little left to see: AARO's "Middle East Object" (added 2026-10-26)
 
 AARO's MQ-9 clip that its director showed the Senate Armed Services Committee on 19 April 2023 (DVIDS 880273,
@@ -4124,6 +4158,84 @@ stage reads, so a stretch whose source changes its rate partway is not balanced 
 `integrity`'s cadence test (an object frozen on a repeated frame, doubled on the catch-up) and `layers`' repeating
 windows (a pair between catch-up steps not measured again) read repeats wherever they fall and set no rate; they are
 unchanged.
+
+**A cadence broken by a burst (IDEAS.md Dx6; added 2026-11-13).** The balance is read over the whole word, and a burst
+of holds inside a cadence spoils every window over it. IR_DRONE_059 of the labelled set is a 20-a-second source on a
+30-a-second grid: its word is `010010...` through 316 pairs of frames, but for 18 frames of extra holds from its 65th
+frame and two holds misread. It read 0.843 against the line's 0.85 ("more evenly than at random"), kept the grid's 12
+Hz, and its holds' own rhythm, 10.00 Hz = a third of the frame rate at 15 % of its brightness, was named a bird's beat:
+the set's false alarm of record. The same source runs through the set: IR_BIRD_043 (0.98), IR_DRONE_151 (0.90) and
+IR_AIRPLANE_030 (0.86) pass the line whole; IR_BIRD_032 (0.83), IR_DRONE_098 (0.78, the same false beat at 9.99 Hz, 4.8
+%, under the floor), IR_HELICOPTER_044 (0.69) and _048 (0.59) are the same cadence, more broken.
+
+A word short of the line that holds three blocks or more is now read again block by block (`flicker.cadence_blocks`):
+blocks of 60 frames or a little more, as many whole ones as the word holds with every frame in one, each read as a word
+is (least balance 0.85 or more, above the 99th percentile of random words of its share and length, a tenth of its
+frames held). Where more than half the blocks are a cadence the word is one (`pictures.holds` "cadence"), the source's
+rate from the median of those blocks' slopes, the band's top lowered as for any cadence; `pictures.blocks` says how
+many of how many, with each block's balance. Its period is not named (the word is not mechanical to the frame), and the
+GOP's places are asked as before. Sixty frames is the shortest stretch a beat is heard on and the shortest the line was
+set on. "More than half" is a choice: the band is lowered for the whole track, so most of the track has to be on the
+slower clock (the least count that chance allows would be two blocks of five). Both are judgement in what they ask;
+what they cost is measured:
+
+*The null* (2026-11-13; the families the line was set on, drawn again: random words; held in runs of mean 2, 3, 5 and
+10 frames; held by place in GOPs of 5, 12 and 30 frames, regular and varying, the chance flat, rising or a B pyramid;
+the Galileo flyers' two tables; fifteen shares from 0.1 to 0.8, eight lengths from 180 to 3,000 frames, 2,000 words a
+cell, each read as the stage reads it, before the GOP's places). The share of words called a cadence by the blocks
+where the whole word is not one, at the worst cell:
+
+| frames | random | in runs | by GOP place | flyers' tables | by the whole word (the rule before) |
+|---|---|---|---|---|---|
+| 180 | 0 | 0.15 % | 0 | not drawn | 0.09 % |
+| 240 | 0 | 0 | 0 | 0 | 0 |
+| 300 | 0 | 0.05 % | 0.05 % | 0 | 0 |
+| 450 and up | 0 | 0 | 0 | 0 | 0 |
+
+Seven words of 3.97 million, in four cells of 2,078: three of 2,000 at 180 frames held in runs of mean three at a
+share of 0.75, two of 2,000 at 180 frames in runs of mean two at 0.65 (M3's own worst cell), one of 2,000 twice at 300
+frames. A single block is a cadence in at most 2.3 % of them (runs of mean two; 1.9 % by GOP place, 0.1 % at random):
+under the line's 5 %, and the word needs more than half its blocks. So the block reading adds at most 0.15 % to the
+false alarms at 180 frames and nothing found from 450, where the rate the line was set to is 5 %.
+
+*On the saved words* (the 432 labelled tracks, the 27 controls, the 31 reference objects: 170 with a tenth of their
+frames held). Four change, one track twice: IR_DRONE_059 (4 of its 5 blocks; the control `sv_drone_059` is the same
+track), IR_BIRD_032 (3 of 4) and IR_DRONE_098 (3 of 5), each at 20.0-20.2 pictures a second, the top 8.0-8.1 Hz. The
+nearest that stay: PR44's reference object (2 of 5: a bird at 3.06 Hz whose frames repeat one in two, never quite in
+step; the scatter case above), IR_HELICOPTER_044 and IR_AIRPLANE_069 (2 of 5), IR_DRONE_023 (1 of 5). The Galileo
+flyers have no block that is one (0 of 15, 0 of 6). With blocks of 90 frames the drone is a cadence in 2 of 3 and
+IR_DRONE_098 in none of 3; with 120, neither.
+
+*On the labelled set, judged again from its saved curves* (`tools/controls/summarise.py --rejudge`, which reads the
+held word again since 2026-11-13: `run_set.pictures_again`), against main judged again the same day: 3 of 432 rows
+move, under both rules. IR_DRONE_059: a bird, named, 10.000 Hz at 15.4 % becomes no beat (the continuum null's p 0 to
+0.84). IR_DRONE_098: a bird's call at 9.988 Hz, 4.8 %, not named, becomes no beat. IR_BIRD_032, a bird named at 2.04
+Hz, 11.5 %, keeps its call and its name with the top at 8 Hz (its continuum p 0.0015 to 0.003). Non-birds named: 2 to
+1 of 307 under the stage's rule. No bird loses a call or a name. (That baseline is not the table of record: main's
+own judging had moved 9 other rows since the table was made, which is another matter and is not settled here.)
+
+*How it fails.* (1) A clip cut from two sources, most of it at the slower one, has its top lowered through the faster
+part too. (2) A word broken in more than half its blocks stays "uneven" and keeps the grid's band: IR_HELICOPTER_044
+and _048 are 20-a-second sources read so, and a rhythm at a third of the frame rate could still be heard on them (none
+is: 2.2 and 4.8 Hz, no beat). (3) Under 180 frames there are too few blocks, and the whole word's balance decides as
+before. (4) What the line does not cover (above) it does not cover block by block either: an encoder holding 0.9 or
+more of a short GOP's P frames passes block after block.
+
+**What is said of frames that are nearly the same (IDEAS.md N7; 2026-11-13).** `pictures` compares whole frames. An
+encoder that copies a still sky leaves most of a frame the same as the one before while the object's own picture is
+new: the documented misread, 0.10-0.18 of frames on the Svanström set and far more on the Galileo cameras' HEVC. On the
+flyers, the frames read as held are not held where the bird is. Flyer 4: 60 % of frames read as held; on them the box
+about the bird changes by 7.1 grey levels (7.2 on the others) and its centroid steps 1.77 px (1.76), never under 0.38.
+Flyer 5: 31 %; 12.5 grey levels (15.0) and 2.35 px (2.53), never under 1.6. Flyer 1, a slow bird (0.3 px a frame): 64 %;
+1.25 grey levels (3.2), and on 15 % of those frames its box hardly changes. The whole frame's change on them is
+0.05-0.06 grey levels against 0.2-1.0. No number is wrong for it: holds outside a cadence leave the band at the frame
+rate's. The stage's line was: it said "the video holds pictures in runs (64% of frames repeat the one before), not in a
+cadence: they are missing samples, not a slower clock". It now says what was measured and the two things that make
+it: "64% of frames are nearly the same as the one before, more evenly than at random, not in a cadence. A held picture
+does that. So does compression that copies a still scene from frame to frame, while the object's own picture is new.
+Either way the video's clock is its frame rate, and a beat is heard up to 24.0 Hz". A trap that stays: those frames
+are still left out of the Lomb-Scargle periodogram beside the stage's own tests (`held_k`), so on such a chain that
+reading works with a third of the object's samples: a loss of power there, not an error, and not changed here.
 
 ## 36. A farthest range: `--range-max` (added 2026-10-30)
 
@@ -5783,10 +5895,40 @@ Only when asked; a run without `--rd` is as before. H = 3 is a judgement call: w
 few parts in a thousand, so the local line is nearly flat and the quadratic is the check on it (the quadratic is used where
 each side has four frames or more, so its jackknife can leave one out; with fewer the line alone). Rendered (`tests/
 test_zoom.py`): x2 with the scale drifting 0.1 % a frame, H 2, read as x2.0045 (95 % 1.990-2.019) against 2.0056; two placebo
-cutoffs x0.9987 and x1.0014, no step. **On real clips it is not yet measured**: PR27, PR057a and PR144 were run on 2026-11-07
-(1920 x 1080, H 3 and ten placebos: 176 full-size fits a clip) and none finished in its hour -- each pair rebuilt both stretches'
-fixed patterns from twelve frames, which `zoom.fit_all` now builds once a stretch and lets go after its last fit. The placebo
-rates of real clips, and the burst's interval against PR27's x2.000, PR057a's x2.001 and PR144's x5.884, are open.
+cutoffs x0.9987 and x1.0014, no step. **On real clips** (2026-11-13; `mcdonald zoom --rd` on PR057a, PR144, PR27, PR105 and AARO's Puerto Rico clip, each
+1920 x 1080, H 3, ten placebos; 40 to 68 minutes a clip on two CPUs, 1.9 GB; the runs of 2026-11-07 had not finished in
+their hour, each pair then rebuilding both stretches' fixed patterns, which `zoom.fit_all` now builds once a stretch).
+
+| clip | the step | the burst's own pair | the jump, 95 % | the known ratio |
+|---|---|---|---|---|
+| PR057a, 32.8 s | x2 (the ladder's rung x1.9998) | x2.000 | x2.0004, 1.9924-2.0085 | held |
+| PR27, 82 s | x2 | x2.003 | x2.0025, 1.9954-2.0092 | held |
+| PR105, 94.6 s | x2 | x2.002 | x2.0008, 1.9933-2.0091 | held |
+| PR105, 125.7 s | x0.5 | x0.500 | x0.5005, 0.4924-0.5071 | held |
+| PR144, 2.5 s | x5.884 by hand (the rung x5.916 +- 0.5 %) | x5.810 | x5.8608, 5.7738-5.8969 | holds the hand's; the rung's centre is 0.3 % over its top |
+| PR057a, 53.8 s | the x5.9 rung | x5.855 | x4.92 (the quadratic's x5.80), 3.55-9.46 | held, by an interval a factor of 2.7 wide: its pairs disagree |
+| Puerto Rico, 20.5 s | the display's 135 to 675: x5.000 | x4.966 | x4.9149, 4.8932-4.9694 | not held: 0.6 % over its top |
+| Puerto Rico, 118.1 s | 675 to 2024: x2.9985 | x3.096 | x3.1270, 2.7795-3.4387 | held |
+| Puerto Rico, 142.6 s | x0.3335 | x0.327 | x0.3260, 0.3200-0.3300 | not held: 1.1 % over its top |
+
+The five steps of the x2 rung are each read to about 0.4 % and every interval holds the ratio. The Puerto Rico display
+prints its focal lengths as whole numbers, and the imagery's own scale differs from their ratios by 1 to 3 % by three
+routes (a hand fit, the burst's pair, this); the interval is the imagery's, and is narrower than that difference.
+
+*Placebos.* Of 50 cutoffs inside the states 48 gave an estimate, and **none called a step** (0 of 9, 10, 10, 9 and 10):
+the rate a step is found where there is none is under 6.1 % (exact, one-sided 95 %). **The interval alone is not a test
+of "nothing happened"**: 7 of the 48 did not hold x1 (15 %, where 5 % is its level), six of them on PR105 (x1.003 to
+x1.006, each to a part in a thousand). A placebo's jump is the scale between two frames next to each other, and where
+the scene's own scale drifts, a camera closing or a slow zoom, that is one frame's drift and not nothing. The estimate
+is right about the picture. What keeps it from being called a step is the no-step band (x1.08), not the interval, so
+"no step" from this reading means "under 8 %", not "none".
+
+*A defect found there, and fixed* (`zoom.rd_trusts`). On nine bursts the stage itself calls unknown the regression
+said "a step": it took a pair's scale wherever the fit gave a number off the grid's edge with a ZNCC of 0.15, and never
+asked the pair's own verdict (its peak's prominence, its lead over the rival scale). PR27's burst at 89 s, featureless
+haze, the trap section 17 names, read "x3.1271, 95 % x3.1271-x3.1271" from 15 pairs all stuck on one value of the grid.
+Now a pair's scale is taken only where its own fit is a step or no step, and pairs that all give one value are no
+estimate. RERUN
 
 **The zoom ladder pooled (E16; `scale.ladder`, `credible`, `carry`).** International price comparison fits log price = country
 effect + product effect over rarely observed pairs (Summers 1973), and finance shrinks a stock's noisy beta towards the cross
