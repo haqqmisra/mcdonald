@@ -554,7 +554,8 @@ are stale: `tools/controls/README.md` says how to make them again.
 Four readings of `mcdonald flicker` that report and never decide (docs/method.md section 59), each on drawn data with a
 known answer. **The beat in the position** (`beatpos`): tracks drawn from a wander and jitter with no rhythm are given
 one about one time in a hundred; a planted wobble is found at its frequency, with its amplitude; a rhythm at the codec's
-own rate is the video's, and a wobble under it is found all the same; a point that bobs as it beats carries its beat in
+own rate is the video's, and a wobble under it is found all the same; a video that holds every third picture is not
+read, and says why; a point that bobs as it beats carries its beat in
 its position and a point whose brightness alone beats does not, through the stage; a camera's shake is in every member's
 track and in none of their differences, and it leaves a track taken against the registered scene; and the trap -- a
 brightness that beats over an uneven background leans a light-weighted centroid with no motion at all -- is held to the
