@@ -3,7 +3,8 @@
 **Jacob, 2026-11-13**, after the known-answer study of the Galileo Project's triangulated objects (the uap
 repository's `galileo/nevada/README.md`): "Yes, make all fixes to mcdonald." Four report-changers, IDEAS.md N1-N6,
 method section 53. Built on `nevada-fixes`, a worktree at `/hugespace/models/mcdonald-nevada`, branched from `main` at
-a72784c (0.5.3). Not committed, not merged, not versioned: those are the maintainer's.
+a72784c (0.5.3). Merged into `main` at 3459561 (2026-11-13), N3 revised at 4847926 (`galileo/nevada/n3/` in the uap
+repository), and released in 0.5.4 (2026-11-14).
 
 ## What was built
 

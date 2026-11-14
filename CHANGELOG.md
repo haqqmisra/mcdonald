@@ -171,6 +171,8 @@ New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_r
 `winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
 has each rule, its null and what it costs.
 
+## 0.5.4 (2026-11-14)
+
 **A beat is now held against the clip's own sound** (a change to reports; the maintainer's choice of 2026-11-13).
 `flicker` lists the rhythms a supply, a codec or the sampling can put into a brightness curve, its look-alikes, and
 marks a beat that sits at one. Since 0.3.0 that list was meant to hold the rhythms the clip's own sound carries too
