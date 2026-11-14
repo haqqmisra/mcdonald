@@ -7,32 +7,39 @@ and/or merlin, and cannon is also available."
 
 This file is the session's record in the repository; `docs/handoff-v04.md` stays the usual handoff (the GPU session
 writes it). The working record, with every agent's id, brief and notes, is `/scratch/mcdonald/s23-2026-11-13/`
-(`COORDINATOR.md` first). **Interim state, brought current at 09:00 on 2026-11-14: five strands merged, four at
-work.** The session ran on Fable until the usage limit stopped every agent twice (16:19 and ~23:45 on 11-13), and
-on Opus 5.5 from 07:26 on 11-14 at Jacob's word ("keep going with opus"); each agent resumed from its own transcript.
+(`COORDINATOR.md` first). **Interim state, brought current at 15:00 on 2026-11-14: eight strands merged, one (hang)
+finishing; the 144-video catalog run about two thirds done.** The session ran on Fable until the usage limit stopped
+every agent twice (16:19 and ~23:45 on 11-13), and on Opus 5.5 from 07:26 on 11-14 at Jacob's word; each agent
+resumed from its own transcript. arthur was shut down three times for its fans (11-13 20:35, 11-14 ~13:00) and the
+queue paused twice (11-13 16:02-16:14 and 21:57-23:12).
 
 ## Where it stands (read this first)
 
-`s23` (worktree `/hugespace/models/mcdonald-s23`, 5fc8cbf) is **0.5.4 as released** (`main` e056f12, merged as
-417c2b4) plus the five strands merged below. **Every suite and every golden passes on it** (Cannon run
-20261114-082051-s23-5fc8cbf: test_golden 235 PASS, 0 FAIL, 0 SKIP; test_controls 118; test_measurement 635+). Each
-strand is a branch `s23-<name>` in `/hugespace/models/mcdonald-s23-<name>`, started from `main` 3459561. **Do not
-delete those worktrees or the scratch folder until every strand is merged.**
+`s23` (worktree `/hugespace/models/mcdonald-s23`) is **0.5.4 as released plus the GPU session's later rounds on
+`main`** (ce4a121, f0da3a2, 4395ed8; merged as 194f9cf and ace76de) **plus eight strands and one fix** below. Every
+suite and every golden passes on it (Cannon run 20261114-110919-s23-fcac2f5: test_golden 249 PASS, 0 FAIL, 0 SKIP;
+arthur run 20261114-135752-s23-ace76de on the latest tree: test_gui 791, test_measurement 672, test_reduction 721),
+**except ten checks of test_controls**, which compare against the data folder's table of record: the small strand
+remade the record in the code, and the table is swapped only when `s23` goes into `main` (it is shared with `main`
+and the other sessions). Against the new table test_controls passes whole, 118 of 118 (job 2278). Each strand is a
+branch `s23-<name>` in `/hugespace/models/mcdonald-s23-<name>`; **do not delete those worktrees or the scratch folder
+until `s23` is on `main`.**
 
-| strand | ROADMAP | state at 09:00 on 11-14 | merged as |
+| strand | ROADMAP | state at 15:00 on 11-14 | merged as |
 |---|---|---|---|
 | drift | 0.5.x: `drift`'s report-changers DR2-DR5; PR051 as a known answer (DR1, in part) | merged | 9aea557 |
 | groups | 0.5.x: M7 with B23, S14, E21 | merged | f25311f |
 | kin | 0.4.x: Av11, Av10, A16 (set aside), D8 | merged | 7037f60 |
 | plant | 0.6 objective 4: planted objects (design, CPU path, pilot) | merged | 1c933da |
 | scene | 0.5.x: GL4 and GL5 (PR058); K10 not merged | merged; **a report-changer: words on 17 reference objects** | 5fc8cbf |
-| batch | 0.6 objectives 1 and 2: `mcdonald batch` | built and tested; **the 144-video run: 55 done at 09:00** | -- |
-| hang | 0.5.x, H5: "does something hang under it?" | built; its null, goldens and gate finishing | -- |
-| small | W8, shake fields, `_overlay_drawn`, the cadence rule, E15, test_cli; the controls' record remade | items 1-2 tested; the rest finishing | -- |
-| beat | 0.3's leftovers: K2, T2, E11, the band search as a reading | finishing | -- |
+| batch | 0.6 objectives 1 and 2: `mcdonald batch` | merged; **the 144-video run: 88 done at 14:00**, its table and page to come | 742108e |
+| beat | 0.3's leftovers: K2, T2, E11, the band search, as readings | merged; no call moves | fb5ef54 |
+| small | W8, shake fields, `_overlay_drawn`, the cadence rule, E15, test_cli; the controls' record remade | merged; the data folder's table to swap at `main` | fcac2f5 |
+| (fix) | `integrity` near the picture's edge (found by the catalog run) | committed on s23 | 5c19921 |
+| hang | 0.5.x, H5: "does something hang under it?" | finishing (its golden run queued) | -- |
 
-Method sections: 54 batch, 55 hang, 56 scene (used 1, 41 and its own), 57 drift (used 34), 58 small, 59 beat, 60
-groups, 61 kin, 62 plant.
+Method sections: 54 batch, 55 hang, 56 scene (used 1, 41 and its own), 57 drift (used 34), 58 small (used the stages'
+own), 59 beat, 60 groups, 61 kin, 62 plant.
 
 ## What is merged on `s23`
 
@@ -83,6 +90,39 @@ merged.
 test_controls in the suite lists, the GPU session's work). The four strands' CHANGELOG entries, which the merge put
 under "## 0.5.4", were moved back under "## Unreleased".
 
+**batch** (merge 742108e). `mcdonald batch`: a unit is one video (frames once, Find over windows of 400, spots seen
+on 40 frames or more made objects, the first 12 measured through `run --each`), a folder per video with a
+`.mcdonald` file and an audit sheet per object (E8), and over the corpus `batch.tsv`/`batch.json`/`batch.md`;
+`--pool` here or `--slurm` (arrays by size class, no site names), `--status`, `--table`, resumable, depths for the
+plants. Its gate: 0 differences. **The catalog run** (all 144 videos, from a snapshot, started 11-13 22:36): stopped
+and resumed on purpose, through two pauses and two shutdowns; 88 done at 14:00 on 11-14, none failed but the
+integrity cases below; done about late evening. Rows are not objects (PR088's one bird in seven rows; PR135's flock
+as two group rows, both named a bird); PR113's transit and PR43's streak are counted as "seen too briefly".
+
+**The `integrity` fix** (5c19921, found by the catalog run, diagnosed by the batch agent): the self-test failed on 6
+of 321 cases (objects 21 and 71 px wide near an edge), because three windows grow with the object while their
+margins were fixed. Only cases that raised change. A drawn test sorts last in test_measurement.
+
+**beat** (merge fb5ef54). Four readings beside the beat, none of which changes a call: the beat in the position
+(K2, `beatpos`), a line in each look-alike band against the background's own search (`beatlines`), a beat's depth
+and width on a look-alike near 10 Hz (T2, `beatshape`), and the look-alike mark's base rate (E11: 69.5 % of the
+bird band at 30 frames a second). test_controls gives main's lines exactly; 0 of 432 labelled rows move; on the
+fourteen cases additions only (21 bottom lines grow; the E11 clause in 17). Where a reading disagrees with the call
+(PR089 object 3, PR085's GL6 lead, PR077, flyer 3, a helicopter control, PR097 object 4, PR099 object 3), the
+strand's notes list each.
+
+**small** (merge fcac2f5). `horizon` refuses a duct (kappa of 1 or more: NO POWER) and says which way refraction
+breaks each bound; the shake test's both axes as fields; PR-016's false "possibly added" (the birds' dark rings read
+as a drawn line; the labelled set flags 0 of 431 before and after); a held-picture cadence read in blocks of 60
+frames (IR_DRONE_059 and IR_DRONE_098 lose their 10-Hz "bird" calls; no named bird lost); the zoom's discontinuity on
+five real clips (placebos 0 of 46 call a step, but its interval measures real drift); test_cli's failure message. And
+the controls' record remade in the code (RECORD; the data folder's table at the merge into `main`: the strand's
+`holds/rejudge/SWAP.md` has the three commands).
+
+**main's later rounds** (194f9cf, ace76de): the GPU session's speed-ups after 0.5.4, the same numbers sooner (`layers`
+on the CPU in about half the time with 4395ed8). The scene strand's `lost_pairs` and main's `_by_pair` both rewrote
+one line of `layers.measure`; the merge keeps both.
+
 ## Found on the way
 
 - **`tests/test_controls.py` is in no suite list and fails on `main`.** At 0.5.3 (a72784c): 117 PASS, 1 FAIL (0.5.2's
@@ -105,8 +145,8 @@ under "## 0.5.4", were moved back under "## Unreleased".
 
 ## For Jacob to decide (collected as the strands report; each strand's notes have the full lists)
 
-1. **`s23` into `main`**, when every strand is merged and the merged tree has passed the suites, the goldens and the
-   fourteen-case rerun. Five strands are in and pass everything (golden 235); four to come.
+1. **`s23` into `main`**, when hang is merged and the merged tree has passed the suites, the goldens and the
+   fourteen-case rerun; with it the swap of the controls' table (small's SWAP.md). Eight strands are in.
 2. **plant, forks F1-F10** (`plant/notes.md`; F9: completeness against the contrast after the encoder; F10: the
    planted rate beside the labelled table) and **the full run** (500 points a video on 144 videos, about 320 CPU-hours,
    a night on arthur, as batch units once batch is merged): what is planted, how it moves, what stands for the clip's own
@@ -129,8 +169,15 @@ under "## 0.5.4", were moved back under "## Unreleased".
 9. **batch**: a row of the corpus table is not an object (one bird in seven pieces on PR088; a flock as one row on
    PR135); a second pass that splits a group into its members; the 40-frame rule, which leaves out PR113's transit
    and PR43's streak; every stage for every object as the default.
-10. **The record of the controls**: remade once, after N3's revision and the small strand's cadence rule are both in.
-11. **How hard agents may load arthur by day** (asked 16:15; the queue was resumed without an answer, so "as before").
+10. **beat**: the new bottom-line sentences and the E11 clause (it changes a sentence released reports already
+    carry: 17 findings); ten judgement calls in `beat/notes.md`; what to make of the readings that disagree with the
+    call (PR089 object 3, PR085's GL6 lead).
+11. **small, more**: N7's held frames left out of the Lomb-Scargle reading (a loss of power); whether E15's interval
+    caveat belongs in the stage's own words.
+12. **The record of the controls**: remade on s23 (small's 8e8fa62); the data folder's table swapped with s23's merge.
+13. **Sizing the next catalog run**: the slow objects were the queue's pauses and `layers`' first pass, not the third
+    (the GPU session's measurement); a batch job given the card, or 4395ed8's halving on the CPU, is the lever.
+14. **How hard agents may load arthur by day** (asked 2026-11-13 16:15; never answered, so "as before").
 
 ## How it ran (for next time)
 
@@ -150,3 +197,7 @@ under "## 0.5.4", were moved back under "## Unreleased".
   the agents resumed under it from their transcripts. Commits from then on carry Opus 5.5's line.
 - Merging a released `main` moves an "Unreleased" heading's entries under the new version's heading: move them back.
 - Every strand that adds a test function to `test_golden.py` needs its line in `test_controls.GOLDEN_KINDS`.
+- A shutdown leaves Slurm's running jobs marked RUNNING as ghosts holding the CPUs until `requeue-lost-jobs.sh`; the
+  Cannon login dies with arthur's reboot (only Jacob reopens it), so test on arthur (`mcdonald-test --on arthur`) then.
+- A wall-clock time across a queue pause includes the pause (a suspended job's clock runs): the catalog's slowest
+  "objects" were the pause.
