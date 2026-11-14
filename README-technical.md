@@ -196,6 +196,9 @@ mcdonald segments CLIP.mp4                  # each segment with results: its fra
 
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
+mcdonald symbology CLIP.mp4 --method hue             # the pointer by its colour alone: warm (orange, red) where a warm glyph
+                                                     # shows, else the hue the frames' own glyph has (magenta, cyan); --box
+                                                     # Y0,Y1,X0,X1 says where to look in a picture with colour of its own
 
 # v_px -> omega -> what the motion permits (with --ladder when k is unknown); the speed band -- the rate along the
 # track with its error from the track's own covariance (<tag>_speed.csv, .png), a changing speed described, not refused;
@@ -252,7 +255,8 @@ mcdonald slew CLIP.mp4 --platform P.csv --los L.csv --out CASE   # a data bar in
                                                      # (drift's files); the hold and the depression come with them
 
 # Does the scene move under the sensor's pattern? A reading of whole blocks of 60 frames, with no templates: for a clip `layers`
-# says is held still. `layers` runs it on such a clip by itself (--no-scene: not), and its file is its own: no other stage reads it
+# says is held still. `layers` runs it on such a clip by itself (--no-scene: not), and its file is its own: no other stage takes a
+# rate from it. Where enough blocks read the scene moving, the report says the background moved, not that it held still
 mcdonald scene CLIP.mp4 --out CASE                   # every block; --sample 12 for a look at a long clip; --track CSV keeps the object out
 mcdonald slew CLIP.mp4 --scene-blocks --out CASE     # k from the slew with the scene from those blocks, only when asked: each zoom state one
                                                      # window, the blocks' agreement with the pointer tested against circular shifts of it

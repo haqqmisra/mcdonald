@@ -95,6 +95,45 @@ quickest way to convince yourself, or a council, that two layers are real.
   its own error, and one as well matched a step along its streaks counts
   across them only.
 
+**A pair whose templates do not agree is not held still (added 2026-11-13; IDEAS.md GL4).** A pair whose
+templates, zero shift left out, reach no consensus is measured again over a second, and where that finds no motion
+either it was "held still even over a second". PR058 showed what else ends there: a sea streaked along its own motion,
+crossing the picture at 20 px a frame behind an object the sensor follows. Half its pairs (924 of 1,845) were held
+still, in runs of two or three between pairs that read 110 px, and the report said the picture behind the object held
+still beside a rate of 588 px/s that was against a moving sea. In such a pair nearly every template is matched
+well (a peak near 0.9) 94-115 px along the streaks, the sea's own shift. But each is sure only across its streaks,
+their places scatter along them by more than the 6 px a consensus allows, and the second pass looks over 30 frames,
+where the sea has gone 600 px, far past its 245-px search: "nothing found" was written down as "still". Nothing in
+such a pair sits at zero: with zero allowed, 1-9 of its 36-42 templates do.
+
+So a pair is held where its templates match at no shift, not where they fail to agree on one. Each pair the first pass
+calls held keeps its own field in numbers (`layers.own_field`, in the cache beside the templates: the cache's key
+moved): the templates placed, those matched well (a peak of 0.5 or more, `forensics.PK_MIN`), and how many of those lie
+more than 5 px along their own median shift, on its side of zero (5 px: the most a held pair's shift is kept at). A
+pair left STILL by both passes with more than half its templates there, of 8 or more placed (`LOST_AWAY`, `LOST_FEW`),
+is LOST: the scene moved and the pair was not read. It has no shift in `<tag>_layers.csv` (a row of blanks, as any pair
+with no consensus), it is not counted as held (`held_still.not_read_share`, only where there are such pairs), and a
+rate is carried across it as across any unread pair. One side of zero, because a still scene of long streaks, or
+stripes on the sensor, scatters its matches along the streaks either side of zero, and neither side is a majority (a
+drawn field in `tests/test_measurement.py`: 36 of 40 templates past 5 px, 19 on the median's side).
+
+*The null.* The five Galileo still cameras, every pair (5,213 left STILL, 8 templates or more): the share is 0.037
+in the median, 0.075 at the 99th centile and **0.102 at the most; none reaches a half** (under 0.06 % a pair at 95 %).
+PR058's 930 STILL pairs: 0.73 in the median, 0.87 at the 90th centile; 834 are LOST (726 at a cut of 0.6). On the 31
+objects of the 14 reference case files (11,948 STILL pairs): **11 are LOST**, ten on PR088 object 2 (their templates
+87 px along, where its blocks read 11-33 px a frame: the scene) and one of PR113's 56 (0.507: not looked at). A scene
+that moves under a pattern fixed on the sensor reaches 0.2-0.4 (PR077, PR079, PR097, PR099, PR41, PR44): some templates
+see the scene, the pattern holds the rest, and its pairs stay STILL, for the blocks to read (§41). The half is "most of
+its templates", the level a choice; the null says how far a held pair stays under it.
+
+*PR058 after it.* Held still in 5 % of pairs, not read in 45 %, no NO POWER; over the whole track 620 px/s against
+the background (16-84 %: 547-654; it was 588, 353-642, with the false zeros in), the layer read on 51 % of it, and
+the report's first line is "The object moved about 620 pixels a second against the background." *What it is not.* It
+does not read those pairs: the scatter along the streaks is the measurement's limit there (a consensus with a wider
+reach along a ridge would, and would change every clip's numbers: not done). A pair the second pass read (AGAIN), or
+one between a repeating picture's catch-ups (UNMOVED), keeps its reading. And a scene too fast for the search (over
+`--max-shift`, 45 px a frame) leaves no well matched template anywhere: such a pair is STILL, as it was.
+
 ## 2. `mcdonald integrity` — altered? added?
 
 **What it can and cannot show.** It shows whether the clip and the object
@@ -301,6 +340,48 @@ display whose pointer sweeps too little to fit (PR063, 25°) takes the centre
 with `--pointer-centre X,Y`. Rendered (`tests/test_reduction.py`): a circle
 8.6 px off the boresight, 0.3 px of scatter and one glyph in twenty
 mislocated, found to a fifth of a pixel; a sweep of 25° fits nothing.
+
+**The pointer's colour, and a reticle that shows three of its four ticks (added 2026-11-13; IDEAS.md GL5).**
+PR058 draws a magenta "N", plain to the eye, that `--method hue` read on no frame and `auto` never reached. Two causes,
+both seen on the pixels. (1) `hue_glyphs` kept pixels with red over blue by 60 levels, PR144's orange; a magenta glyph
+has as much blue as red (R 182, G 108, B 169), and of the 64-120 of its pixels saturated enough, none passed, on any
+frame. Not its saturation after the codec (a chroma of 71-91 against the 70 asked), not its size (14 x 16 px). The hue
+method now reads the colour off the frames where no warm glyph shows on any of 20 frames spread over the clip
+(`glyph_hue`): the largest glyph-sized patch of saturated colour in each, the hue most of them share (within 30 deg,
+on half the frames or more), and glyphs within 30 deg of it (`HUE_WIDTH`: PR058's "N" keeps nine in ten of its pixels
+within 9 deg of its own hue, the worst of 565 frames 23, and the hue itself moves 298-319 deg from frame to frame).
+A warm glyph is read as before, to the byte (PR144, PR057a). (2) The boresight was the mean of the four coloured
+glyphs nearest the middle of the picture, taken to be the reticle's ticks. PR058's reticle shows two to four of its
+four (of 615 frames: one on 1, two on 99, three on 251, four on 264; the upright ticks are 2 px wide and their colour,
+kept at half the picture's resolution, does not always survive), and the fourth nearest glyph is then the pointer
+itself, 195 px out: a boresight at (650.6, 306.8) for (640.5, 359.5), about which the pointer's turn would have read
+39 % fast, and a chroma method that had taken the pointer for a tick and had none left to find. Now: where some of the
+four nearest lie beyond a fifth of the frame's height from the middle (`RETICLE_WITHIN`, the inner edge of the ring
+the pointer is looked for in) and the two or three that do not are ticks of one reticle by themselves (`_crossing`:
+each wider than tall beside the crossing or taller than wide above or below it, the ticks of one bar on its line and
+an opposite pair's midpoint on the other bar's tick, within 0.6 % of the frame's height), those are the ticks and
+the boresight is where they cross; anywhere else the four nearest stand, as before. The tolerances are the
+drawing's, not levels from a null.
+
+*PR058, frames 10506-12350, every third* (`mcdonald symbology`, as `run` asks it): boresight (640.5, 359.5); by chroma
+613 of 615 frames, radius 195.16 +- 0.55 px (0.28 %), **+0.200 deg/s**, residual 0.22 deg; by hue 565 of 615, the hue
+found at 304 deg, radius 195.08 +- 0.70, +0.199 deg/s. Two frames read by eye in the session that found it gave
+0.19 deg/s, and a note of 2026-10-14 0.17 over 88 s. *Held on the pointer clips* (the first 3,000 frames of the long
+ones, every third, old code and new): PR43, PR48, PR149 and PR27 the same to the byte by chroma, PR144 and PR057a by
+hue; every frame chroma read before is read at the same place, and one or two more a clip are read where a tick was
+missing (PR144 277 -> 279 of 279, PR057a 658 -> 660, PR060 999 -> 1,000, PR061 976 -> 977). The reference case PR41
+had its pointer on half its frames for PR058's reason: 134 -> 266 of 266, -0.413 -> -0.409 deg/s. And hue reads five
+pointers it read on no frame, agreeing with chroma where chroma's radius holds: PR43 (cyan, hue 179: 306.32 px against
+306.27), PR48 (magenta, 301: -0.1422 deg/s against -0.1428), PR27 (178: +0.3169 against +0.3157), and PR060 and PR061
+(182, 188: radius +- 1.10 and +- 0.59 px, +0.61 and +0.83 deg/s, where chroma's radius wanders 4-19 % and the stage
+says its angles are unreliable). Drawn (`tests/test_reduction.py`): PR058's display through the codec, a magenta "N" of
+10 x 12 to 20 x 24 px on a dark and a bright scene, found by its own hue to a pixel and by the warm test on no frame;
+a reticle of three ticks to half a pixel where the mean of the four nearest is 36 px off. *What it is not.* PR149's
+magenta "N" is still read by chroma alone (hue: no frame, before and after; not looked into). **PR141's "pointer" is
+no pointer** (found here, not fixed): the chroma method's glyphs sit at four fixed places 240-278 px from the
+boresight, and the circle fit of 2026-10-28 draws a circle 75-94 px off it through them, dropping over half the
+glyphs; its released reports give -9.9 and -5.0 deg/s for two objects on the same frames, and this code -8.3 for
+both. All are fictitious; a fit that drops most of its glyphs wants refusing, with a null.
 
 Pointing is therefore **not withheld** on any clip that draws a pointer,
 whatever a redaction tag says. Measured radii: PR144 310.9 ± 0.9 px, PR148
@@ -4525,6 +4606,43 @@ move, so every earlier cache holds. `mcdonald layers` runs it on a clip left sti
 `mcdonald run` asks for it too, and the stage then says, beside its NO POWER, that the scene was read and how fast (the maintainer's choice: beside it, not in its place).
 The rate against the background is still `layers`' own. `slew --scene-blocks` takes the scene from the blocks, only when asked, and judges it by the
 rule below. About 7 s a block on one core, 400 MB.
+
+**Where the blocks say the scene moved, the report does not say it held still (added 2026-11-13; IDEAS.md GL4).**
+The blocks' line stood beside `layers`' NO POWER, and the NO POWER was worded "the scene is held still on screen". The
+report took those words for its first line ("The picture behind it held still on screen"), its bottom line and its
+checklist, on clips where the line beside them read the scene crossing the picture at 20 px a frame. One function now
+says what the scene did for every reader of "held still" (`layers.scene_state`): *read*, the templates followed it
+(left STILL on half the pairs or fewer); *under*, they did not and the blocks say it moved; *held*, they did not and
+nothing says it moved. The rule for *under* is a count against the gate's own false-alarm bound: a block with no
+scene is read under 0.91 % of the time, so a clip with no moving scene has one block read of one, two of 2 to 16,
+three of 17 to 48 or four of 49 to 91 under 1 time in 100 (`layers.blocks_needed`; blocks taken to read falsely one by
+one, not together), and that many read is the scene moving. The 1 in 100 is a choice of level. How much of the track
+the blocks stand for is said too: *most* of it where half the blocks asked were read and the templates were left
+still on nine pairs in ten, else "for at least part of the track".
+
+Under: the first line reads "The object moved about 27 pixels a second in the picture, as the camera held it. The
+background behind it moved across the picture at about 805 pixels a second. A pattern fixed on the camera's sensor hid
+that motion from the match between frames, so the object's motion against the background is not measured." (PR41);
+the checklist's camera row answers Yes where it answered Can't tell, and the row of the object's motion Can't tell
+where it answered Yes ("across the picture, which held still"); the speed in body lengths takes the camera as moving;
+the event study (§51) has no frame-by-frame scene and says so without calling it still. **The rate does not change**:
+it is still the object's motion as the camera held it, and nothing is built on it. Taking the rate against the blocks'
+velocity is the maintainer's decision of 2026-11-02 (beside, not in its place) and stays his: what it would give is in
+the session's notes (PR41 830 px/s for 27, PR099 object 3 801 for 38, PR088 object 2 659 for 73), with the one check
+that bears on it: where the templates' own read pairs fall inside read blocks they agree with the block's velocity
+to 0.97-1.03 in speed and under a degree in direction (48 pairs on those three objects). Held: the words are what they
+were, with one sentence more under them, "A background that crosses the picture faster than the search can follow
+looks the same too": neither search sees a scene past its reach (the templates' `--max-shift`, 45 px a frame; the
+blocks' 30 reduced px a frame), and "held still" was never a finding there.
+
+*On the 31 objects of the reference case files* (each measured again by its recorded command, before and after): 25
+carry the NO POWER. On **17 the blocks say the scene moved** and the words change: PR077 objects 1 and 2 (4 of 6 and 3
+of 4 blocks, 11-26 px a frame), PR079 (6 of 8, 8-13), PR085 (12 of 17, 2-6), PR088 objects 1 and 2 (7 of 7 and 51 of
+61, 8-33), PR099 objects 1-3 (4 of 6, 2 of 3, 11 of 13; 5-30), PR135's six (3 of 4, 15-21), PR41 (13 of 13, 25-31)
+and PR44 (3 of 3, 6). "For at least part of the track" on three of them, where the templates were left still on under
+nine pairs in ten: PR077 object 1 (85 %), PR099 object 2 (70 %), and PR44 (52 %), whose camera pans for six seconds of
+fourteen. On 8 they do not: PR097's six with the NO POWER (no block read) and PR141's two (one block of three, none of
+three) -- held, as before. No rate moves on any of the 31.
 
 **The blocks' rule in `slew`** (`slew.fit_blocks`, 2026-11-02). `slew`'s own fit is in places: the scene's path chained from pairs, the pointer's
 angle, a hold, an offset per stretch, and a check that the two rates follow each other frame by frame (§17). A scene read 60 frames at a time

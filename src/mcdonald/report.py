@@ -803,41 +803,51 @@ class Case:
                    for _, why in (self.stages.get("layers") or {}).get("no_power") or [])
 
     def moved_under(self):
-        """The background's speed in pixels a second where the layers step found no motion pair by pair and its blocks of
-        frames read the background moving under a pattern fixed on the sensor (`layers.scene_state`: "under"), else
-        None. "Held still on screen" is then not what the pixels show (IDEAS.md GL4): on PR41 the step held 98 % of its
-        pairs at no motion while 13 of 13 blocks read the sea crossing the picture at 25-31 pixels a frame. Read from the
-        step's fields, so a case file written before this, with the old no-power beside a block reading, says it too."""
+        """Where the layers step found no motion pair by pair and its blocks of frames read the background moving under a
+        pattern fixed on the sensor (`layers.scene_state`: "under"), that reading with the background's speed in pixels
+        a second (`px_per_s`), the share of the frame pairs it stands for (`still_again_share`) and the blocks read;
+        else None. "Held still on screen" is then not what the pixels show (IDEAS.md GL4): on PR41 the step held 96 % of
+        its pairs at no motion while 13 of 13 blocks read the sea crossing the picture at 25-31 pixels a frame. Read from
+        the step's fields, so a case file written before this, with the old no-power beside a block reading, says it too."""
         from .layers import scene_state
         st = scene_state((self.stages.get("layers") or {}).get("fields"), (self.clip or {}).get("fps"))
-        return st["px_per_s"] if st and st["state"] == "under" and st.get("px_per_s") else None
-
-    # the first line's sentences after a rate read over a background that moved under the sensor's pattern
-    MOVED_UNDER_SAID = ("The background behind it moved across the picture at about {:.0f} pixels a second. A pattern fixed on the "
-                        "camera's sensor hid that motion from the match between frames, so the object's motion against the "
-                        "background is not measured.")
+        return st if st and st["state"] == "under" and st.get("px_per_s") else None
 
     def not_against_said(self):
         """The first line's sentence or two on why the rate is not one against the background: the picture behind held
-        still on screen, or it moved under a pattern fixed on the sensor."""
+        still on screen, or it moved under a pattern fixed on the sensor -- for part of the track where the match between
+        frames followed the background in the rest (PR44: a pan of six seconds in a track of fourteen)."""
         under = self.moved_under()
-        return self.MOVED_UNDER_SAID.format(under) if under else self.HELD_STILL_SAID
+        if not under:
+            return self.HELD_STILL_SAID
+        v = f"about {under['px_per_s']:.0f} pixels a second"
+        return ((f"The background behind it moved across the picture at {v}." if under["most"] else
+                 f"The background behind it moved across the picture for at least part of the track, at {v} where it was read.")
+                + " A pattern fixed on the camera's sensor hid that motion from the match between frames, so the object's motion "
+                "against the background is not measured.")
 
     def held_still_said(self):
         """The bottom line's sentences on it, after a rate read over a picture that held still -- or, where the blocks
         of frames read the background moving under the sensor's pattern, over one that did not."""
         under = self.moved_under()
         if under:
-            return [f"The background behind the object moved across the picture at about {under:.0f} pixels a second while it was tracked.",
-                    "That speed was read from whole blocks of 60 frames.",
-                    "A pattern fixed on the camera's sensor held the match between single frames at no motion, so the object's "
-                    "motion against the background is not measured.",
+            lf = (self.stages.get("layers") or {}).get("fields") or {}
+            frames = (lf.get("scene") or {}).get("block_frames") or 60
+            return [(f"The background behind the object moved across the picture at about {under['px_per_s']:.0f} pixels a second while it was tracked."
+                     if under["most"] else
+                     "The background behind the object moved across the picture for at least part of the track, at about "
+                     f"{under['px_per_s']:.0f} pixels a second where it was read."),
+                    f"That speed was read from whole blocks of {frames} frames.",
+                    f"It comes from {under['read']} of the {under['blocks']} blocks where the match between single frames found no motion.",
+                    f"A pattern fixed on the camera's sensor held that match at no motion in {under['still_again_share']:.0%} of the frame pairs.",
+                    "So the object's motion against the background is not measured.",
                     "The speed above is its motion as the camera held it.",
                     "A camera that follows an object keeps it nearly still in the picture while the background streams past."]
         return ["The picture behind the object held still on screen while it was tracked.",
                 "So this is its motion as the camera held it, not against the background, which is not measured.",
                 "A camera following the object across an empty sky looks the same as a camera held still over a slow scene, "
-                "and nothing here can tell the two apart."]
+                "and nothing here can tell the two apart.",
+                "A background that crosses the picture faster than the search can follow looks the same too."]
 
     def rate(self):
         """(px/s, against what): the object's rate against the background where the layers check measured
@@ -1988,8 +1998,11 @@ class Case:
             zoom = ("; the picture zoomed " + {1: "once", 2: "twice"}.get(len(zooms), f"{len(zooms)} times")) if zooms else ""
             both = "a camera following it over an empty sky and a still camera over a slow scene both give"
             if under:
-                add("camera", "layers", YES, f"the background moved across the picture at about {under:.0f} pixels a second, read from "
-                                             "whole blocks of frames under a pattern fixed on the camera's sensor" + zoom)
+                add("camera", "layers", YES, (f"the background moved across the picture at about {under['px_per_s']:.0f} pixels a second, read from "
+                                              "whole blocks of frames under a pattern fixed on the camera's sensor" if under["most"] else
+                                              f"the background moved across the picture for at least part of the track: {under['read']} of "
+                                              f"{under['blocks']} blocks of frames read it at about {under['px_per_s']:.0f} pixels a second, under a "
+                                              "pattern fixed on the camera's sensor") + zoom)
             elif held and camera_still:
                 add("camera", "layers", CANT, f"the picture behind the object held still on screen (in {still:.0%} of the frame pairs, even over "
                                               f"{longer} frames), which {both}, so whether the camera moved is not measured" + zoom)
@@ -2007,7 +2020,7 @@ class Case:
         rate, against = self.rate()
         kf = st("kinematics")
         if rate is not None:
-            if (against == "across the picture" and camera_moved) or (against == self.AS_HELD and under):
+            if (against == "across the picture" and (camera_moved or under)) or (against == self.AS_HELD and under):
                 add("moves", "kinematics", CANT, f"it moves about {rate:.0f} pixels a second across the picture, but so did the background, "
                                                  "and its rate against the background was not measured")
             else:

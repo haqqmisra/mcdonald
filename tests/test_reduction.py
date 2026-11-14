@@ -2663,17 +2663,24 @@ def test_a_background_that_moved_under_the_sensors_pattern_did_not_hold_still():
     st = layers.scene_state(fields(), 30.0)
     check(st["state"] == "under" and st["read"] == 13 and abs(st["px_per_s"] - 804.0) < 1e-9 and layers.scene_state(fields())["px_per_s"] is None,
           "the state every reader takes: the pairs found no motion, the blocks read the scene moving, about 804 pixels a second", str(st))
-    states = {(r, b): layers.scene_state(fields(read=r, blocks=b))["state"] for r, b in ((1, 1), (1, 2), (2, 2), (1, 3), (2, 3), (2, 4), (2, 5), (3, 5), (0, 4), (0, 0))}
-    check(states == {(1, 1): "under", (1, 2): "held", (2, 2): "under", (1, 3): "held", (2, 3): "under", (2, 4): "under", (2, 5): "held", (3, 5): "under",
-                     (0, 4): "held", (0, 0): "held"},
-          "the rule: half the blocks asked or more, and two or more unless one was all there was; else held, as before", str(states))
+    pairs = ((1, 1), (1, 2), (2, 2), (1, 3), (2, 3), (2, 16), (2, 17), (3, 17), (5, 19), (3, 49), (4, 49), (0, 4), (0, 0))
+    states = {rb: layers.scene_state(fields(read=rb[0], blocks=rb[1]))["state"] for rb in pairs}
+    check(states == {(1, 1): "under", (1, 2): "held", (2, 2): "under", (1, 3): "held", (2, 3): "under", (2, 16): "under", (2, 17): "held",
+                     (3, 17): "under", (5, 19): "under", (3, 49): "held", (4, 49): "under", (0, 4): "held", (0, 0): "held"}
+          and [layers.blocks_needed(n) for n in (1, 2, 16, 17, 48, 49)] == [1, 2, 2, 3, 3, 4],
+          "the rule is a count: more blocks read than a clip with no moving scene gives one time in a hundred, at the block gate's own "
+          "false-read bound (one of one, two of 2 to 16, three of 17 to 48, ...); else held, as before", str(states))
+    most = {(r, b, s_): layers.scene_state(fields(read=r, blocks=b, still=s_))["most"] for r, b, s_ in ((13, 13, 0.976), (3, 4, 1.0), (5, 19, 0.976), (3, 3, 0.517))}
+    check(most == {(13, 13, 0.976): True, (3, 4, 1.0): True, (5, 19, 0.976): False, (3, 3, 0.517): False},
+          "and the blocks read stand for most of the track where half of those asked were read and the templates were left still on nine "
+          "pairs in ten; else for part of it", str(most))
     check(layers.scene_state(fields(still=0.3))["state"] == "read" and layers.scene_state(dict(held_still=None)) is None
           and layers.scene_state(None) is None,
           "a scene the templates followed is read, whatever the blocks; a stage with no pairs has no state")
     for which, npw in (("as the step words it now", new), ("in a case file from before, the old no-power beside its block reading", old)):
         c = case(npw)
         label, head = c.conclusion()
-        check(c.behind_held_still() and abs(c.moved_under() - 804.0) < 1e-9 and c.rate() == (27.4, c.AS_HELD)
+        check(c.behind_held_still() and abs(c.moved_under()["px_per_s"] - 804.0) < 1e-9 and c.rate() == (27.4, c.AS_HELD)
               and head == ("The object moved about 27 pixels a second in the picture, as the camera held it. The background behind it moved "
                            "across the picture at about 804 pixels a second. A pattern fixed on the camera's sensor hid that motion from the "
                            "match between frames, so the object's motion against the background is not measured. Its real speed and size "
@@ -2682,8 +2689,9 @@ def test_a_background_that_moved_under_the_sensors_pattern_did_not_hold_still():
               f"the first line, {which}: the rate as the camera held it, and a background that moved", head[:140])
         bottom = c.bottom_line()
         check("The background behind the object moved across the picture at about 804 pixels a second while it was tracked. That speed was read "
-              "from whole blocks of 60 frames. A pattern fixed on the camera's sensor held the match between single frames at no motion, so "
-              "the object's motion against the background is not measured. The speed above is its motion as the camera held it." in bottom
+              "from whole blocks of 60 frames. It comes from 13 of the 13 blocks where the match between single frames found no motion. A pattern "
+              "fixed on the camera's sensor held that match at no motion in 98% of the frame pairs. So the object's motion against the background "
+              "is not measured. The speed above is its motion as the camera held it." in bottom
               and "held still" not in bottom and "empty sky" not in bottom and "Against the" not in bottom,
               "the bottom line says the same, and no longer that the picture held still", bottom[:160])
         rows = {r["key"]: r for r in c.checklist()}
@@ -2700,14 +2708,28 @@ def test_a_background_that_moved_under_the_sensors_pattern_did_not_hold_still():
           and "The background moved behind it and could not be followed from frame to frame, so its motion against the background is not "
               "measured, and this is no floor on its speed." in bottom and "held a still picture" not in bottom,
           "with a scale: no speed is built on a rate as the camera held it, and the words do not say the picture held still", head[:120])
+    c = case(still=0.517, read=3, blocks=3)              # PR44: a pan of six seconds in a track of fourteen
+    rows = {r["key"]: r for r in c.checklist()}
+    check("The background behind it moved across the picture for at least part of the track, at about 804 pixels a second where it was read. "
+          "A pattern" in c.conclusion()[1]
+          and "The background behind the object moved across the picture for at least part of the track, at about 804 pixels a second where it "
+              "was read. That speed was read from whole blocks of 60 frames. It comes from 3 of the 3 blocks" in c.bottom_line()
+          and "at no motion in 52% of the frame pairs." in c.bottom_line() and rows["camera"]["answer"] == report.YES
+          and rows["camera"]["said"] == "the background moved across the picture for at least part of the track: 3 of 3 blocks of frames read it "
+                                        "at about 804 pixels a second, under a pattern fixed on the camera's sensor",
+          "where the blocks read stand for part of the track (a pan in a track otherwise followed pair by pair; a few blocks of many), the "
+          "words say part", rows["camera"]["said"][:110])
     c = case(old, read=1, blocks=3)
     rows = {r["key"]: r for r in c.checklist()}
     check(c.moved_under() is None and "The picture behind it held still on screen" in c.conclusion()[1] and rows["camera"]["answer"] == report.CANT
           and rows["moves"]["said"] == "about 27 pixels a second across the picture, which held still",
           "one block of three is not the scene: the picture held still on screen, as before")
     c = case(old, blocks=0)
-    check(c.moved_under() is None and "The picture behind it held still on screen" in c.conclusion()[1],
-          "and a case with no block reading reads as before")
+    check(c.moved_under() is None and "The picture behind it held still on screen" in c.conclusion()[1]
+          and "nothing here can tell the two apart. A background that crosses the picture faster than the search can follow looks the same too."
+          in c.bottom_line(),
+          "and a case with no block reading reads as before -- with one sentence more under it: a background too fast for the search "
+          "is found no more than a still one (PR051's 4X hold, where the data bar has the ground crossing at over 200 pixels a picture)")
     track = {n: (100.0 + 0.9 * n, 200.0 + 0.1 * n) for n in range(1, 301)}
     h = stages.kinematics(track, 30.0, 1280, "t", size_px=12.0, layers=fields())
     check(h.fields["platform"]["moving"] is True and "about 27 px a frame by whole blocks of frames (13 of 13" in h.fields["platform"]["why"]

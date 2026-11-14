@@ -376,6 +376,7 @@ HOLD_MIN = 0.07                  # the two halves' coherence: above all 258 sear
 SLOWEST = 1.0                    # reduced px/frame: under this the first lag drops out of S, which steps up on a ring. 9 of the coded null's 13
 #                                  strongest blocks sit on it (0.78-0.97), and on PR123 "reads" hold their speed and turn every block
 FINE_FROM = 4.0                  # reduced px/frame: the upper band is believed only this far from the residue it keeps about zero
+FALSE_READ = 0.0091              # a block with no scene is read at most this often: the 95 % bound of 0 of 326 (method section 41)
 
 
 def judge(b):

@@ -664,16 +664,31 @@ def over_track(trk, vel, k, fps, half):
 # What the scene did where the templates did not follow it (2026-11-13, IDEAS.md GL4). `layers`' NO POWER -- over
 # SCENE_SHARE of the pairs left STILL -- says the templates found no motion; it was worded "the scene is held still on
 # screen", and the report took that for its first line. A pattern fixed on the sensor holds templates at no shift over a
-# scene that streams past (method section 41), and the blocks' reading (`scene`) then says so: on 18 of the 26 objects
+# scene that streams past (method section 41), and the blocks' reading (`scene`) then says so: on 17 of the 25 objects
 # of the reference case files with this NO POWER it read half their blocks or more, at 2-33 px a frame. Where the
-# blocks say the scene moved, "held still" is not what the pixels show. The rule for a clip: UNDER_SHARE of the blocks
-# asked or more were read, and at least two unless the clip had only one. A block's false reading is under 0.91 % at 95 %
-# (0 of 326 blocks with no scene, method section 41), so this passes a clip with no moving scene at most 0.91 % of the
-# time where one block was all it had, and at most 0.05 % with two or more (two of four is the likeliest: six pairs of
-# blocks at 0.91 % squared), if blocks read falsely one by one and not together.
-# UNDER_SHARE, a half, is a choice of what "the scene moved" is said of -- most of the stretch -- not a level set from a null.
-UNDER_SHARE = 0.5
+# blocks say the scene moved, "held still" is not what the pixels show.
+#
+# The rule for a clip is a count. A block with no scene is read falsely under 0.91 % of the time at 95 % (0 of 326
+# blocks, method section 41: `scene.FALSE_READ`). The blocks say the scene moved where more of them were read than a
+# clip with no moving scene gives UNDER_ALPHA of the time at that rate (`blocks_needed`: one of one, two of 2 to 16,
+# three of 17 to 48, four of 49 to 91), if blocks read falsely one by one and not together. The level, 1 in 100 a clip,
+# is a choice, as the scan's 1 in 20 is. And the words follow how much of the stretch the blocks stand for: `most` where
+# UNDER_SHARE of the blocks asked were read and the templates were left still on UNDER_SHARE_PAIRS of the pairs -- the
+# scene moved, at the blocks' speed; else it moved for at least part of the track (PR44: a pan of six seconds in a
+# track of fourteen; PR051's unredacted copy: 5 of 19 blocks read the ground streaming, the rest too faint or too fast).
+UNDER_ALPHA = 0.01
+UNDER_SHARE = 0.5          # of the blocks asked: read on this share or more, the blocks stand for the stretch they were asked of ...
+UNDER_SHARE_PAIRS = 0.9    # ... and that stretch for the track, where the templates were left still on this share of the pairs
 UNDER_WORDS = "under a pattern fixed on the sensor"        # in this stage's NO POWER where the blocks say the scene moved
+
+
+def blocks_needed(n, p=None, alpha=UNDER_ALPHA):
+    """The least number of `n` blocks that must be read for the blocks to say the scene moved: the smallest count that
+    a clip with no moving scene reaches under `alpha` of the time, each block read falsely with chance `p`
+    (`scene.FALSE_READ`)."""
+    p = whole.FALSE_READ if p is None else p
+    tail = lambda r: sum(math.comb(n, j) * p ** j * (1 - p) ** (n - j) for j in range(r, n + 1))
+    return next((r for r in range(1, n + 1) if tail(r) <= alpha), n + 1)
 
 
 def scene_state(fields, fps=None):
@@ -683,9 +698,10 @@ def scene_state(fields, fps=None):
 
       "read"   the templates followed it: left still over a second in SCENE_SHARE of the pairs or fewer;
       "under"  they did not, and whole blocks of frames show it moving under a pattern fixed on the sensor (the rule
-               above), with `read` and `blocks`, `px_per_frame` (the read blocks' median speed) and, given `fps`,
-               `px_per_s`;
-      "held"   they did not, and no such reading says it moved: held still on screen, or nothing in it to read.
+               above), with `read` and `blocks`, `px_per_frame` (the read blocks' median speed), given `fps` `px_per_s`,
+               and `most`: whether the blocks read stand for most of the track, or for part of it;
+      "held"   they did not, and no such reading says it moved: held still on screen, nothing in it to read, or
+               moving faster than either search reaches.
 
     None where the stage measured no pairs (a look at one pair; no layers stage)."""
     hs = (fields or {}).get("held_still") or {}
@@ -695,12 +711,13 @@ def scene_state(fields, fps=None):
     if still <= SCENE_SHARE:
         return dict(state="read", still_again_share=still)
     sc = fields.get("scene") or {}
-    read, blocks = sc.get("read") or 0, sc.get("blocks") or 0
-    if blocks and read >= UNDER_SHARE * blocks and read >= min(2, blocks) and sc.get("speed_px_frame"):
+    read, blocks = int(sc.get("read") or 0), int(sc.get("blocks") or 0)
+    if blocks and read >= blocks_needed(blocks) and sc.get("speed_px_frame"):
         v = float(sc["speed_px_frame"]["median"])
-        return dict(state="under", still_again_share=still, read=int(read), blocks=int(blocks), px_per_frame=v,
-                    px_per_s=None if not fps else v * float(fps))
-    return dict(state="held", still_again_share=still, read=int(read), blocks=int(blocks))
+        return dict(state="under", still_again_share=still, read=read, blocks=blocks, px_per_frame=v,
+                    px_per_s=None if not fps else v * float(fps),
+                    most=bool(read >= UNDER_SHARE * blocks and still >= UNDER_SHARE_PAIRS))
+    return dict(state="held", still_again_share=still, read=read, blocks=blocks)
 
 
 def glance(clip, masks, rows=None):

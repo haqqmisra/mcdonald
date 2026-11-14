@@ -183,43 +183,70 @@ def glyph_hue(frames_rgb, box=None, chroma=70, min_h=10, max_h=None, min_w=8, ma
 # ---- boresight ----------------------------------------------------------------------
 RETICLE_WITHIN = 0.20    # of the frame's height: a reticle's ticks lie nearer the middle of the picture than this, inside the ring
 #                          the pointer is looked for in (`north_from_chroma`'s r_frac)
+RETICLE_TOL = 0.006      # of the frame's height (4 px at 720 lines): how far two ticks of one bar may sit apart across it, and a
+#                          tick off the crossing the others give. PR058's arms keep one row to a pixel and sit 2 px either side
+#                          of the upright's column. A tolerance of the drawing, not a level from a null.
+
+
+def _crossing(ticks, shape):
+    """Where two or three ticks of one reticle cross, (x, y), or None where they are not that. A tick is wider than tall
+    and beside the crossing, or taller than wide and above or below it; the ticks of one bar keep its line; an upright
+    gives the crossing's column and an arm its row, and two ticks on opposite sides give the other by their midpoint,
+    which must agree with a tick that gives it too."""
+    tol = RETICLE_TOL * shape[0]
+    wide, tall = [t for t in ticks if t["w"] > t["h"]], [t for t in ticks if t["h"] > t["w"]]
+    if not ticks or len(wide) + len(tall) < len(ticks):
+        return None
+    if any(max(v) - min(v) > tol for v in ([t["cy"] for t in wide], [t["cx"] for t in tall]) if v):
+        return None
+
+    def between(ts, c):
+        v = sorted(t[c] for t in ts)
+        return (v[0] + v[-1]) / 2 if len(v) == 2 else None
+
+    x = float(np.mean([t["cx"] for t in tall])) if tall else between(wide, "cx")
+    y = float(np.mean([t["cy"] for t in wide])) if wide else between(tall, "cy")
+    if x is None or y is None:
+        return None
+    if any(abs(t["cx"] - x) <= abs(t["cy"] - y) for t in wide) or any(abs(t["cy"] - y) <= abs(t["cx"] - x) for t in tall):
+        return None
+    for mid, at in ((between(wide, "cx"), x), (between(tall, "cy"), y)):          # an opposite pair's midpoint against the other bar's tick
+        if mid is not None and abs(mid - at) > tol:
+            return None
+    if len(wide) == 2 and (wide[0]["cx"] - x) * (wide[1]["cx"] - x) > 0 or len(tall) == 2 and (tall[0]["cy"] - y) * (tall[1]["cy"] - y) > 0:
+        return None                                                               # two ticks of one bar on the same side of the crossing
+    return float(x), float(y)
 
 
 def reticle_ticks(rgb, glyphs=None):
-    """The reticle's coloured ticks: of the four glyphs nearest the middle of the picture, those within RETICLE_WITHIN of
-    it. Four on most displays. PR058's MTS-B shows two to four of its four from frame to frame (the two upright ones are
+    """The reticle's coloured ticks: the four glyphs nearest the middle of the picture, as ever -- unless some of the
+    four lie beyond RETICLE_WITHIN of it and the two or three that do not are ticks of one reticle by themselves
+    (`_crossing`): then those. PR058's MTS-B shows two to four of its four ticks from frame to frame (its upright ticks are
     2 px wide, and the codec's colour, kept at half the picture's resolution, loses one or both on 351 of 615 frames), and
-    the fourth nearest glyph is then the north pointer, 195 px out."""
+    the fourth nearest glyph is then the north pointer, 195 px out. Where nothing is recognised as a reticle with fewer
+    ticks, the four nearest stand, whatever they are, as before 2026-11-13."""
     g = glyphs if glyphs is not None else chroma_glyphs(rgb)
     cx0, cy0 = rgb.shape[1] / 2, rgb.shape[0] / 2
     r = lambda d: np.hypot(d["cx"] - cx0, d["cy"] - cy0)
-    return [d for d in sorted(g, key=r)[:4] if r(d) <= RETICLE_WITHIN * rgb.shape[0]]
+    near = sorted(g, key=r)[:4]
+    inside = [d for d in near if r(d) <= RETICLE_WITHIN * rgb.shape[0]]
+    if 2 <= len(inside) < len(near) and _crossing(inside, rgb.shape) is not None:
+        return inside
+    return near
 
 
 def reticle_from_chroma(rgb, glyphs=None):
-    """Boresight from the reticle's coloured ticks (`reticle_ticks`): the mean of the four, where four show. Where fewer
-    do, each tick gives the coordinate it points along -- a tick wider than tall is on the boresight's row, one taller
-    than wide on its column -- and two ticks on opposite sides give the other by their midpoint. Until 2026-11-13 it was
-    the mean of the four coloured glyphs nearest the middle whatever they were: on PR058 three ticks and the north
-    pointer, a boresight 54 px off (650.6, 306.8 for 640, 360), which would have read the pointer's turn 39 % fast."""
+    """Boresight from the reticle's coloured ticks (`reticle_ticks`): the mean of the four glyphs nearest the middle of
+    the picture, or, where a reticle shows only two or three of its ticks, where those cross (`_crossing`). Until
+    2026-11-13 it was the mean of the four nearest whatever they were: on PR058 three ticks and the north pointer, a
+    boresight 54 px off (650.6, 306.8 for 640.5, 359.5), about which the pointer's turn would have read 39 % fast."""
     g = glyphs if glyphs is not None else chroma_glyphs(rgb)
     if len(g) < 4:
         return None
     ticks = reticle_ticks(rgb, g)
-    if len(ticks) == 4:
-        return float(np.mean([t["cx"] for t in ticks])), float(np.mean([t["cy"] for t in ticks]))
-    cx0, cy0 = rgb.shape[1] / 2, rgb.shape[0] / 2
-    wide, tall = [t for t in ticks if t["w"] > t["h"]], [t for t in ticks if t["h"] > t["w"]]
-
-    def along(own, other, c, mid):
-        """One coordinate: from the ticks on its line, else from the midpoint of two of the others on opposite sides."""
-        if own:
-            return float(np.mean([t[c] for t in own]))
-        lo, hi = [t[c] for t in other if t[c] < mid], [t[c] for t in other if t[c] >= mid]
-        return float((np.mean(lo) + np.mean(hi)) / 2) if lo and hi else None
-
-    x, y = along(tall, wide, "cx", cx0), along(wide, tall, "cy", cy0)
-    return None if x is None or y is None else (x, y)
+    if len(ticks) < 4:
+        return _crossing(ticks, rgb.shape)
+    return float(np.mean([t["cx"] for t in ticks])), float(np.mean([t["cy"] for t in ticks]))
 
 
 def tophat(g, size=9):
@@ -345,7 +372,7 @@ def north_from_chroma(rgb, bore=None, r_frac=(0.20, 0.36)):
     bore = bore or reticle_from_chroma(rgb, g)
     if bore is None:
         return None
-    ticks = reticle_ticks(rgb, g)                   # the four nearest the middle on most displays: what is left may be the pointer
+    ticks = reticle_ticks(rgb, g)                   # the four nearest the middle, or a reticle's two or three: what is left may be the pointer
     cx0, cy0 = rgb.shape[1] / 2, rgb.shape[0] / 2
     rest = [d for d in sorted(g, key=lambda d: np.hypot(d["cx"] - cx0, d["cy"] - cy0)) if not any(d is t for t in ticks)]
     best = None
