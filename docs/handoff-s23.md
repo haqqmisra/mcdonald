@@ -7,8 +7,9 @@ and/or merlin, and cannon is also available."
 
 This file is the session's record in the repository; `docs/handoff-v04.md` stays the usual handoff (the GPU session
 writes it). The working record, with every agent's id, brief and notes, is `/scratch/mcdonald/s23-2026-11-13/`
-(`COORDINATOR.md` first). **State at 17:30 on 2026-11-14: all nine strands merged and tested on `s23`; the
-144-video catalog run nearly done.** The session ran on Fable until the usage limit stopped every agent twice (16:19
+(`COORDINATOR.md` first). **State at 18:15 on 2026-11-14: all nine strands merged and tested; at Jacob's word ("Merge
+all now, local") `main` is fast-forwarded to `s23` (fe96011, not pushed, still 0.5.5) and the data folder's
+controls table swapped; the 144-video catalog run nearly done.** The session ran on Fable until the usage limit stopped every agent twice (16:19
 and ~23:45 on 11-13), and on Opus 5.5 from 07:26 on 11-14 at Jacob's word; each agent resumed from its own
 transcript. arthur was shut down for its fans (11-13 20:35, 11-14 ~13:00) and the queue paused twice.
 
@@ -159,8 +160,10 @@ motion (a similarity fit gave PR105's clouds a 34-degree roll). Nothing in the h
 
 ## For Jacob to decide (collected as the strands report; each strand's notes have the full lists)
 
-1. **`s23` into `main`**: every strand is merged and the tree has passed the suites, the goldens and the
-   fourteen-case rerun; with it the swap of the controls' table (small's SWAP.md). Asked at 17:30 on 11-14.
+1. ~~`s23` into `main`~~: **done** at Jacob's word, 11-14 ~18:00 (main fe96011, local); the controls' table swapped in
+   the data folder (all 7,110 checksums pass; test_controls 118 of 118 on main, job 2446). Still his: the push and a
+   version, after reading the changed sentences (scene's table, hang's words, beat's, kin's, groups'). Cannon's copy
+   of the data folder is synced by the Triangulation session when the FASRC login is reopened.
 2. **plant, forks F1-F10** (`plant/notes.md`; F9: completeness against the contrast after the encoder; F10: the
    planted rate beside the labelled table) and **the full run** (500 points a video on 144 videos, about 320 CPU-hours,
    a night on arthur, as batch units once batch is merged): what is planted, how it moves, what stands for the clip's own
