@@ -265,8 +265,16 @@ def test_which_class_could_have_flown_the_turn():
     lengths = env.body_lengths(150.0, 30.0, "given", True, still, t)       # 5 lengths a second
     c = env.load_curve(loop, 7.0, still, lengths, t)
     r = {x["cls"]: x for x in c["limits"]}["small birds"]
-    check(abs(r["length_max_m"] - r["v_max_most_m_s"] / 5.0) < 1e-9 and r["could"],
+    check(abs(r["length_max_m"] - r["v_max_most_m_s"] / 5.0) < 1e-9 and r["could"] and not r["too_long"],
           "with 5 lengths a second: the longest body within a class's limit is its speed limit over 5", f"{r['length_max_m']:.1f} m")
+    j = {x["cls"]: x for x in c["limits"]}["big jets"]
+    check(j["too_long"] and abs(j["length_max_m"] - 22.47 / 5) < 0.01 and "no longer than 4.49 m" in env.load_said(c)[1],
+          "a jet within 2.5 g at 5 lengths a second would be under 4.5 m long, and they are 30: said beside the speed's verdict",
+          f"{j['length_max_m']:.2f} m")
+    slow_c = env.load_curve(slow, 30.0, still, None, t)
+    jb = {x["cls"]: x for x in slow_c["limits"]}
+    check(jb["big jets"]["binds"] and not jb["small birds"]["binds"] and any("gentle enough for small birds" in s_ for s_ in env.load_plain(slow_c)),
+          "a limit binds only inside the speeds a class flies at: at 0.2 rad/s the jets' does (112 m/s), the birds' does not (379)")
     for plat in (dict(moving=None, why="held"), dict(moving=True, why="moved")):
         c = env.load_curve(loop, 7.0, plat, None, t)
         check(not c["power"] and "camera" in c["why"] and not c["limits"] and not env.load_plain(c),
@@ -407,11 +415,14 @@ def test_the_asks_are_ranked_only_where_both_measures_agree():
     S = kin.information_said(voi(q(0.3, dict(k=0.1, R=0.6), "R"), q(0.5, dict(k=0.2, R=0.7), "R"), True))
     check(len(S) == 1 and "the range would settle the most" in S[0] and "68 to 70 %" in S[0], "both name the range: it is ranked first", S[0])
     S = kin.information_said(voi(q(0.3, dict(k=0.5, R=0.2), "k"), q(0.5, dict(k=0.2, R=0.7), "R"), False))
-    check("disagree" in S[0] and "none is ranked" in S[0] and "the angular scale one way, the range the other" in S[0],
+    check("disagree" in S[0] and "none is ranked" in S[0] and "One names the angular scale, and the other the range" in S[0],
           "one names the scale, the other the range: the row says so and ranks nothing", S[0])
     S = kin.information_said(voi(q(0.3, dict(k=0.40, R=0.401), None), q(0.5, dict(k=0.2, R=0.7), "R"), False))
     check("too close to rank" in S[0], "the same first, but not clear of the next in one: too close to rank", S[0])
     words_ok(S, "the asks")
+    S = kin.information_said(voi(q(0.00002, dict(k=0.0, R=0.0), None), q(0.5, dict(k=0.2, R=0.7), "R"), False))
+    check("One names nothing, the answer being all but settled there, and the other the range" in S[0],
+          "a chance of one in fifty thousand under one measure: nothing is left to settle there, and the row says so", S[0])
     # a real disagreement, from the measures themselves: a camera that may be standing still or flying, the range bounded
     v = kin.value_of_information(100.0, 1000, k=1000.0, R_min=100.0, R_max=400.0, theta_deg=90.0)
     a, b = (v["measures"][m]["questions"][0] for m in ("evenly", "invariant"))
@@ -424,7 +435,8 @@ def test_the_ledger_carries_the_asks():
     print("\nD8: in the case's ledger")
     trk = {i + 1: (100.0 + 3.0 * i, 300.0 + 0.5 * i) for i in range(90)}
     f = stages.kinematics(trk, 30.0, 1280, "drawn", None)
-    case = Case("drawn", "drawn.mp4", clip=dict(width=1280, height=720, fps=30.0))
+    case = Case("drawn", "drawn.mp4")
+    case.clip = dict(width=1280, height=720, fps=30.0)
     case.add("kinematics", f.result, fields=f.fields, no_power=f.no_power)
     v = case.value_of_information()
     check(v and v["power"] and v["unknown"] == ["k", "R", "θ", "v_own"], "a track and nothing else: all four are unknown")
@@ -438,7 +450,8 @@ def test_the_ledger_carries_the_asks():
     import json
     check("value_of_information" in json.loads(case.json()), "the case's JSON carries it")
     check(case.value_of_information() is v, "worked out once for a case as it stands")
-    held = Case("held", "held.mp4", clip=dict(width=1280, height=720, fps=30.0))
+    held = Case("held", "held.mp4")
+    held.clip = dict(width=1280, height=720, fps=30.0)
     still = {i + 1: (400.0 + 0.01 * (i % 2), 300.0) for i in range(90)}
     fh = stages.kinematics(still, 30.0, 1280, "held", None)
     held.add("kinematics", fh.result, fields=fh.fields, no_power=fh.no_power)

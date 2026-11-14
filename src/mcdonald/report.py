@@ -179,8 +179,8 @@ FIGURE_CAPTIONS = (
     ("_admissible", "Every distance, and every speed toward or away from the camera, that fits what was measured. The "
                     "shaded area is what the video allows."),
     ("_load", "How hard the object's turn would press on it at each speed. The red curve is the turn that was measured. Each "
-              "mark is one kind of object, drawn at the greatest load it is built or known to bear, across the speeds it "
-              "flies at. A kind could have flown the turn only where its mark reaches left of the curve."),
+              "bar is one kind of object, drawn at the greatest load it is built or known to bear, across the speeds it "
+              "flies at. A kind could have flown the turn only where its bar reaches left of the curve."),
     ("_beat", "The object's brightness over time, and how strongly each rhythm is in it. A peak the background beside the "
               "object does not share is the object's own beat."),
     ("_controls", "Each dot is one labelled track of thermal video: birds in blue, aircraft, drones and helicopters in amber. "
@@ -809,7 +809,7 @@ class Case:
         if kf.get("body_lengths") is not None:
             rows.append(("speed in body lengths", "v / L") + envelopes.lengths_said(self.body_lengths()))
         if kf.get("load_curve") is not None:
-            rows.append(("turn as a load factor", "n = √(1 + (ωV/g)²)") + envelopes.load_said(kf["load_curve"]))
+            rows.append(("turn as a load factor", "n = √(1 + (ΩV/g)²)") + envelopes.load_said(kf["load_curve"]))
         return rows
 
     # what the first line and the bottom line say of a rate read over a picture that held still on screen
@@ -1142,10 +1142,11 @@ class Case:
         pc = lambda x: "under 1 %" if 0 < x < 0.005 else "over 99 %" if 0.995 < x < 1 else f"{100 * x:.0f} %"
         L = ["### Which missing quantity to ask for first", "",
              "The table above says what is missing. This one asks how much each missing quantity would settle two questions "
-             "about the object's own speed, if a source gave it "
-             f"(to within {100 * VOI_PRECISION:.0f} %, or {VOI_PRECISION_DEG:.0f}° for the aspect angle). "
+             "about the object's own speed. "
+             f"Each is taken as given by a source to within {100 * VOI_PRECISION:.0f} %, or {VOI_PRECISION_DEG:.0f}° for the aspect angle. "
              "The answer depends on how one weighs what is not known, so it is worked out two ways. "
-             "The even way gives every field of view, range, range rate and camera speed the same weight. "
+             "The even way gives the same weight to every field of view, every range, every speed toward or away from the "
+             "camera, and every speed of the camera itself. "
              "The second way gives every factor of ten the same weight, and every direction, so that no choice of units changes it. "
              "A quantity is ranked first only where both ways agree. "
              "This ranks what to ask for; it says nothing about the object.", ""]

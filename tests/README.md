@@ -602,6 +602,27 @@ single precision on both, by different transforms in a different order, so the m
 whose peak is nearly flat along a streak turns that into 1e-3 px along the streak, where its own error is a thousand
 times larger.
 
+## `test_unknowns.py` — what a track says with none of the four unknowns, and which to ask for (2026-11-13)
+
+Portable, about half a minute; no video data. Three readings added to the kinematics stage and the report
+(`docs/method.md` § 61), each held to answers worked by hand:
+
+- **The class table** (`class_envelopes.csv`): every number has its source beside it; an approach speed is 1.3 stall
+  speeds; a row with no greatest speed still gives its class a length.
+- **Speed in body lengths a second.** On drawn bodies at fifty aspects the rate over the largest extent is never above
+  the true speed over the true length, and equals it wherever the body's own length shows longest. A lower limit
+  excludes a class only from above, and only past the tail wind the table allows. No reading where the camera moved, and
+  no class from a blur.
+- **A turn as a load factor.** The turn rate from a drawn loop (the same at any tilt) and from a bend, with the band
+  the unknown tilt gives it (held on 200 drawn arcs); the fastest each class could have flown the turn; the class that
+  cannot fly that slowly; no reading from a track that swings about with no loop claimed. Galileo flyer 4, a bird over
+  a camera that stands still, is the known turn.
+- **Which unknown to ask for.** The chance that the speed is under 30 m/s, with one unknown, against the formula under
+  each of two ways of weighing what is not known; with two unknowns, the bits each would settle against an integral;
+  an unknown is ranked first only where the two ways agree. The report's table under the four unknowns.
+
+Checks on drawn data that count events state their rate and their draws (`traffic.py`).
+
 ## `test_gui.py` — do the marking windows do what their keys say?
 
 Portable, no video, about three minutes (the Qt window's child measures three

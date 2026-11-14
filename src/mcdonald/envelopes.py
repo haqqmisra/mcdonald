@@ -236,10 +236,11 @@ def lengths_plain(b):
     if c.get("within"):
         S.append(f"That is in the range of {_listed(c['within'])}.")
     if c.get("faster"):
-        S.append(f"It is below the range of {_listed(c['faster'])}, which does not exclude them: an object moving partly "
-                 "toward or away from the camera reads slow.")
-    for name, w in c.get("with_wind") or []:
-        S.append(f"It is above the range of {name} in still air, and would need a tail wind of {w:.0f} m/s or more.")
+        S.append(f"It is below the range of {_listed(c['faster'])}.")
+        S.append("That does not exclude them, because an object moving partly toward or away from the camera reads slow.")
+    if c.get("with_wind"):
+        S.append("It is above the still-air range of " + _listed(f"{n} ({w:.0f} m/s)" for n, w in c["with_wind"]) + ".")
+        S.append("The speed in brackets is the tail wind each would need to reach it.")
     if c.get("outside"):
         S.append(f"It is outside the range of {_listed(c['outside'])}, even with a strong jet stream as a tail wind.")
     if c:
@@ -298,9 +299,11 @@ def load_curve(turn, span_s, platform=None, lengths=None, path=None):
     `lengths` a `body_lengths` reading where there is one. Returns dict(power, why, how, omega_rad_per_s, lo, hi,
     heading_deg, platform, limits: [dict(cls, load_limit_g, source, v_max_m_s (the fastest that class could have flown the
     turn at the rate read), v_max_most_m_s (at the least rate the band allows: the most the speed could be), flies_m_s
-    (the class's own least and greatest speeds), could (False where even v_max_most is under the class's least speed:
-    it could not have flown the turn; else True), length_max_m (with `lengths`: the longest body that covers that many
-    of its lengths a second and stays within the limit, v_max_most / per_s))], conditions).
+    (the class's own least and greatest speeds), binds (the limit is reached inside the speeds the class flies at), could
+    (False where even v_max_most is under the class's least speed: it could not have flown the turn), and with `lengths`
+    length_max_m (the longest body that covers that many of its lengths a second and stays within the limit, v_max_most /
+    per_s), lengths_m (the class's own) and too_long (every member is longer: said beside the numbers and left to the
+    reader, since the length in the picture carries no error here))], conditions).
 
     NO POWER where the camera moved or may have turned (a camera's own turn bends a track as the object's does), and where
     the track gives no turn rate (`turn_rate`)."""
@@ -326,11 +329,12 @@ def load_curve(turn, span_s, platform=None, lengths=None, path=None):
         flies = c["speed_m_s"]
         row = dict(cls=name, load_limit_g=n, source=c["load_source"], v_max_m_s=v, v_max_most_m_s=most,
                    flies_m_s=list(flies) if flies else None,
+                   binds=bool(most is not None and flies and most < flies[1]),
                    could=not (most is not None and flies and flies[0] > most))
-        if per_s and most is not None:
+        if per_s and most is not None:                                    # it covers at least per_s of its lengths a second
             row["length_max_m"] = most / per_s
-            if c["length_m"] and c["length_m"][0] > row["length_max_m"]:   # every member is longer than the limit allows
-                row["could"] = False
+            row["lengths_m"] = list(c["length_m"]) if c["length_m"] else None
+            row["too_long"] = bool(row["binds"] and c["length_m"] and c["length_m"][0] > row["length_max_m"])   # where the limit, not the class's own top speed, is what holds it
         out["limits"].append(row)
     out["power"] = True
     out["conditions"] = ["the camera stood still and did not turn", "the turn was level (a pull up or a dive adds or takes up "
@@ -352,16 +356,24 @@ def load_said(c):
     if not c["power"]:
         return None, "NO POWER: " + c["why"]
     w = c["omega_rad_per_s"]
-    head = f"n(V) = √(1 + ({w:.3g} V / g)²)"
-    rows_ = "; ".join(f"{r['cls']} ({r['load_limit_g']:g} g): {_mps(r['v_max_m_s'])}"
-                      + (f", at most {_mps(r['v_max_most_m_s'])}" if c["how"] == "bend" else "")
-                      + ("" if r["could"] else " -- under the least speed they fly at"
-                         + (f" ({r['flies_m_s'][0]:.0f} m/s)" if r.get("flies_m_s") else "") + ", or too long for it: could not have flown it")
-                      for r in c["limits"])
-    return head, (f"the track's heading turned {c['heading_deg']:.0f}° at {w:.3g} rad/s ({'a loop read whole' if c['how'] == 'loop' else 'a bend'}; "
-                  f"the turn's own rate {c['lo']:.3g} to {c['hi']:.3g} rad/s): a level turn at that rate and the airspeed V takes "
-                  f"a load factor n = √(1 + (ωV/g)²), so a body held to a limit could have flown it no faster than "
-                  f"g√(n² − 1)/ω -- {rows_}. It holds if " + "; ".join(c["conditions"]))
+
+    def one(r):
+        most = r["v_max_most_m_s"] if r.get("v_max_most_m_s") is not None else r["v_max_m_s"]
+        fl = r.get("flies_m_s")
+        out = f"{r['cls']} ({r['load_limit_g']:g} g): {_mps(r['v_max_m_s'])}" + (f", at most {_mps(most)}" if most != r["v_max_m_s"] else "")
+        if not r["could"]:
+            out += f" -- under the {fl[0]:.0f} m/s they fly from: could not have flown it"
+        elif not r.get("binds") and fl:
+            out += f" (past the {fl[1]:.0f} m/s they reach: no limit on them)"
+        if r.get("too_long"):
+            out += (f"; at its lengths a second a body within that limit is no longer than {r['length_max_m']:.3g} m, and they "
+                    f"are {r['lengths_m'][0]:.3g} m or more")
+        return out
+    return (f"n(V) = √(1 + ({w:.3g} V / g)²)",        # Ω here: ω is the angular rate across the view in the same table
+            f"the track's heading turned {c['heading_deg']:.0f}° at {w:.3g} rad/s ({'a loop read whole' if c['how'] == 'loop' else 'a bend'}; "
+            f"the turn's own rate {c['lo']:.3g} to {c['hi']:.3g} rad/s): a level turn at that rate and the airspeed V takes "
+            "a load factor n = √(1 + (ΩV/g)²), Ω the rate its heading turns (not ω, the angular rate across the view), so a "
+            "body held to a limit could have flown it no faster than g√(n² − 1)/Ω -- " + "; ".join(one(r) for r in c["limits"]) + ". It holds if " + "; ".join(c["conditions"]))
 
 
 def load_plain(c):
@@ -369,17 +381,25 @@ def load_plain(c):
     if not c or not c.get("power") or not c.get("limits"):
         return []
     w, bend = c["omega_rad_per_s"], c["how"] == "bend"
-    S = [f"The object's heading turned through {c['heading_deg']:.0f}° at about {math.degrees(w):.0f}° a second.",
-         "A turn presses a flying body into its wings: the load factor is that force as a multiple of its weight.",
-         "The load grows with speed, and the speed is not known, so the turn gives a limit on speed for each kind of object."]
-    could = [r for r in c["limits"] if r["could"]]
-    not_ = [r for r in c["limits"] if not r["could"]]
-    for r in could[:4]:                              # the cautious figure: at the slowest turn the reading allows
-        v = r["v_max_most_m_s"] if r.get("v_max_most_m_s") is not None else r["v_max_m_s"]
-        S.append(f"Held to {r['load_limit_g']:g} times its weight, as {r['cls']} are, it flew this turn no faster than {_mps(v)}.")
-    if not_:
-        S.append(f"That is slower than {_listed(r['cls'] for r in not_)} can fly, so the turn was not theirs.")
-    S.append("This holds for a level turn seen by a camera that stood still." if not bend else
-             "This holds for a level turn seen by a camera that stood still; a short arc does not show how the turn was tilted, "
-             "so each speed is the most that tilt allows.")
+    most = lambda r: r["v_max_most_m_s"] if r.get("v_max_most_m_s") is not None else r["v_max_m_s"]   # the cautious figure
+    S = [f"The object's heading turned through {c['heading_deg']:.0f}° at about {math.degrees(w):.2g}° a second.",
+         "In a turn a flying body carries more than its weight, and the load factor is how many times its weight it carries.",
+         "The load grows with speed, and the speed is not known.",
+         "So the turn gives each kind of object a speed limit, from the greatest load it is known to bear."]
+    for r in [r for r in c["limits"] if r["could"] and r.get("binds")][:4]:
+        S.append(f"{r['cls'].capitalize()} bear at most {r['load_limit_g']:g} times their weight, so one could have flown "
+                 f"this turn only below {_mps(most(r))}.")
+    for r in (r for r in c["limits"] if not r["could"]):
+        S.append(f"{r['cls'].capitalize()} bear at most {r['load_limit_g']:g} times their weight, which holds this turn "
+                 f"to {_mps(most(r))}.")
+        S.append("They cannot fly that slowly, so the turn was not theirs.")
+    free = [r["cls"] for r in c["limits"] if r["could"] and not r.get("binds")]
+    if free:
+        S.append(f"The turn is gentle enough for {_listed(free)} at any speed they fly.")
+    for r in [r for r in c["limits"] if r.get("too_long") and r["could"]][:3]:
+        S.append(f"At its body lengths a second, one of the {r['cls']} within that limit would be under {r['length_max_m']:.2g} m "
+                 f"long, and they are {r['lengths_m'][0]:.2g} m or more.")
+    S.append("This holds for a level turn seen by a camera that stood still.")
+    if bend:
+        S.append("A short arc does not show how the turn was tilted, so each speed is the most that tilt allows.")
     return S

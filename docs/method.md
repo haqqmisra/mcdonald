@@ -6125,3 +6125,91 @@ and they triangulate to the pipeline's positions within 0.5 %.
 2 km away. A search of the second site's detections found two candidates seen from both sites, too briefly to hear a
 wingbeat. A search of its pixels cannot work on these files: the encoder copies a still sky unchanged, and a far bird
 would be half a grey level.
+
+## 61. Body lengths against a sourced class table, a turn as a load factor, edge crossings set aside, and which unknown to ask for (Av11, Av10, A16, D8; added 2026-11-13)
+
+The four additions ROADMAP 0.4 still listed for `kinematics`. Three are built, each a reading that needs none of k, R,
+θ and v_own (or says what each is worth), and each with its NO POWER; the fourth was measured and set aside. None moves
+a number an existing report gives: each reading is a new field with its own `power` and `why`, and adds nothing to the
+stage's no-power list, which every report's count would then carry (as tau's reading does, section 33).
+
+### 61.1 The class table (`class_envelopes.csv`, `envelopes.py`)
+
+What known kinds of flying object do, one row a member of a class (a species, an aircraft type) or a rule, **each number
+with the source it was read from beside it** (`envelopes.unsourced()` is empty, and the suite holds it so): 33 rows, twelve
+classes and the wind's row. Birds in two sizes from radar and ornithodolite airspeeds (Alerstam et al. 2007, PLoS Biology 5:e197, Protocol
+S1; Pennycuick, Åkesson & Hedenström 2013, J. R. Soc. Interface 10:20130419) with the RSPB's body lengths; airliners,
+light aircraft, fighters and helicopters from type certificate data sheets (EASA's), the FAA Aircraft Characteristics
+Database and the services' fact sheets; the US Department of Defense's five groups of unmanned aircraft, each as a
+typical aircraft's size at the group's defining airspeed (the Army's 2010 roadmap, Table 2-2: under 100 knots, under 250,
+under 250, any, any); two camera multirotors from their maker's manuals; balloons, which have no speed of their own; and
+a strong jet stream's wind (NOAA: "more than 275 mph", 123 m/s), the most a tail wind is taken to add. Limit loads:
+14 CFR 25.337(b) (2.5), 23.337(a) as it stood before 2017 (3.8 normal, 4.4 utility, 6.0 acrobatic), 27.337(a) (3.5), the
+F-16 fact sheet's nine g, a camera multirotor's tilt limit (1 / cos 35° = 1.22: the flight controller's, not the
+airframe's), and for small birds the largest measured, an Anna's hummingbird's dive ("nearly nine times", Clark 2009).
+
+Four rules turn a source's figure into the table's, each on the cautious side for an exclusion. *An approach speed is
+1.3 stall speeds* (14 CFR 97.3's definition of the approach category), so a type's least flying speed is its approach
+speed over 1.3 (`STALL_OVER_APPROACH`; a transport's reference speed is 1.23 stall speeds, so this errs low). *A Mach
+limit is taken at the speed of sound at sea level* (340.3 m/s), more than the type reaches at any height. *A bird's
+speeds are its mean cruising airspeed less and plus two of its standard deviations*, and its length the low end of the
+range given; birds dive faster than they cruise (the hummingbird's 27.3 m/s is 385 of its lengths a second, the row that
+sets the small birds' top; a peregrine's stoop 31-39 m/s by radar, Alerstam 1987, is not in the table for want of a
+length read from a source). *A row counts only for what it has*: the 737-800, 777-300ER and Embraer 175 give the
+airliners their lengths and approach speeds, and no greatest speed, because none was read from a type certificate.
+
+What a class's range is: its speed in body lengths a second from the least over its members of (least speed / length) to
+the most of (greatest speed / length), length nose to tail. Airliners 0.8-7.4, light aircraft 3.0-10.8, fighters 2.9-45,
+helicopters 0-5.7, the unmanned groups 13-57, 21-108, 9-38, 0-7.3 and 0-11, camera multirotors 0-55, large birds 8.7-52,
+small birds 0-390, balloons 0 (they drift). Small fast bodies of every kind share the top of the scale: **the table is no
+classifier**, and the readings below say which classes a number does not exclude.
+
+Not verified, and so not in the table or marked in it: the greatest speeds of the three types above; the MQ-9's speed
+(its current fact sheet gives none); an F/A-18's and a UH-60's limit loads; the Raven's and the Shadow's lengths and the
+toy balloon's diameter are from secondary pages and say so in their rows; the af.mil and navy.mil fact sheets were read
+as Internet Archive captures. The table's sources were gathered on 2026-11-13 by a web session whose every number came
+with the sentence it was read in; a row is edited with its source, or not at all.
+
+### 61.2 Speed in body lengths a second, as a lower bound (Av11; `envelopes.body_lengths`)
+
+The rate in the picture over the object's length in the picture is its speed in its own lengths, free of k, R and the
+field of view (section 5). **Which way it errs**: let the body have length L along its travel and speed v at the aspect
+angle θ. The picture shows v sin θ, and the body's length along its travel as L sin θ; whatever else of the body shows
+(wings, a rotor) can only make the largest extent larger. So
+
+    rate / extent  <=  v sin θ / (L sin θ)  =  v / L,
+
+a **lower bound** on the true speed in body lengths, exact where the body's own length is what shows longest (a slender
+body at any aspect: the two foreshortenings cancel), and far under it for a body pointing nearly at the camera with its
+wings across (0.08 of it at 5°, on the drawn bodies). It is not an upper bound at any aspect. Three conditions, each said
+with the reading: the camera stood still (else the rate over the size is v_own / D for a body standing still, B7:
+`stages.platform_of`, and the reading is NO POWER where it says the camera moved, or that the picture behind held still
+on screen, which a camera following the object draws too); all of the object shows; and the length is the object's, not
+the blur's. For an object `point_blur` finds no wider than a point the unit is blur widths, the sentence says the true
+figure is higher if all of the object shows, and **no class is read from a blur** (H6).
+
+*Against the classes* (`against_classes`). A lower bound excludes only from above. A class whose range holds the number
+is `within`; one that flies faster in its own lengths is `faster` and not excluded (a body moving partly along the line of
+sight reads slow); one the number is above gets the least tail wind that would carry one of its members to it, N L −
+v_max (`with_wind`: the camera sees the speed over the ground, the table has speeds through the air); only where that
+passes a strong jet stream's 123 m/s is the class `outside`. A balloon's row is then the wind it would need: N times its
+diameter.
+
+*The length.* The stage reads the bound from a length given (`--size-px`). Where none was given and the camera stage
+measured the object's length at half its peak in place of the tracker's default spot (N5, `report.extent`), the report
+makes the same reading from that (`Case.body_lengths`). It never takes the half-peak width, nor the default spot, and the
+known aircraft below say why.
+
+*Held to known answers.* The Galileo Project's aircraft (section 53: 209 single-camera clips, 22 types from a Cessna 172
+to a 777-300ER, the type's length and the triangulated speed known; rebuilt from the session's saved table of rates and
+sizes): with the camera stage's length the reading is 0.72 of the true speed over the true length (0.52-0.85, ten to
+ninety in a hundred; 0.84 of the true figure across the line of sight), above the truth in 1 % of clips, and the
+airliners are `within` on 209 of 209: no class was called outside (a one-sided 95 % bound on a false exclusion of 1.4 %).
+With the half-peak width it is **not a bound**: above the truth in 75 % of 158 clips (in infrared the bright part of an
+aircraft is smaller than the aircraft), and one aircraft's own class was called outside (an E135 at 15.5 a second for a
+true 4.2). With the default 9-px spot it is above the truth in 22 %. The five Galileo flyers (known birds over a camera
+that stands still, at a nominal 9 px): 2.2 to 16 a second, the birds never excluded. The labelled infrared set (section 44:
+432 tracks of airplanes, birds, drones and helicopters with hand-labelled boxes) is filmed by a camera that follows its
+objects, so the reading is NO POWER there; were that ignored, the rate over the box's longer side is 0.1 to 1 lengths a
+second (a following camera reads low, the safe side for a lower bound) and no object's own kind is called outside, 0 of
+432.

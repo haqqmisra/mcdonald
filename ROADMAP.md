@@ -260,7 +260,11 @@ dated beyond the track's wander and set against the scene); E6, E22 and E20 (the
 models that survive as a computed set, and a traffic light for the suites' checks on drawn data); E14-E17 (the pointer as a
 stale price, one k from the routes that agree, the zoom as a regression discontinuity, the zoom ladder pooled); and the
 single-camera survey's F11 and F12/F41/F51 (the dash read less its neighbours and fitted whole). E15 on real clips is open.
-Still 0.4.x: M6, A16, Av10, Av11, D8, K10, the phone scope's WP2 and WP3.
+**Built on 2026-11-13 (session 23, branch `s23-kin`; method section 61):** Av11, Av10 and D8 (the speed in body lengths a
+second as a lower bound against a sourced class table, a turn as a load-factor curve against each class's limit, and the
+value of information per unknown, ranked only where two measures agree); A16 was measured and set aside (an edge crossing
+reads the blurred image's extent, as a line drawn anywhere does, and no recorded track reaches an edge slowly enough to time).
+Still 0.4.x: M6, K10, the phone scope's WP2 and WP3.
 
 **Objectives.**
 

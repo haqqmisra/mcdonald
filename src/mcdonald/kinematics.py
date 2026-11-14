@@ -1628,11 +1628,13 @@ def value_of_information(v_px_per_s, width_px, k=None, k_min=None, R=None, R_min
             Rd = vt / math.tan(math.radians(min(max(float(theta_deg), 1e-6), 179.999999)))
         elif tau_s is not None:
             Rd = -RR / float(tau_s)
-        elif log:
-            c = rng.uniform(-1.0, 1.0, m)                         # isotropic: the cosine of the aspect angle uniform
+        elif log:                                                 # isotropic: the cosine of the aspect angle uniform ...
+            cmax = float(rate_max) / np.hypot(om, float(rate_max)) if rate_max else 1.0   # ... inside the depth bound's wedge
+            c = rng.uniform(-1.0, 1.0, m) * cmax
             Rd = -vt * c / np.sqrt(np.maximum(1.0 - c * c, 1e-12))
-        else:
-            Rd = rng.uniform(-float(v_cap), float(v_cap), m)
+        else:                                                     # evenly, from the box that holds the wedge or the cap
+            top = min(float(v_cap), float(rate_max) * float(RR.max())) if rate_max else float(v_cap)
+            Rd = rng.uniform(-top, top, m)
         vrel = np.hypot(vt, Rd)
         keep = vrel <= float(v_cap)
         if rate_max and theta_deg is None and tau_s is None:
@@ -1701,14 +1703,24 @@ def information_said(voi):
         elif q["agree"]:
             S.append(f"{ask} Of the {len(voi['unknown'])} missing quantities, {VOI_NAMES[q['first']]} would settle the most: "
                      f"{_share(a, b, q['first'])} of that question.")
-        elif a["bits_open"] and b["bits_open"] and a["order"][0] == b["order"][0]:
+        elif _left(a) and _left(b) and a["order"][0] == b["order"][0]:
             S.append(f"{ask} {VOI_NAMES[a['order'][0]].capitalize()} and {VOI_NAMES[a['order'][1]]} would settle about as much "
                      "as each other, too close to rank.")
+        elif not _left(a) and not _left(b):
+            S.append(f"{ask} What was measured all but settles that under both ways of weighing what is not known, so "
+                     "nothing is ranked.")
         else:
-            firsts = [VOI_NAMES[x["order"][0]] if x["bits_open"] else "nothing (the answer is settled there)" for x in (a, b)]
-            S.append(f"{ask} The two ways of weighing what is not known disagree on what would settle the most "
-                     f"({firsts[0]} one way, {firsts[1]} the other), so none is ranked.")
+            firsts = [VOI_NAMES[x["order"][0]] if _left(x) else "nothing, the answer being all but settled there" for x in (a, b)]
+            S.append(f"{ask} The two ways of weighing what is not known disagree on what would settle the most. "
+                     f"One names {firsts[0]}, and the other {firsts[1]}, so none is ranked.")
     return S
+
+
+def _left(x):
+    """Whether a measure leaves anything to settle: the question still open there, and its first unknown's bits more than
+    the draws' own noise (a chance of one in fifty thousand is an open question only on paper)."""
+    k = x["asks"][x["order"][0]]
+    return bool(x["bits_open"]) and k["bits"] > VOI_APART * k["bits_err"]
 
 
 def _share(a, b, s):

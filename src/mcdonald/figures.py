@@ -794,8 +794,8 @@ def load_curve(path, c, width=FigureSize.NOTE):
     """A turn as a load-factor curve (`envelopes.load_curve`, method section 61): the true airspeed along the bottom and
     the load factor up, both on log scales. The red curve is what the turn rate read from the track takes at each speed,
     n = sqrt(1 + (omega V / g)^2), with the band of rates the reading allows shaded. Each class of the table is a
-    horizontal mark at its limit load, from the least to the greatest speed it flies at: a class could have flown the turn
-    only where its mark reaches left of the curve. The class names go in a legend under the plot, by marker."""
+    horizontal bar at its limit load, from the least to the greatest speed it flies at: a class could have flown the turn
+    only where its bar reaches left of the curve. The class names go in a legend under the plot, by marker."""
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
     from matplotlib.ticker import NullLocator
@@ -813,7 +813,7 @@ def load_curve(path, c, width=FigureSize.NOTE):
     keys = [Line2D([], [], color=RED, lw=1.8, label=f"this turn, {math.degrees(w):.0f}° a second")]
     if hi > lo:
         ax.fill_between(V, n(lo), n(hi), color=RED, alpha=0.14, lw=0)
-        keys.append(Patch(color=RED, alpha=0.14, label="the turn rates the track allows"))
+        keys.append(Patch(color=RED, alpha=0.14, label="as fast or as slow as the track allows"))
     ax.plot(V, n(w), "-", color=RED, lw=1.8)
     for r, mk in zip(rows, ("o", "s", "^", "D", "v", "P", "X", "<", ">", "h", "*", "p")):
         a, b = max(r["flies_m_s"][0], V[0]), r["flies_m_s"][1]

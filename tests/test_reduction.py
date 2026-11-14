@@ -894,8 +894,9 @@ def test_the_speed_band_in_the_stage_and_the_report():
               "PR055's sphere: not uniform, and the band says how the speed ran", f.result["speed change"][:90])
         check("ran from 26 to 99 px/s" in f.result["uniform_motion"] and "an average over a changing speed" not in f.result.get("body-lengths/s", ""),
               "the not-uniform line carries the band's range", f.result["uniform_motion"])
-        check(all(Path(x).exists() for x in f.files) and [Path(x).name for x in f.files] == ["pr055_speed.csv", "pr055_speed.png"],
-              "the rate frame by frame and its figure are written beside the case", ", ".join(Path(x).name for x in f.files))
+        check(all(Path(x).exists() for x in f.files) and [Path(x).name for x in f.files] == ["pr055_speed.csv", "pr055_speed.png", "pr055_load.png"],
+              "the rate frame by frame and its figure are written beside the case, and after them the turn as a load (method "
+              "section 61: nothing here says the camera moved)", ", ".join(Path(x).name for x in f.files))
         rows = [l for l in Path(f.files[0]).read_text(encoding="utf-8").splitlines() if l and not l.startswith("#")]
         check(len(rows) == b["n"] + 1 and rows[0].startswith("frame,t_s,vx_px_per_s"), "the CSV has a row a point under its header", rows[0])
         _json.dumps(f.fields)
