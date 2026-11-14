@@ -5,6 +5,50 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`mcdonald plant`: what could the search have found?** (ROADMAP 0.6, objective 4, begun 2026-11-13; method §62).
+A search that lists what it found does not say what it would have missed. The new command writes synthetic objects
+into a stretch of a video's own frames. It encodes the stretch again as the video is encoded, and keeps a truth table
+of where each object is in every frame. Find, the link, `flicker` and `run` then run on the planted video as on any
+other, and what they find is held against the table.
+
+- **What can be planted.** A point or a body, of a given contrast, width and speed, bright or dark. A flock or a
+  formation of three to six points. A light that is constant, beats steadily, beats at a wandering rate as a wing
+  does, flickers at random as a star does, or flashes. A path that is straight, held still, wanders, copies a
+  recorded track moved elsewhere in the frame, or moves with the scene. `--draw K` draws K of them over grids, a few
+  in the frame at once and 60 pixels apart. One seed gives one file, byte for byte, on one build of the encoder.
+- **A planted video is a test video, never footage.** Its name has `planted` in it, its file tags say so, and its
+  truth table lies beside it. Every command's `--json` on such a video has `clip.planted`. A report made from it says
+  "This is a test video, not footage" above its conclusion. The command refuses to write one beside the video it
+  came from, in the storage folder's videos or in the reference-data folder. No other video gains a field, and no
+  existing report changes: the fourteen reference case files measured again differ in nothing (31 objects).
+- **The control.** Beside every planted video the command writes the same stretch encoded the same way with nothing
+  planted. All 144 release videos were written by another encoder, whose settings no file records. So the planted
+  video is a second encoding, matched to what the file gives: the profile, the frame rate, the B frames, the I frames
+  in their places and the bit rate of that stretch. The control shows what the second encoding alone changes. The
+  truth table also gives each object's contrast as the encoder left it, read against the control.
+- **The score.** `mcdonald plant --score TRUTH --proposals LOOK.json` says which planted objects are on Find's list,
+  at which place, and which rows are on no planted path. Each share comes with a 95 % interval (Wilson's).
+- **The first tables** (a pilot on five videos, 50 planted stretches, 2,748 planted points). A steady point that
+  moves a pixel a frame or more is found nine times in ten from 60 grey levels of contrast up. It is found half the
+  time at 15 to 30 grey levels, and one time in ten under 15. A point that crawls under a third of a pixel a frame is
+  found less than half the time, even when it is bright. Members of a planted flock are found 37 % of the time, and
+  members of a formation 25 %. Something planted to move with the scene is never listed. A planted path is "found"
+  where nothing was planted 5 times in 2,748. `flicker` calls a beat on 1 of 369 steady points it followed.
+- **Planted copies against real objects.** On 185 hand-labelled objects in Svanström's infrared videos, Find lists
+  82 % of the objects and 74 % of their fairly planted copies. A copy that moves is found a little more often than
+  its object. A copy that crawls is found less often. So a rate from planted points is not the rate for real objects,
+  and each table says which it is.
+- **Found on the way.** Find takes about two fifths of the computing of a planted stretch. The encoder takes about a
+  third, and it must run on one thread to give the same file twice. So planting at scale does not need Find on a
+  graphics card. Up to 24 planted objects in the frame at once leave a test object's recovery as it was. Find folds a
+  second object that runs within 30 pixels of a better one into that one's row. A dark point that Find lists first
+  when planted alone is not listed at all when a bright point crosses it (IDEAS.md PL1 to PL4).
+
+`tests/test_plant.py` holds the command on a drawn video, in `tools/suites.sbatch` and both workflows' lists. It checks
+that each object lies within a quarter of a pixel of its table after the encoder, and that one seed gives one file. It
+also checks the control, the marks of a test video, the lights, the draw and the score, and runs Find end to end.
+`tools/plant_chain.py` and `tools/plant_tables.py` ran the pilot; the run at scale will go through `mcdonald batch`.
+
 **What a track says against known kinds of flying object, and which missing quantity to ask for first** (2026-11-13).
 These are the last additions the plan for 0.4 listed for `kinematics` (IDEAS.md Av11, Av10 and D8; `docs/method.md` § 61).
 Three readings are added to the kinematics step and the report. None changes a number an earlier report gave. Each is

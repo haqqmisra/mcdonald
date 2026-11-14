@@ -520,6 +520,64 @@ under `short`. `run` measures it on the members `groups` found, or on the
 object; several members beating in the wingbeat band, out of step, make "a
 flock of birds" the report's leading explanation.
 
+### What could the search have found? Planted objects
+
+A search that lists what it found does not say what it could have missed. `mcdonald plant` tests that. It writes
+synthetic objects into a stretch of a video and keeps a table of where each one is in every frame, the truth table.
+Run the search on the result, and hold the list against the table.
+
+```bash
+mcdonald plant PR149 --n0 1 --n1 400 --draw 20 --seed 1 --out plants/pr149 --json
+mcdonald look plants/pr149/pr149_planted_1_400_s1.mp4 --propose --more --json --out plants/pr149/look > look.json
+mcdonald plant --score plants/pr149/pr149_planted_1_400_s1_truth.json --proposals look.json --json
+```
+
+**The result is a test video, not footage.** Its name has `planted` in it, its file tags say so, and the truth table
+lies beside it. Every command's `--json` on such a video has `clip.planted`, and a report made from it says so above
+its conclusion. Never pass one on as a video of anything. The command refuses to write one beside the video it came
+from, in the storage folder's videos or in the reference-data folder.
+
+The first command writes five files. The planted video holds the stretch with the objects in it, encoded again as
+the video is encoded. The truth table comes as JSON and as CSV. A picture, `..._truth.png`, shows each object as the
+encoder left it (the encoder is the program that compresses the video). The same place in the control is under it.
+Open the picture before you trust a recovery rate. The control,
+`..._none.mp4`, is the same stretch encoded the same way with nothing added. Run the search on the control too. What
+the search lists there is the scene's own. What changes between the original's list and the control's is the work of
+the second encoding alone.
+
+`--draw K` draws K objects over grids of contrast, blur and speed (`--contrast`, `--sigma`, `--speed`), bright or
+dark (`--polarity`). `--kinds` says which kinds, in turn:
+
+| kind | what is planted |
+|---|---|
+| `dot` | a point of constant brightness on a straight path: the plain case, and the test that a steady light gets no beat |
+| `body` | a disc of a given width that hides what is behind it |
+| `still` | a point held still on the screen |
+| `beat`, `bird` | a point whose brightness beats, steadily or at a rate that wanders as a wingbeat does |
+| `twinkle` | a point that flickers at random, as a star does through moving air, and moves with the scene |
+| `strobe` | a point with short flashes over a steady light |
+| `scene` | a point that moves with the scene: a feature of the background, which the search should not list |
+| `flock`, `formation` | three to six points together, wandering or keeping their places |
+
+At most `--at-once` objects are in the frame together (4 unless you say), each for `--life` frames at most, and never
+nearer than `--apart` pixels. One seed gives one video, byte for byte, so a truth table and its seed are enough to
+make a planted video again. `--plants FILE` plants a list you wrote, or a truth table's objects again. `--label`
+writes a line of text into every frame, for a copy meant to be shown.
+
+`results` of the first command: `stretch` (the frames used: the stretch starts at the video's nearest earlier I
+frame, so `n0` may be less than you asked), `settings` (what was repeated of the video's encoding, `types_same`,
+`bit_rate`, `bit_rate_made`, and `not_recovered`), `levels`, `overlay`, `scene` (how fast the background moves),
+`skipped`, and `plants[]`: each with `id`, `kind`, `shape`, `sigma`, `contrast` (asked) and `contrast_written`,
+`dark`, `light`, `path`, `first`, `last`, `frames_on`, `frames_clipped`, `frames_hidden`, `speed_px_per_frame` and
+`speed_against_scene`. The frame-by-frame positions are in the truth file (`plants[].track`), numbered by the planted
+video's own frames: `frame` 1 is `stretch.n0` of the video it came from.
+
+`--score` gives `plants[]` (each with `found`, `rank`, `strength`, `score`, `shared`, `px`, `polarity`, `points`),
+`others[]` (the rows on no planted path), `found`, `planted` and `rows`. An object is found where a row lies within
+12 pixels of its path on over 70 % of the frames they share. Two limits on what a rate means. A planted point alone in
+the frame is easier to find than a real member of a flock. And the planted video is a second encoding by another
+encoder, so compare with the control before you blame the search.
+
 ## The envelope
 
 Every command takes `--json` and prints one object, alone on stdout;
@@ -532,7 +590,7 @@ stderr is not a terminal its count follows every ten seconds (`57 of 196, about
 |---|---|
 | `command`, `mcdonald` | which command, which version |
 | `inputs` | the options it ran with |
-| `clip` | `video`, `width`, `height`, `fps`, `fps_exact` (the rational; never round it), `n0`, `n1`, `duration_s`, `encoding`: `codec`, `profile`, `pix_fmt`, `reorder_depth` (B frames), `bit_rate`, `container`, and `gop` from the first 150 frames' types -- `types`, `i_period`, `anchor_period`, `lines_hz` (where the codec's rhythm beats: a brightness or a step at one of them may be the codec's) -- and `levels`: `range` (`studio`, `full`, or `unsaid`: a YUV stream that does not say, which ffmpeg takes as studio), `tag` (ffprobe's `color_range`), `matrix`, `transfer`, `stretched` (true: the frames are extracted with Y 16-235 stretched to 0-255, every code past them cut to 0 or 255; method §42) |
+| `clip` | `video`, `width`, `height`, `fps`, `fps_exact` (the rational; never round it), `n0`, `n1`, `duration_s`, `encoding`: `codec`, `profile`, `pix_fmt`, `reorder_depth` (B frames), `bit_rate`, `container`, and `gop` from the first 150 frames' types -- `types`, `i_period`, `anchor_period`, `lines_hz` (where the codec's rhythm beats: a brightness or a step at one of them may be the codec's) -- and `levels`: `range` (`studio`, `full`, or `unsaid`: a YUV stream that does not say, which ffmpeg takes as studio), `tag` (ffprobe's `color_range`), `matrix`, `transfer`, `stretched` (true: the frames are extracted with Y 16-235 stretched to 0-255, every code past them cut to 0 or 255; method §42); and, only on a test video that `mcdonald plant` wrote, `planted`: how many synthetic objects are in it (`planted`) and the file's own `comment` |
 | `files` | what it wrote |
 | `results` | what it found; per command |
 | `no_power` | `[test, why]`: what this clip cannot decide |
@@ -567,6 +625,7 @@ holds them to it.
 | `run` | `conclusion` (`label`, `headline`), `bottom_line`, `identified_by`, `stages` (the report's lines), `fields` (each stage's fields, as above) |
 | `run --each DIR` | `asked`, `tally.{asked, followed, members, groups, others, missing, same, sentence}` (with `--objects`); `objects[]` (one a folder: `object`, `folder`, `chosen_as`, `group` ({object, member} for a member of a group's), `same_as` ({same_as, on, shared} for one followed on what another was), `marks`, `marked_frames`, `placed_by`, `measured`, `frames`, `followed`, `stopped`, `bottom_line`, `track_sheet_looked_at`, `report`, `track_sheet`, `error`), `list` (the page, `<tag>_objects.md`), `states` |
 | `report DIR --index` | `objects[]` and `list`, as `run --each` gives them, read again from the folders |
+| `plant` | `stretch`, `settings`, `levels`, `overlay`, `scene`, `skipped`, `plants[]` (above); with `--score`: `plants[]` (`found`, `rank`, `strength`, `score`, `shared`, `px`, `polarity`, `points`), `others[]`, `found`, `planted`, `rows` |
 
 A stage that could not decide is in `no_power`, not missing: `layers` on a
 window shorter than a second has `px_per_s` all null *and* says so there.

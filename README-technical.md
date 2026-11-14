@@ -123,6 +123,7 @@ python3 tests/test_published.py      # every number in the Technical Note and th
 python3 tests/test_tether.py         # tether: a hanging thing's swing, its period, its line
 python3 tests/test_audio.py          # audio: planted propellers, supplies and codec lines; noise gives nothing
 python3 tests/test_gpu.py            # a graphics card's arithmetic held to the CPU's (runs with or without a card)
+python3 tests/test_plant.py          # planted objects: where the truth table says, the same file twice, marked as a test video
 ```
 
 Together those are the checks against cases whose answers are known by
@@ -193,6 +194,12 @@ mcdonald mark CLIP.mp4 --n0 400 --n1 420 --no-window --link \
 # (the whole video's are ./<tag>/; --out names any folder outright). look --propose prints `--segment A-B` on the
 # lines that take its rows, so that look, mark and run meet in one folder; this lists them, as the window does
 mcdonald segments CLIP.mp4                  # each segment with results: its frames, what its report says, where
+
+# What could the search have found? Synthetic objects written into a stretch and encoded again as the video is, with a
+# truth table of where each is in every frame, and the same stretch with nothing planted as the control. The result
+# is a test video, never footage: its name, its tags and every case made from it say so (docs/method.md section 62)
+mcdonald plant CLIP.mp4 --n0 1 --n1 400 --draw 20 --seed 1 --out plants/      # 20 objects drawn over contrast, blur and speed
+mcdonald plant --score plants/clip_planted_1_400_s1_truth.json --proposals look.json   # Find's list against the table
 
 # Boresight, north pointer, corner brackets -- the overlay's own readings
 mcdonald symbology CLIP.mp4
