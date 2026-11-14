@@ -1020,6 +1020,40 @@ def at_lookalikes(hz, resolution, table, err=None):
     return [dict(d) for d in table if near(d)]
 
 
+def marked_share(table, top, resolution=0.0, err=None):
+    """The look-alike mark's base rate (IDEAS.md E11): the share of the band a beat is looked for in, LOW .. `top`, where
+    a beat read with this `resolution` and frequency error `err` would be marked by `at_lookalikes` with an entry of
+    `table` -- the union of every line's reach and every band's pieces (a band that covers the band marks nothing), over
+    the band's width. {share, band_hz, marked_hz (the union's pieces)}. With no resolution it is the table's own: 70 % of
+    1.5-12 Hz at 29.97 and 30 frames a second (the lantern's band and the folded lamp's, 4.7-12 Hz) and all of 1.5-24 Hz at
+    59.94 and 60. So a mark is weak evidence: most frequencies a bird can beat at carry one."""
+    reach = []
+    for d in table:
+        if d.get("band") is not None:
+            if not d.get("covers"):
+                reach += [(a - resolution, b + resolution) for a, b in d["band"]]
+        else:
+            w = Z_LINE * err if err is not None and str(d.get("source", "")).startswith("fps/") else resolution
+            reach.append((d["hz"] - w, d["hz"] + w))
+    pieces = []
+    for a, b in sorted((max(a, LOW), min(b, top)) for a, b in reach):
+        if b < a:
+            continue
+        if pieces and a <= pieces[-1][1]:
+            pieces[-1][1] = max(pieces[-1][1], b)
+        else:
+            pieces.append([a, b])
+    width = max(top - LOW, 1e-9)
+    return dict(share=float(min(1.0, sum(b - a for a, b in pieces) / width)), band_hz=[float(LOW), float(top)],
+                marked_hz=[[round(float(a), 3), round(float(b), 3)] for a, b in pieces])
+
+
+def share_said(share):
+    """E11's clause, said wherever a look-alike's mark is said: how much of the band carries such a mark."""
+    return (f"at this frame rate such marks cover {share:.0%} of the frequencies a beat is looked for at, so a mark is weak "
+            "evidence")
+
+
 def _piece_sse(freqs, tc, Q, y):
     """(residual sum of squares, parameters) of a quadratic Q and a sinusoid at each of `freqs` fitted to y by least
     squares, all at once (the normal equations, one 5 x 5 system a frequency)."""
@@ -2955,7 +2989,7 @@ def _over_neighbours(series, hz, fps):
     return float(P[near].max() / np.median(P[side]))
 
 
-def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, stop=None, amps=None):
+def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, stop=None, amps=None, keep=None):
     """Does the sensor's own motion -- a cryocooler's drive, a gimbal's servo -- sit at a beat? (`--scene-shift`,
     2026-10-20; the bird paper's chain-rate table.) A jitter moves the whole picture, the object with it, and turns into
     brightness through the aperture and the pixel grid; the Svanström set's airplanes that "beat like a bird" at 2-3.5 Hz
@@ -2967,7 +3001,9 @@ def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, 
     its fixed pattern moved together, so an upper bound on it, on SHIFT_PLANT_FRAMES of the frames. Beside it, each object's
     own centroid at its beat (`moves`, as `curves` collects them). `beats` is {name: hz}, `amps` {name: the beat's share of the
     brightness}. A sensor moves at a beat (item 17) where the shift has a line there (SHIFT_LOCAL) and the beat is no bigger
-    than a shake that size can make (SHIFT_PER_PX). {name: {...}}, and {"scene": {...}} for the frames."""
+    than a shake that size can make (SHIFT_PER_PX). {name: {...}}, and {"scene": {...}} for the frames. With a dict as
+    `keep`, the registered path itself is put in it -- {"frames", "path": [(dy, dx)] a frame} -- for the beat in the
+    position (`beatpos.of_stage`), which reads a track against it."""
     pos = [smoothed(t, ns) for t in tracks.values()]
     n = len(ns)
     hz = [float(h) for h in beats.values()]
@@ -2995,10 +3031,13 @@ def scene_shift(clip, ns, tracks, beats, moves=None, procs=None, progress=None, 
                                     4, progress, stop, "Camera shake", pixels=clip.W * clip.H)
     finally:
         _S.pop("ref_on", None)
+    read_k = [k for k, r in enumerate(rows) if r is not None]
     rows = [r for r in rows if r is not None]
     d = np.array([r[0] for r in rows], float)
     tex = float(np.nanmedian([r[1] for r in rows])) if rows else 0.0
     path = np.nancumsum(d, axis=0) if pan else d
+    if keep is not None:
+        keep.update(frames=[int(ns[k]) for k in read_k], path=path)
     out = {"scene": dict(frames=[int(ns[0]), int(ns[-1])], registered="frame to frame" if pan else "against the mean frame",
                          step_px=float(np.nanmedian(steps)) if steps else None, texture=tex, power=bool(tex >= SHIFT_TEXTURE),
                          why=None if tex >= SHIFT_TEXTURE else f"no texture to register (gradient energy {tex:.2f})")}
@@ -3940,6 +3979,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         blink_reading(found, raw, lit, ns, clip.fps, dark, black_hot)
     except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
         say(f"  ! the lights were not read: {type(e).__name__}: {e}")
+    path = {}                                            # the registered scene's path, where it is read (for `beatpos`)
     if scene and found.fields.get("beats") is True:      # the sensor's own motion at each of the objects' own beats -- with
         beat = found.fields.get("beat", {})              # scene="bird", at those that would name a bird (item 17)
         asked = bird_beats(found.fields) if scene == "bird" else {n: beat[n] for n in (found.fields.get("strong") or []) if n in beat}
@@ -3947,12 +3987,29 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
         if own:
             say("  the scene's own motion at the beat" + ("s" if len(own) > 1 else "") + ": registering every frame")
             sh = scene_shift(clip, ns, tracks, own, moves=moves, procs=procs, progress=progress, stop=stop,
-                             amps={n: b["amplitude"] for n, b in asked.items()})
+                             amps={n: b["amplitude"] for n, b in asked.items()}, keep=path)
             found.fields["scene_shift"] = sh
             found.notes.append(shift_said(sh))
             for n in own:
                 if sh[n]["moves"]:
                     beat[n]["shaken"] = dict(px=sh[n]["at_beat_px"], local=sh[n]["local"], per_px=sh[n]["per_px"])
+    if scene is True and not path and found.fields.get("beat"):      # asked for outright, and no beat of its own to read it at:
+        try:                                                         # the scene is registered all the same, for the position
+            sh = scene_shift(clip, ns, tracks, {}, procs=procs, progress=progress, stop=stop, keep=path)
+            found.fields["scene_shift"] = sh
+        except Exception as e:
+            say(f"  ! the scene was not registered: {type(e).__name__}: {e}")
+    try:                                                 # the beat in the position (K2, method section 59): a reading beside the beat
+        from . import beatpos
+        registered = path if path and ((found.fields.get("scene_shift") or {}).get("scene") or {}).get("power") else None
+        pb = beatpos.of_stage(ns, clip.fps, moves, found.fields, scene=registered) if found.fields.get("beat") else {}
+        if pb:
+            found.fields["position_beat"] = pb
+            for n, r in pb.items():
+                found.result["position" if len(pb) == 1 else f"position, {n}"] = beatpos.line_said(r)
+                found.notes.append(beatpos.said(n, r, several=len(pb) > 1))
+    except Exception as e:                               # a reading that cannot be made does not undo the stage's answer
+        say(f"  ! the beat in the position was not read: {type(e).__name__}: {e}")
     if moved:
         found.notes.append(f"The background apertures were moved clear of the other tracked thing{'s' if len(avoid) != 1 else ''} "
                            f"in the video ({', '.join(sorted(avoid))}): at " + ", ".join(f"{dx:+.0f},{dy:+.0f}" for dx, dy in offsets)
@@ -4396,6 +4453,8 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
         fields["strong"], fields["gated_seis"] = strong, gated_s
     ctrl, far = controls_read(ctrl_job)
     fields["controls"], fields["false_alarm"] = ctrl, far
+    from . import beatreadings                             # four readings beside the call, which change none of it (method section 59)
+    beatreadings.beside(fields, obj, strong, use, seg, bgs, mine, scale, fps, lines, top, stamps=stamps, say=say)
     if nulls:
         fields["injection"] = injected(use, seg, bgs, fps, lines, scale, top)
         fields["slice"] = sliced(use, seg, bgs, fps, lines, scale, top)
@@ -4546,7 +4605,9 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
         at_bands = [d for d in la if d.get("band") is not None]
         where = " and ".join(([f"where {', or '.join(d['what'] for d in at_lines)} would appear through this frame rate"] if at_lines else [])
                              + ([f"inside the band of {', or of '.join(d['what'] for d in at_bands)}"] if at_bands else []))
-        why += f"; its {b['hz']:.2f} Hz{who} is also {where}: a look-alike, marked, not refused"
+        base = b.get("lookalike_share")
+        why += (f"; its {b['hz']:.2f} Hz{who} is also {where}: a look-alike, marked, not refused"
+                + (f" ({share_said(base)})" if base is not None else ""))
         rng = b.get("hz_range")
         line = ((fields.get("seis") or {}).get(n) or {}).get("line") or {}
         steady = (f"this one ranges {rng[0]:.2f}-{rng[1]:.2f} Hz across the windows that beat" if rng and rng[1] - rng[0] > 0 else
@@ -4568,7 +4629,10 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
         else:
             clock = ""
         notes.append(f"The beat at {b['hz']:.2f} Hz{who} sits {where} (fields.lookalikes has the whole table for it). A look-alike "
-                     "is marked, not refused: a bird can beat there too. What tells a supply's line from a wingbeat: a supply holds "
+                     "is marked, not refused: a bird can beat there too."
+                     + (f" A mark is common: read as this beat was, {base:.0%} of the band from {LOW:g} to {top:.1f} Hz carries one at "
+                        "this frame rate." if base is not None else "")
+                     + " What tells a supply's line from a wingbeat: a supply holds "
                      f"its frequency, a wingbeat's wanders -- {steady}{held}{clock}.")
     cover = [d for d in fields.get("lookalikes") or [] if d.get("covers")]
     if beats is True and cover:                            # item 11: the bands that fold over everything, said once
@@ -4624,6 +4688,7 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
               + ("" if n in strong else "; no beat of its own")
               for n in obj}
     result["finding"] = why
+    beatreadings.said(fields, names, strong, beats, notes, result)
     files = []
     if out:
         with open(f"{out}_flicker.csv", "w", newline="", encoding="utf-8") as f:
@@ -4799,10 +4864,15 @@ def said(fields):
             L.append("  look-alike bands at this frame rate: " + "; ".join(
                 f"{', '.join(f'{a:.2f}-{z:.2f}' for a, z in d['band'])} Hz ({d['source']}{', the whole band: marks nothing' if d.get('covers') else ''})"
                 for d in bands))
+        ls = fields.get("lookalike_share")
+        if ls:
+            L.append(f"  the look-alikes' marks cover {ls['share']:.0%} of the band a beat is looked for in, {ls['band_hz'][0]:g}-"
+                     f"{ls['band_hz'][1]:.1f} Hz (" + ", ".join(f"{a:.2f}-{z:.2f}" for a, z in ls["marked_hz"]) + " Hz): a mark is weak evidence")
     for name, b in (fields.get("beat") or {}).items():
         if b.get("lookalike"):
             L.append(f"  {name}: its {b['hz']:.2f} Hz is at a look-alike (within its resolution, or its errors for a rhythm locked to the frames) -- "
-                     + "; ".join(d["what"] for d in b["lookalike"]) + " -- marked, not refused")
+                     + "; ".join(d["what"] for d in b["lookalike"]) + " -- marked, not refused"
+                     + (f"; read as it was, {b['lookalike_share']:.0%} of the band is marked" if b.get("lookalike_share") is not None else ""))
         st = (fields.get("steadiness") or {}).get(name) or {}
         if st.get("p") is not None:
             L.append(f"  {name}: steadiness over frames {st['frames'][0]}-{st['frames'][1]}, in {st['pieces']} pieces at "
