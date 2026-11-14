@@ -853,6 +853,60 @@ def platform_of(own_ship=None, layers=None):
                                  "the camera turned or moved, and the rate over the size holds the camera's motion")
 
 
+def _class_readings(track, fps, fit, scale, width, height, turn, size_px, blur, platform, own_ship, layers, t0, t1, n0, n1):
+    """The kinematics stage's two readings against the sourced class table (method section 61; IDEAS.md Av11 and Av10), as
+    the fields `body_lengths` and `load_curve`: the speed in body lengths a second as a lower bound
+    (`envelopes.body_lengths`: from the length given, where the camera did not move), and the turn as a load-factor curve
+    (`envelopes.load_curve`: from the turn the stage read, or, where it read none for want of the object's width, from
+    the bend itself, which needs no width; the track drawn back through a lens given first, as the stage's own turn is).
+    Each carries its own `power` and `why`: as tau's reading does (method section 33), they add nothing to the stage's
+    no-power list, which every report's count would then carry. Kept in a function of its own, called from one line
+    after the stage's fields, so that it reads nothing of how the stage orders its own work."""
+    from . import envelopes, projective
+    still = platform or platform_of(own_ship, layers)
+    lengths = envelopes.body_lengths(fit["v_px"], size_px, "given" if size_px else None,
+                                     (blur or {}).get("resolved") if size_px else None, still)
+    if fit.get("held"):
+        return dict(body_lengths=lengths, load_curve=dict(
+            power=False, why="the camera held the object in view, so the track's shape is the camera's", platform=still, limits=[],
+            conditions=[]))
+    shape = span = None
+    try:
+        tt = projective._points(track, fps, t0, t1, n0, n1)[1]
+        span = float(tt[-1] - tt[0]) if len(tt) > 1 else None
+        shape = turn
+        if shape is None:                       # no width was known, so no turn was read: the bend needs none
+            through = scale.lens if height else None
+            line = lens.drawn(track, through.k1, through.f, (width / 2.0, height / 2.0), through.k2) if through else track
+            shape = projective.turn(line, fps, 1.0, t0=t0, t1=t1, n0=n0, n1=n1)
+    except Exception:                           # noqa: BLE001 -- no turn rate is then read, and the reading says so
+        shape = span = None
+    return dict(body_lengths=lengths, load_curve=envelopes.load_curve(shape, span, still, lengths))
+
+
+def _class_said(fields, res):
+    """The two class readings' result lines, written into `res` where each is a reading (where there is none, the
+    summary's row says why)."""
+    from . import envelopes
+    for name, (value, how) in (("body lengths against the classes", envelopes.lengths_said(fields["body_lengths"])),
+                               ("turn as a load factor", envelopes.load_said(fields["load_curve"]))):
+        if value:
+            res[name] = f"{value}: {how}"
+
+
+def _class_figure(fields, out):
+    """The load-factor figure `<out>_load.png` where that reading has power: [its path], after the stage's other files
+    (the speed's CSV stays the first of them)."""
+    if not (out and fields["load_curve"]["power"] and fields["load_curve"]["limits"]):
+        return []
+    try:
+        from . import figures
+        return [figures.load_curve(f"{out}_load.png", fields["load_curve"])]
+    except Exception as e:                       # noqa: BLE001 -- a figure that cannot be drawn is not a finding lost
+        print(f"  ! the load-factor figure was not drawn: {type(e).__name__}: {e}")
+        return []
+
+
 def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None, n1=None, range_m=None,
                range_rate=None, theta_deg=None, size_px=None, ref=None, blur=None, ground_speed=None, own_ship=None,
                out=None, height=None, extent_px=None, range_max=None, line_of_sight=None, layers=None):
@@ -951,6 +1005,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                   quotable=fit["uniform"], missing=red.missing, resolution=blur, parallax=par,
                   range_m=range_m, range_max_m=range_max, range_rate_m_per_s=range_rate, theta_deg=red.theta_deg, size_px=size_px, fps=float(fps),
                   band=band, projective=proj, turn=turn, smear=smear, models=models, width_px=dict(px=D, how=D_from) if D else None)
+    fields.update(_class_readings(track, fps, fit, scale, width, height, turn, size_px, blur, platform, own_ship, layers, t0, t1, n0, n1))
     if scale.stretched:                                   # the rate in square pixels along the track, and what it was worth (section 40)
         fields.update(pixel_aspect=scale.aspect, square_per_px=red.along, v_square_px_per_s=fit["v_px"] * red.along)
     res = dict(v_px=f"{fit['v_px']:.1f} px/s" + (f" in the file's pixels; {fit['v_px'] * red.along:.1f} square px/s along the track "
@@ -964,6 +1019,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                               "yes" if fit["uniform"] else "NO -- v_px does not describe this motion")
     files, npw = [], []
     res.update(projective.said(proj, turn, smear))
+    _class_said(fields, res)
     if models:
         res["motion models"] = projective.models_said(models)
     elif not fit.get("held"):
@@ -1073,6 +1129,7 @@ def kinematics(track, fps, width, tag="", scale=None, t0=None, t1=None, n0=None,
                          "own length only if the object is resolved -- larger than the blur a point makes on this "
                          f"clip, which was not measured ({why}). For an unresolved point, or a group of them, it is "
                          "a speed in blur widths and says nothing about the body.")
+    files += _class_figure(fields, out)
     return Found("kinematics", res, fields, needs=red.missing, notes=notes, carry=dict(fit=fit, reduction=red, series=series),
                  no_power=npw, files=files)
 

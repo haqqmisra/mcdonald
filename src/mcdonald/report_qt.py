@@ -60,7 +60,8 @@ SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": 
          "transverse relative speed": "Relative speed, across", "object size": "Size", "relative speed": "Relative speed",
          "object velocity": "Velocity", "brightness beat": "Beat", "flashing light": "Light",
          "turn radius in body widths": "Turn", "constant velocity, as a pinhole draws it": "Straight and steady",
-         "smear": "Moves in a frame", "time to contact": "Time to the camera"}
+         "smear": "Moves in a frame", "time to contact": "Time to the camera",
+         "speed in body lengths": "Speed, in its own lengths", "turn as a load factor": "Turn, as a load"}
 
 
 def short(name):
@@ -126,8 +127,20 @@ def _contact(kf, case):
 
 # what survives the missing variables (section 33), each row's value in the card's words; the rest are the summary's
 # values to their first bracket
+def _lengths(kf, case):
+    """The speed in body lengths a second on the card (method section 61): a lower limit, in blur widths for a point."""
+    b = case.body_lengths()
+    return f"at least {b['per_s']:.2g} {'blur widths' if b['unit'] == 'blur widths' else 'lengths'} a second"
+
+
+def _load(kf, case):
+    """The turn as a load on the card: how fast the object's heading turned; the limits it gives are in the tooltip."""
+    return f"its heading turns {math.degrees(kf['load_curve']['omega_rad_per_s']):.2g}° a second"
+
+
 PLAIN = {"turn radius in body widths": _turned, "constant velocity, as a pinhole draws it": _straight,
-         "smear": lambda kf, case: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths", "time to contact": _contact}
+         "smear": lambda kf, case: f"{kf['smear']:.{2 if kf['smear'] < 1 else 1}f} of its widths", "time to contact": _contact,
+         "speed in body lengths": _lengths, "turn as a load factor": _load}
 # The four unknowns of the velocity equation (`Case.ledger`, ROADMAP 0.4 objective 6), at their summary rows: on a card
 # with a rate to turn into a speed all four are shown -- found (", a guess" where it rests on one), bounded, or unknown --
 # with how, and how to find it, in the tooltip (the words Jacob chose, 2026-10-29)

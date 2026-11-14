@@ -138,6 +138,7 @@ def main():
                       [md, str(path)] + ([str(pdf)] if pdf else []),
                       {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
                        "checklist": case.checklist(), "reasons": case.reasons(), "grade": case.grade(),
+                       "value_of_information": case.value_of_information(),
                        "identified_by": case.identified_by,
                        "stages": {n: st["result"] for n, st in case.stages.items()},
                        "fields": {n: st["fields"] for n, st in case.stages.items()}},

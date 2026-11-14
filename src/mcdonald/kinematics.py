@@ -1533,6 +1533,201 @@ def admissible_said(reg):
     return out
 
 
+# ---- the value of information per unknown (D8; method section 61) -----------------------------------------------------
+# The ledger says which of k, R, theta and v_own a case lacks, and what would close each. This says which is worth asking
+# for first: for a stated question about the object's own speed (is it under 30 m/s? under the speed of sound?), how much
+# of the answer's uncertainty each unknown would take away if it were given, in bits (Lindley 1956; the mutual
+# information of the answer and the unknown), and where the answer would then lie. It needs a measure over what is not
+# known, and M2's lesson binds it: the same region is 31 % or 97 % subsonic by the choice of measure alone. So it is
+# computed under two named measures -- evenly (the field of view, the range, the range rate and the camera's speed each
+# drawn uniformly) and the invariant one (k, R and the camera's speed log-uniform, the directions isotropic) -- and an
+# unknown is named first only where both name it. It ranks what to ask for. It says nothing of the object.
+VOI_QUESTIONS = ((30.0, "under 30 m/s"), (A_SOUND, "under the speed of sound"))
+VOI_N = 200000           # draws a measure
+VOI_SEED = 20261113      # their seed: the same case gives the same table twice
+VOI_PRECISION = 0.10     # the stated precision an unknown is given to: k, R and the camera's speed within 10 % ...
+VOI_PRECISION_DEG = 5.0  # ... and the aspect angle within 5 degrees
+VOI_FOV = (0.7, 54.0)    # deg: the fields of view an unknown k is drawn over, the ends of `scale.FOV_LADDER`
+VOI_OWN_FLOOR = 1.0      # m/s: where the log-uniform draw of the camera's own speed starts (the uniform one starts at 0)
+VOI_FOLDS = 5            # the draws are cut in this many parts, and two unknowns are told apart only where their bits
+VOI_APART = 3.0          # differ by this many of the parts' own standard errors (numerical noise, not a finding)
+VOI_NAMES = {"k": "the angular scale", "R": "the range", "θ": "the aspect angle", "v_own": "the camera's own speed"}
+
+
+def _entropy(p):
+    p = np.clip(np.asarray(p, float), 1e-300, 1.0)
+    q = np.clip(1.0 - p, 1e-300, 1.0)
+    return -(p * np.log2(p) + q * np.log2(q))
+
+
+def _bits(answer, bins):
+    """(bits, lo, hi): the mutual information of a yes/no `answer` and an unknown cut into `bins` (integers), and the 5th
+    and 95th percentiles, over what the unknown could be, of the answer's probability once it is given."""
+    n = len(answer)
+    _, inv, cnt = np.unique(bins, return_inverse=True, return_counts=True)
+    yes = np.bincount(inv, weights=answer.astype(float), minlength=len(cnt))
+    pb, w = yes / cnt, cnt / n
+    bits = float(_entropy(answer.mean()) - np.sum(w * _entropy(pb)))
+    order = np.argsort(pb)
+    cum = np.cumsum(w[order])
+    lo, hi = pb[order][np.searchsorted(cum, 0.05)], pb[order][min(np.searchsorted(cum, 0.95), len(cum) - 1)]
+    return max(bits, 0.0), float(lo), float(hi)
+
+
+def value_of_information(v_px_per_s, width_px, k=None, k_min=None, R=None, R_min=None, R_max=None, theta_deg=None, tau_s=None,
+                         rate_max=None, v_own=None, v_cap=V_CAP, questions=VOI_QUESTIONS, n=VOI_N, seed=VOI_SEED,
+                         R_floor=1.0, fov=VOI_FOV):
+    """How much knowing each unknown would settle a stated question about the object's own speed (D8).
+
+    Given: the rate in the picture (square px/s along the track) and the frame's width; and whatever of the four is
+    known -- `k` (px/rad; None: drawn over the fields of view `fov`, no lower than `k_min` where the camera's slew bounds
+    it), `R` (m; None: drawn between `R_min` (else `R_floor`) and `R_max` (else where the speed cap meets the turn
+    rate)), the aspect angle (`theta_deg`, or `tau_s` with tan theta = omega tau, else free, within `rate_max` where the
+    depth bound gives a wedge), `v_own` (m/s; 0 for a camera that stands still; None: drawn up to the cap, its direction
+    isotropic to the object's). The object's own speed is |v_rel + v_own| with v_rel = hypot(omega R, Rdot) <= `v_cap`.
+
+    Returns dict(unknown: [symbols not given], precision, measures: {"evenly": ..., "invariant": ...} each
+    dict(measure, n, questions: [dict(v0, what, p (the answer now: the share of draws under v0), bits_open (its entropy),
+    asks: {symbol: dict(bits, bits_err, share (bits over bits_open), p_lo, p_hi)}, order (symbols by bits), first (the
+    one clear of the next by VOI_APART errors, else None))]), questions: [dict(v0, what, first (the symbol both measures
+    put first, else None), agree, said)]); or dict(power=False, why) with no rate or nothing unknown."""
+    if not v_px_per_s or v_px_per_s <= 0 or not width_px:
+        return dict(power=False, why="no rate in the picture to turn into a speed")
+    unknown = [s for s, known in (("k", k is not None), ("R", R is not None), ("θ", theta_deg is not None or tau_s is not None),
+                                  ("v_own", v_own is not None)) if not known]
+    if not unknown:
+        return dict(power=False, why="none of the four is unknown: the speed follows from what was given")
+    k_of = lambda f: (float(width_px) / 2.0) / np.tan(np.radians(f) / 2.0)
+    k_lo, k_hi = float(k_of(fov[1])), float(k_of(fov[0]))
+    if k_min:
+        k_lo = min(max(k_lo, float(k_min)), k_hi)
+    out = dict(power=True, unknown=unknown, precision=dict(share=VOI_PRECISION, deg=VOI_PRECISION_DEG), v_cap=float(v_cap),
+               measures={})
+    for mi, measure in enumerate(("evenly", "invariant")):
+        rng = np.random.default_rng(seed + mi)
+        log = measure == "invariant"
+        m = int(n) * 4                                            # drawn from the box, then cut to the region
+        if k is not None:
+            kk = np.full(m, float(k))
+        elif log:
+            kk = np.exp(rng.uniform(math.log(k_lo), math.log(k_hi), m))
+        else:                                                     # evenly in the field of view (above k_min's field)
+            f_hi = 2.0 * math.degrees(math.atan(float(width_px) / 2.0 / k_lo))
+            kk = k_of(rng.uniform(fov[0], f_hi, m))
+        om = float(v_px_per_s) / kk
+        if R is not None:
+            RR = np.full(m, float(R))
+        else:
+            lo = max(float(R_min or 0.0), float(R_floor))
+            hi = min(float(R_max) if R_max else np.inf, float(v_cap) / float(om.min()))
+            if hi <= lo:
+                return dict(power=False, why=f"the bounds leave no range: at least {lo:.0f} m and at most {hi:.0f} m")
+            RR = np.exp(rng.uniform(math.log(lo), math.log(hi), m)) if log else rng.uniform(lo, hi, m)
+        vt = om * RR                                              # across the line of sight
+        if theta_deg is not None:
+            Rd = vt / math.tan(math.radians(min(max(float(theta_deg), 1e-6), 179.999999)))
+        elif tau_s is not None:
+            Rd = -RR / float(tau_s)
+        elif log:                                                 # isotropic: the cosine of the aspect angle uniform ...
+            cmax = float(rate_max) / np.hypot(om, float(rate_max)) if rate_max else 1.0   # ... inside the depth bound's wedge
+            c = rng.uniform(-1.0, 1.0, m) * cmax
+            Rd = -vt * c / np.sqrt(np.maximum(1.0 - c * c, 1e-12))
+        else:                                                     # evenly, from the box that holds the wedge or the cap
+            top = min(float(v_cap), float(rate_max) * float(RR.max())) if rate_max else float(v_cap)
+            Rd = rng.uniform(-top, top, m)
+        vrel = np.hypot(vt, Rd)
+        keep = vrel <= float(v_cap)
+        if rate_max and theta_deg is None and tau_s is None:
+            keep &= np.abs(Rd) <= float(rate_max) * RR
+        if v_own is not None:
+            vo = np.full(m, float(v_own))
+        elif log:
+            vo = np.exp(rng.uniform(math.log(VOI_OWN_FLOOR), math.log(float(v_cap)), m))
+        else:
+            vo = rng.uniform(0.0, float(v_cap), m)
+        g = rng.uniform(-1.0, 1.0, m)                              # the angle between the two velocities, isotropic
+        vobj = np.sqrt(np.maximum(vrel ** 2 + vo ** 2 + 2.0 * vrel * vo * g, 0.0))
+        idx = np.flatnonzero(keep)[:int(n)]
+        if len(idx) < 1000:
+            return dict(power=False, why="the bounds leave too little of the region to draw from")
+        kk, RR, vt, Rd, vo, vobj = (a[idx] for a in (kk, RR, vt, Rd, vo, vobj))
+        step = math.log1p(2.0 * VOI_PRECISION)                    # "within 10 %": a bin a factor of 1.2 wide
+        cut = {"k": np.floor(np.log(kk) / step), "R": np.floor(np.log(RR) / step),
+               "θ": np.floor(np.degrees(np.arctan2(vt, np.abs(Rd))) / (2.0 * VOI_PRECISION_DEG)),
+               "v_own": np.floor(np.log(np.maximum(vo, 1e-3)) / step)}
+        fold = np.arange(len(idx)) % VOI_FOLDS
+        qs = []
+        for v0, what in questions:
+            A = vobj < float(v0)
+            p = float(A.mean())
+            asks = {}
+            for s in unknown:
+                bits, lo_, hi_ = _bits(A, cut[s])
+                parts = [_bits(A[fold == j], cut[s][fold == j])[0] for j in range(VOI_FOLDS)]
+                asks[s] = dict(bits=bits, bits_err=float(np.std(parts, ddof=1) / math.sqrt(VOI_FOLDS)), p_lo=lo_, p_hi=hi_,
+                               share=bits / float(_entropy(p)) if 0.0 < p < 1.0 else None)
+            order = sorted(unknown, key=lambda s: -asks[s]["bits"])
+            first = None
+            if 0.0 < p < 1.0 and asks[order[0]]["bits"] > 0:
+                gap = (asks[order[0]]["bits"] - asks[order[1]]["bits"]) if len(order) > 1 else asks[order[0]]["bits"]
+                err = math.hypot(asks[order[0]]["bits_err"], asks[order[1]]["bits_err"] if len(order) > 1 else 0.0)
+                first = order[0] if gap > VOI_APART * err else None
+            qs.append(dict(v0=float(v0), what=what, p=p, bits_open=float(_entropy(p)) if 0.0 < p < 1.0 else 0.0, asks=asks,
+                           order=order, first=first))
+        out["measures"][measure] = dict(measure=("evenly in the field of view, the range, the range rate and the camera's speed"
+                                                 if not log else "k, R and the camera's speed log-uniform, the directions isotropic"),
+                                        n=int(len(idx)), questions=qs)
+    out["questions"] = []
+    for i, (v0, what) in enumerate(questions):
+        a, b = (out["measures"][m]["questions"][i] for m in ("evenly", "invariant"))
+        settled = a["bits_open"] == 0.0 and b["bits_open"] == 0.0
+        agree = (not settled) and a["first"] is not None and a["first"] == b["first"]
+        out["questions"].append(dict(v0=float(v0), what=what, agree=bool(agree), first=a["first"] if agree else None,
+                                     settled=bool(settled)))
+    return out
+
+
+def information_said(voi):
+    """`value_of_information` in sentences, one a question: which unknown would settle the most, or that the two measures
+    disagree and nothing is ranked. [] where there is none to give."""
+    if not voi or not voi.get("power"):
+        return []
+    S = []
+    for i, q in enumerate(voi["questions"]):
+        a, b = (voi["measures"][m]["questions"][i] for m in ("evenly", "invariant"))
+        ask = f"Is its own speed {q['what']}?"
+        if q["settled"]:
+            S.append(f"{ask} What was measured already settles that, so no further quantity would change it.")
+        elif q["agree"] and len(voi["unknown"]) == 1:
+            S.append(f"{ask} Only {VOI_NAMES[q['first']]} is missing, and it would settle {_share(a, b, q['first'])} of that question.")
+        elif q["agree"]:
+            S.append(f"{ask} Of the {len(voi['unknown'])} missing quantities, {VOI_NAMES[q['first']]} would settle the most: "
+                     f"{_share(a, b, q['first'])} of that question.")
+        elif _left(a) and _left(b) and a["order"][0] == b["order"][0]:
+            S.append(f"{ask} {VOI_NAMES[a['order'][0]].capitalize()} and {VOI_NAMES[a['order'][1]]} would settle about as much "
+                     "as each other, too close to rank.")
+        elif not _left(a) and not _left(b):
+            S.append(f"{ask} What was measured all but settles that under both ways of weighing what is not known, so "
+                     "nothing is ranked.")
+        else:
+            firsts = [VOI_NAMES[x["order"][0]] if _left(x) else "nothing, the answer being all but settled there" for x in (a, b)]
+            S.append(f"{ask} The two ways of weighing what is not known disagree on what would settle the most. "
+                     f"One names {firsts[0]}, and the other {firsts[1]}, so none is ranked.")
+    return S
+
+
+def _left(x):
+    """Whether a measure leaves anything to settle: the question still open there, and its first unknown's bits more than
+    the draws' own noise (a chance of one in fifty thousand is an open question only on paper)."""
+    k = x["asks"][x["order"][0]]
+    return bool(x["bits_open"]) and k["bits"] > VOI_APART * k["bits_err"]
+
+
+def _share(a, b, s):
+    """"60 to 85 %": the share of a question's open bits an unknown would take away, under the two measures."""
+    v = sorted(100.0 * x["asks"][s]["share"] for x in (a, b) if x["asks"][s]["share"] is not None)
+    return f"{v[0]:.0f} %" if len(v) == 1 or round(v[0]) == round(v[-1]) else f"{v[0]:.0f} to {v[-1]:.0f} %"
+
 
 def omega(v_px_per_s, scale, along=1.0):
     """(1): line-of-sight angular rate [rad/s]. None when k is unknown. `along` (`square_along`) turns the rate

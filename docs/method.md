@@ -6514,3 +6514,208 @@ page, the one place its flock goes through this stage in a whole run, holds its 
   (TEST_SEED), so one group reads the same every time.
 - Judgement left in it, said in the code: the lag rule and the block of l + 1; ADF's 5 % beside the others' 1 %; the
   pixel floor taken at the planted dots' 99th percentile; 60 frames; 8 members.
+
+## 61. Body lengths against a sourced class table, a turn as a load factor, edge crossings set aside, and which unknown to ask for (Av11, Av10, A16, D8; added 2026-11-13)
+
+The four additions ROADMAP 0.4 still listed for `kinematics`. Three are built, each a reading that needs none of k, R,
+θ and v_own (or says what each is worth), and each with its NO POWER; the fourth was measured and set aside. None moves
+a number an existing report gives: each reading is a new field with its own `power` and `why`, and adds nothing to the
+stage's no-power list, which every report's count would then carry (as tau's reading does, section 33).
+
+### 61.1 The class table (`class_envelopes.csv`, `envelopes.py`)
+
+What known kinds of flying object do, one row a member of a class (a species, an aircraft type) or a rule, **each number
+with the source it was read from beside it** (`envelopes.unsourced()` is empty, and the suite holds it so): 33 rows, twelve
+classes and the wind's row. Birds in two sizes from radar and ornithodolite airspeeds (Alerstam et al. 2007, PLoS Biology 5:e197, Protocol
+S1; Pennycuick, Åkesson & Hedenström 2013, J. R. Soc. Interface 10:20130419) with the RSPB's body lengths; airliners,
+light aircraft, fighters and helicopters from type certificate data sheets (EASA's), the FAA Aircraft Characteristics
+Database and the services' fact sheets; the US Department of Defense's five groups of unmanned aircraft, each as a
+typical aircraft's size at the group's defining airspeed (the Army's 2010 roadmap, Table 2-2: under 100 knots, under 250,
+under 250, any, any); two camera multirotors from their maker's manuals; balloons, which have no speed of their own; and
+a strong jet stream's wind (NOAA: "more than 275 mph", 123 m/s), the most a tail wind is taken to add. Limit loads:
+14 CFR 25.337(b) (2.5), 23.337(a) as it stood before 2017 (3.8 normal, 4.4 utility, 6.0 acrobatic), 27.337(a) (3.5), the
+F-16 fact sheet's nine g, a camera multirotor's tilt limit (1 / cos 35° = 1.22: the flight controller's, not the
+airframe's), and for small birds the largest measured, an Anna's hummingbird's dive ("nearly nine times", Clark 2009).
+
+Four rules turn a source's figure into the table's, each on the cautious side for an exclusion. *An approach speed is
+1.3 stall speeds* (14 CFR 97.3's definition of the approach category), so a type's least flying speed is its approach
+speed over 1.3 (`STALL_OVER_APPROACH`; a transport's reference speed is 1.23 stall speeds, so this errs low). *A Mach
+limit is taken at the speed of sound at sea level* (340.3 m/s), more than the type reaches at any height. *A bird's
+speeds are its mean cruising airspeed less and plus two of its standard deviations*, and its length the low end of the
+range given; birds dive faster than they cruise (the hummingbird's 27.3 m/s is 385 of its lengths a second, the row that
+sets the small birds' top; a peregrine's stoop 31-39 m/s by radar, Alerstam 1987, is not in the table for want of a
+length read from a source). *A row counts only for what it has*: the 737-800, 777-300ER and Embraer 175 give the
+airliners their lengths and approach speeds, and no greatest speed, because none was read from a type certificate.
+
+What a class's range is: its speed in body lengths a second from the least over its members of (least speed / length) to
+the most of (greatest speed / length), length nose to tail. Airliners 0.8-7.4, light aircraft 3.0-10.8, fighters 2.9-45,
+helicopters 0-5.7, the unmanned groups 13-57, 21-108, 9-38, 0-7.3 and 0-11, camera multirotors 0-55, large birds 8.7-52,
+small birds 0-390, balloons 0 (they drift). Small fast bodies of every kind share the top of the scale: **the table is no
+classifier**, and the readings below say which classes a number does not exclude.
+
+Not verified, and so not in the table or marked in it: the greatest speeds of the three types above; the MQ-9's speed
+(its current fact sheet gives none); an F/A-18's and a UH-60's limit loads; the Raven's and the Shadow's lengths and the
+toy balloon's diameter are from secondary pages and say so in their rows; the af.mil and navy.mil fact sheets were read
+as Internet Archive captures. The table's sources were gathered on 2026-11-13 by a web session whose every number came
+with the sentence it was read in; a row is edited with its source, or not at all.
+
+### 61.2 Speed in body lengths a second, as a lower bound (Av11; `envelopes.body_lengths`)
+
+The rate in the picture over the object's length in the picture is its speed in its own lengths, free of k, R and the
+field of view (section 5). **Which way it errs**: let the body have length L along its travel and speed v at the aspect
+angle θ. The picture shows v sin θ, and the body's length along its travel as L sin θ; whatever else of the body shows
+(wings, a rotor) can only make the largest extent larger. So
+
+    rate / extent  <=  v sin θ / (L sin θ)  =  v / L,
+
+a **lower bound** on the true speed in body lengths, exact where the body's own length is what shows longest (a slender
+body at any aspect: the two foreshortenings cancel), and far under it for a body pointing nearly at the camera with its
+wings across (0.08 of it at 5°, on the drawn bodies). It is not an upper bound at any aspect. Three conditions, each said
+with the reading: the camera stood still (else the rate over the size is v_own / D for a body standing still, B7:
+`stages.platform_of`, and the reading is NO POWER where it says the camera moved, or that the picture behind held still
+on screen, which a camera following the object draws too); all of the object shows; and the length is the object's, not
+the blur's. For an object `point_blur` finds no wider than a point the unit is blur widths, the sentence says the true
+figure is higher if all of the object shows, and **no class is read from a blur** (H6).
+
+*Against the classes* (`against_classes`). A lower bound excludes only from above. A class whose range holds the number
+is `within`; one that flies faster in its own lengths is `faster` and not excluded (a body moving partly along the line of
+sight reads slow); one the number is above gets the least tail wind that would carry one of its members to it, N L −
+v_max (`with_wind`: the camera sees the speed over the ground, the table has speeds through the air); only where that
+passes a strong jet stream's 123 m/s is the class `outside`. A balloon's row is then the wind it would need: N times its
+diameter.
+
+*The length.* The stage reads the bound from a length given (`--size-px`). Where none was given and the camera stage
+measured the object's length at half its peak in place of the tracker's default spot (N5, `report.extent`), the report
+makes the same reading from that (`Case.body_lengths`). It never takes the half-peak width, nor the default spot, and the
+known aircraft below say why.
+
+*Held to known answers.* The Galileo Project's aircraft (section 53: 209 single-camera clips, 22 types from a Cessna 172
+to a 777-300ER, the type's length and the triangulated speed known; rebuilt from the session's saved table of rates and
+sizes): with the camera stage's length the reading is 0.72 of the true speed over the true length (0.52-0.85, ten to
+ninety in a hundred; 0.84 of the true figure across the line of sight), above the truth in 1 % of clips, and the
+airliners are `within` on 209 of 209: no class was called outside (a one-sided 95 % bound on a false exclusion of 1.4 %).
+With the half-peak width it is **not a bound**: above the truth in 75 % of 158 clips (in infrared the bright part of an
+aircraft is smaller than the aircraft), and one aircraft's own class was called outside (an E135 at 15.5 a second for a
+true 4.2). With the default 9-px spot it is above the truth in 22 %. The five Galileo flyers (known birds over a camera
+that stands still, at a nominal 9 px): 2.2 to 16 a second, the birds never excluded. The labelled infrared set (section 44:
+432 tracks of airplanes, birds, drones and helicopters with hand-labelled boxes) is filmed by a camera that follows its
+objects, so the reading is NO POWER there; were that ignored, the rate over the box's longer side is 0.1 to 1 lengths a
+second (a following camera reads low, the safe side for a lower bound) and no object's own kind is called outside, 0 of
+432.
+
+### 61.3 A turn as a load-factor curve (Av10; `envelopes.load_curve`, `figures.load_curve`)
+
+A level turn at the rate Ω and the true airspeed V takes a load factor n = √(1 + (ΩV/g)²). The track gives Ω, the rate
+its heading turns (not ω, the angular rate across the view: section 5), an angle in the picture and so free of k and R; it
+does not give V. So the reading is a curve, and for
+each class with a sourced limit load the fastest it could have flown the turn, V_max = g √(n_max² − 1) / Ω: at 1 rad/s a
+body held to a transport's 2.5 g flew no faster than 22.5 m/s, 1.8 g at a bird's 15 m/s and 20 g at 200 (the aviation
+survey's two). `could` is false where even the cautious V_max is under the class's least flying speed (it cannot fly
+that slowly: the turn was not its); `binds` says whether the limit is reached inside the speeds the class flies at at
+all; where a size gave body lengths a second (61.2), a body within the limit is no longer than V_max / N
+(`length_max_m`), set beside the class's own lengths and left to the reader, the length in the picture carrying no error.
+
+*The turn rate* (`turn_rate`). From a loop read whole (M4's ellipse, section 33): the ellipse's rate, the same in every
+view, with its error from the nine-number fit under the track's own covariance (`against_wander` now returns
+`omega_err_rad_per_s`); the cautious V_max is at 1.645 errors under it. From a bend: the heading the arc sweeps, 4 atan(2 s
+/ L) for a sagitta s over a chord L (exact for a circle's arc), over the track's time. A short arc does not fix the
+turn's plane: the picture's heading turns at cos i / (sin²φ + cos²i cos²φ) of the turn's own rate, so with the plane's
+normal isotropic and the phase uniform the turn's own rate is **0.439 to 10.0 times the picture's** nine times in ten
+(`TILT_RATE`; the same grid as `TILT_OWN`, recomputed by the suite), and the cautious V_max is at 0.439 of it. On 200
+drawn arcs of 30° at random tilts the band held the true rate on 179.
+
+*Conditions, each said*: a level turn (a pull-up or a dive adds or takes up to 1 g); the camera stood still and did not
+turn; the speed is the true airspeed. **NO POWER** where `platform_of` says the camera moved, and where the picture
+behind held still on screen (the camera may have turned, and its turn bends the track as the object's does: E3's and the
+checklist's camera row's own no-power); where the camera held the object in view; where the track does not bend beyond
+its scatter; and where it **swings about more than a bend does with no loop claimed**. That last is PR077's object 1, the
+track that "loops through 705°": its ellipse is a back and forth 212 by 23 px that fails the minor-axis test, a sagitta is
+a formula for a small bend and measures nothing on a path that doubles back, so the reading gives no turn rate there and
+says so. That is the honest answer; a load factor from it would have been the camera's sway.
+
+*Held to.* Drawn loops (420° tilted 40°: 0.800 rad/s for 0.800, the truth inside the error), drawn bends, and the one
+recorded loop over a camera known to stand still, Galileo flyer 4 (a bird): 156° at 0.449 rad/s (0.29-0.61), 26° a
+second, a circle in 14 s; at a bird's 15 m/s that is 1.2 g, inside what birds are measured to bear, and an airliner held
+to 2.5 g could have flown it only below 77 m/s. The labelled infrared set (432 tracks; its camera follows its objects, so the reading
+is NO POWER there) was read with that condition ignored on purpose, to see what the rule keeps out: a turn rate on 301
+tracks (289 bends, 12 loops; 99 swing about, 32 do not bend), a median 0.7° a second for the airplanes, 4.8 for the
+birds, 7.5 for the drones and 0.9 for the helicopters, at most 96; and no object's own kind "could not have flown it", 0
+of 301. The cautious figure is what does it (a bend's speed limit is taken at 0.439 of the picture's rate), so the
+reading errs toward saying nothing: a class is ruled out only by a turn far tighter than any in that set. The figure (`<tag>_load.png`, in the house style: both axes logarithmic,
+the turn's curve red with its band, each class a bar at its limit across the speeds it flies at, named in a legend under
+the plot) is drawn where the reading has power.
+
+### 61.4 Edge crossings: tried and set aside (A16)
+
+The idea (section 33's "not built"): an object leaving the frame has its brightness cut over the time its width takes to
+cross the edge, so the crossing time times the track's rate is its length across the edge, independent of the tracker's
+idea of its size. Measured before building it into a stage:
+
+- *Drawn frames* (a slab of known length crossing the frame's edge at a known speed, blurred, summed over the exposure
+  and the pixel, with noise; an error-function edge fitted to its summed brightness inside the frame; 61 cases). The
+  crossing recovers the **blurred image's** extent across the edge, √(L²/12 + blur² + 1/12 + v²/12), not the body's: 1.09
+  of it (median) where the crossing spans three frames or more, 9 % long because an error function is not a ramp's
+  shape, with a stated error that is not honest at low noise (pulls +3.1); under a frame and a half across it fails
+  (0.25); and a body of half a pixel reads the blur or does not fit. **A frame's edge is no different from a line drawn
+  anywhere in the picture** (4.26 px against 4.20 on the same frames): the frame, a redaction box and an overlay all
+  cut the picture after the lens has blurred it. The crossing is the image's own profile read slowly, which
+  `report.extent` and the camera stage's length already read from single frames.
+- *The census.* Of the 81 recorded tracks of the tether null (AARO's 45, the reference objects' 30, six goldens) none
+  ends within 12 px of a frame edge; the four nearest (PR141 object 1 at 14 px, PR149 at 16, PR43 at 21, an AARO object
+  at 22) move 8 to 21 px a frame outward, so their crossing is over within a frame or two. PR113's object crosses at
+  142 px a frame. In the labelled infrared set 41 track ends on 39 of 432 tracks reach an edge (32 birds, 9 drones, a
+  median 0.7 px a frame outward), 22 of them with the crossing recorded.
+
+So no row: its conditions are met by no recorded PURSUE or AARO track, and where they are met it measures what the
+report already has. What would be different is an edge *in the scene* (a mast, the horizon, a cloud's edge), which cuts
+the light before the blur and so can show a body smaller than the blur; no recorded track has one, and the idea stays
+open under that name. Not measured: the 22 recorded crossings of the labelled set, from their frames.
+
+### 61.5 Which unknown to ask for: the value of information (D8; `kinematics.value_of_information`)
+
+The ledger says which of the four a case lacks. This says which is worth asking for first: for a stated yes-or-no
+question about the object's own speed (under 30 m/s? under the speed of sound?), the mutual information of the answer
+with each missing unknown (Lindley 1956) -- how many bits of the question's uncertainty it would settle if a source gave
+it, to a stated precision (10 % for k, R and v_own, 5° for θ) -- with the chance now and where it would lie once the
+unknown was known. The object's own speed is |v_rel + v_own| with v_rel = hypot(ωR, Ṙ) and ω = v_px / k.
+
+That needs a measure over what is not known, and M2 binds it (the same region is 31 % or 97 % subsonic by the choice of
+measure alone). So it is computed under two named measures, 200,000 seeded draws each, cut to the region the speed cap
+allows: *evenly* (the field of view over the ladder's 0.7-54°, the range, the range rate and the camera's speed each
+uniform) and *invariant* (k, R and the camera's speed log-uniform, the directions isotropic). **An unknown is named first
+only where both measures put it first**, each clear of the next by three of the draws' own errors (the bits recomputed on
+five parts of the draws: numerical noise, not a finding); otherwise the row says the two disagree and ranks nothing. A
+field of view that is a guess counts as missing. It ranks what to ask for. It says nothing of the object.
+
+*Held to answers worked by hand.* One unknown: with ω 0.1 rad/s across the line of sight from a still camera and the
+range between 10 m and 10 km, P(v < 30 m/s) is ln 30 / ln 1000 = 0.492 log-uniform and 290 / 9990 = 0.029 evenly (the
+suite's draws: both to three figures), and the range settles all of it but the one bin the threshold falls in; with the
+range known and the direction free, √(1 − (ωR/v₀)²) = 0.745 isotropic and 0.022 evenly. Two unknowns (k and R, no cap):
+the bits of each against a one-dimensional quadrature, to 0.02 bits under both measures.
+
+*In the report.* Under the table of the four unknowns: a paragraph that says what the table is and is not, one sentence a
+question (which unknown would settle the most, with the share of the question's bits under the two measures; or that the
+two disagree; or that one of them leaves nothing to settle), and the table itself, a row an unknown: the chance now, where
+it would lie once known (5-95 % over what the unknown could be) and the share settled, under each measure. The case's
+JSON carries it as `value_of_information`, as do `run --json` and `report --json`; `mcdonald kinematics` prints the
+sentences and gives the field from what it was told.
+
+*On the fourteen reference case files* (31 objects, their case files as they stand, read by this code). Thirty have all
+four missing, and **their tables are one table, to the second figure, whatever the clip**: with nothing known the reading
+is the measures' own. Under the speed of sound: 6.0 % of the even draws and 75-79 % of the invariant ones answer yes; the
+camera's own speed would settle the most under both (0.015 of 0.33 bits, and 0.36-0.44 of about 0.8: "4 to 58 % of that
+question"), the range next (0.008 and 0.07-0.10), and the angular scale and the aspect angle nothing by themselves (under
+0.002 bits each: a field of view is worth nothing without a range to go with it). Under 30 m/s the even measure leaves a
+chance under one in ten thousand, so nothing is left to settle there, while the invariant one gives 31-39 % and names the
+camera's speed (0.41-0.58 bits): the two disagree, the sentence says so, and nothing is ranked. PR113, whose graticule
+gives k, has the range first for the speed of sound under both (0.022 and 0.283 bits, the camera's speed 0.014 and 0.276).
+Were the camera known to stand still (v_own = 0 given; PR135's and PR149's objects and PR113 worked through), the range
+would lead both questions under both measures (0.59-0.82 bits of the invariant draws' question against at most 0.007 for
+k or θ). So the reading's order, for a case with nothing known, is the camera's own speed, then the range, and a field of
+view or an aspect angle only with those. It becomes a case's own where a stage bounds something. Whether a table that is
+the measures' own wherever nothing is known earns its place in every report is the maintainer's to say.
+
+*What it is not.* A probability of anything about the object: the chances are shares of draws under a named measure,
+and the two measures give 6 % and 77 % for the same clip. The camera's own speed is drawn from standing still to the
+speed cap, which is what makes it lead; a narrower prior for a known kind of platform would change the order, and none is
+assumed. The precision an unknown is given to (10 %, 5°) and the two questions are stated choices, not thresholds.

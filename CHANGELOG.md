@@ -5,6 +5,44 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**What a track says against known kinds of flying object, and which missing quantity to ask for first** (2026-11-13).
+These are the last additions the plan for 0.4 listed for `kinematics` (IDEAS.md Av11, Av10 and D8; `docs/method.md` § 61).
+Three readings are added to the kinematics step and the report. None changes a number an earlier report gave. Each is
+new, says when it cannot decide and why, and is not counted among the tests that could not decide.
+
+- *A table of known kinds, each number with its source* (`class_envelopes.csv`, `mcdonald.envelopes`). It holds sizes,
+  speeds and the greatest load each kind is built or measured to bear. The kinds are birds in two sizes, airliners,
+  light aircraft, fighter jets, helicopters, camera drones with several rotors, balloons, and the five groups of
+  unmanned aircraft of the US Department of Defense. The numbers come from published flight speeds, type certificates,
+  official fact sheets and the Code of Federal Regulations. The table does not say what an object is: small fast bodies
+  of every kind share the top of its scale.
+- *Speed in body lengths a second, as a lower limit.* The object's rate in the picture, over its length in the
+  picture, is its speed in its own lengths. That needs no range (the distance to the object) and no field of view. The
+  picture shows only the motion across the line of sight, so the true figure can only be higher. The report names the
+  kinds whose range holds that number, and the kinds it does not exclude. It also names the kinds the number is above
+  even with a strong tail wind. It gives no reading where the camera moved, and reads no kind of object from a blur.
+  On 209 videos of aircraft of known type and speed (the Galileo Project's) it stayed under the truth in 99 % of them
+  and wrongly excluded none.
+- *A turn as a load factor.* A turning body carries more than its weight, and how much depends on its speed, which
+  the video does not give. So how fast the object's heading turned gives each kind a speed limit, from its greatest
+  load. At one radian a second, a body built for 2.5 times its weight flew no faster than 22 m/s. A new figure draws
+  the curve (`<tag>_load.png`). There is no reading where the camera moved or may have turned. There is none from a
+  path that swings about without making a loop (PR077's object 1).
+- *Which missing quantity to ask for first.* Under the table of the four unknowns, the report now takes two
+  questions: is the object's own speed under 30 m/s, and is it under the speed of sound? It says how much each missing
+  quantity would settle each question, under two ways of weighing what is not known. One is ranked first only where
+  both ways agree. This ranks what to ask for and says nothing about the object. `mcdonald kinematics --json`,
+  `run --json` and `report --json` carry it as `value_of_information`.
+- *Edge crossings (IDEAS.md A16) were measured and set aside.* An object's brightness as it leaves the frame gives the
+  width of its blurred picture. A line drawn anywhere in the picture gives the same. And no recorded track leaves a
+  frame slowly enough to time.
+
+New fields of `mcdonald kinematics --json`: `body_lengths`, `load_curve`, `value_of_information`; `turn.ellipse` and
+`turn.swings` gain `omega_err_rad_per_s`. A new suite, `tests/test_unknowns.py`. The fourteen reference case files,
+measured again, gain those fields and nothing else changes (the gate: additions only on all 31 objects). Their
+reports each gain two rows of the summary, both saying the reading cannot decide and why, and the section on which
+missing quantity to ask for first.
+
 **A group of points: one rigid body or several, and do its members keep their places** (ROADMAP 0.5.x; IDEAS M7,
 B23, E21, S14; 2026-11-13).
 

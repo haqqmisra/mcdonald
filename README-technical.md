@@ -203,7 +203,10 @@ mcdonald symbology CLIP.mp4
 # layers step measured: the camera's or not; method section 51); and what survives with no range, field of view or
 # platform speed: the constant-velocity test, the turn radius in body widths (--size-px), the smear number, and which
 # motion models survive as a 90 % model confidence set (a line, constant velocity in projection, a steady turn); beside
-# the band, its jitter read with no model (a beat it misses)
+# the band, its jitter read with no model (a beat it misses); two readings against a sourced table of known kinds
+# (class_envelopes.csv; method section 61): the speed in body lengths a second as a lower bound (--size-px) and the turn
+# as a load-factor curve (<tag>_load.png), each NO POWER where the camera moved; and which of the four unknowns would
+# settle the most of a stated question about the speed, under two measures
 mcdonald kinematics CLIP.mp4 --track track.csv --ladder
 
 # Does the object move WITH the texture around it, or THROUGH it?
@@ -375,7 +378,10 @@ kinematics stage fits its rate to the track on one scale, and the camera stage t
 the pictures disagree with is said so and not used. `run --no-phone` refuses the record. Any other clip is not asked.
 `docs/method.md` §14-30, §34, §36, §37, §39, §40, §42 and §45 say how each works and how each fails. `horizon`, `focus`, `haze` and `slew` take `--case CASE/clip_case.json`: the measurement is recorded in a
 case `run` made and its report written again, whose table of **the four unknowns** (k, R, θ and v_own: constrained,
-assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound.
+assumed, bounded or missing, by which route, and which released datum would close each) then carries the bound. Under that
+table the report says which missing unknown is worth asking for first (`kinematics.value_of_information`, §61): the bits
+of "is its own speed under 30 m/s?" and "under the speed of sound?" each would settle, under two measures, one ranked
+first only where both agree.
 
 `CLIP` is a path to any video file. Results go to a **case directory** —
 `--out DIR`, otherwise `./<name>/` under your working directory, and for a

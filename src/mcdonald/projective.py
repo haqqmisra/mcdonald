@@ -491,7 +491,8 @@ def against_wander(t, p, w, fps):
     line, a wander and the ellipse. The wander takes up what is wander in both, which is what makes one threshold do for any
     size and range of it. Returns None where a covariance will not fit; else dict(lr, -2 log the likelihood ratio, full
     likelihoods; minor_sigmas, the minor axis over its error under the covariance left, at the rate given; major_err_px, the major
-    axis's error under that covariance with the rate let go as well, nine numbers with x and y sharing it).
+    axis's error under that covariance with the rate let go as well, nine numbers with x and y sharing it; omega_err_rad_per_s,
+    the rate's own error from the same nine, which the load-factor curve reads, `envelopes.turn_rate`).
     `ellipse`'s own error is white at a fixed rate: on drawn turns the truth lay within one of it 4-29 % of the time, within one of this 50-81 %."""
     from . import kriging as kg
     st = max(1, int(math.ceil(len(t) / LOOP_NMAX)))
@@ -527,7 +528,8 @@ def against_wander(t, p, w, fps):
     for j in (0, 1):
         g[4 * j + 2], g[4 * j + 3] = U[j, 0] * Vt[0, 0], U[j, 0] * Vt[0, 1]
     return dict(lr=float(lr), minor_sigmas=float(S[1]) / math.sqrt(var_minor) if var_minor > 0 else 0.0,
-                major_err_px=math.sqrt(max(float(g @ C @ g), 0.0)))
+                major_err_px=math.sqrt(max(float(g @ C @ g), 0.0)),
+                omega_err_rad_per_s=math.sqrt(max(float(C[8, 8]), 0.0)))      # the turn rate's, from the same nine numbers (Av10)
 
 
 def turn(track, fps, width_px, t0=None, t1=None, n0=None, n1=None):
