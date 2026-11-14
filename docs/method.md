@@ -6333,19 +6333,24 @@ coordinate at the band's middle: of the 3,390 wobbles planted in both sets, 70 %
 found, 85 % at 1 to 1.5 times, 88 % at 1.5 to 2 times, 99 % over 3 times (on the recorded tracks alone 74, 79 and 87 %
 from 1 times up).
 
-**The known birds.** The five flyers (a camera that does not move; the stage's centroid; as the picture has it): flyer 1
-3.41 ± 0.16 Hz (the paper's 3.36), 0.18 px; flyer 2 4.55 ± 0.12 (4.49), 0.39 px; flyer 3 10.00 ± 0.11 (10.04), 0.15 px;
-flyer 4 7.50 ± 0.13, twice its 3.85, 0.13 px (its strongest with no frequency given is 8.50, twice the 4.19-4.25 Hz the
-stage's own windows read on it); flyer 5 7.93 ± 0.64, twice its 3.90, 0.21 px; chance 0.003 or less each. The roadmap's
-"within 0.1 Hz" holds for three of the five by this reading; two beat in the position at twice the rate, 0.13 and 0.20
-Hz from the paper's double. PR135's six, each against the other five: 7.92, 7.37, 7.82, 7.17, 7.69 and 7.74 Hz against
-their brightness's 7.84, 7.38, 7.85, 7.11, 7.65 and 7.60, by 0.46-0.72 px, chance 0.002 each, all six within their errors;
-1-3 % of the rhythm goes with the brightness and what is left stands 70-250 times. Of the 28 reference objects with a
+**The known birds.** The five flyers through the stage, the scene registered (a camera that does not move, so the
+scene's path is nought and the track is the object's): flyer 1 3.41 ± 0.17 Hz (the paper's 3.36), 0.18 px, the codec's
+12.00 Hz said apart; flyer 2 4.41 ± 0.05 (4.49), 0.36 px; flyer 3 10.00 ± 0.12 (10.04), 0.15 px; flyer 4 8.50 ± 0.22,
+twice the 4.19-4.25 Hz the stage's own windows read on it (the paper's 3.85), 0.11 px; flyer 5 7.93 ± 0.64, twice its
+3.92, 0.21 px; chance 0.002-0.003 each. The roadmap's "within 0.1 Hz" holds for three of the five by this reading;
+two beat in the position at twice the rate. Four of the five move more than their backgrounds give a beating
+brightness (0.8-4.2 px for a unit of brightness against a reach of 0.11-0.67); flyer 3 does not (0.50 against 0.59),
+and its reading says "the object may not move at all". PR135's six, each against the other five: 7.92, 7.37, 7.84,
+7.17, 7.69 and 7.74 Hz against their brightness's 7.85, 7.39, 8.02, 7.09, 7.90 and 7.74, by 0.46-0.72 px, chance 0.002
+each, all six within their errors and beyond their backgrounds' reach (2.2-5.9 px for a unit of brightness against
+0.17-0.54).
+Of the 28 reference objects with a
 beat, as the picture has it, 21 carry it in their position (PR077's object 1 at 9.88 ± 0.08, PR085 at 7.41 ± 0.06, PR088's
 object 2 at 10.53 ± 0.13 by 0.36 px over 59 stretches, PR41 at 6.44 ± 0.01 by 0.92 px, PR44 at 3.09 ± 0.02 by 0.91 px);
-PR144's object, which has no beat of its own, does not. GL6's lead (PR085: a line in the brightness with the track
-bending at the same rate) is that reading: 7.41 ± 0.06 Hz in the position, 0.6 of an error from the brightness's 7.37,
-5 % of it with the brightness.
+PR144's object, which has no beat of its own, does not. GL6's lead (PR085, frames 2983-3548: a line in the brightness with the track bending at the same rate) is that
+reading. With the scene registered the position moves at 7.34 ± 0.04 Hz by 0.24 px, chance 0.002, 4.8 px for a unit
+of brightness where its background gives 0.41 at most. The stage calls no beat on that stretch (its one window at
+7.28 Hz is not kept); the band search holds the same line (section 59.2).
 
 **Cost.** One REML fit a coordinate (300 points at most) and the draws: 0.4 s at the median and 1.4 s at the 90th
 centile a track on one CPU; PR088's object 2 (3,558 frames, 59 stretches) 3.8 s.
@@ -6391,12 +6396,16 @@ grain and a wander with little grain, a line is given 0 to 1.0 % of the time, al
 aperture searched as the object against the other three (the control by construction, `false_alarm` in every
 measurement): 15 lines in 5,772 band searches (0.26 %) over the 459 saved curve sets (the controls harness's 27 and the
 labelled infrared set's 432, judged again from their curves under the stage's rule). On real objects that are not
-birds: no line that is not the stage's own beat on the 27 controls' 29 objects; on the labelled set's non-birds 2 of
-the 288 the search could read (0.7 %; exact 95 % 0.1-2.5 %), both airplanes, 0 of 162 drones and 0 of 44 helicopters:
-IR_AIRPLANE_001 (8.13 Hz at 1.0 %, the line the paper's rule calls a beat there; that camera's platform shakes at
-8.2-8.3 Hz, section 59.1) and IR_AIRPLANE_074 (10.22 Hz at 1.3 %). So these are rhythms that are in the brightness,
-not chance; what makes them is not the search's to say. The held-out third of the release videos was not touched: the
-reading was built on drawn curves and read on these sets.
+birds: no line that is not the stage's own beat on the 27 controls' 29 objects. On the labelled set's non-birds a line
+is said on 5 of the 286 the search could read (1.7 %; exact 95 % 0.6-4.0 %): 2 of 80 airplanes, 3 of 162 drones and 0
+of 44 helicopters. IR_AIRPLANE_001 (8.13 Hz at 1.0 %, the line the paper's rule calls a beat there; that camera's
+platform shakes at 8.2-8.3 Hz, section 59.1) and IR_AIRPLANE_074 (10.22 Hz at 1.3 %) hold a line beside the stage's
+strongest rhythm. On IR_DRONE_024 (9.84 Hz at 0.4 %), IR_DRONE_026 (8.09 Hz at 0.7 %) and IR_DRONE_072 (5.34 Hz at
+1.9 %) the line is the stage's own strongest rhythm, which its tests did not hold to be a beat (`the_peak`). So these
+are rhythms that are in the brightness, not chance; what makes them is not the search's to say, and the stage's call
+on all five stays "no beat". That 1.7 % is the rate at which this reading and the call part on objects known not to
+be birds. The held-out third of the release videos was not touched: the reading was built on drawn curves and read on
+these sets.
 
 **Completeness** (drawn: a wander of 8 %, grain of 2 % a frame): a line of 2, 3, 4.4 and 6 % is found 9, 39, 68 and 85 %
 of the time at 150 frames and 32, 76, 78 and 87 % at 240.
@@ -6404,11 +6413,21 @@ of the time at 150 frames and 32, 76, 78 and 87 % at 240.
 **What it says.** Where a band holds a line that is not the stage's own beat (within a resolution of it or of its
 double), the notes say "a line at f Hz, a % of its brightness, in the N-M Hz band, which the background beside it does
 not show (chance p)", and whether the stage calls a beat; the report's bottom line says it in a reader's words. Where
-the line is the stage's own beat, nothing more is said. On the 27 controls no band holds a line that is not the stage's
+the line is the stage's own beat, nothing more is said. Where it is the stage's strongest rhythm and the stage did not call it a beat
+(`the_peak`), the note says that the stage's own tests did not hold it, and that the finding says why. On the 27
+controls no band holds a line that is not the stage's
 own beat; where a control's beat lies inside a band, the search holds the same line (flyers 2, 3 and 4, PR135's six,
 AIRPLANE_064, DRONE_059), at the paper's frequency where the stage reports its clearest window's (flyer 2: 4.48 Hz
 against the stage's 4.25 and the paper's 4.49; flyer 4: 3.88 against 4.19 and 3.85). On the labelled set's birds it adds
 a second line beside the beat on two (IR_BIRD_053, 6.47 Hz beside its 3.06; IR_BIRD_067, 5.91 beside its 2.44).
+
+**Where it parts from the call on the release videos read so far** (the stage run whole on each, 2026-11-13). PR089's
+object 3 (frames 483-667): the stage calls no beat, its strongest rhythm standing 9.3 times where 9.4 is needed over
+the drift; the search holds it as a line, 10.50 Hz at 5.0 % of the brightness, 8.1 times its neighbours where the
+background's apertures stand 3.4 at most, chance 0.008. PR089's objects 0, 2 and 4 hold no line. PR085 (frames
+2983-3548, GL6's stretch): the stage calls no beat; the search holds 7.34 Hz at 5.0 %, 18.5 times its neighbours
+(the background's 2.2), chance 0.002, within the codec's 7.5 Hz by its error and said so. The fourteen reference case
+files are read by the gate (below, and the strand's notes).
 
 ### 59.3 The shape of a beat that sits on a look-alike (T2; `beatshape`)
 
@@ -6443,6 +6462,20 @@ chain makes (`chain_marked`: every mark but the flames' and the rotors', which a
 s, 7 times in 8; a blob 3 px in sigma whose brightness alone beats by 20 % has no line in its width outside the core
 (p 0.04) where the planted change shows (p 2e-9), though its pixel area beats in step (p 3e-10); one whose width beats
 by 8 % has (p 7e-11); a point and a blob clipped beyond its core are NO POWER.
+
+**On objects whose nature is known** (the stage run whole on each, 2026-11-13; the curves of the labelled set judged
+again). Galileo flyer 3, a bird at 10.03 Hz: its depth runs from 27 to 39 % over 3 pieces, no more than a steady
+beat's does (chance 0.07); its frequency wanders (chance 0.005 of a clock's); its width is a point. PR135's six
+(7.1-8.0 Hz): depths that do not change (chance 0.07-0.94, 2 pieces each), frequencies that wander at 1 in 100 on four
+of the six (0.005-0.025 over all six), widths not read (a point, or pixels outside the core clipped on 7-35 % of the
+frames). IR_DRONE_059, a held-picture cadence at 10.00 Hz: its depth changes (2.6-14.4 %, chance 0.005), its frequency
+holds (0.06), its width is not read (clipped). On the labelled set's curves the depth also changes on IR_DRONE_023
+and IR_DRONE_098 (cadences at 10 Hz), on three helicopters' beats (IR_HELICOPTER_051, 054 and 055) and on one bird's
+(IR_BIRD_027's object 1, of four birds read). So the depth does not sort a bird from a cadence; the width was read on
+none of these, all points or clipped cores; and the steadiness is the one of the three that parted the known birds
+from the known cadence here. Seven birds and one cadence are not a calibration, and the three readings stay readings.
+The two objects of the bird paper's Table 1 were read with all three for the maintainer: the numbers are fields of
+the stage's output (`morphology[name]`), and they decide nothing.
 
 **Cost.** The depth 1.6 s for a 10-s track and 5 s for PR088's object 2; the width a few hundredths of a second.
 

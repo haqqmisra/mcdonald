@@ -700,7 +700,9 @@ def said(name, r, several=False):
     else:
         head = (f"Its position{who}, {took}, shows no rhythm beyond its own wander and jitter. The strongest, at {r['hz']:.2f} Hz, comes "
                 f"by chance {r['p']:.2f} of the time. One of about {r['needed_px']:.2f} pixels would have shown three times in four."
-                + ("" if not ab else f" Its brightness beat at {ab['hz']:.2f} Hz is not in its position."
+                + ("" if not ab else
+                   f" At the rate of its brightness beat, {ab['hz']:.2f} Hz, its position moves by {amp(ab['amplitude_px'])} at most, "
+                   f"which chance gives {ab['p']:.2f} of the time. So the beat is not shown in its position."
                    if ab.get("at_the_cadence_hz") is None else
                    f" Its brightness beat at {ab['hz']:.2f} Hz is at the rate the video holds its pictures at "
                    f"({ab['at_the_cadence_hz']:.2f} Hz), or beside it. A position cannot be read there: what moves at that rate is "
@@ -724,7 +726,8 @@ def said(name, r, several=False):
     if ab and ab["line"] and ab.get("at_the_codec_line_hz"):
         tail += (f" That rate is within the beat's error of one of the video's own rhythms ({ab['at_the_codec_line_hz']:.2f} Hz: its coding, "
                  "or the pictures it holds), so the rhythm may be the video's.")
-    elif c and c.get("line") and not (ab and ab["line"] and abs(c["hz"] - ab["position_hz"]) <= r["resolution_hz"]):
+    elif (c and c.get("line") and not (ab and ab["line"] and abs(c["hz"] - ab["position_hz"]) <= r["resolution_hz"])
+          and c.get("at_the_codec_line_hz") not in (r.get("sampling_lines_hz") or [])):
         tail += (f" The position also moves at one of the video's own rhythms ({c['hz']:.2f} Hz: its coding, or the pictures it holds), "
                  "which is left out.")
     if r.get("sampling_lines_hz") and max(r.get("cadence_px") or [0.0]) > 0:
