@@ -597,10 +597,25 @@ knowing what the search could not have found.
    person" says how much was looked at: frames drawn at random for the person to check (59
    with no error bound the track's error rate at 5 %), weighted toward the frames that move
    the answer, and samples of what each gate refused (E8).
+
+   *Begun 2026-11-13* (`mcdonald.batch`, `docs/method.md` §54, `tests/test_batch.py`). The command is built: a unit of work is one
+   video, searched by Find in windows of 400 frames; a spot seen on 40 frames or more is an object (the beat sweep's rules, moved into
+   the package), the first twelve by Find's score each a case of `mcdonald run`; a folder a video with its objects, their list and a
+   `.mcdonald` file that reruns to its numbers; a table over the corpus with a row an object; resumable, with the version and options
+   kept with each video; a pool here, or job arrays on a scheduler. A pilot of eleven PURSUE videos set its costs, and the first run
+   over all 144 began that night on the workstation. E8's draw and sheet are built from the command line (59 frames a track, by
+   leverage, with the exact bound once a look is recorded). *What the first table taught:* a row is a spot that lasted, not an object
+   -- one bird of the bird paper's Table 1 is seven rows (PR088), a flock is two (PR135) -- and an object in view under 40 frames is
+   counted and never measured (PR113's transit, PR43's streak). *Still to do:* joining the pieces of one track across a gap, and
+   splitting a group into its members with no count given (both for 0.7's benchmark); the plants through the same command
+   (objective 4); the window's part of E8; the rule's numbers set on a null.
 2. **The workstation.** One worker per core within the memory budget (64 workers need about
    26 GB at 1080p); the next round of the parallel work (integrity's whole-video preamble run
    alongside the rest; the static pattern's large parts; the rule that a pool's job sends back
    small things); whole-video timings in the README's table.
+
+   *The timings are in the README's table since 2026-11-13*, from the batch's own record (Find 0.16 s a frame on 8 CPUs; an object 3
+   minutes; 4 CPUs a video the better split).
 3. **The GPU, used to the full and never required.** Array versions of the band-pass, the
    correlation shift field and the matched filters, the CPU path the reference and the goldens
    run on both, with the move to single precision checked against them. The gain on the

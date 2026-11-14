@@ -66,16 +66,24 @@ for updates in the window, and the `version` line of `mcdonald setup` (`--json`:
   2 MB to 3 GB (most under 100 MB). Both go in one folder you choose on the first screen.
 - **Memory**: 8 GB is enough for a segment of a few hundred frames; more for whole videos.
 - **Time.** mcdonald compares frames pixel by pixel, and some steps are slow. On the machine it
-  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment:
+  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment, and on 8 CPUs
+  (4 cores) of the workstation it is developed on now (a 48-core Xeon of 2025), for whole videos:
 
-  | step | about |
-  |---|---|
-  | saving the frames (once) | a few seconds per 100 frames |
-  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) |
-  | Follow it | about ten seconds |
-  | Measure, without the two slow checks | under a minute |
-  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) |
-  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) |
+  | step | the 2012 workstation, about | 8 CPUs of the 2025 workstation, about |
+  |---|---|---|
+  | saving the frames (once) | a few seconds per 100 frames | 1 s per 100 frames |
+  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) | 0.16 s a frame, 720p and 1080p alike (a 5-minute video: 25 minutes) |
+  | Follow it | about ten seconds | 5 s + 0.02 s a frame (a 9-second track: 10 s) |
+  | Measure, without the two slow checks | under a minute | 45 s |
+  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) | 50 s + 0.07 s a frame (9 s: ~1 minute) |
+  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) | 45 s + 0.04 s a frame (9 s: ~1 minute) |
+
+  The right-hand column is the record of whole videos run through `mcdonald batch` (November 2026: eleven PURSUE
+  videos, 35 objects followed and measured with every check; `docs/method.md` §54). There an object takes 3 minutes
+  on 8 CPUs (1 to 9, by the length of its track) and 4 minutes on 4, and the two slow checks are 70 % of it. A whole
+  video is Find over every frame and then its objects: a 52-second video with 7 objects (PR149, 1,545 frames) took
+  33 minutes on 8 CPUs and 43 on 4; a 5-minute video with 12 (PR088, 8,964 frames) 52 minutes on 8 CPUs. Half the
+  CPUs take about 1.3 times as long, so several videos side by side on 4 CPUs each get through more than fewer on 8.
 
   On four CPUs (a laptop) count on about twice these: a 2-second segment of PR113 measured with
   every check took 8 minutes there. The long steps use every CPU there is, as far as the memory
