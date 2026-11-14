@@ -6250,3 +6250,29 @@ second, a circle in 14 s; at a bird's 15 m/s that is 1.2 g, inside what birds ar
 to 2.5 g could have flown it only below 77 m/s. The figure (`<tag>_load.png`, in the house style: both axes logarithmic,
 the turn's curve red with its band, each class a bar at its limit across the speeds it flies at, named in a legend under
 the plot) is drawn where the reading has power.
+
+### 61.4 Edge crossings: tried and set aside (A16)
+
+The idea (section 33's "not built"): an object leaving the frame has its brightness cut over the time its width takes to
+cross the edge, so the crossing time times the track's rate is its length across the edge, independent of the tracker's
+idea of its size. Measured before building it into a stage:
+
+- *Drawn frames* (a slab of known length crossing the frame's edge at a known speed, blurred, summed over the exposure
+  and the pixel, with noise; an error-function edge fitted to its summed brightness inside the frame; 61 cases). The
+  crossing recovers the **blurred image's** extent across the edge, √(L²/12 + blur² + 1/12 + v²/12), not the body's: 1.09
+  of it (median) where the crossing spans three frames or more, 9 % long because an error function is not a ramp's
+  shape, with a stated error that is not honest at low noise (pulls +3.1); under a frame and a half across it fails
+  (0.25); and a body of half a pixel reads the blur or does not fit. **A frame's edge is no different from a line drawn
+  anywhere in the picture** (4.26 px against 4.20 on the same frames): the frame, a redaction box and an overlay all
+  cut the picture after the lens has blurred it. The crossing is the image's own profile read slowly, which
+  `report.extent` and the camera stage's length already read from single frames.
+- *The census.* Of the 81 recorded tracks of the tether null (AARO's 45, the reference objects' 30, six goldens) none
+  ends within 12 px of a frame edge; the four nearest (PR141 object 1 at 14 px, PR149 at 16, PR43 at 21, an AARO object
+  at 22) move 8 to 21 px a frame outward, so their crossing is over within a frame or two. PR113's object crosses at
+  142 px a frame. In the labelled infrared set 41 track ends on 39 of 432 tracks reach an edge (32 birds, 9 drones, a
+  median 0.7 px a frame outward), 22 of them with the crossing recorded.
+
+So no row: its conditions are met by no recorded PURSUE or AARO track, and where they are met it measures what the
+report already has. What would be different is an edge *in the scene* (a mast, the horizon, a cloud's edge), which cuts
+the light before the blur and so can show a body smaller than the blur; no recorded track has one, and the idea stays
+open under that name. Not measured: the 22 recorded crossings of the labelled set, from their frames.
