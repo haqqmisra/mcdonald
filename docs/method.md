@@ -6276,3 +6276,52 @@ So no row: its conditions are met by no recorded PURSUE or AARO track, and where
 report already has. What would be different is an edge *in the scene* (a mast, the horizon, a cloud's edge), which cuts
 the light before the blur and so can show a body smaller than the blur; no recorded track has one, and the idea stays
 open under that name. Not measured: the 22 recorded crossings of the labelled set, from their frames.
+
+### 61.5 Which unknown to ask for: the value of information (D8; `kinematics.value_of_information`)
+
+The ledger says which of the four a case lacks. This says which is worth asking for first: for a stated yes-or-no
+question about the object's own speed (under 30 m/s? under the speed of sound?), the mutual information of the answer
+with each missing unknown (Lindley 1956) -- how many bits of the question's uncertainty it would settle if a source gave
+it, to a stated precision (10 % for k, R and v_own, 5° for θ) -- with the chance now and where it would lie once the
+unknown was known. The object's own speed is |v_rel + v_own| with v_rel = hypot(ωR, Ṙ) and ω = v_px / k.
+
+That needs a measure over what is not known, and M2 binds it (the same region is 31 % or 97 % subsonic by the choice of
+measure alone). So it is computed under two named measures, 200,000 seeded draws each, cut to the region the speed cap
+allows: *evenly* (the field of view over the ladder's 0.7-54°, the range, the range rate and the camera's speed each
+uniform) and *invariant* (k, R and the camera's speed log-uniform, the directions isotropic). **An unknown is named first
+only where both measures put it first**, each clear of the next by three of the draws' own errors (the bits recomputed on
+five parts of the draws: numerical noise, not a finding); otherwise the row says the two disagree and ranks nothing. A
+field of view that is a guess counts as missing. It ranks what to ask for. It says nothing of the object.
+
+*Held to answers worked by hand.* One unknown: with ω 0.1 rad/s across the line of sight from a still camera and the
+range between 10 m and 10 km, P(v < 30 m/s) is ln 30 / ln 1000 = 0.492 log-uniform and 290 / 9990 = 0.029 evenly (the
+suite's draws: both to three figures), and the range settles all of it but the one bin the threshold falls in; with the
+range known and the direction free, √(1 − (ωR/v₀)²) = 0.745 isotropic and 0.022 evenly. Two unknowns (k and R, no cap):
+the bits of each against a one-dimensional quadrature, to 0.02 bits under both measures.
+
+*In the report.* Under the table of the four unknowns: a paragraph that says what the table is and is not, one sentence a
+question (which unknown would settle the most, with the share of the question's bits under the two measures; or that the
+two disagree; or that one of them leaves nothing to settle), and the table itself, a row an unknown: the chance now, where
+it would lie once known (5-95 % over what the unknown could be) and the share settled, under each measure. The case's
+JSON carries it as `value_of_information`, as do `run --json` and `report --json`; `mcdonald kinematics` prints the
+sentences and gives the field from what it was told.
+
+*On the fourteen reference case files* (31 objects, their case files as they stand, read by this code). Thirty have all
+four missing, and **their tables are one table, to the second figure, whatever the clip**: with nothing known the reading
+is the measures' own. Under the speed of sound: 6.0 % of the even draws and 75-79 % of the invariant ones answer yes; the
+camera's own speed would settle the most under both (0.015 of 0.33 bits, and 0.36-0.44 of about 0.8: "4 to 58 % of that
+question"), the range next (0.008 and 0.07-0.10), and the angular scale and the aspect angle nothing by themselves (under
+0.002 bits each: a field of view is worth nothing without a range to go with it). Under 30 m/s the even measure leaves a
+chance under one in ten thousand, so nothing is left to settle there, while the invariant one gives 31-39 % and names the
+camera's speed (0.41-0.58 bits): the two disagree, the sentence says so, and nothing is ranked. PR113, whose graticule
+gives k, has the range first for the speed of sound under both (0.022 and 0.283 bits, the camera's speed 0.014 and 0.276).
+Were the camera known to stand still (v_own = 0 given; PR135's and PR149's objects and PR113 worked through), the range
+would lead both questions under both measures (0.59-0.82 bits of the invariant draws' question against at most 0.007 for
+k or θ). So the reading's order, for a case with nothing known, is the camera's own speed, then the range, and a field of
+view or an aspect angle only with those. It becomes a case's own where a stage bounds something. Whether a table that is
+the measures' own wherever nothing is known earns its place in every report is the maintainer's to say.
+
+*What it is not.* A probability of anything about the object: the chances are shares of draws under a named measure,
+and the two measures give 6 % and 77 % for the same clip. The camera's own speed is drawn from standing still to the
+speed cap, which is what makes it lead; a narrower prior for a known kind of platform would change the order, and none is
+assumed. The precision an unknown is given to (10 %, 5°) and the two questions are stated choices, not thresholds.
