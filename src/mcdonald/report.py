@@ -166,10 +166,11 @@ CHECKS = {
 }
 
 
-def _near_vertical(line):
+def _near_vertical(line, picture=True):
     """How near straight down (or up) the picture a line lies, in words: "about 13° from straight down the picture"."""
     off = line.get("off_vertical_deg") or 0.0
-    return ("under 1°" if off < 1 else f"about {off:.0f}°") + f" from straight {'up' if line.get('above') else 'down'} the picture"
+    return (("under 1°" if off < 1 else f"about {off:.0f}°") + f" from straight {'up' if line.get('above') else 'down'}"
+            + (" the picture" if picture else ""))
 
 
 def hang_said(tf):
@@ -181,7 +182,7 @@ def hang_said(tf):
     down one time in five, so the words say how often a chance line is as near as this one."""
     h = tf.get("hang") or {}
     line, out = h.get("line") or {}, h.get("outcome")
-    if tf.get("fellow_member") or out not in ("hangs", "beside it", "cannot say") or h.get("of") is None and out != "cannot say":
+    if out not in ("hangs", "beside it", "cannot say") or h.get("of") in (None, "fellow member") and out != "cannot say":
         return []
     if out == "cannot say":
         if h.get("cannot") not in ("few", "roll"):
@@ -189,18 +190,19 @@ def hang_said(tf):
         return ["Whether anything hangs under the object cannot be said: "
                 + ("what moves with it shows on too few frames to read the angle of the line between them."
                    if h["cannot"] == "few" else
-                   f"the picture itself turned by about {(line.get('scene') or {}).get('roll_deg') or 0:.0f}° over these frames.")]
+                   f"the picture itself turned by about {(line.get('scene') or tf.get('scene') or {}).get('roll_deg') or 0:.0f}° "
+                   "over these frames.")]
     where = "over" if line.get("above") else "under"
     at_it = h.get("of") == "line at the object"
     if out == "beside it":
-        return [("A line starts at the object, " if at_it else "The line from the object to it lies ")
-                + f"about {line['off_vertical_deg']:.0f}° from straight {'up' if line.get('above') else 'down'} the picture. "
-                + ("That is to one side of the object, not hanging under it." if at_it else "So it is beside the object, not hanging under it.")]
+        return [f"The line from the object to it lies about {line['off_vertical_deg']:.0f}° from straight "
+                f"{'up' if line.get('above') else 'down'} the picture. So it is beside the object, not hanging under it."]
     odds = int(90.0 / max(line["off_vertical_deg"], 1e-6))
-    L = [(f"A line starts at the object and runs {'up' if line.get('above') else 'down'} the picture, {_near_vertical(line)}. "
+    L = [(f"A line starts at the object and points {'up' if line.get('above') else 'down'} the picture, {_near_vertical(line, False)}. "
           f"It shows on {100 * (tf.get('at_object') or {}).get('seen_on', 0):.0f}% of the frames, on that side of the object only."
           if at_it else f"It stays on a line {where} the object, {_near_vertical(line)}."),
-         "Two things joined by a hanging line would lie that way.",
+         "Two things joined by a hanging line would lie that way. So would two separate objects, one keeping its place "
+         + ("over" if line.get("above") else "under") + " the other.",
          ("A line at a random angle lies that close to straight up and down the picture "
           + (f"about one time in {odds}." if odds <= 50 else "fewer than one time in 50."))]
     roll = (line.get("scene") or {}).get("roll_deg")
@@ -2154,15 +2156,17 @@ class Case:
                    ", with no regular swing" if sw.get("swings") is False and sw.get("period_refused_s") else
                    ", at a steady angle (no swing)" if sw.get("swings") is False else "")
                 + ("; whether it hangs under it cannot be said" if of_it and hg.get("outcome") == "cannot say" else ""))
-        elif hg.get("of") == "line at the object" and hg.get("outcome") in ("hangs", "beside it"):
-            add("with", "tether", YES, "a line starts at the object and runs "
-                + (f"{'up' if hl.get('above') else 'down'} the picture, {_near_vertical(hl)}: something hangs {'over' if hl.get('above') else 'under'} it"
-                   if hg["outcome"] == "hangs" else "to one side of it, not straight down the picture"))
+        elif hg.get("of") == "line at the object" and hg.get("outcome") == "hangs":
+            add("with", "tether", YES, f"a line starts at the object and points {'up' if hl.get('above') else 'down'} the picture, "
+                                       f"{_near_vertical(hl, False)}: something hangs {'over' if hl.get('above') else 'under'} it")
+        elif hg.get("outcome") == "cannot say" and hg.get("cannot") == "roll":   # nothing found on a picture that turned
+            add("with", "tether", CANT, f"the picture itself turned by about {(tt.get('scene') or {}).get('roll_deg') or 0:.0f}° over "
+                                        "these frames, so what hangs under the object would not have shown")
         elif tt.get("finding") and tt.get("searched_px") and tt.get("hang"):   # the ring, and since H5 the object's own picture
             near, far = tt["searched_px"]
             add("with", "tether", NO, f"nothing between {near:.0f} and {far:.0f} pixels from it keeps step with it, and "
-                                      + ("no line starts at the object" if (tt.get("at_object") or {}).get("strength") is not None else
-                                         "closer in could not be searched"))
+                                      + ("no line points down the picture from the object" if (tt.get("at_object") or {}).get("strength") is not None
+                                         else "closer in could not be searched"))
         elif tt.get("finding") and tt.get("searched_px"):   # said of the ring that was searched (0.5.2; PR28's stem starts at the object)
             near, far = tt["searched_px"]
             add("with", "tether", NO, f"nothing between {near:.0f} and {far:.0f} pixels from it keeps step with it; closer in was not searched")

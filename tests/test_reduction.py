@@ -2605,6 +2605,86 @@ def test_the_report_follows_the_tether_stage_of_0_5_2():
     check(row["said"] == "nothing within 40 object widths keeps step with it", "a report made before 0.5.2 reads as it did", row["said"])
 
 
+def test_the_report_says_whether_something_hangs_under_it():
+    """IDEAS.md H5 (session 23, 2026-11-13): the tether stage's first outcome, "does something hang under the object?",
+    in the paragraph and in the checklist's row. It is a claim about the picture, so the words say "straight down the
+    picture" and that the camera's tilt is not given; they say how often a line at a random angle lies as near, and
+    that a separate object keeping its place under this one would lie the same way. Nothing of it is in the headline
+    (Jacob, 2026-10-22: what only moves with the object is the bottom line's). A report made before reads as it did."""
+    print("\nreport: does something hang under it?")
+
+    def case(companion=None, swing=None, **more):
+        c = report.Case("t", "/tmp/x.mp4")
+        report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0)).into(c)
+        report.Found("tether", {"finding": "x"}, fields=dict(finding="x", r_max=40.0, companion=companion, swing=swing,
+                                                           searched_px=[18.2, 540.0], **more)).into(c)
+        return c
+    near = dict(sign="bright", r_over_size=2.8, direction_deg=0.0, followed_on=0.46, followed_jitter_px=0.4)
+    steady = dict(swings=False)
+    line = dict(frames=497, off_vertical_deg=1.4, above=False, chance=1.4 / 90, spread_deg=3.0, within=1.0,
+                scene=dict(roll_deg=0.8, scale=1.01, read_on=1.0))
+    hang = lambda outcome, of="companion", ln=line, cannot=None: dict(outcome=outcome, of=of, line=ln, cannot=cannot)
+    c = case(near, steady, hang=hang("hangs"))
+    (label, head), para = c.conclusion(), c.bottom_line()
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    said = ("A bright feature moves with it, 2.8 object widths away and +0° from straight down. It shows there on 46% of the frames. "
+            "It holds a steady angle, so there is no swing and no length to read. It stays on a line under the object, about 1° from "
+            "straight down the picture. Two things joined by a hanging line would lie that way. So would two separate objects, one "
+            "keeping its place under the other. A line at a random angle lies that close to straight up and down the picture fewer "
+            "than one time in 50. Straight down the picture need not be straight down in the world: this video does not give the "
+            "camera's tilt.")
+    check(said in para, "hangs: the paragraph says the line, what would lie that way, how often chance does, and that the picture's "
+                        "down is not the world's", para[para.find("A bright feature"):][:520])
+    check("hanging" not in head and "line under" not in head, "and nothing of it is in the headline", head)
+    check(row["answer"] == "Yes" and row["said"] == "a bright feature 2.8 object widths away hangs on a line under it, about 1° from "
+                                                   "straight down the picture, at a steady angle (no swing)",
+          "the checklist's row says it hangs on a line under it", row["said"])
+    over = dict(line, off_vertical_deg=13.3, above=True, chance=13.3 / 90, scene=dict(roll_deg=3.4, scale=1.0, read_on=1.0))
+    c = case(dict(near, direction_deg=-167.0, followed_on=1.0), steady, hang=hang("hangs", ln=over))
+    para = c.bottom_line()
+    check("It stays on a line over the object, about 13° from straight up the picture." in para
+          and "one keeping its place over the other. A line at a random angle lies that close to straight up and down the picture about "
+              "one time in 6. The picture itself turned by about 3° meanwhile. Straight down the picture need not be" in para,
+          "the track on the lower end of a pair 13° off: over the object, one time in 6, and the picture's own turn",
+          para[para.find("It stays"):][:420])
+    c = case(near, steady, hang=hang("beside it", ln=dict(line, off_vertical_deg=47.7, chance=0.53)))
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check("The line from the object to it lies about 48° from straight down the picture. So it is beside the object, not hanging "
+          "under it." in c.bottom_line() and row["said"] == "a bright feature 2.8 object widths away moves with it, beside it and not "
+                                                            "under it, at a steady angle (no swing)",
+          "beside it: said in the paragraph and in the row", row["said"])
+    stem = dict(line, off_vertical_deg=0.9, chance=0.01)
+    c = case(None, None, hang=hang("hangs", of="line at the object", ln=stem), at_object=dict(strength=17.0, mirror=0.08, seen_on=0.89, beside_on=0.0))
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check("A line starts at the object and points down the picture, under 1° from straight down. It shows on 89% of the frames, on that "
+          "side of the object only. Two things joined by a hanging line would lie that way." in c.bottom_line()
+          and row["answer"] == "Yes" and row["said"] == "a line starts at the object and points down the picture, under 1° from straight "
+                                                         "down: something hangs under it",
+          "a line that starts at the object (PR28's stem): said in the paragraph, and the row is a yes", row["said"])
+    c = case(None, None, hang=hang("nothing tied", of=None, ln=None), at_object=dict(strength=2.0, mirror=0.4, seen_on=0.0, beside_on=0.0))
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check(row["answer"] == "No" and row["said"] == "nothing between 18 and 540 pixels from it keeps step with it, and no line points "
+                                                  "down the picture from the object" and "hanging" not in c.bottom_line(),
+          "nothing tied: the row says the ring and the object's own picture, and the paragraph says nothing", row["said"])
+    c = case(near, steady, hang=hang("cannot say", ln=dict(frames=12), cannot="few"))
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check("Whether anything hangs under the object cannot be said: what moves with it shows on too few frames to read the angle of the "
+          "line between them." in c.bottom_line() and row["said"].endswith("; whether it hangs under it cannot be said"),
+          "cannot say, too few frames: said, with the row still a yes for what moves with it", row["said"])
+    c = case(None, None, hang=hang("cannot say", of=None, ln=None, cannot="roll"), scene=dict(roll_deg=40.2, scale=1.0, read_on=1.0))
+    row = {r["key"]: r for r in c.checklist()}["with"]
+    check("Whether anything hangs under the object cannot be said: the picture itself turned by about 40° over these frames." in c.bottom_line()
+          and row["answer"] == "Can't tell" and "turned by about 40°" in row["said"],
+          "cannot say, the picture turned: said, and the row cannot tell", f"{row['answer']}: {row['said']}")
+    c = case(None, None, fellow_member=dict(near, member="member 3"), hang=hang("beside it", of="fellow member"))
+    check("is member 3 of its group, not something tied to it." in c.bottom_line() and "hanging" not in c.bottom_line(),
+          "a fellow member of its group is beside it, and no more is said")
+    c = case(near, steady)
+    check("It holds a steady angle, so there is no swing and no length to read." in c.bottom_line() and "straight down the picture" not in c.bottom_line()
+          and {r["key"]: r for r in c.checklist()}["with"]["said"] == "a bright feature 2.8 object widths away moves with it, at a steady angle (no swing)",
+          "a report made before the stage asked reads as it did")
+
+
 def test_a_thing_of_known_size_under_the_speed_of_sound_is_subsonic_motion():
     """Jacob, 2026-10-22, exercise 2 (PR149): "Knowing the range ratio provides an upper bound on relative velocity (we
     showed this in the JAIS Technical Note). This means for PR149, after the reference length is taken, we can report

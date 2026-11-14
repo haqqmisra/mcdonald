@@ -581,7 +581,7 @@ reference reports.
   straight under the head, inside the inner radius (the object's extent plus 12 px) and
   the stroke mask. The finding and the checklist's row now say the ring that was
   searched, in pixels, and that nearer in was not (`searched_px`). Finding a line that
-  starts at the object is H5's work, not done here.
+  starts at the object is H5's work, not done here (done since: section 55).
 
 **The controls, before and after** (the stage's own words; `tests/test_golden.py` holds each):
 
@@ -627,8 +627,8 @@ cadence check of `stack_both` does not see the repeats (it asks each frame again
 median of the last ten, most of which are repeats); the follower's scatter leaves out
 places read off a held picture, and the count of repeated frames is short. A thin
 *bright* line on the object is masked with the overlay's strokes (`--no-stroke-mask`).
-A line that starts at the object is inside the ring searched. A line held at a steady
-angle gives no length. And the wander null's 1 in 100 is its rate on drawn wanders; on
+A line that starts at the object is inside the ring searched (section 55 reads the
+object's own picture for one). A line held at a steady angle gives no length. And the wander null's 1 in 100 is its rate on drawn wanders; on
 the one known balloon whose payload shows (AARO's PR-004, eight windows of 4 to 11 s)
 the nearest miss was p = 0.002 on one window, a period of 5.0 s over 1.5 cycles that
 the clip's 32 s do not hold (p = 0.55).

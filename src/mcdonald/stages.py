@@ -1634,7 +1634,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     # Is something tied to the object -- a line, a payload -- and does it swing? A stage since 2026-10-07; the
     # object's size is read off the stack unless someone gave it (or the marks' link did).
     if trk and "tether" in want:
-        say("[tether] is something tied to the object -- a line, a payload -- and does it swing?")
+        say("[tether] does something hang under the object -- a line, a payload -- and does it swing?")
         try:
             from . import tether
             tsize = None if (given["size"] is None and not marks) else size

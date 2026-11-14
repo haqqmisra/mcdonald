@@ -1,4 +1,4 @@
-"""Is something tethered to the object -- a line or a payload that moves with it -- and does it swing?
+"""Does something hang under the object -- a line or a payload that moves with it -- and does it swing?
 
 A sounding balloon carries its radiosonde 25-55 m below it on a line; a hobby balloon a
 few grams a metre or two below. A pilot's "strings hanging off" (the Lake Huron object
@@ -1091,17 +1091,16 @@ def scene_small(g, bad):
 
 
 def scene_step(a, b, obj=None, keep_off=60.0):
-    """How the scene itself moved from one frame to the next, as a similarity: (dx, dy in px of the frame, the change
-    of scale as a fraction, the roll in degrees, patches used, their typical miss in px), or None where fewer than
-    SCENE_MIN patches could be read. `a` and `b` are `scene_small`'s of the two frames. Each patch of SCENE_PATCH px
-    gives a shift by phase correlation; a patch is left out where under 0.85 of it is scene in both frames, where it
-    is flat, where its peak is under SCENE_PEAK, and within `keep_off` px of the object at `obj` (px of the frame:
-    the object and what moves with it are not the scene). The similarity is fitted to the shifts with weights that
-    fall off past 2.5 times their typical miss. The roll is in the sense of a line's angle here: + where a line that
-    was straight down the picture now leans to the right.
-
-    Session 19's prototype on PR105 (the scene rolled under 1.1 deg in any 10 s while the line swung +-6 deg): what
-    the line's own angle and length are set beside."""
+    """How the scene itself moved from one frame to the next: (dx, dy in px of the frame, the change of scale as a
+    fraction, the roll in degrees, patches used, their typical miss in px), or None where fewer than SCENE_MIN
+    patches could be read. `a` and `b` are `scene_small`'s of the two frames. Each patch of SCENE_PATCH px gives a
+    shift by phase correlation; a patch is left out where under 0.85 of it is scene in both frames, where it is
+    flat, where its peak is under SCENE_PEAK, and within `keep_off` px of the object at `obj` (px of the frame: the
+    object and what moves with it are not the scene). The shift is the patches' median; the turn and the scale are
+    fitted to the part of the shifts across it (see below), with weights that fall off past 2.5 times their typical
+    miss. The roll is in the sense of a line's angle here: + where a line that was straight down the picture now
+    leans to the right. What the line's own angle and length are set beside (session 19's prototype, ported and
+    changed)."""
     (ga, oka), (gb, okb) = a, b
     P, d = SCENE_PATCH, SCENE_DOWN
     h, w = ga.shape
@@ -1142,12 +1141,19 @@ def scene_step(a, b, obj=None, keep_off=60.0):
     if good.sum() < SCENE_MIN:
         return None
     X, Y, dx, dy = (cx - w / 2.0)[good], (cy - h / 2.0)[good], dx[good], dy[good]
-    # dx = tx + s X - r Y,  dy = ty + r X + s Y: a shift, a change of scale s and a turn r (radians)
-    M = np.zeros((2 * len(X), 4))
-    M[0::2, 0], M[0::2, 2], M[0::2, 3] = 1, X, -Y
-    M[1::2, 1], M[1::2, 2], M[1::2, 3] = 1, Y, X
-    v = np.empty(2 * len(X))
-    v[0::2], v[1::2] = dx, dy
+    # The turn and the scale are read off the shifts' part ACROSS the scene's own motion alone. A camera that moves past
+    # a scene with depth, or pans, shifts near things farther than far ones: a shear along the motion, which a
+    # similarity fitted to both parts reads as a little turn and a little growth on every frame, and those add up
+    # (PR105's clouds stream past at 9 px a frame: summed over 36 s the full fit read a roll of 34 deg and a scale of
+    # 1.17 on a picture whose cloud layers stay level; session 19's prototype's own saved series sums to the same).
+    # A true turn r moves a patch at (X, Y) by r (-Y, X), a true change of scale s by s (X, Y): across the motion
+    # those are r times the patch's place along it and s times its place across it. Where the scene hardly moves
+    # there is no such shear, and "across" is taken down the picture.
+    tx, ty = float(np.median(dx)), float(np.median(dy))
+    speed = float(np.hypot(tx, ty))
+    a, b = (tx / speed, ty / speed) if speed >= 0.25 else (1.0, 0.0)
+    M = np.column_stack([np.ones(len(X)), X * a + Y * b, -X * b + Y * a])
+    v = -dx * b + dy * a
     wgt = np.ones(len(v))
     for _ in range(8):
         sol = np.linalg.lstsq(M * wgt[:, None], v * wgt, rcond=None)[0]
@@ -1155,11 +1161,10 @@ def scene_step(a, b, obj=None, keep_off=60.0):
         s = 1.4826 * float(np.median(np.abs(res))) + 1e-3
         wgt = np.where(np.abs(res) < 2.5 * s, 1.0, 2.5 * s / np.maximum(np.abs(res), 1e-12))
     near = np.abs(res) < 2.5 * s
-    used = int((np.abs(res).reshape(-1, 2).max(1) < 2.5 * s).sum())
+    used = int(near.sum())
     if used < SCENE_MIN:
         return None
-    return (float(d * sol[0]), float(d * sol[1]), float(sol[2]), float(-np.degrees(sol[3])), used,
-            float(d * np.sqrt(np.mean(res[near] ** 2))))
+    return (float(d * tx), float(d * ty), float(sol[2]), float(-np.degrees(sol[1])), used, float(d * np.sqrt(np.mean(res[near] ** 2))))
 
 
 def scene_over(steps, first, last):
@@ -1385,42 +1390,52 @@ def at_said(at, inner):
     if not at.get("starts"):
         return f"nearer than {inner:.0f} px is the object's own picture, and no line starts at the object there"
     L = at["line"]
-    return (f"nearer than {inner:.0f} px, in the object's own picture, a line starts at the object {at['direction_deg']:+.0f} deg from "
-            f"straight down, on {100 * at['seen_on']:.0f}% of the frames ({at['strength']:.1f} x the other directions' scatter, "
-            f"{at['mirror']:.2f} of it opposite, {100 * at['beside_on']:.0f}% of frames at a right angle to it), "
-            f"{L['off_vertical_deg']:.1f} deg from the vertical at the median, +-{L['spread_deg']:.1f} deg")
+    how = (f"on {100 * at['seen_on']:.0f}% of the frames ({at['strength']:.1f} x the other directions' scatter, {at['mirror']:.2f} of it "
+           f"opposite, {100 * at['beside_on']:.0f}% of frames at a right angle to it), {L['off_vertical_deg']:.1f} deg from the "
+           f"vertical at the median, +-{L['spread_deg']:.1f} deg")
+    if L["off_vertical_deg"] <= VERTICAL:
+        return (f"nearer than {inner:.0f} px, in the object's own picture, a line starts at the object {at['direction_deg']:+.0f} deg "
+                f"from straight down, {how}")
+    return (f"nearer than {inner:.0f} px the object's own picture reaches farther on one side, {at['direction_deg']:+.0f} deg from "
+            f"straight down, {how}: its own shape or a neighbour too near to tell from it, not a line under it")
 
 
-def hang_of(moved, line, at, unsure=False, sign="bright", ring=True):
+def hang_of(moved, line, at, unsure=False, sign="bright", ring=True, scene=None):
     """The stage's first outcome, "does something hang under the object?", as a record: `outcome`, one of HANGS,
     BESIDE_IT, NOTHING, CANNOT; `of`, what it was said of ("companion", "line at the object" or None); `line`, that
     line's readings (`line_of`) with `scene` in them, the picture's own turn and scale over the line's frames
     (`scene_over`); `vertical`, which vertical the angle is from (the picture's: nothing here knows gravity's);
-    `why`, where it cannot be said, and `cannot`, which of the four reasons; `rule`, the numbers it was held to; and
+    `why`, where it cannot be said, and `cannot`, which of the reasons; `rule`, the numbers it was held to; and
     `said`, the stage's own words.
 
-    `line` is the companion's (`companion_line`) or None, `at` is `at_object`'s reading. Nothing can be said where
-    the object moved under STILL px on the screen (what is tied to it cannot be told from the screen's or the
-    scene's, which stay as sharp), nor of a companion that moved under STILL px against the scene and the screen
-    while it was followed (`unsure`), nor where the stack was too small to search a ring at all (`ring` False) and
-    no line starts at the object. Where one of the two lines hangs, that is the outcome, the companion's first;
-    otherwise the companion's answer stands, and a line that starts at the object and does not hang is beside it.
-    Nothing of either: nothing tied. A function of the record alone (`fields["line"]`, `fields["at_object"]`), so
-    that the rule can be held to the null again with no frame read (tools/tether_null.py hang)."""
+    `line` is the companion's (`companion_line`) or None, `at` is `at_object`'s reading, `scene` the picture's own
+    turn over the whole track (`scene_over`). The companion's line answers first: it hangs or it is beside the
+    object. A line that starts at the object is asked one thing only, whether it runs down the picture or up it:
+    where it does, something hangs, and where it runs out to one side nothing is said of it (it may be the object's
+    own shape, or a neighbour too near to tell from it, and an unresolved object's shape is its point-spread
+    pattern: H6). Nothing of either: nothing tied.
+
+    Nothing can be said where the object moved under STILL px on the screen (what is tied to it cannot be told from
+    the screen's or the scene's, which stay as sharp); of a companion that moved under STILL px against the scene
+    and the screen while it was followed (`unsure`); of a line read on fewer than LINE_FRAMES frames; where the
+    picture turned by more than VERTICAL over the line's frames, or over the track with nothing found (what hangs
+    would have turned with the picture, and smeared on the stack); nor where the stack was too small to search a
+    ring at all (`ring` False). A function of the record alone (`fields["line"]`, `fields["at_object"]`,
+    `fields["scene"]`), so that the rule can be held to the null again with no frame read (tools/tether_null.py
+    hang)."""
     rule = dict(vertical_deg=VERTICAL, chance=VERTICAL / 90.0, frames=LINE_FRAMES)
     out = dict(outcome=NOTHING, of=None, line=None, vertical="the picture's", why=None, cannot=None, unsure=bool(unsure),
                ring=bool(ring), rule=rule)
-    tried = []
-    if line is not None:
-        tried.append(("companion", line))
-    if starts_at_object(at):
-        tried.append(("line at the object", at["line"]))
+    own = at.get("line") if starts_at_object(at) else None
+    down = own is not None and own["off_vertical_deg"] <= VERTICAL       # a line at the object counts only down or up the picture
+    turned = (scene or {}).get("roll_deg")
     if moved < STILL:
         out.update(outcome=CANNOT, cannot="still",
                    why=f"the object moves only {moved:.0f} px on the screen over these frames: what is tied to it cannot be told "
                        "from the overlay or the scene, which stay as sharp")
-    elif tried:
-        got = [(of, ln) + hangs(ln, ln.get("scene")) for of, ln in tried]
+    elif line is not None or down:
+        got = ([("companion", line) + hangs(line, line.get("scene"))] if line is not None else []) \
+            + ([("line at the object", own) + hangs(own, own.get("scene"))] if down else [])
         of, ln, outcome, why = next((g for g in got if g[2] == HANGS), got[0])
         kind = None if outcome != CANNOT else "roll" if "off_vertical_deg" in ln else "few"
         if of == "companion" and unsure:
@@ -1430,6 +1445,10 @@ def hang_of(moved, line, at, unsure=False, sign="bright", ring=True):
         out.update(outcome=outcome, of=of, line=ln, why=why, cannot=kind)
     elif not ring:
         out.update(outcome=CANNOT, cannot="small", why="the frames about the object are too few or too small to search a ring about it")
+    elif turned is not None and turned > VERTICAL:
+        out.update(outcome=CANNOT, cannot="roll",
+                   why=f"the picture itself turned by {turned:.0f} deg over the track, more than the {VERTICAL:g} deg a hanging line "
+                       "is held to: what hangs under the object would have turned with it, and smeared on the stack")
     out["said"] = hang_said(out, sign)
     return out
 
@@ -1440,7 +1459,7 @@ def hang_said(h, sign="bright"):
     sc = ln.get("scene") or {}
     what = f"the {sign} feature" if h["of"] == "companion" else "the line that starts at the object"
     if h["outcome"] == NOTHING:
-        return "does something hang under it? nothing tied: nothing moves with the object in the ring, and no line starts at it"
+        return "does something hang under it? nothing tied: nothing moves with the object in the ring, and no line runs down the picture from it"
     if h["outcome"] == CANNOT:
         return f"does something hang under it? cannot say: {h['why']}"
     where = "over" if ln.get("above") else "under"
@@ -1576,9 +1595,11 @@ def measure(clip, track, masks=None, rows=None, size=None, seed=None, dark=None,
     for ln in (line, at.get("line")):
         if ln and "first" in ln:
             ln["scene"] = scene_over(steps, ln["first"], ln["last"])
+    fields["scene"] = scene_over(steps, ns[0], ns[-1])     # the picture's own turn and scale over the whole track
     hang = hang_of(moved, line, at,
                    unsure=bool(followed and sw and max(how.get("scene_moved_px") or 0.0, how.get("screen_moved_px") or 0.0) < STILL),
-                   sign=(best or {}).get("sign") or ("dark" if (sw or {}).get("dark") else "bright"), ring=bool(np.isfinite(sig)))
+                   sign=(best or {}).get("sign") or ("dark" if (sw or {}).get("dark") else "bright"), ring=bool(np.isfinite(sig)),
+                   scene=fields["scene"])
     fields["line"] = line
     fields["at_object"] = at
     fields["hang"], fields["hangs"] = hang, hang["outcome"]
@@ -1653,8 +1674,8 @@ def figure(m, mc, R, size, cands, track, followed, sw, fps, repeats, path, hang=
                     Line2D([], [], color=figures.CYAN, lw=0.9, ls=":", label="the picture's vertical")]
         axes[0].set_xlim(-crop, crop)
         axes[0].set_ylim(crop, -crop)
-    if handles:
-        axes[0].legend(handles=handles, loc="best")
+    if handles:                                   # under the picture: with the line's two entries a key inside it hid the object
+        axes[0].legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False)
     ax = axes[2]
     if followed and sw and "angle_mean_deg" in sw:
         ns = sorted(n for n in followed if n in track and n not in repeats)

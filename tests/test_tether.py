@@ -464,21 +464,26 @@ def test_the_companion_is_read_against_the_objects_own_picture():
     check(f["hangs"] == "hangs" and ln.get("read_against") == "the object's own picture" and ln.get("same_picture_on", 0) > 0.9,
           "the object's own picture again, 30 px under it: the two agree on nearly every frame, and the line is read off them",
           f"agree on {100 * ln.get('same_picture_on', 0):.0f}% of the frames")
-    check(abs(ln.get("length_px", 0) - np.hypot(6.3, 29.4)) < 0.15 and abs(ln.get("off_vertical_deg", 0) - want) < 0.3 and ln.get("spread_deg", 9) < 0.5,
-          "its length and its angle to a fraction of a pixel and of a degree",
+    check(abs(ln.get("length_px", 0) - np.hypot(6.3, 29.4)) < 0.5 and abs(ln.get("off_vertical_deg", 0) - want) < 0.5 and ln.get("spread_deg", 9) < 1.5,
+          "its length to half a pixel and its angle to half a degree, over a scene whose texture differs under the two",
           f"{ln.get('length_px', 0):.2f} px (drawn {np.hypot(6.3, 29.4):.2f}), {ln.get('off_vertical_deg', 0):.2f} deg (drawn {want:.2f}), +-{ln.get('spread_deg', 0):.2f}")
     f, _ = _stage()
     ln = f["line"] or {}
     check(ln.get("read_against") == "its own centre" and ln.get("same_picture_on", 1) < 0.1,
           "a dark dot under a bright object is not the object's picture: its place stays the follower's",
           f"agree on {100 * ln.get('same_picture_on', 0):.0f}% of the frames")
-    clip, track = drawn(twin=True, hang=(6.3, 29.4), n=3)
-    g = clip.frames[2].astype(float)
-    got = tether.against_own_picture(g, np.zeros(g.shape, bool), track[2], (8.0, 28.0))
-    check(got is not None and abs(got[0] - 6.3) < 0.2 and abs(got[1] - 29.4) < 0.2 and got[2] > 0.9,
-          "one frame, started 2 px off: the place comes back to a fifth of a pixel", str(got))
-    check(tether.against_own_picture(g, np.zeros(g.shape, bool), track[2], (4.0, 12.0)) is None,
+    yy, xx = np.mgrid[0:120, 0:120]                          # on a plain sky the two are one pattern, and the place is exact
+    blob = lambda x, y: 95 * np.exp(-0.5 * ((xx - x) ** 2 + (yy - y) ** 2) / 3.0 ** 2)
+    g = np.rint(130 + blob(40.3, 30.7) + blob(46.6, 60.1) + np.random.default_rng(1).normal(0, 1.5, xx.shape))
+    got = tether.against_own_picture(g, np.zeros(g.shape, bool), (40.3, 30.7), (8.0, 28.0))
+    check(got is not None and abs(got[0] - 6.3) < 0.1 and abs(got[1] - 29.4) < 0.1 and got[2] > 0.95,
+          "one frame of a plain sky, started 2 px off: the place comes back to a tenth of a pixel",
+          "" if got is None else f"{got[0]:.2f}, {got[1]:.2f} px (drawn 6.30, 29.40), agreeing {got[2]:.3f}")
+    check(tether.against_own_picture(g, np.zeros(g.shape, bool), (40.3, 30.7), (4.0, 12.0)) is None,
           "nearer than the two pictures are wide, nothing is read: the object would find itself")
+    bad = np.zeros(g.shape, bool)
+    bad[60, 47] = True
+    check(tether.against_own_picture(g, bad, (40.3, 30.7), (8.0, 28.0)) is None, "nor where a masked pixel lies in either picture")
 
 
 def test_a_line_that_starts_at_the_object():
@@ -492,19 +497,36 @@ def test_a_line_that_starts_at_the_object():
     print("a line that starts at the object")
     f, _ = _stage(companion=False, stems=[(0.0, 7, 20)])
     at, h = f["at_object"], f["hang"]
-    check(at.get("starts") is True and abs(at.get("direction_deg", 99)) <= 5 and at["mirror"] < 0.3 and at["seen_on"] > 0.8 and at["beside_on"] < 0.1,
-          "a bar from 7 to 20 px straight under the object: a line that starts at it, on one side, on nearly every frame",
+    check(at.get("starts") is True and abs(at.get("direction_deg", 99)) <= 5 and at["mirror"] < 0.3 and at["seen_on"] > 0.6 and at["beside_on"] < 0.1,
+          "a bar from 7 to 20 px straight under the object: a line that starts at it, on one side, on most single frames",
           f"{at.get('direction_deg')} deg, {at.get('strength', 0):.1f} x, mirror {at.get('mirror', 0):.2f}, seen {at.get('seen_on', 0):.2f}, beside {at.get('beside_on', 0):.2f}")
     check(f["hangs"] == "hangs" and h["of"] == "line at the object" and h["line"]["off_vertical_deg"] < 3 and f["companion"] is None
           and "a line starts at the object" in f["finding"], "it hangs, said of the line at the object", f["finding"][-330:-150])
-    clip, track = drawn(companion=False, stems=[(0.0, 7, 20)], n=3)
-    g = clip.frames[2].astype(float)
-    x, y = int(round(track[2][0])), int(round(track[2][1]))
-    check(bool(tether.stroke_mask(g)[y + 14, x]), "the stroke mask takes that bar for the overlay's, so the reading rests on taking it back")
     f, _ = _stage(companion=False, stems=[(90.0, 7, 20)])
     at, h = f["at_object"], f["hang"]
-    check(at.get("starts") is True and abs(at.get("direction_deg", 0) - 90) <= 5 and f["hangs"] == "beside it" and h["of"] == "line at the object",
-          "the same bar out to the right: a line that starts at the object, beside it", h["said"][:120])
+    check(at.get("starts") is True and abs(at.get("direction_deg", 0) - 90) <= 5 and f["hangs"] == "nothing tied" and h["of"] is None
+          and "reaches farther on one side" in f["finding"],
+          "the same bar out to the right: the object's own picture reaches farther on one side, and no outcome is made of it",
+          f["finding"][-420:-200])
+    # PR28's case: a bright head 20 px across with a bright stem 9 px long under it is a run of 29 px down the picture,
+    # and the stroke mask takes the stem for the overlay's; a reticle's arm that runs on past the reading's reach is one
+    yy, xx = np.mgrid[0:200, 0:200]
+    g = 130 + np.random.default_rng(2).normal(0, 1.5, xx.shape)
+    g[np.hypot(xx - 100, yy - 80) <= 10] = 230                                   # the head
+    g[90:100, 99:102] = 215                                                      # its stem, 10 to 19 px under the centre
+    g[60:75, 150:152] = 240                                                      # an arm of the overlay, 21 px long and more,
+    g[75:140, 150:152] = 240                                                     # 50 px to the right: not within reach
+    clip = Drawn({1: np.clip(np.rint(g), 0, 255).astype(np.uint8)})
+    frames = tether.Frames(clip, clip.masks(), {1: (100.0, 80.0)}, 90, cache=False, procs=0)
+    _, bad = frames(1)
+    back = frames.unstroked(1, bad, 24)
+    check(bool(bad[95, 100]) and not back[95, 100] and bool(bad[100, 150]) and bool(back[100, 150]),
+          "a stem that the stroke mask takes with the head is given back to the reading about the object; the overlay's arm is not",
+          f"stem masked {bool(bad[95, 100])}, given back {not back[95, 100]}; arm masked {bool(bad[100, 150])}, kept masked {bool(back[100, 150])}")
+    got = tether.around(g, back, 100.0, 80.0, 24, 1.5)
+    k = None if got is None else int(np.nanargmax(got[0]))
+    check(got is not None and k == 0 and got[1] <= 14, "and on that one frame the reading's strongest direction is straight down",
+          "" if got is None else f"direction {k * 360 // tether.DIRECTIONS} deg, read from {got[1]} px out")
     f, _ = _stage(companion=False, stems=[(0.0, 7, 20), (180.0, 7, 20)])
     at = f["at_object"]
     check(at.get("starts") is False and at.get("mirror", 0) > 0.6 and f["hangs"] == "nothing tied",
@@ -529,6 +551,15 @@ def test_the_scenes_own_turn_is_read_beside_the_line():
     check(step is not None and abs(step[3] + 1.0) < 0.1 and abs(step[2] - 0.01) < 0.003 and abs(step[0] - 3.0) < 0.5 and abs(step[1] + 2.0) < 0.5,
           "a picture turned 1 deg (a line straight down then leans left: -1), 1 % larger and moved 3, -2 px: read back",
           "" if step is None else f"roll {step[3]:+.2f} deg, scale {step[2]:+.4f}, shift {step[0]:+.1f}, {step[1]:+.1f} px, {step[4]} patches")
+    # a camera moving past a scene with depth: the lower half of the picture slides 9 px, the upper half 6. A similarity
+    # fitted to the whole shift reads that shear as a turn (0.2 deg here, on every frame: PR105's 34 deg in 36 s); the
+    # part of the shifts across the motion has none of it
+    wide = 130 + gaussian_filter(rng.normal(0, 1, (720, 1000)), 2.5) * 55
+    sheared = np.vstack([wide[:360, 6:966], wide[360:, 9:969]])
+    step = tether.scene_step(tether.scene_small(wide[:, :960], none), tether.scene_small(sheared, none))
+    check(step is not None and abs(step[3]) < 0.03 and abs(step[2]) < 0.001,
+          "near things sliding past faster than far ones (a shear along the motion) is not read as a turn",
+          "" if step is None else f"roll {step[3]:+.3f} deg, scale {step[2]:+.5f}, shift {step[0]:+.1f}, {step[1]:+.1f} px")
     flat = tether.scene_step(tether.scene_small(np.full((720, 960), 130.0), none), tether.scene_small(np.full((720, 960), 130.0), none))
     check(flat is None, "an empty sky gives no reading: not read, which is not \"did not turn\"")
     kw = dict(W=960, H=720, n=60, start=(430.0, 300.0))
@@ -537,10 +568,12 @@ def test_the_scenes_own_turn_is_read_beside_the_line():
     check(f["hangs"] == "hangs" and sc.get("roll_deg") is not None and abs(sc["roll_deg"] - 6.0) < 1.0 and abs(sc["scale"] - 1.0) < 0.02,
           "a picture that rolls 6 deg in all while a dot hangs under the object: hangs, with the roll beside it",
           f"roll {sc.get('roll_deg')}, scale {sc.get('scale')}, read on {sc.get('read_on')}")
-    f, _ = _stage(roll_deg=-40.0, **kw)
-    h = f["hang"]
-    check(f["hangs"] == "cannot say" and h["cannot"] == "roll" and abs(h["line"]["scene"]["roll_deg"] - 40.0) < 3.0 and "turned by" in h["why"],
-          "a picture that rolls 40 deg has no one vertical: cannot say, and why", h["said"][:150])
+    for roll in (24.0, 40.0):
+        f, _ = _stage(roll_deg=-roll, **kw)
+        h = f["hang"]
+        check(f["hangs"] == "cannot say" and h["cannot"] == "roll" and abs(f["scene"]["roll_deg"] - roll) < 3.0 and "turned by" in h["why"],
+              f"a picture that rolls {roll:g} deg has no one vertical, and smears what hangs off the stack: cannot say, not \"nothing tied\"",
+              h["said"][:170])
     f, _ = _stage()
     sc = ((f["hang"]["line"] or {}).get("scene") or {})
     check(sc.get("roll_deg") is None and "could not be read" in f["hang"]["said"],

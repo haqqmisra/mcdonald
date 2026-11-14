@@ -324,7 +324,7 @@ def outcome(f, vertical=None, at=None):
             tether.AT_STRENGTH, tether.AT_MIRROR, tether.AT_SEEN, tether.AT_BESIDE = at
         line = None if f.get("own") else f.get("line")      # a null track's own object or its own companion is no false one
         h = tether.hang_of(f["moved_on_screen_px"], line, f.get("at_object") or {}, unsure=f["hang"].get("unsure", False),
-                           ring=f["hang"].get("ring", True))
+                           ring=f["hang"].get("ring", True), scene=f.get("scene"))
         return h["outcome"], h["of"]
     finally:
         tether.VERTICAL, tether.AT_STRENGTH, tether.AT_MIRROR, tether.AT_SEEN, tether.AT_BESIDE = keep
