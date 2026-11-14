@@ -179,6 +179,9 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    -- the bus as heard, flames, rotors, propellers, a cooler's drive -- the clock-steadiness reading
    (D2), the scene's registration shift at the beat (`--scene-shift`), and a flame's mark said in the
    bottom line with `groups`' rigidity beside it. Still to do: the 10-Hz morphology tests.
+   *2026-11-13 (branch `s23-beat`, method §59.3):* built as readings (`beatshape`, `fields["morphology"]`): the beat's depth
+   along the track, its steadiness as read, its width outside a fixed core. The look-alike mark's base rate (E11) is said
+   beside every mark (§59.4).
    **Open threads from that work, so none is lost** (`docs/history/handoff-beat-controls.md` has each in
    full): (a) merged 2026-10-20; (b) the reference case files do not `share rerun --strict` since
    the merge (new fields) -- accepted until 1.0, remake them on the way there; (c) the
@@ -194,6 +197,10 @@ and puts the cases the two papers rest on into files anyone can open and rerun.
    photometry, the five flyers give their beats within 0.1 Hz. A light-weighted centroid does
    not move when the gain changes, so this reading cannot be made by the camera's gain. On a
    moving camera it needs registration, or members' differences.
+   *2026-11-13 (branch `s23-beat`, method §59.1):* built as a reading (`beatpos`, `fields["position_beat"]`). By it three of
+   the five flyers give their beats within 0.1 Hz and two beat in the position at twice the rate; PR135's six carry theirs
+   by members' differences. Gain-proof, not lamp-proof: a brightness beating over an uneven background shifts a measured
+   position too, and the reading holds a rhythm to that.
 6. **The report's grade and checklist.** A quality grade (A-D) by what is constrained; the
    verification checklist beside it (what was excluded, what was not screened out, what could
    not be tested); "possibly not an object" as a stated outcome.

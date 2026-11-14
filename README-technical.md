@@ -240,6 +240,10 @@ mcdonald tether CLIP.mp4 --track track.csv
 # Does its brightness beat, and is the beat its own? The bird paper's way: its aperture, its rule, its neighbours avoided
 mcdonald flicker CLIP.mp4 --track track.csv
 mcdonald flicker CLIP.mp4 --track bird_A.csv --aperture 4,7,10 --beat-rule paper --avoid bird_B.csv,bird_C.csv
+# beside the call, and changing none of it (docs/method.md section 59): the beat in the position (does its track carry the
+# rhythm of its brightness? --scene-shift takes the camera's motion out), a line in a look-alike band that the strongest
+# peak hides, the shape of a beat that sits where the sensor chain can make one, and how much of the band carries a mark
+mcdonald flicker CLIP.mp4 --track track.csv --scene-shift --json
 
 # What does the sound track record? The codec, a supply's hum (a clock), a propeller (the platform), and where
 # each folds through the frame rate (no track needed; a sound file works with --fps)

@@ -5,6 +5,48 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**Four readings beside the beat, which change no call** (2026-11-13; `mcdonald flicker`, `mcdonald run`; docs/method.md
+section 59; ROADMAP 0.3 objectives 4 and 5). The bird conclusion, the gates and every beat are as they were. The controls
+harness gives main's 118 checks line for line, and the labelled set's 432 tracks judged again give main's table row for
+row. A new suite, `tests/test_beat.py`, measures three drawn videos with the readings and without them, and every field
+the stage had is the same.
+
+- *The beat in the position* (`position_beat`; `beatpos.py`). A bird's body rises and falls with each wing stroke, so
+  its position carries the beat too. The stage reads the object's own position on every frame for a rhythm. It holds
+  that rhythm against 1,000 tracks drawn from the track's own wander and jitter, and reads it at the frequency of the
+  brightness beat, at twice it and at half. A camera's gain can change a brightness, but it cannot move a position. The
+  reading says how the camera's own motion stood. It is taken out against the registered scene, or against the other
+  members of a group. Where it is not taken out, the reading says so, and does not say whose motion the rhythm is. The
+  five Galileo flyers and PR135's six birds carry their beats in their positions, by 0.11 to 0.72 pixels. Of AARO's 40
+  recorded objects that can be read, one shows a rhythm. On real backgrounds a rhythm is found by chance about 6 times
+  in 100 with no frequency given, and about 4 in 100 at a frequency given beforehand. Three traps are built in. A video's own coding rate moves a position too
+  (Galileo flyer 1: 12 times a second, stronger than its wingbeat), so a rhythm at that rate is said apart. And a
+  brightness that beats over an uneven background shifts a measured position with no motion at all, so a rhythm is held
+  to what the object's own background can make (flyer 3's rhythm is no more than that). And a video that holds its
+  pictures at a steady rate, as one made from a slower source does, leaves a rhythm of its own in the positions that
+  are left. There the reading is not made, and says why.
+- *A line in a look-alike band* (`band_lines`; `beatlines.py`). The beat test reads only the strongest rhythm in the
+  brightness. On an object the camera holds, that is often a slow change, and a faster rhythm is never judged. Each
+  band of the look-alike table is now searched for its own line. The line is held against 2,000 curves of grain searched
+  the same way, and against the background beside the object. Where a band holds a line that is not the stage's own
+  beat, the notes and the report say so. That includes the stage's own strongest rhythm where its tests did not hold it
+  to be a beat (PR089's object 3: 10.5 times a second, 5 % of its brightness). On drawn curves with no line, it finds one
+  0 to 1 times in 100. On 286 labelled objects that are not birds it says a line on 5, each a real rhythm in the
+  brightness.
+- *The shape of a beat that a camera's electronics or a power supply could make* (`morphology`; `beatshape.py`; the
+  10-Hz morphology tests). Three readings, none of which decides. The first is the beat's depth along the track, against
+  planted beats of one steady depth. The second is its steadiness, as read before. The third is the object's width
+  outside a fixed core of 3 pixels, with a planted change of width as the reading's own test of power. A changing depth
+  rules out a lamp or a gain. It does not rule out held pictures: the rhythm of a video that repeats frames changes depth
+  along a track as a wing's does (IR_DRONE_059: 2.6 to 14.4 %).
+- *How common a look-alike's mark is* (`lookalike_share`). At 29.97 and 30 frames a second, 70 % of the frequencies a
+  beat is looked for at carry a look-alike's mark. At 59.94 and 60, all of them do. The finding now says so where it
+  says a mark, in a clause: *at this frame rate such marks cover 71% of the frequencies a beat is looked for at, so a
+  mark is weak evidence*. This clause is the one change to a sentence a released report already had. Every reference
+  report whose beat is marked with a look-alike gains it in its brightness-beat line.
+- `flicker --scene-shift` now registers the scene even where no beat of the object's own asks for it, so that the
+  position can be read against it.
+
 **`mcdonald batch`: many videos with nobody looking** (ROADMAP 0.6, objective 1; 2026-11-13). The beat sweep of October
 was a folder of scripts, and it measured each object by `flicker` alone. It is now one command, with the whole of
 `mcdonald run` behind each object: `mcdonald batch --catalog --out DIR --slurm`, or `--list FILE`, or videos named on
