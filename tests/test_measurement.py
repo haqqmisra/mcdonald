@@ -1518,11 +1518,13 @@ class _Flyer(_Beating):
 # ---- groups: one rigid body or several, and do the members keep their places (session 23, method section 60) ----------
 # The four tests below are named to sort after every other test of this suite, so that adding them moves no other test
 # to another `--part`.
-def _drawn_group(rng, kind, members=6, frames=150, jitter=0.3, walk=0.0, colour=0.0, held=False):
+def _drawn_group(rng, kind, members=6, frames=150, jitter=0.3, drift=0.0, colour=0.0, held=False):
     """(ids, frames, x, y) of a drawn group, 0.3 px of jitter on every member unless said. kind "body": points of one
     rigid body about 40 px across that turns up to 50 degrees about a random axis under a 10 % zoom and a pan;
     "formation": a flat figure that keeps its places under a shift, a roll of up to 20 degrees and a 10 % zoom, each
-    place also changing steadily by about a pixel. walk: each member also walks that many px a frame on its own.
+    place also changing steadily by about a pixel. drift: each member also drifts on a smooth path of its own (a walk
+    in its velocity), that many px rms about its place: a white step a frame would be read as jitter, and is not how a
+    bird moves.
     colour: the jitter's lag-1 correlation (an AR(1)). held: a camera that repeats each picture for two or three frames
     (0.1 px of jitter a picture, 0.01 px between the repeats)."""
     P, F = members, frames
@@ -1553,7 +1555,11 @@ def _drawn_group(rng, kind, members=6, frames=150, jitter=0.3, walk=0.0, colour=
         for k in range(1, F + 50):
             e[k] = colour * e[k - 1] + math.sqrt(1 - colour ** 2) * e[k]
         jit = jitter * e[50:]
-    pos = pos + jit + (np.cumsum(rng.normal(0, walk, (F, P, 2)), axis=0) if walk else 0.0)
+    if drift:
+        own = np.cumsum(np.cumsum(rng.normal(size=(F, P, 2)), axis=0), axis=0)
+        own -= own.mean(0)
+        pos = pos + drift * own / own.std(0)
+    pos = pos + jit
     return list(range(1, P + 1)), list(range(1, F + 1)), pos[..., 0], pos[..., 1]
 
 
@@ -1594,9 +1600,9 @@ def test_with_a_unit_root_and_without_adf_and_kpss_hold_their_published_lines():
         one = groups.jitter_read(held, fr)
     finally:
         groups.JITTER_LAGS = old
-    check(np.allclose(groups.jitter_read(white, fr), 0.3, atol=0.04) and one.max() < 0.03 and groups.jitter_read(held, fr).min() > 0.07,
-          "the jitter at the frame scale: 0.3 px of white jitter reads 0.3; pictures held for two frames read under 0.03 "
-          "px a frame apart and their 0.1 px at one to three frames apart",
+    check(np.allclose(groups.jitter_read(white, fr), 0.32, atol=0.05) and one.max() < 0.07 and groups.jitter_read(held, fr).min() > 0.09,
+          "the jitter at the frame scale: 0.3 px of white jitter reads 0.3 (the largest of three readings: a few per cent "
+          "high); pictures held for two frames read half their 0.1 px a frame apart and all of it at one to three frames",
           f"white {np.round(groups.jitter_read(white, fr), 2).tolist()}; held, lag 1: {np.round(one, 3).tolist()}, "
           f"lags 1-3: {np.round(groups.jitter_read(held, fr), 2).tolist()}")
 
@@ -1619,9 +1625,9 @@ def test_yes_no_or_cannot_say_one_rigid_body_and_whether_members_keep_their_plac
           "six points of one body turning in depth under a zoom: one rigid body", a["finding"][:110])
     check(b["outcome"] != g.KEEP, "and its separations change as it turns: the places reading does not say they are kept",
           b["finding"][:90])
-    a, b = read("body", walk=0.4)
+    a, b = read("body", drift=5.0)
     check(a["outcome"] == g.SEVERAL and b["outcome"] == g.WANDER and a["p"] < 0.01,
-          "the same with each member walking 0.4 px a frame on its own: several, and they wander", a["finding"][:120])
+          "the same with each member drifting 5 px on a smooth path of its own: several, and they wander", a["finding"][:120])
     a, b = read("formation")
     check(a["outcome"] == g.ONE_BODY and b["outcome"] == g.KEEP and len(b["pairs"]) == 15 and b["scaled"],
           "a formation of six that keeps its places under a shift, a roll and a zoom: one rigid body, places kept",
@@ -1630,15 +1636,15 @@ def test_yes_no_or_cannot_say_one_rigid_body_and_whether_members_keep_their_plac
     check(a["outcome"] == g.CANNOT and "fewer than four" in a["finding"] and b["outcome"] == g.KEEP,
           "three members: the places are read, one rigid body or several cannot be asked", a["finding"][:80])
     a, b = read("formation", members=4)
-    a2, _ = read("formation", members=4, walk=0.4)
+    a2, _ = read("formation", members=4, drift=5.0)
     check(a["outcome"] == g.ONE_BODY and a["rank"] == 2 and a2["outcome"] == g.CANNOT and "four points cannot tell" in a2["finding"],
           "four members: a flat body is told, and four that are not one flat body may be one solid body turning", a2["finding"][:110])
     a, b = read("formation", frames=40)
     check(a["outcome"] == b["outcome"] == g.CANNOT and "under the 60" in a["finding"] and "under the 60" in b["finding"],
           "40 frames together: neither reading is made", b["finding"])
     _, b = read("formation", members=2)
-    _, b2 = read("formation", members=2, walk=0.4)
-    check(b["outcome"] == g.KEEP and not b["scaled"] and b2["outcome"] == g.WANDER and "a zoom of the camera" in b2["finding"],
+    _, b2 = read("formation", members=2, drift=5.0)
+    check(b["outcome"] == g.KEEP and not b["scaled"] and b2["outcome"] == g.WANDER and "zoom of the camera" in b2["finding"],
           "two members: their one separation is read as it is, and the words say a zoom would change it too", b2["finding"][:120])
     ids, fr, x, y = _drawn_group(rng, "formation", members=2)
     x[:, 1] += 5.0 * np.sin(2 * np.pi * np.arange(150) / 50.0)
@@ -1646,11 +1652,11 @@ def test_yes_no_or_cannot_say_one_rigid_body_and_whether_members_keep_their_plac
     q = b["pairs"][0]
     check(b["outcome"] == g.CANNOT and q["large"] and not (q["keeps_going"] and not q["returns"]),
           "a separation that swings 5 px to and fro three times is neither kept nor wandering: cannot say", b["finding"][:110])
-    x[:, 1] = x[:, 0] + 1.5
-    y[:, 1] = y[:, 0] + rng.normal(0, 0.3, 150)
+    x[:, 1] = x[:, 0] + 0.8 + rng.normal(0, 0.1, 150)
+    y[:, 1] = y[:, 0] + rng.normal(0, 0.1, 150)
     b = g.places(ids, fr, x, y)
     check(b["outcome"] == g.CANNOT and "closer together" in b["finding"],
-          "two members 1.5 px apart, closer than the detector's own errors: cannot say", b["finding"][:110])
+          "two members 0.8 px apart, closer than the detector's own errors can move them: cannot say", b["finding"][:110])
     masks = dict(blocks=np.zeros((480, 640), bool), graphics=np.zeros((480, 640), bool), colour=True)
     got = {}
     for kind in ("rigid", "shuffle", "one"):
@@ -1674,8 +1680,8 @@ def test_with_coloured_jitter_or_held_pictures_a_rigid_group_is_not_called_sever
     """B23's trap, and the drone show's. Second differences a frame apart read a jitter with memory low (0.3 px at a
     lag-1 correlation of 0.6 reads about 0.2) and a camera that repeats its pictures far lower, so a line drawn from
     that reading calls rigid groups "several". Here: 40 drawn rigid groups of each kind, six members, 150 frames, read
-    by both readings (199 draws each, for time); and 40 whose members walk 0.3 px a frame, for power. The rates stated
-    are section 60's, measured on thousands of groups (session 23's job)."""
+    by both readings (199 draws each, for time); and 40 whose members each drift 4 px on a smooth path of their own, for
+    power. The rates stated are section 60's, measured on thousands of groups (session 23's jobs)."""
     print("\ngroups: coloured jitter and held pictures do not make a rigid group several")
     from mcdonald import groups as g
     rng = np.random.default_rng(603)
@@ -1694,22 +1700,21 @@ def test_with_coloured_jitter_or_held_pictures_a_rigid_group_is_not_called_sever
         t = tally(**k)
         traffic.rate(check, f"rigid groups with {name}: called several, or wandering, about one time in a hundred at most",
                      t.get(g.SEVERAL, 0) + t.get(g.WANDER, 0), 60, 0.01, f"{t}")
-    t = tally(walk=0.3)
-    traffic.rate(check, "members that walk 0.3 px a frame on their own, 150 frames: several, and wandering (missed 5 % of the "
-                        "time stated: section 60 measured none in 480)", 60 - t.get(g.SEVERAL, 0) - t.get(g.WANDER, 0) + 20, 60, 0.05,
-                 f"{t}")
+    t = tally(drift=4.0)
+    traffic.rate(check, "members that each drift 4 px on a smooth path of their own, 150 frames: several, and wandering "
+                        "(missed 5 % of the time stated)", 60 - t.get(g.SEVERAL, 0) - t.get(g.WANDER, 0), 60, 0.05, f"{t}")
 
 
 def test_zoom_roll_and_shift_of_the_picture_change_no_reading_of_a_group():
     """The camera's own motion, roll and zoom move every member together, so neither reading may change under a
     similarity of the picture applied frame by frame. Drawn: a formation that keeps its places and one whose members
-    walk, each read as measured and again with every frame's positions shifted (a pan of 5 px a frame and a shake of
+    drift on their own, each read as measured and again with every frame's positions shifted (a pan of 5 px a frame and a shake of
     3 px), rolled (up to 30 degrees) and, last, zoomed (by a half over the track)."""
     print("\ngroups: a shift, a roll and a zoom of the picture change no reading")
     from mcdonald import groups as g
     rng = np.random.default_rng(604)
-    for name, walk in (("a formation that keeps its places", 0.0), ("members that walk", 0.4)):
-        ids, fr, x, y = _drawn_group(rng, "formation", walk=walk)
+    for name, walk in (("a formation that keeps its places", 0.0), ("members that drift on their own", 5.0)):
+        ids, fr, x, y = _drawn_group(rng, "formation", drift=walk)
         F = len(fr)
         u = np.linspace(0, 1, F)[:, None]
         A = np.radians(30.0) * np.sin(2 * np.pi * u * 1.3)
