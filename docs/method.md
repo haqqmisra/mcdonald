@@ -681,7 +681,7 @@ reference reports.
   straight under the head, inside the inner radius (the object's extent plus 12 px) and
   the stroke mask. The finding and the checklist's row now say the ring that was
   searched, in pixels, and that nearer in was not (`searched_px`). Finding a line that
-  starts at the object is H5's work, not done here.
+  starts at the object is H5's work, not done here (done since: section 55).
 
 **The controls, before and after** (the stage's own words; `tests/test_golden.py` holds each):
 
@@ -727,8 +727,8 @@ cadence check of `stack_both` does not see the repeats (it asks each frame again
 median of the last ten, most of which are repeats); the follower's scatter leaves out
 places read off a held picture, and the count of repeated frames is short. A thin
 *bright* line on the object is masked with the overlay's strokes (`--no-stroke-mask`).
-A line that starts at the object is inside the ring searched. A line held at a steady
-angle gives no length. And the wander null's 1 in 100 is its rate on drawn wanders; on
+A line that starts at the object is inside the ring searched (section 55 reads the
+object's own picture for one). A line held at a steady angle gives no length. And the wander null's 1 in 100 is its rate on drawn wanders; on
 the one known balloon whose payload shows (AARO's PR-004, eight windows of 4 to 11 s)
 the nearest miss was p = 0.002 on one window, a period of 5.0 s over 1.5 cycles that
 the clip's 32 s do not hold (p = 0.55).
@@ -6865,6 +6865,218 @@ or a line, a scrolling tape, past the cap -- each as Find's own strip.
   (eleven videos; a unit's processes held 1.7 to 4.1 GB), and will be wrong elsewhere by the ratio of the machines.
 - A scheduler's own count of a job's memory reads up to the job's limit whatever the unit needs, because it counts the
   frames the system keeps to hand. Size by the unit's `peak_rss_mb`, which counts each process's fair share.
+
+## 55. Does something hang under it? `mcdonald tether`'s first outcome (IDEAS.md H5; added 2026-11-13)
+
+**What it is.** Section 6's stage finds what moves with an object and asks whether it swings. Most of what moves
+with an object does not swing in the seconds a clip gives, and the stage then had nothing more to say: of AARO's
+known balloon PR-004, whose load shows on every track of it, of PR105's three points in a line, of PR28's stem. Decision
+5 of the roadmap, as amended on 2026-11-10: a single point has no range-free sign of a balloon (W9), but an object with
+something under it has a test, whether it hangs. This is that test. The stage now ends in one of four answers on
+every object (`fields.hangs`, `fields.hang`):
+
+- **hangs**: something that moves with the object keeps to a line under it or over it, near the picture's vertical;
+- **beside it**: something moves with the object, and its line is not near the vertical (a neighbour in a flock, a
+  feature level with it);
+- **nothing tied**: nothing moves with it in the ring that was searched, and no line starts at the object;
+- **cannot say**: the test has no power on this clip, and why.
+
+It is a statement about the picture. Nothing in the stage knows which way is down in the world: no horizon and no
+pointer is read, and an airborne camera's picture can lie at any angle to gravity. So the record says which
+vertical every angle is from (`hang.vertical`: "the picture's"), and the report says "straight down the picture",
+never "straight down". And it names a class, a body with something on a line under it (a balloon and its load, a
+parachute, a sling load under a helicopter), not a balloon. It says nothing of drift.
+
+**What is measured.**
+
+1. *The companion*, exactly as section 6 finds it: the stack, the control, the follower and its gate are unchanged,
+   and so is the pendulum's reading.
+2. *The line from the object to it* (`tether.line_of`). On each frame that shows the companion, the angle of the
+   line from the picture's vertical, whichever end is up: the track can sit on either end of a pair (on PR-004 it sits
+   on the lower one on six tracks and on the upper on two). `off_vertical_deg` is the median of that over the frames,
+   0 to 90; `spread_deg` its spread by MAD; `within` the share of the frames inside the gate; `length_px` and
+   `length_spread` the line's length and how far it strays; `above` whether the companion is over the object.
+3. *The companion's place against the object's own picture* (`tether.against_own_picture`). Two points too small to
+   resolve are the same point-spread pattern (H6), so the patch of 17 x 17 px about the object, slid over the frame
+   about the companion (3 px either way), finds it to a fraction of a pixel, with neither the track's error nor either
+   centroid's in the answer. Where the two pictures agree (ZNCC 0.8 or more) on half the frames that show the
+   companion, the line is read from those places (`read_against`: "the object's own picture"); where they do not (a
+   dark load under a bright balloon), from the follower's own. `same_picture_on` is the share of the frames on which
+   they agree. Where it is high, neither end of the pair has a size or a shape of its own to read.
+4. *The scene's own turn and scale, beside the line* (`tether.scene_step`, `scene_over`). A line under an object
+   turns with the picture when the camera rolls, and grows with it when it zooms. Each frame at half size, its slow
+   part taken out, is cut into patches of 64 px; each patch gives its shift from the frame before by phase
+   correlation; a similarity (shift, scale, turn) is fitted to the shifts with weights that fall off past 2.5 times
+   their typical miss, patches near the object left out. `line.scene.roll_deg` is the range of the summed turn over
+   the line's frames, `scale` the range of the summed scale, `read_on` the share of the steps that could be read.
+   A step of the zoom between two frames is not such a step: `mcdonald zoom` dates those (section 17), and a track
+   that runs across one should be cut there.
+5. *A line that starts at the object* (`tether.around`, `at_object`; A19's azimuthal residual). 0.5.2 said the ring
+   it searched and that nearer in was not: PR28's stem hangs straight under the head, inside it. The object's own
+   picture is now read on rings about it, from where that picture ends (the rings' medians fallen to a quarter of its
+   contrast, and two px on) out to 6 px past the ring's inner edge, in 72 directions. On every ring the median over
+   the directions and the first harmonic are taken out: what is the same all round the object, and what a centre a
+   fraction of a pixel off or a lopsided point-spread pattern puts on one side of every ring. What is left is put in
+   units of the ring's own scatter, since the rings nearest a bright object are the noisy ones, and averaged over the
+   rings: a profile over direction, one a frame. The frames' mean profile has a strongest direction. It is a line
+   that starts at the object where it stands `AT_STRENGTH` times over the mean profile's scatter in the directions
+   away from it (`strength`), is on one side (`mirror`: under `AT_MIRROR` of it in the opposite direction; a body
+   longer than it is wide, a wing either side, a smear of motion are as strong on both), shows on single frames
+   (`seen_on`: 5 times that frame's own scatter over direction, on `AT_SEEN` of the frames) and does not show as
+   often at a right angle to it (`beside_on`). The line's angle on each frame that shows it is the peak's, to a
+   fraction of the 5 degrees between directions. A bright line under a bright object makes, with the object, a run
+   long enough for the stroke mask to take it for the overlay's (PR28's stem is masked on 442 of 1,025 frames): for
+   this reading alone, strokes that lie wholly within its reach are taken back (`Frames.unstroked`).
+
+**The rule** (`tether.hang_of`, a function of the record alone).
+
+- The companion's line answers first. It **hangs** where the line lies within 18 degrees of the picture's vertical at
+  the median of the frames that show it (`VERTICAL`), and is **beside it** where it does not.
+- A line that starts at the object is asked one thing, whether it points down the picture or up it: within the same
+  18 degrees, something **hangs**. Out to one side it makes no outcome: 8 of the 80 recorded objects have a one-sided
+  picture, every one of them 66 to 87 degrees from the vertical, and each is a neighbour of a tight flock inside the
+  ring or the object's own shape, which for an unresolved object is its point-spread pattern (H6). The finding says
+  it ("the object's own picture reaches farther on one side").
+- Neither: **nothing tied**.
+- **Cannot say**: the object moved under 20 px on the screen, or the companion under 20 px against the scene and the
+  screen (the stage's two standing "no power" cases); the line shows on fewer than 20 frames; the picture itself
+  turned by more than 18 degrees over the line's frames, or over the whole track with nothing found (what hangs
+  would have turned with the picture and smeared on the stack: on a drawn clip that rolls 24 degrees a dot under the
+  object is not found at all); or the stack was too small to search.
+- In `run`, a companion that is a member of the object's group, followed in its own right, is **beside it** whatever
+  its line (`hang.of`: "fellow member"): the stage's standing call that a fellow member is not something tied to it.
+
+**Where the numbers come from.**
+
+- *18 degrees is a stated rate on an exact null.* A line that has nothing to do with the vertical lies within 18 of the
+  90 degrees a line can lie from it one time in five. Measured: of the 1,526 features the 0.5.2 null followed on tracks
+  that nothing keeps step with, 22.1 % lie within 18 degrees (and 10.4 % within 9). One in five is the smallest
+  round rate that keeps the known balloon: PR-004's line lies 11.9 to 14.6 degrees off on its eight tracks, where a
+  chance line is 13 to 16 % of the time. So the direction of one line is a weak witness, and the record says how weak
+  for each line (`line.chance`: PR105's 2 degrees, one time in 45; PR-004's 13 degrees, one time in 7). What makes the
+  answer worth having is that a companion must be there first; the rates that matter are counted below.
+- *No gate on the line's length or on its spread.* WA9ONY-5's line changes length by 30 % in four seconds (the balloon
+  is climbing away from the camera) and swings 13 degrees either side; a rigid neighbour is steadier than any hanging
+  load. Both are reported. No rule is a distance in object sizes (H3, H6).
+- *The line at the object* takes the companion gate's own numbers for the same ideas: 5 times the scatter
+  (`Z_MIN`), at most 0.6 of it where it should not be (`CONTROL`, here the opposite direction), there on 0.3 of the
+  frames (`FOLLOWED`), a sighting 5 times the frame's own scatter (`SIGHT`). They were not set again; they are held to
+  the null below, and the table shows how the counts move with each. One number is judgement: a line is refused where
+  a right angle to it shows on more than half as many frames (`AT_BESIDE`), which no object of the null needs with
+  the strokes masked and which refuses PR071's tracking gate when they are not (seen on 30 % of frames, and on 32 %
+  at a right angle).
+- *20 frames*: the stage's `MIN_SWING_FRAMES`.
+
+**Held to the null** (`tools/tether_null.py stage`, then `hang`; the records are in the reference-data folder,
+`tether_null/hang/`). The stage itself, as `mcdonald tether` runs it, on each of the 82 recorded tracks of section 6's
+null (AARO's 45, the 31 reference objects, WA9ONY-5, PR071, PR055, PR105, PR28, PR29) and on two null tracks of each,
+its own run backwards and its own shifted by half its length, with the same ring searched. A null track's companion
+that is the real object, or what the real track's own run followed with it, is not counted.
+
+| asked of | hangs | beside it | nothing tied | cannot say |
+|---|---|---|---|---|
+| 160 tracks nothing keeps step with | **0** (0 to 2.3 %, exact 95 % interval) | 7 | 153 | 0 |
+| 68 recorded objects with nothing known under them | **2** (2.9 %; 0.4 to 10 %) | 13 | 53 | 0 |
+| 9 known answers (WA9ONY-5; PR-004's eight tracks) | **9** | 0 | 0 | 0 |
+| 4 candidates | PR105, PR28, PR071 | | PR29 | |
+
+The two of the second row are one thing seen twice, PR097's objects 7 and 8 (one flier in two stretches of the clip): a
+dark compact blob 14 px straight under the tracked one, 1.9 and 2.2 degrees off the vertical, on seven frames in ten.
+Looked at frame by frame it is one of a tight group of dark blobs that keep their places for nine seconds (object 6,
+in the same seconds, has one 10 px under it and one 17 px to its right): by the picture a neighbour flying in line,
+which this geometry cannot tell from a load. It stands as the test's false alarm of record. The 13 "beside it" are
+neighbours in flocks (PR135's six, PR097's) and the far features of section 6's "How it fails". On pairs of separately
+recorded objects, read as a companion's line is (`tests/test_tether.py` holds PR135's): of 24 pairs in six clips one
+lies within 18 degrees of the vertical (PR097's objects 2 and 3, 7 px apart, 8 degrees), none of PR135's fifteen
+within 38.
+
+How the counts move with each number (the same records, the rule changed; `hang --scan`):
+
+| the rule | null tracks that hang (of 160) | nothing known, hang (of 68) | known answers that hang (of 9) | candidates that hang |
+|---|---|---|---|---|
+| as set: 18 degrees | 0 | 2 | 9 | PR105, PR28, PR071 |
+| 6, 9 degrees | 0 | 2 | 0 | PR105, PR28 |
+| 12 degrees | 0 | 2 | 3 | PR105, PR28 |
+| 15, 20, 25, 30 degrees | 0 | 2 | 9 | PR105, PR28, PR071 |
+| 45 degrees | 1 | 4 | 9 | PR105, PR28, PR071 |
+| a line at the object from 3 to 10 times the scatter; opposite share 0.2 to any; right-angle share 0.25 to any | 0 | 2 | 9 | the same |
+| a line at the object on 0.1 of the frames | 0 | 3 | 9 | the same |
+| ... on 0.2, 0.4, 0.5 of the frames | 0 | 2 | 9 | the same |
+| no line at the object looked for | 0 | 2 | 9 | PR105, PR071 |
+
+So the null holds the gate anywhere from 15 to 30 degrees, and the four numbers of the line at the object anywhere
+in their ranges but one (on 0.1 of the frames a third object passes: AARO's `dod_111311872` object 8, a line at -5
+degrees on 15 % of its frames). The 18 is the stated rate's, not the null's.
+
+The stage's own run also rebuilds a number of section 6, and it is not the same: on the 160 null tracks it names a
+companion that is neither the real object nor its companion on 7 (4.4 %; 1.8 to 8.8 %), where section 6's replay of
+saved chains counts 2. The replay follows 30 candidates a track, chosen by how often they are seen; the stage follows
+the 60 strongest that the control does not show. All seven are beside the object, 33 to 83 degrees off the vertical:
+four far features on AARO's PR-009 and PR-010 clips, three other birds of PR135's flock.
+
+**Run once on tracks the rule had not seen** (the labelled infrared set of section 44, every one of its 432 tracks:
+airplanes, birds, drones, helicopters; and two more of the repository's vendored tracks, PR23's object and the
+helicopter of section 34's Santa Barbara hoist), read once after the rule was set and not changed after. Of the 432
+labelled tracks, **2 hang** (0.5 %; 0.06 to 1.7 %), 12 are beside it, 348 have nothing tied and 70 are "cannot say"
+(44 objects that hardly move on the screen, as the platform follows them, and 26 stacks too small to search: the
+frames are 320 by 256). Both that hang were looked at, and both are the ground: a bird (IR_BIRD_076, its second
+object) whose companion is a feature of the bright ground band 178 px under it, its angle drifting from 12 to 20
+degrees; and a helicopter (IR_HELICOPTER_002) whose companion is one ground feature after another, its angle
+sweeping in a sawtooth from +15 to -30 degrees (12 degrees of spread). Both passed the companion gate as section 6's
+far scene does. PR23's object and the Santa Barbara Huey: nothing tied.
+
+| unseen tracks | hangs | beside it | nothing tied | cannot say |
+|---|---|---|---|---|
+| airplanes (82) | 0 | 1 | 64 | 17 |
+| birds (125) | 1 | 9 | 99 | 16 |
+| drones (168) | 0 | 0 | 149 | 19 |
+| helicopters (57) | 1 | 2 | 36 | 18 |
+| PR23, the Santa Barbara Huey | 0 | 0 | 2 | 0 |
+
+**The known answers and the candidates, as the stage says them** (`tests/test_golden.py` holds each):
+
+| case | the answer | the line |
+|---|---|---|
+| WA9ONY-5, a 13 g load a metre under a pico balloon | hangs | 9.4 degrees off at the median of 130 frames, within the gate on all of them while it swings 13 degrees either side; read from the follower's places (a dark load is not the balloon's picture); the picture did not turn |
+| AARO's PR-004, "almost certainly a balloon", eight tracks | hangs on all eight | 11.9 to 14.6 degrees off (a chance line is that near 13 to 16 % of the time), over the object on six tracks and under it on two; read against the object's own picture, which the companion matches on 62 to 99 % of frames; spread 1.2 to 2.4 degrees; length 28 to 32 px, steady to 2 to 4 % |
+| PR105, frames 1075-2155 | hangs | the lower point: 2.0 degrees off at the median of 494 frames (a chance line is that near one time in 45), spread 3.0 degrees, length 26.3 px steady to 8 %; the picture turned 1.0 degree in 36 s while its clouds streamed past; the middle point, 15 px out and inside the ring, is a line that starts at the object straight down on 54 % of frames |
+| PR28, frames 620-1650 | hangs: a line that starts at the object | straight down, 0.9 degrees off at the median of 788 frames, spread 1.3 degrees; 17 times the other directions' scatter, 0.08 of it opposite, on 88 % of single frames and at a right angle on none |
+| PR071, the Lake Huron object's string | hangs | 14.9 degrees off (the gate is 18), spread 2.6 degrees, within the gate on 90 % of 207 frames |
+| PR29 | nothing tied | a line under the head at +5 degrees, 9.7 times the scatter, but on 15 % of the 43 frames that could be read (93 linked, the tracking gate's strokes across the rest): too few |
+| PR135 object 2, a bird | beside it | the next bird of the flock, 48 degrees off |
+| PR077 object 1, PR149, PR055 | nothing tied | |
+
+**How it fails.**
+
+- *The picture's vertical is not the world's.* PR-004's pair lies 13 degrees off on every track, and nothing says
+  whether that is the camera's tilt or the load's. A camera rolled by more than 18 degrees turns a hanging line into
+  "beside it"; where the vertical is known some other way (a horizon, a pointer), the angle is in the record to be
+  set against it.
+- *One line's direction is one number.* A line with no tie to the vertical passes one time in five, and the report
+  says each line's own chance. The answer leans on a companion being there at all: 7 of 160 null tracks get one by
+  the stage's own run, none of them near the vertical.
+- *A feature of the far scene that keeps the object's pace passes*, where it lies under the object (two of the 432
+  unseen tracks, the ground band under a bird and under a helicopter). Its angle drifts or sweeps; nothing here gates
+  on that (IDEAS.md H12).
+- *A neighbour that keeps its place under the object passes* (PR097's objects 7 and 8). `run` calls a companion a
+  fellow member, and so beside it, only where that neighbour was followed as a member of the group.
+- *The picture's own turn* is read off the scene, and needs a scene: under 12 patches of texture (an empty sky, a
+  small frame) it is not read, the picture's vertical is taken as it stands, and the words say so. It is read from
+  the part of the shifts across the scene's motion alone. A similarity fitted to the whole shift reads a scene with
+  depth sliding past as a small turn on every frame, and the sum is large: PR105's clouds, level in the picture
+  throughout, summed to a roll of 34 degrees and a scale of 1.17 over 36 s that way (session 19's own saved series
+  sums to the same). A turn about a point far from the picture's middle, and a lens's distortion under a pan, are
+  not modelled.
+- *A step of the zoom inside the track* doubles the line's length and smears the stack; the stage does not cut the
+  track there.
+- *A line that starts at the object* is found on rings about the track's own place: a thin bright line longer than
+  the reading's reach is still the stroke mask's (`--no-stroke-mask`); a tracking gate's strokes across the object
+  leave too few frames to read (PR29); a neighbour inside the ring, or the object's own long shape, shows as a
+  one-sided picture and makes no outcome. There is no known answer for a stem: PR28 and PR29 are candidates by
+  AARO's description and their mission reports, and the reading's numbers are the companion gate's, held to the null
+  and to drawn clips only.
+- *What the companion's gate refuses is not here either* (section 6): a load too faint for single frames, one seen on
+  under 0.3 of the frames, one that swings by more than its leash.
 
 ## 59. Four readings beside the beat: the position, a band's own line, a beat's shape, the mark's base rate (K2, T2, E11, the row "uap PR089"; added 2026-11-13)
 

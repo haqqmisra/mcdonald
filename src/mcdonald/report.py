@@ -166,6 +166,52 @@ CHECKS = {
 }
 
 
+def _near_vertical(line, picture=True):
+    """How near straight down (or up) the picture a line lies, in words: "about 13° from straight down the picture"."""
+    off = line.get("off_vertical_deg") or 0.0
+    return (("under 1°" if off < 1 else f"about {off:.0f}°") + f" from straight {'up' if line.get('above') else 'down'}"
+            + (" the picture" if picture else ""))
+
+
+def hang_said(tf):
+    """The tether stage's first outcome in the paragraph's sentences: does something hang under the object (IDEAS.md
+    H5)? [] for a report made before the stage asked, for nothing tied, and where the object hardly moved on the
+    screen (that is listed with the tests that could not decide). The claim is about the picture: a feature keeps to
+    a line under the object or over it, near straight down the picture. Nothing here gives the camera's tilt, so
+    the words never say straight down in the world; and a line at a random angle lies within 18 degrees of straight
+    down one time in five, so the words say how often a chance line is as near as this one."""
+    h = tf.get("hang") or {}
+    line, out = h.get("line") or {}, h.get("outcome")
+    if out not in ("hangs", "beside it", "cannot say") or h.get("of") in (None, "fellow member") and out != "cannot say":
+        return []
+    if out == "cannot say":
+        if h.get("cannot") not in ("few", "roll"):
+            return []
+        return ["Whether anything hangs under the object cannot be said: "
+                + ("what moves with it shows on too few frames to read the angle of the line between them."
+                   if h["cannot"] == "few" else
+                   f"the picture itself turned by about {(line.get('scene') or tf.get('scene') or {}).get('roll_deg') or 0:.0f}° "
+                   "over these frames.")]
+    where = "over" if line.get("above") else "under"
+    at_it = h.get("of") == "line at the object"
+    if out == "beside it":
+        return [f"The line from the object to it lies about {line['off_vertical_deg']:.0f}° from straight "
+                f"{'up' if line.get('above') else 'down'} the picture. So it is beside the object, not hanging under it."]
+    odds = int(90.0 / max(line["off_vertical_deg"], 1e-6))
+    L = [(f"A line starts at the object and points {'up' if line.get('above') else 'down'} the picture, {_near_vertical(line, False)}. "
+          f"It shows on {100 * (tf.get('at_object') or {}).get('seen_on', 0):.0f}% of the frames, on that side of the object only."
+          if at_it else f"It stays on a line {where} the object, {_near_vertical(line)}."),
+         "Two things joined by a hanging line would lie that way. So would two separate objects, one keeping its place "
+         + ("over" if line.get("above") else "under") + " the other.",
+         ("A line at a random angle lies that close to straight up and down the picture "
+          + (f"about one time in {odds}." if odds <= 50 else "fewer than one time in 50."))]
+    roll = (line.get("scene") or {}).get("roll_deg")
+    if roll is not None and roll >= 2:
+        L.append(f"The picture itself turned by about {roll:.0f}° meanwhile.")
+    L.append("Straight down the picture need not be straight down in the world: this video does not give the camera's tilt.")
+    return L
+
+
 # A caption under each of the report's figures, saying what to look at (sciencespeak's "Words on figures", 2026-11-07):
 # by the end of the file's name, as `figures.report_figures` names them
 FIGURE_CAPTIONS = (
@@ -2084,6 +2130,7 @@ class Case:
                          "So no swing is claimed, and there is no length to read.")
             elif sw.get("swings") is False:
                 L.append("It holds a steady angle, so there is no swing and no length to read.")
+        L += hang_said(tf)
 
         if com.get("verdict"):
             rel = self._num(com.get("rel_D", 0)) or 0.0
@@ -2314,17 +2361,34 @@ class Case:
             else:
                 add("single", "groups", YES, "one point on most frames; nothing moves with it as a group")
         tt = st("tether")
+        hg = tt.get("hang") or {}                           # "does something hang under it?" (IDEAS.md H5): absent before it
+        hl = hg.get("line") or {}
         if tt.get("fellow_member"):
             c = tt["fellow_member"]
             add("with", "tether", YES, f"a {c['sign']} feature {c['r_over_size']:.1f} object widths away: a fellow member of its group, not something tied to it")
         elif tt.get("companion"):
             c, sw = tt["companion"], tt.get("swing") or {}
             period = sw.get("period_used_s") or sw.get("period_s")
-            add("with", "tether", YES, f"a {c['sign']} feature {c['r_over_size']:.1f} object widths away moves with it"
+            of_it = hg.get("of") == "companion"
+            add("with", "tether", YES, f"a {c['sign']} feature {c['r_over_size']:.1f} object widths away "
+                + (f"hangs on a line {'over' if hl.get('above') else 'under'} it, {_near_vertical(hl)}" if of_it and hg.get("outcome") == "hangs" else
+                   "moves with it, beside it and not under it" if of_it and hg.get("outcome") == "beside it" else "moves with it")
                 + (f", swinging with a period of {period:.1f} s like a pendulum {sw['line_length_m']:.2f} m long"
                    + (" (tentative: under two cycles)" if sw.get("tentative") else "") if sw.get("swings") and period and sw.get("line_length_m") else
                    ", with no regular swing" if sw.get("swings") is False and sw.get("period_refused_s") else
-                   ", at a steady angle (no swing)" if sw.get("swings") is False else ""))
+                   ", at a steady angle (no swing)" if sw.get("swings") is False else "")
+                + ("; whether it hangs under it cannot be said" if of_it and hg.get("outcome") == "cannot say" else ""))
+        elif hg.get("of") == "line at the object" and hg.get("outcome") == "hangs":
+            add("with", "tether", YES, f"a line starts at the object and points {'up' if hl.get('above') else 'down'} the picture, "
+                                       f"{_near_vertical(hl, False)}: something hangs {'over' if hl.get('above') else 'under'} it")
+        elif hg.get("outcome") == "cannot say" and hg.get("cannot") == "roll":   # nothing found on a picture that turned
+            add("with", "tether", CANT, f"the picture itself turned by about {(tt.get('scene') or {}).get('roll_deg') or 0:.0f}° over "
+                                        "these frames, so what hangs under the object would not have shown")
+        elif tt.get("finding") and tt.get("searched_px") and tt.get("hang"):   # the ring, and since H5 the object's own picture
+            near, far = tt["searched_px"]
+            add("with", "tether", NO, f"nothing between {near:.0f} and {far:.0f} pixels from it keeps step with it, and "
+                                      + ("no line points down the picture from the object" if (tt.get("at_object") or {}).get("strength") is not None
+                                         else "closer in could not be searched"))
         elif tt.get("finding") and tt.get("searched_px"):   # said of the ring that was searched (0.5.2; PR28's stem starts at the object)
             near, far = tt["searched_px"]
             add("with", "tether", NO, f"nothing between {near:.0f} and {far:.0f} pixels from it keeps step with it; closer in was not searched")

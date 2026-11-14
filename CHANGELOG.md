@@ -5,6 +5,41 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`tether` answers "does something hang under it?"** (IDEAS.md H5, ROADMAP 0.5.x; 2026-11-13; method section 55).
+The stage found what moves with an object and asked whether it swings. Most of what moves with an object does not
+swing in the seconds a clip gives, and the stage then had no more to say: of AARO's known balloon PR-004, of PR105's
+points in a line, of PR28's stem. It now ends in one of four answers on every object (`hangs` in its record and in
+`--json`): **hangs**, **beside it**, **nothing tied** or **cannot say**.
+
+- *What is read.* The line from the object to what moves with it: its angle from the picture's vertical on every
+  frame that shows it, whichever end is up (the track can sit on either end of a pair). Where the two are the same
+  point-spread pattern, the companion's place is read by sliding the object's own picture over it, to a fraction of
+  a pixel. The scene's own turn and change of scale are read beside the line, from the part of the scene's shifts
+  across its motion: a scene with depth sliding past is otherwise read as a turn (PR105's level clouds summed to 34
+  degrees that way). And the object's own picture, inside the ring the stage searched before, is read on rings for a
+  line that starts at the object, so the checklist no longer says "closer in was not searched".
+- *The rule.* It hangs where the line lies within 18 degrees of the picture's vertical at the median of its frames.
+  A line with no tie to the vertical lies that near one time in five; that is the smallest round rate that keeps
+  PR-004, whose line lies 12 to 15 degrees off on all eight of its tracks. It is a statement about the picture:
+  nothing here knows which way is down in the world. The report says "straight down the picture", how often a line at
+  a random angle lies as near, and that a separate object keeping its place under this one would lie the same way.
+- *Held to a null.* The stage itself on 82 recorded tracks and on two null tracks of each: hangs on 0 of 160 tracks
+  that nothing keeps step with, on 2 of 68 objects with nothing known under them and on 9 of 9 known answers
+  (WA9ONY-5's load; PR-004's eight tracks). The two are PR097's objects 7 and 8, where a neighbour of a tight group
+  flies 14 pixels straight under the tracked one: the geometry cannot tell that from a load. PR105's lower point,
+  PR28's stem and PR071's string hang. Run once afterwards on 434 tracks it had not seen (the labelled infrared set's
+  airplanes, birds, drones and helicopters, and two more), it said "hangs" on 2: both, looked at, are the ground band
+  under the object keeping its pace.
+- *What a report says now.* The paragraph gains sentences where something hangs or is beside the object, and the
+  checklist's row "Does anything move along with it?" says "hangs on a line under it", "beside it and not under it",
+  or, for nothing tied, "nothing between 18 and 540 pixels from it keeps step with it, and no line points down the
+  picture from the object". Nothing of it is in the headline. Every reference report but PR113's changes its "with" row
+  in its words (30 of 31 objects), and 11 paragraphs gain sentences (PR097's objects 7 and 8 "hang": a neighbour
+  flying 14 pixels under each; nine others are beside it); no headline, no label and no other sentence or number moves. The reference case files are not remade.
+- `tools/tether_null.py stage` and `hang` rebuild the counts; `mcdonald tether`'s figure draws the line and the
+  picture's vertical; `tests/test_tether.py` has 78 checks (45 before), and `tests/test_golden.py` holds each known
+  answer.
+
 **`horizon` says which way refraction breaks each bound, and refuses a duct** (IDEAS.md W8; 2026-11-13). The stage
 takes the air's bending of light, the refraction coefficient, as 0 to 0.25. The real air near the sea does not keep
 to that, and each bound breaks one way only:

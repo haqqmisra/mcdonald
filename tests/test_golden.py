@@ -1685,6 +1685,19 @@ def _tether(video, track_file, **kw):
         return tether.measure(clip, track, out=f"{td}/case", say=lambda line: None, **kw)
 
 
+def _hangs(f, name, outcome, of=None, off=None, above=None, said=""):
+    """The stage's first outcome on a golden (IDEAS.md H5, session 23): `outcome`, what it was said `of`, the line's
+    angle from the picture's vertical within `off` (lo, hi) degrees, and which end is up."""
+    h = f.fields.get("hang") or {}
+    ln = h.get("line") or {}
+    ok = (f.fields.get("hangs") == outcome and (of is None or h.get("of") == of)
+          and (off is None or ("off_vertical_deg" in ln and off[0] <= ln["off_vertical_deg"] <= off[1]))
+          and (above is None or ln.get("above") is above))
+    check(ok, f"{name}: does something hang under it? {outcome}" + (f", {said}" if said else ""),
+          (h.get("said") or "")[28:230])
+    return h, ln
+
+
 def test_pr071_string():
     """PR071, the Lake Huron object: a dark line hangs from it on most frames, steady -- no length."""
     print("\nPR071, frames 367-603 -- a line hangs from the object, and does not swing")
@@ -1705,6 +1718,7 @@ def test_pr071_string():
     sw = f.fields["swing"]
     check(sw is not None and sw.get("swings") is False and sw["angle_sd_deg"] < 15,
           "PR071: steady, no swing, no length", "" if sw is None else sw["finding"])
+    _hangs(f, "PR071", "hangs", "companion", (12.0, 17.5), False, "the string keeps to a line under the object, 15 deg off the picture's vertical")
 
 
 def test_pr055_nothing_tied():
@@ -1719,6 +1733,7 @@ def test_pr055_nothing_tied():
     check(f.fields["companion"] is None, "PR055: no companion", f.fields["finding"])
     check(any(c.get("scene") for c in f.fields["candidates"]) or "nothing" in f.fields["finding"],
           "PR055: the stack's features were followed and moved with the scene")
+    _hangs(f, "PR055", "nothing tied")
 
 
 def test_wa9ony5_swing():
@@ -1742,6 +1757,11 @@ def test_wa9ony5_swing():
     check(sw is not None and sw.get("line_length_m") and 1.4 <= sw["line_length_m"] <= 1.95,
           "WA9ONY-5: a pendulum of 1.4-1.95 m (the line, the balloon's radius and the payload's offset)",
           "" if sw is None else f"{sw.get('line_length_m')} m")
+    h, ln = _hangs(f, "WA9ONY-5", "hangs", "companion", (5.0, 14.0), False, "the load under the balloon, the known answer")
+    check(ln.get("within", 0) >= 0.9 and ln.get("read_against") == "its own centre" and ((ln.get("scene") or {}).get("roll_deg") or 0) < 2,
+          "WA9ONY-5: within the gate on nearly every frame of its swing; a dark load is not the balloon's picture; the picture did not turn",
+          f"within on {100 * ln.get('within', 0):.0f}% of {ln.get('frames')} frames, spread {ln.get('spread_deg', 0):.1f} deg, "
+          f"roll {(ln.get('scene') or {}).get('roll_deg')}")
 
 
 def _tether_window(video, track_file, n0, n1, **kw):
@@ -1776,6 +1796,13 @@ def test_pr004_companion_and_no_pendulum():
               "" if c is None else f"held on {100 * c['held_on']:.0f}% to {c['followed_jitter_px']:.2f} px, {c['scene_share']:+.2f} of the scene's motion")
         check(sw is not None and sw.get("swings") is False and sw.get("line_length_m") is None,
               f"PR-004 row {row}: no pendulum (0.5.1: {'1.95' if row == 4 else '2.00'} m)", "" if sw is None else sw["finding"][:140])
+        h, ln = _hangs(f, f"PR-004 row {row}", "hangs", "companion", (11.5, 15.5), row == 4,
+                       "the known balloon: its pair keeps a line 12 to 15 deg off the picture's vertical" + (", the track on the lower end" if row == 4 else ""))
+        check(ln.get("read_against") == "the object's own picture" and ln.get("same_picture_on", 0) >= 0.8 and ln.get("spread_deg", 9) <= 3.0
+              and 0.12 <= ln.get("chance", 0) <= 0.18 and ((ln.get("scene") or {}).get("roll_deg") or 0) < 2,
+              f"PR-004 row {row}: read against the object's own picture, steady to 3 deg, a chance line as near 13 to 17 % of the time; the picture did not turn",
+              f"the two agree on {100 * ln.get('same_picture_on', 0):.0f}%, +-{ln.get('spread_deg', 0):.1f} deg, chance {ln.get('chance', 0):.2f}, "
+              f"roll {(ln.get('scene') or {}).get('roll_deg')}")
 
 
 def test_pr016_a_row_of_birds_is_not_symbology():
@@ -1848,6 +1875,14 @@ def test_pr105_companion_is_not_followed_away():
           "" if sw is None else f"{sw['separation_px']:.1f} px, {sw['separation_range_px'][0]:.0f}-{sw['separation_range_px'][1]:.0f} px in all, "
                                 f"angle sd {sw['angle_sd_deg']:.1f} deg")
     check(sw is not None and sw.get("swings") is False, "PR105: no period claimed", "" if sw is None else sw["finding"][:140])
+    h, ln = _hangs(f, "PR105", "hangs", "companion", (0.0, 5.0), False, "the lower point keeps to a line under the upper one")
+    at = f.fields.get("at_object") or {}
+    check(ln.get("spread_deg", 99) <= 6.0 and ((ln.get("scene") or {}).get("roll_deg") or 0) < 10
+          and at.get("starts") is True and abs(at.get("direction_deg", 99)) <= 10,
+          "PR105: steady to 6 deg while the clouds stream past (their shear is not read as a turn of the picture), and the middle "
+          "point, inside the ring, is a line that starts at the object straight down",
+          f"+-{ln.get('spread_deg', 0):.1f} deg, roll {(ln.get('scene') or {}).get('roll_deg')}; at the object {at.get('direction_deg')} deg, "
+          f"on {100 * at.get('seen_on', 0):.0f}%")
 
 
 def test_no_pendulum_on_the_birds():
@@ -1868,6 +1903,10 @@ def test_no_pendulum_on_the_birds():
         check(c is None or (sw.get("separation_range_px") and sw["separation_range_px"][1] <= 1.75 * c["r_px"] + 12),
               f"{rid}: nothing is followed away from where the stack put it",
               "no companion" if c is None else f"{sw['separation_range_px'][0]:.0f}-{sw['separation_range_px'][1]:.0f} px, the stack's {c['r_px']:.0f} px")
+        if rid == "PR077":
+            _hangs(f, "PR077 object 1", "nothing tied")
+        else:                                           # the next bird of the flock, level with it: a neighbour
+            _hangs(f, "PR135 object 2", "beside it", "companion", (35.0, 60.0), None, "the next bird of the flock is beside it")
 
 
 def test_nothing_tied_leaves_nothing_in_the_record():
@@ -1887,7 +1926,20 @@ def test_nothing_tied_leaves_nothing_in_the_record():
         a, b = f.fields["searched_px"]
         check(f.fields["companion"] is None and f.fields["swing"] is None, f"{rid}: no companion, and no swing in the record", f.fields["finding"][:150])
         check(f"between {a:.0f} and {b:.0f} px of it" in f.fields["finding"] and f"nearer than {a:.0f} px" in f.fields["finding"],
-              f"{rid}: the finding says the ring it searched, and that nearer in was not", f"{a:.0f} to {b:.0f} px")
+              f"{rid}: the finding says the ring it searched, and what was found nearer in", f"{a:.0f} to {b:.0f} px")
+        at = f.fields.get("at_object") or {}
+        if rid == "PR28":                               # H5: the stem, inside the ring, is a line that starts at the object
+            h, ln = _hangs(f, "PR28", "hangs", "line at the object", (0.0, 3.0), False, "the stem straight under the head")
+            check(at.get("starts") is True and abs(at.get("direction_deg", 99)) <= 5 and at.get("seen_on", 0) >= 0.7 and at.get("mirror", 1) <= 0.3
+                  and at.get("beside_on", 1) <= 0.05 and ln.get("spread_deg", 9) <= 3.0,
+                  "PR28: on most single frames, on one side of the head, steady to 3 deg (0.5.2: \"nearer in was not searched\")",
+                  f"{at.get('direction_deg')} deg, {at.get('strength', 0):.1f} x, {at.get('mirror', 0):.2f} opposite, on {100 * at.get('seen_on', 0):.0f}%, "
+                  f"+-{ln.get('spread_deg', 0):.1f} deg")
+        else:                                           # PR29: AARO describes a mass under it; 93 frames linked, the gate's strokes
+            _hangs(f, rid, "nothing tied", said="" if rid == "PR149" else "a line shows under the head on too few frames to be one (as measured)")
+            if rid == "PR29":
+                check(at.get("starts") is False and at.get("seen_on", 1) < 0.3, "PR29: what is under the head shows on under 0.3 of the frames read",
+                      f"{at.get('direction_deg')} deg, {at.get('strength', 0):.1f} x, on {100 * at.get('seen_on', 0):.0f}% of {at.get('frames')} frames read")
 
 
 def _audio(path, **kw):
