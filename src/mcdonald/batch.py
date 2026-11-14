@@ -359,7 +359,7 @@ def _name_units(units):
 def options_of(args):
     """The options a plan keeps, from the command's: those that decide results (`make_of`) and those that do not."""
     skip = sorted(set(x for x in (args.skip or "").split(",") if x) | (set(QUICK) if args.quick else set()))
-    return dict(window=int(args.window), overlap=int(args.overlap), most=int(args.most), skip=skip,
+    return dict(window=int(args.window), overlap=int(args.overlap), most=int(args.most), keep=int(getattr(args, "keep", KEEP) or KEEP), skip=skip,
                 only=sorted(x for x in (args.only or "").split(",") if x), audit=int(args.audit_frames),
                 keep_frames=bool(args.keep_frames), video_dir=[str(Path(d).resolve()) for d in args.video_dir or ()],
                 note=str(getattr(args, "note", "") or ""))
@@ -370,7 +370,7 @@ def make_of(options):
     numbers. Two units of one make can share a table without a word; two of different makes cannot."""
     return dict(mcdonald=__version__, window=options["window"], overlap=options["overlap"], most=options["most"],
                 skip=list(options.get("skip") or []), only=list(options.get("only") or []), audit=options.get("audit", AUDIT),
-                rule=dict(keep=KEEP, seen=SEEN, round=ROUND, share=SHARE, apart=APART, still=STILL))
+                rule=dict(keep=options.get("keep", KEEP), seen=SEEN, round=ROUND, share=SHARE, apart=APART, still=STILL))
 
 
 def make_id(make):
@@ -975,7 +975,7 @@ def _unit(out, u, opt, folder, state, say, progress, stop):
             p = at(f"window {i} of {len(rec['windows'])}")
             try:
                 clip = vf.Clip(video, wd, a, b)
-                props = propose.find(clip, vf.static_masks(clip, progress=p), progress=p, stop=stop, keep=KEEP)
+                props = propose.find(clip, vf.static_masks(clip, progress=p), progress=p, stop=stop, keep=opt.get("keep", KEEP))
                 write_json(f, dict(window=wtag, n0=a, n1=b, proposals=[dict(q.to_dict(), rank=r) for r, q in enumerate(props, 1)]))
             except vf.Stopped:
                 raise
@@ -1083,7 +1083,7 @@ def _unit(out, u, opt, folder, state, say, progress, stop):
         several.index(folder)
 
     # 7 the case file
-    rec["outcome"] = "measured" if things else "nothing found"
+    rec["outcome"] = "measured" if things else "listed" if objs else "nothing found"
     if things:
         step("the case file")
         with _clock(secs, "share"):
@@ -1235,6 +1235,8 @@ def rows_of(out, u, state=None, rec=None):
     if rec.get("found") and rec["found"] > len(things):
         notes.append(f"{rec['found'] - len(things)} more spots that lasted are listed, not measured (past the cap)")
     head["note"] = "; ".join(notes) or None
+    if not things and rec.get("outcome") == "listed":
+        return [dict(head, note=f"{rec.get('found', 0)} spots that lasted are listed; none was measured, as asked (--most 0)")]
     if not things:
         r = rec.get("refused") or {}
         return [dict(head, note=(head["note"] + "; " if head["note"] else "")
@@ -1369,6 +1371,7 @@ def markdown(p, rows, t):
     """`batch.md`: the table for a person."""
     n = t["videos"]
     words = {"measured": "at least one object measured", "nothing found": "nothing found that lasted",
+             "listed": "spots that lasted are listed, none measured",
              "still picture": "the picture does not change", "no picture": "no picture in the file",
              "failed": "failed", "not done yet": "not done yet", "done": "done"}
     opt = p["options"]
@@ -1795,7 +1798,10 @@ def main(argv=None):
     what.add_argument("--window", type=int, default=None, metavar="N", help=f"frames Find takes at a time (default {WINDOW})")
     what.add_argument("--overlap", type=int, default=None, metavar="N", help=f"frames one window shares with the next (default {OVERLAP})")
     what.add_argument("--most", type=int, default=None, metavar="M",
-                      help=f"measure at most M objects a video, the most likely first; the rest are listed (default {MOST})")
+                      help=f"measure at most M objects a video, the most likely first; the rest are listed (default {MOST}; "
+                           "0 lists them all and measures none)")
+    what.add_argument("--keep", type=int, default=None, metavar="N",
+                      help=f"spots Find keeps in each stretch of frames, the most likely first (default {KEEP}, the number a person is shown)")
     what.add_argument("--quick", action="store_true", default=None,
                       help=f"leave out the two long steps ({', '.join(QUICK)}): the reports say what was not measured")
     what.add_argument("--skip", default=None, metavar="STEPS", help="steps to leave out, comma-separated, as `mcdonald run` takes them")
@@ -1836,15 +1842,16 @@ def main(argv=None):
 
     # the plan: made, added to, or read. An option not given keeps the plan's; a new plan takes the defaults
     old = read_json(out / PLAN)
-    said = {k: v for k, v in dict(window=args.window, overlap=args.overlap, most=args.most, audit_frames=args.audit_frames).items()
-            if v is not None}
+    said = {k: v for k, v in dict(window=args.window, overlap=args.overlap, most=args.most, keep=args.keep,
+                                  audit_frames=args.audit_frames).items() if v is not None}
     if (given or old is None or said or args.quick or args.skip is not None or args.only is not None or args.keep_frames or args.video_dir
             or args.note is not None):
         if old is None and not given:
             ap.error(f"{out} holds no batch yet: name the videos, or give --list FILE or --catalog")
         o = dict((old or {}).get("options") or {})
         ns = argparse.Namespace(window=args.window or o.get("window", WINDOW), overlap=args.overlap if args.overlap is not None else o.get("overlap", OVERLAP),
-                                most=args.most or o.get("most", MOST), audit_frames=args.audit_frames or o.get("audit", AUDIT),
+                                most=args.most if args.most is not None else o.get("most", MOST),
+                                keep=args.keep or o.get("keep", KEEP), audit_frames=args.audit_frames or o.get("audit", AUDIT),
                                 quick=args.quick, skip=args.skip if args.skip is not None else ",".join(o.get("skip") or []),
                                 only=args.only if args.only is not None else ",".join(o.get("only") or []),
                                 keep_frames=args.keep_frames if args.keep_frames is not None else o.get("keep_frames", False),
@@ -1852,6 +1859,8 @@ def main(argv=None):
                                 note=args.note if args.note is not None else o.get("note", ""))
         if ns.overlap >= ns.window:
             ap.error("--overlap must be fewer frames than --window")
+        if ns.most < 0 or ns.keep < 1:
+            ap.error("--most is 0 or more (0: the spots are listed and none is measured), and --keep 1 or more")
         p = plan(out, given, options_of(ns), fetch=bool(args.slurm or args.slurm_print), say=say)
     else:
         p = read_plan(out)

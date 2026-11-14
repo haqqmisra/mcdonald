@@ -453,6 +453,28 @@ def test_segment(td):
     seg = segments.listed(c / "one", "one")
     check(len(seg) == 1 and (seg[0].n0, seg[0].n1) == (11, 70), "and `mcdonald segments` lists it as it lists any segment")
 
+    print("\nhow deep a batch goes: Find only, Find and the link only, and how many of Find's rows are kept")
+    two = vids / "two.mkv"
+    f = Path(td) / "find-only"
+    rc, out, err = mcdonald(two, "--out", f, "--most", "0", "--keep", "5", td=td)
+    d, rows = table(f)
+    wins = json.loads((f / "two" / "find" / "w00.json").read_text(encoding="utf-8"))
+    check(rc == 0 and len(rows) == 1 and d["rows"][0]["outcome"] == "listed" and d["rows"][0]["found"] == 2 and not list((f / "two").glob("object-*"))
+          and "none was measured" in d["rows"][0]["note"] and d["tally"]["by_outcome"] == {"listed": 1},
+          "--most 0 stops after Find: the spots that lasted are listed and none is followed or measured", d["rows"][0]["note"])
+    check(len(wins["proposals"]) <= 5 and wins["proposals"][0]["rank"] == 1 and {"track", "mark_at", "seen_in", "score"} <= set(wins["proposals"][0])
+          and d["make"]["rule"]["keep"] == 5 and batch.make_of(dict(d["options"], keep=30)) != d["make"],
+          "--keep says how many of Find's rows each stretch keeps, as `look --propose --json` gives them; it is part of the make",
+          f"{len(wins['proposals'])} rows")
+    g = Path(td) / "link-only"
+    rc, out, err = mcdonald(two, "--out", g, "--only", "track,report", td=td)
+    d, rows = table(g)
+    case = json.loads((g / "two" / "object-1" / "two_case.json").read_text(encoding="utf-8"))
+    check(rc == 0 and len(rows) == 2 and all(r["followed_frames"] >= 40 for r in d["rows"]) and set(case["stages"]) <= {"ingest", "track"}
+          and (g / "two" / "object-1" / "two_autotrack.csv").exists() and d["rows"][0]["seconds"] < 0.5 * 20,
+          "--only track,report stops after the link: each object is followed, its track kept, and nothing is measured",
+          f"stages {sorted(case['stages'])}; {d['rows'][0]['seconds']} s")
+
 
 def main():
     if shutil.which("ffmpeg") is None:

@@ -701,7 +701,8 @@ windows of 400 frames overlapping by 30 (`find/wNN.json`); the proposals seen on
 all round, not a scrolling tape, the same object in two windows made one (`batch.long_lived`, `batch.merged`: the beat
 sweep's rules, which `tools/sweep/` now calls); the first twelve by Find's score (`--most`) each an `object-N` folder
 with marks at Find's seeds, recorded as an agent's with the rule as its reason; `several.run_each` on them, every
-stage (`--quick` leaves out `layers` and `integrity`); the index; each object's audit (59 frames of its track drawn at
+stage (`--quick` leaves out `layers` and `integrity`; `--only track,report` stops after the link, `--most 0` after
+Find; `--keep N` keeps more of Find's rows a window than 30); the index; each object's audit (59 frames of its track drawn at
 random by leverage, `<tag>_audit.png` and `.json`) and `<tag>_refused.png`, samples of what the rules refused; one
 shared file, `<tag>_batch.mcdonald`, which `share rerun` measures again to its numbers; the unit's rows; and the
 frames removed (`--keep-frames`). `DIR/batch.tsv`, `.json` and `.md` are the table over all of them: a row an object,

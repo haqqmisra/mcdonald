@@ -6157,7 +6157,10 @@ together (a scrolling tape). Two proposals are one object where they share 5 fra
 lie under 15 px apart on the frames they share (the median); the one seen longest leads. The objects are then put in
 order of Find's own score, the best an object had in any window, highest first (ties: seen on more frames, then
 earlier), and the first twelve (`--most`) are measured; the rest are listed in the video's `<tag>_batch.json` with why
-not. **These numbers are the sweep's, and are judgement with a record, not thresholds from a null**: they found the bird
+not. How deep a unit goes is an option, and part of its make: every stage by default; `--quick` without `layers` and
+`integrity`; `--only track,report` to the link and no further (each object followed, nothing measured); `--most 0` to
+Find alone (the objects listed, none followed). `--keep` keeps more of Find's rows a window than the 30 a person is
+shown, for a planted object low on the list. **These numbers are the sweep's, and are judgement with a record, not thresholds from a null**: they found the bird
 paper's Table 1 on the sweep's 126 videos, and nothing says what they miss. Completeness -- the share of planted objects
 the whole chain finds, per video -- is objective 4 of ROADMAP 0.6 and is not measured here.
 

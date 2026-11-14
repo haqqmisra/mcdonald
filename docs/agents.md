@@ -468,7 +468,9 @@ saw on 40 frames or more, with background all round it, and that is not part of 
 spot seen in two stretches of 400 frames is one spot. The spots are ordered by Find's own score, and
 the first twelve (`--most M`) each become an object: a folder `object-N`, marks at Find's own
 positions, then `run --each` as above. The rest are listed and not measured. `--quick` leaves out
-the two long steps, `layers` and `integrity`.
+the two long steps, `layers` and `integrity`. To stop after the link, give `--only track,report`:
+each object is followed and nothing is measured. To stop after Find, give `--most 0`: the spots
+are listed and none is followed. Find keeps 30 spots in each stretch, and `--keep N` keeps more.
 
 **What the rule leaves out.** A spot in view for fewer than 40 frames is counted and not measured,
 however clear it is. An object that crosses the picture in four frames is such a spot (PR113's is).
