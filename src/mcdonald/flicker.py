@@ -279,6 +279,10 @@ HEADLINE_NEAR = 0.5  # Hz: passing windows that do not overlap and agree this cl
 CHANCE_P = 0.01      # windows apart are a beat come back only where that many passing is rarer than this by chance
 #                      (`windows_chance`, 2026-11-13): on the Galileo Project's clouds and aircraft, 14 of 16 beats came
 #                      back in as many windows as the drift test's measured false rate gives over a long track
+CHANCE_FLOOR = 0.02  # the least each window's chance of passing is taken to be, where it is measured on the clip's own
+#                      background windows (`background_windows`; 2026-11-13, IDEAS N3): DRIFT_RATE, the census of 116
+#                      release videos, cost two known birds of the labelled set on tracks of five windows, while their own
+#                      backgrounds' windows passed under 1 in 100
 SHARED = 0.5         # a background aperture that beats this strongly at the object's frequency shares its beat
 WINDOW_S = 2.0       # s: the windows a beat is looked for in along the track, an eighth of a window apart, the last one always
 HALF = 0.5           # a peak at half the strongest's frequency, this share of it or more, makes the strongest a double
@@ -1680,22 +1684,39 @@ def independent_windows(wins):
     return n
 
 
-def windows_chance(k, n, hz):
-    """The chance that `k` or more of `n` windows that do not overlap pass by chance, each at the drift test's measured
-    false rate for `hz` (`drift_rate`). Generous to chance: a window passes on more than the drift test's line, and
-    chance's windows would also have to agree in frequency. So a beat this rules out is surely no more than chance,
+def windows_chance(k, n, hz, rate=None):
+    """The chance that `k` or more of `n` windows that do not overlap pass by chance, each passing at `rate`: the share
+    of the clip's own background windows that pass (`background_windows`, floored at CHANCE_FLOOR) where it was
+    measured, else the drift test's measured false rate for `hz` over 116 release videos (`drift_rate`). Generous to
+    chance: chance's windows would also have to agree in frequency. So a beat this rules out is no more than chance,
     and a real one that returns along its track (PR135's, a bird's) is far beyond it."""
     from scipy.stats import binom
     if k <= 0 or n <= 0:
         return 1.0
-    return float(binom.sf(k - 1, n, drift_rate(hz)))
+    return float(binom.sf(k - 1, n, drift_rate(hz) if rate is None else rate))
+
+
+def background_windows(beside, own, n, bgs, ns, fps, lines, gone, top, scale):
+    """[passing, all] of the windows of the apertures `bgs` beside the object `n`, each put through the object's own
+    windows (`windows`) as if it were the object, held against the others and measured in the object's brightness
+    `scale` (as `_control` does), over the object's own stretch: what passes there passes by chance. None where fewer
+    than two apertures could be read. `own` is {name: curve over the stretch}; `beside` a `progress.Beside`."""
+    jobs = [beside.call(windows, {m: own[m] for m in [b] + [c for c in bgs if c != b]}, b, [c for c in bgs if c != b],
+                        ns, fps, lines, gone=gone, top=top, scale=scale)
+            for b in bgs if len(bgs) >= 2]
+    got = [w for j in jobs for w in j.result()]
+    return [sum(1 for w in got if w["passes"]), len(got)] if got else None
 
 
 def back_said(b):
     """The finding's words for a beat that does not come back: one stretch, or windows apart no more often than chance."""
     if (b.get("windows_apart") or 0) >= 2 and b.get("windows_chance_p") is not None:
+        bw, rate = b.get("background_windows"), b.get("windows_chance_rate")
+        each = (f"; each window passing by chance {rate:.1%} of the time, as the background's own windows do ({bw[0]} of "
+                f"{bw[1]}{', taken as ' + format(CHANCE_FLOOR, '.0%') + ' at least' if rate == CHANCE_FLOOR else ''})"
+                if bw and rate is not None else "")
         return (f"; it beats in {b['windows_apart']} windows apart of the {b['windows_independent']} its track holds, as "
-                f"often as chance gives ({b['windows_chance_p']:.0%}), and the whole track does not beat")
+                f"often as chance gives ({b['windows_chance_p']:.0%}{each}), and the whole track does not beat")
     return "; that is one stretch: the whole track does not beat, and no window apart from it does"
 
 
@@ -4249,7 +4270,16 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
             apart, apart_hz = apart_windows(passing)
             pick["windows_apart"] = apart
             pick["windows_independent"] = independent_windows(wins)
-            pick["windows_chance_p"] = windows_chance(apart, pick["windows_independent"], apart_hz) if apart >= 2 else None
+            pick["windows_chance_p"] = None
+            if apart >= 2:
+                # where the windows decide, chance is the clip's own: its background apertures' windows over the stretch,
+                # judged as the object's are (only here: they take as long again as the object's windows did)
+                bw = None if whole_ok[n] else background_windows(beside, own, n, beside_n, ns[s0:s1], fps, lines,
+                                                                 [k - s0 for k in gone.get(n, [])], top,
+                                                                 level[n] if mine[n] else scale)
+                rate = max(CHANCE_FLOOR, bw[0] / bw[1]) if bw and bw[1] else None
+                pick["background_windows"], pick["windows_chance_rate"] = bw, rate if rate is not None else drift_rate(apart_hz)
+                pick["windows_chance_p"] = windows_chance(apart, pick["windows_independent"], apart_hz, rate)
             pick["comes_back"] = bool(whole_ok[n] or (apart >= 2 and pick["windows_chance_p"] <= CHANCE_P))
             F["beat"][n] = pick
             # what amplitude a beat would need in this track's own noise, in closed form (D6): how faint a beat it can hear
