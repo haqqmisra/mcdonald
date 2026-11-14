@@ -611,9 +611,18 @@ def places(ids, frames, x, y, rng=None, draws=DRAWS):
 def readings(tracks):
     """The two calibrated readings of a group's followed members ({id: {frame: (x, y, ...)}}): dict(one_body=...,
     places=...), each made on the members `shared` keeps and the frames they share, each with draws of its own from
-    TEST_SEED."""
+    TEST_SEED. `places` also says whether a wander could be one rigid body turning (`one_body_not_ruled_out`)."""
     ids, frames, x, y = shared({i: t for i, t in tracks.items() if len(t) >= MIN_FRAMES})
-    return dict(one_body=one_body(ids, frames, x, y), places=places(ids, frames, x, y))
+    body, place = one_body(ids, frames, x, y), places(ids, frames, x, y)
+    # One rigid body that turns in depth changes its members' distances in the picture too (drawn bodies turning up to
+    # 60 degrees: "wander" for 28 to 58 % of them), so a wander says "several" only with the first reading.
+    place["one_body_not_ruled_out"] = turn = bool(place["outcome"] == WANDER and body["outcome"] != SEVERAL)
+    if turn:
+        place["finding"] += (". One rigid body that turns would change them so, and the members move as one would"
+                             if body["outcome"] == ONE_BODY else
+                             ". One rigid body that turns in depth would change them too, and "
+                             + ("fewer than five members" if len(ids) < 5 else "the other reading") + " cannot tell")
+    return dict(one_body=body, places=place)
 
 
 def measure(clip, track, masks=None, rows=None, radius=RADIUS, size=SIZE, dark=False, out=None, say=print,

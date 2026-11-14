@@ -1563,6 +1563,11 @@ def _drawn_group(rng, kind, members=6, frames=150, jitter=0.3, drift=0.0, colour
     return list(range(1, P + 1)), list(range(1, F + 1)), pos[..., 0], pos[..., 1]
 
 
+def _as_tracks(ids, frames, x, y):
+    """The stage's member tracks from a drawn group: {id: {frame: (x, y, response)}}."""
+    return {i: {n: (float(x[k, c]), float(y[k, c]), 1.0) for k, n in enumerate(frames)} for c, i in enumerate(ids)}
+
+
 def test_with_a_unit_root_and_without_adf_and_kpss_hold_their_published_lines():
     """The two tests the places reading borrows from econometrics (E21), as built in `groups` with no new dependency:
     the augmented Dickey-Fuller t ratio (a constant, a trend, the lag rule's lagged differences) under MacKinnon's
@@ -1671,6 +1676,18 @@ def test_yes_no_or_cannot_say_one_rigid_body_and_whether_members_keep_their_plac
           s["places"]["finding"][:100])
     check("one_body" not in o and "places" not in o and "do the members keep their places" in got["rigid"].result
           and "one rigid body or several" in got["rigid"].result, "one point has neither reading; a group's report has a line for each")
+    def first(want, **k):                     # the first of twelve drawn groups whose places wander (a turning body's do
+        for seed in range(605, 617):          # for about four in ten)
+            t = g.readings(_as_tracks(*_drawn_group(np.random.default_rng(seed), **k)))
+            if t["places"]["outcome"] == g.WANDER and t["one_body"]["outcome"] == want:
+                return t
+    turning, three = first(g.ONE_BODY, kind="body"), first(g.CANNOT, kind="formation", members=3, drift=5.0)
+    check(turning is not None and three is not None
+          and turning["places"]["one_body_not_ruled_out"] and "move as one would" in turning["places"]["finding"]
+          and three["places"]["one_body_not_ruled_out"] and "fewer than five members cannot tell" in three["places"]["finding"]
+          and not r["places"]["one_body_not_ruled_out"],
+          "a wander that one rigid body turning would make is said so: with the body's own reading, or with too few members to have one",
+          (turning or three or {"places": {"finding": "none of twelve drawn groups wandered"}})["places"]["finding"][-90:])
     lines = g.said(r)
     check(sum("one rigid body or several: " in ln or "do the members keep their places: " in ln for ln in lines) == 2,
           "and `mcdonald groups` prints both", lines[-1][:90])
