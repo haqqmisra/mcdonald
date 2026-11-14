@@ -286,6 +286,18 @@ def test_flyer5_wingbeat():
           "flyer 5: a third of its frames repeat, where the HEVC encoder skips a still sky -- not a cadence, so the band's top "
           "is the frame grid's 24 Hz, not 16.5 (M3)", f"{p.get('held', 0):.2f} held, {p.get('holds')}, balance {p.get('balance')}, "
           f"top {p.get('top_hz')} Hz")
+    _flyer_position(5, 3.90, f)
+    # ... and against the registered scene, as `mcdonald run` reads it where a beat would name a bird (scene="bird")
+    reg = flicker.measure(clip, {"object": track}, say=lambda *a: None, scene="bird").fields
+    pr = (reg.get("position_beat") or {}).get("object") or {}
+    ar = pr.get("at_beat") or {}
+    sc = (reg.get("scene_shift") or {}).get("scene") or {}
+    check(bool(sc) and ((sc.get("power") and pr.get("how") == "scene" and pr.get("own") is True and ar.get("line"))
+                        or (not sc.get("power") and pr.get("how") == "picture")),
+          "flyer 5: with the scene registered its position still carries the beat, the camera's motion out (or the scene has "
+          "nothing to register, and the reading says it is the picture's)",
+          f"scene {'registered ' + str(sc.get('registered')) if sc.get('power') else sc.get('why')}; how {pr.get('how')}; "
+          + (f"{ar['position_hz']:.2f} Hz, chance {ar['p']:.3f}" if ar else str(pr.get("why"))))
 
 
 def _flicker(video, tracks, n0, n1, dark=False):
@@ -574,9 +586,49 @@ def test_pr135_flock():
           "between halves; the case files, 2026-10-19: p 0.005-0.035)",
           ", ".join(f"{L} {100 * (s.get('wander_share') or 0):.1f} % (p {s['p']:.3f})" if s.get("p") is not None else f"{L} not read"
                     for L, s in sorted(st.items())))
+    # the beat in the position (method section 59, 2026-11-13): each member's own centroid against the mean of the other
+    # five, which moves with the camera. A reading beside the beat: a camera's gain cannot move a position
+    pb = {k[-1]: r for k, r in (f.get("position_beat") or {}).items() if k.startswith("member ")}
+    at = {L: (r.get("at_beat") or {}) for L, r in pb.items() if r.get("power")}
+    check(len(pb) == 6 and all(r.get("power") and r.get("how") == "members" and r.get("against") == 5 for r in pb.values()),
+          "PR135: each member's position is read against the other five in view (the beat in the position)",
+          ", ".join(f"{L} {r.get('how')}/{r.get('against')}" for L, r in sorted(pb.items())))
+    check(sum(bool(a.get("line") and a.get("agrees")) for a in at.values()) >= 5,
+          "PR135: at least five of the six carry their beat in their position, at their brightness's rate within the errors",
+          ", ".join(f"{L} {a['position_hz']:.2f}±{a.get('position_hz_err') or 0:.2f} against {a['at_hz']:.2f} ({a['at']}), chance {a['p']:.3f}, "
+                    f"{(a['amplitude_px'][0] ** 2 + a['amplitude_px'][1] ** 2) ** 0.5:.2f} px" for L, a in sorted(at.items()) if a))
+    check(sum(bool((a.get("without_brightness") or {}).get("line")) for a in at.values()) >= 5,
+          "PR135: and it is still there with what goes with the brightness taken out: not a brightness weighing an uneven background",
+          ", ".join(f"{L} {100 * (a['without_brightness'].get('share') or 0):.0f} % with the brightness, chance {a['without_brightness']['p']:.3f} of the rest"
+                    for L, a in sorted(at.items()) if a.get("without_brightness")))
+    bl = {k[-1]: r for k, r in (f.get("band_lines") or {}).items() if k.startswith("member ")}
+    check(len(bl) == 6 and all(r.get("power") for r in bl.values())
+          and not any(b["line"] and not b["the_beat"] for r in bl.values() for b in r["bands"]),
+          "PR135: the band search holds each member's own beat and no other line (a line in a look-alike band)",
+          ", ".join(f"{L} " + "/".join(sorted({f'{b["hz"]:.2f}' for b in r["bands"] if b["line"]})) for L, r in sorted(bl.items())))
 
 
 GALILEO_BEATS = {1: 3.36, 2: 4.49, 3: 10.04, 4: 3.85}    # the paper's Fig. 3 (flyer 5 has its own test, its double named)
+
+
+def _flyer_position(k, hz, f):
+    """The beat in the position on a Galileo flyer (method section 59, 2026-11-13; ROADMAP.md 0.3 objective 5): from its own
+    centroid on every frame, with no photometry, its position carries a rhythm at its brightness beat's rate, its double
+    or its half -- as the picture has it, which on this camera, which does not move, is the object's own."""
+    pb = (f.get("position_beat") or {}).get("object") or {}
+    ab = pb.get("at_beat") or {}
+    wb = ab.get("without_brightness") or {}
+    off = min((abs(ab["position_hz"] - v) for v in (hz, 2 * hz, hz / 2)), default=99.0) if ab else 99.0
+    check(bool(pb.get("power") and pb.get("how") == "picture" and ab.get("line") and ab.get("agrees")),
+          f"flyer {k}: its position carries its beat (at the beat's rate, its double or its half, within the errors)",
+          (f"{ab['position_hz']:.2f} ± {ab.get('position_hz_err') or 0:.2f} Hz, {ab['at']} ({ab['at_hz']:.2f}), "
+           f"{(ab['amplitude_px'][0] ** 2 + ab['amplitude_px'][1] ** 2) ** 0.5:.2f} px, chance {ab['p']:.3f}; {off:.2f} Hz from the paper's {hz} "
+           f"or its double; {100 * (wb.get('share') or 0):.0f} % goes with the brightness, chance {wb.get('p')} of the rest") if ab else str(pb.get("why")))
+    c = pb.get("codec") or {}
+    if k == 1:
+        check(bool(c.get("line")) and abs(c.get("hz", 0) - 12.0) <= 0.1,
+              "flyer 1: the encoder's own 12 Hz, a fifth of the frame rate, is in its position too, said apart and left out",
+              f"{c.get('hz')} Hz, {c.get('stands')} times" if c else "no codec line found")
 
 
 def test_galileo_flyers_beat():
@@ -610,6 +662,7 @@ def test_galileo_flyers_beat():
         check(p.get("cadence") is False and abs(p.get("top_hz", 0) - 24.0) <= 0.01,
               f"flyer {k}: what repeats is the encoder's, not a cadence -- the band's top the frame grid's 24 Hz (M3)",
               f"{p.get('held', 0):.2f} held, {p.get('holds')}, balance {p.get('balance')}, top {p.get('top_hz')} Hz")
+        _flyer_position(k, hz, f)
 
 
 def test_wa9ony5_no_beat():

@@ -30,7 +30,7 @@ import numpy as np
 from scipy import ndimage
 
 DEPTH_S = 2.0          # s: the pieces a beat's depth is read in along the track
-DEPTH_PIECES = 24      # pieces at most: a longer stretch is cut in this many, each longer than DEPTH_S
+DEPTH_PIECES = 24      # pieces at most: of a longer stretch this many are read, evenly spread along it
 DEPTH_RUNS = 200       # beats of one steady depth planted per reading ...
 DEPTH_P = 0.01         # ... and the share of them under which the depth changes more than a steady beat's does
 CORE_PX = 3.0          # px: the core left out of the width reading on every frame (the bird paper's 2.5 or 3)
@@ -63,8 +63,10 @@ def _amp(t, y, fps, f0):
     return float(np.hypot(p[3], p[4])), math.sqrt(2.0 * max(s2, 1e-300) / len(t)), f, p, resid
 
 
-def _depths(t, y, fps, f0, pieces):
-    got = [_amp(tt, yy, fps, f0) for tt, yy in zip(np.array_split(t, pieces), np.array_split(y, pieces))]
+def _depths(parts, fps, f0):
+    """The depth of each piece of `parts` [(t, y)], its error, their weighted mean and how far apart they are in units
+    of their errors (a chi-square about the mean), and each piece's fit."""
+    got = [_amp(tt, yy, fps, f0) for tt, yy in parts]
     a, e = np.array([g[0] for g in got]), np.array([g[1] for g in got])
     if not np.all(np.isfinite(e)) or np.any(e <= 0):
         return a, e, None, None, got
@@ -75,40 +77,45 @@ def _depths(t, y, fps, f0, pieces):
 
 def depth_along(r, fps, hz, runs=DEPTH_RUNS, seed=0):
     """Does the beat at `hz` in the deviation curve r keep one depth along the track? {power, why, pieces, piece_s,
-    depth (a piece), err, mean, least, most, stat, steady_99, p, changes}. p is the share of `runs` beats of one steady
-    depth, planted at hz in the pieces' own residuals (resampled in blocks of `flicker.BOOT_BLOCK_S`), whose pieces'
-    depths come apart as far as the beat's do, the beat counted among them; `changes` is p < DEPTH_P. Under two pieces of
-    `flicker.MIN_FRAMES` nothing is read."""
+    covered (the share of the stretch the pieces hold), depth (a piece), err, mean, least, most, stat, steady_99, p,
+    changes}. The stretch is cut in pieces of DEPTH_S seconds, end to end -- DEPTH_PIECES of them, evenly spread, where it
+    holds more -- short enough that a wingbeat's wander inside a piece does not lower its depth. p is the share of `runs`
+    beats of one steady depth, planted at hz in the pieces' own residuals (resampled in blocks of
+    `flicker.BOOT_BLOCK_S`), whose pieces' depths come apart as far as the beat's do, the beat counted among them;
+    `changes` is p < DEPTH_P. Under two pieces nothing is read."""
     from . import flicker
     r = np.asarray(r, float)
     n = len(r)
-    out = dict(power=False, why=None, pieces=None, piece_s=None, depth=None, err=None, mean=None, least=None, most=None,
-               stat=None, steady_99=None, p=None, changes=None)
+    out = dict(power=False, why=None, pieces=None, piece_s=None, covered=None, depth=None, err=None, mean=None, least=None,
+               most=None, stat=None, steady_99=None, p=None, changes=None)
     L = max(flicker.MIN_FRAMES, int(round(DEPTH_S * fps)))
     if not hz or n < 2 * L:
         out["why"] = f"too short to compare its depth along the track: {n} frames, and two pieces need {2 * L}"
         return out
     pieces = min(n // L, DEPTH_PIECES)
+    starts = np.round(np.linspace(0, n - L, pieces)).astype(int) if n // L > pieces else np.arange(pieces) * L
     t = np.arange(n) / fps
-    a, e, mean, stat, got = _depths(t, r, fps, hz, pieces)
-    out.update(pieces=pieces, piece_s=n / pieces / fps, depth=[float(v) for v in a], err=[float(v) for v in e],
-               least=float(a.min()), most=float(a.max()))
+    parts = [(t[a:a + L], r[a:a + L]) for a in starts]
+    a, e, mean, stat, got = _depths(parts, fps, hz)
+    out.update(pieces=int(pieces), piece_s=L / fps, covered=float(pieces * L / n), depth=[float(v) for v in a],
+               err=[float(v) for v in e], least=float(a.min()), most=float(a.max()))
     if stat is None:
         out["why"] = "a piece's depth could not be read"
         return out
     out.update(mean=mean, stat=stat, power=True)
-    split = np.array_split(t, pieces)
-    trend = np.concatenate([np.column_stack([np.ones_like(tt), (tt - tt.mean()) / ((tt.max() - tt.min()) / 2),
-                                             ((tt - tt.mean()) / ((tt.max() - tt.min()) / 2)) ** 2]) @ g[3][:3]
-                            for tt, g in zip(split, got)])
+    unit = lambda tt: (tt - tt.mean()) / ((tt.max() - tt.min()) / 2)
+    trends = [np.column_stack([np.ones_like(tt), unit(tt), unit(tt) ** 2]) @ g[3][:3] for (tt, _), g in zip(parts, got)]
     resid = np.concatenate([g[4] for g in got])
-    B = min(n, max(2, int(round(flicker.BOOT_BLOCK_S * fps))))
-    nb = -(-n // B)
+    m = len(resid)
+    B = min(m, max(2, int(round(flicker.BOOT_BLOCK_S * fps))))
+    nb = -(-m // B)
     rng = np.random.default_rng(seed)
     steady = []
     for _ in range(runs):
-        idx = ((rng.integers(0, n, nb)[:, None] + np.arange(B)[None, :]) % n).ravel()[:n]
-        s = _depths(t, trend + mean * np.cos(2 * np.pi * hz * t + rng.uniform(0, 2 * np.pi)) + resid[idx], fps, hz, pieces)[3]
+        e2 = resid[((rng.integers(0, m, nb)[:, None] + np.arange(B)[None, :]) % m).ravel()[:m]]
+        ph = rng.uniform(0, 2 * np.pi)
+        again = [(tt, tr + mean * np.cos(2 * np.pi * hz * tt + ph) + e2[k * L:(k + 1) * L]) for k, ((tt, _), tr) in enumerate(zip(parts, trends))]
+        s = _depths(again, fps, hz)[3]
         steady.append(np.inf if s is None else s)
     steady = np.array(steady)
     p = float((1 + np.sum(steady >= stat)) / (1 + len(steady)))
@@ -219,24 +226,24 @@ def said(name, m, several=False):
     parts = []
     d, s, w = m.get("depth") or {}, m.get("steadiness") or {}, m.get("width") or {}
     if d.get("power"):
-        rng = f"{d['least']:.1%} to {d['most']:.1%} of its brightness over {d['pieces']} pieces of {d['piece_s']:.1f} s"
-        parts.append(f"its depth runs from {rng}, " + (f"more than a steady beat's does (chance {d['p']:.3f}): a lamp's flicker and "
-                     "a chain's rhythm keep one depth, a wing's changes with its aspect" if d["changes"] else
-                     f"no more than a steady beat's does (chance {d['p']:.2f}), so its depth cannot tell it from a chain's rhythm"))
+        parts.append(f"Its depth runs from {d['least']:.1%} to {d['most']:.1%} of its brightness over {d['pieces']} pieces of {d['piece_s']:.1f} s, "
+                     + (f"more than a steady beat's does (chance {d['p']:.3f}). A lamp's flicker keeps one depth. A wing's changes with its "
+                        "aspect, and so does the rhythm of held pictures." if d["changes"] else
+                        f"no more than a steady beat's does (chance {d['p']:.2f}). So its depth cannot tell it from a lamp's flicker."))
     elif d.get("why"):
-        parts.append(f"its depth along the track was not read ({d['why']})")
+        parts.append(f"Its depth along the track was not read: {d['why']}.")
     if s.get("p") is not None:
-        parts.append(f"its frequency " + (f"wanders more than a clock's can (chance {s['p']:.3f})" if s.get("wanders") else
-                                          f"holds as a clock's does (chance {s['p']:.2f})"))
+        parts.append("Its frequency " + (f"wanders more than a clock's can (chance {s['p']:.3f})." if s.get("wanders") else
+                                         f"holds as a clock's does (chance {s['p']:.2f})."))
     if w.get("power"):
         ww = w["width"]
-        parts.append(f"its width outside a fixed core of {CORE_PX:g} px " + (f"beats with it (chance {ww['p']:.3f}): its picture changes shape, "
-                     "which a brightness that only rises and falls does not do" if ww["line"] else
-                     f"does not beat (chance {ww['p']:.2f}), where a change of width of {WIDTH_PLANT:.0%} would have shown: "
-                     "the beat is in its brightness, not in its shape"))
+        parts.append(f"Its width outside a fixed core of {CORE_PX:g} pixels " + (f"beats with it (chance {ww['p']:.3f}). Its picture changes "
+                     "shape, which a brightness that only rises and falls cannot do." if ww["line"] else
+                     f"does not beat (chance {ww['p']:.2f}), where a change of width of {WIDTH_PLANT:.0%} would have shown. The beat is in "
+                     "its brightness, not in its shape."))
     elif w.get("why"):
-        parts.append(f"its width outside a fixed core was not read ({w['why']})")
+        parts.append(f"Its width outside a fixed core was not read: {w['why']}.")
     marks = m.get("marks") or []
-    return (f"The beat at {m['hz']:.2f} Hz{who} sits where the sensor chain or a supply can make one"
-            + (f" ({'; '.join(marks)})" if marks else "") + ". Three readings of its shape, none of which decides: "
-            + "; ".join(parts) + ".")
+    return (f"The beat at {m['hz']:.2f} Hz{who} sits where a camera's own electronics or a power supply can make one"
+            + (f" ({len(marks)} such look-alike{'s' if len(marks) != 1 else ''}, listed with the beat)" if marks else "")
+            + ". Three readings of its shape come next, and none of them decides. " + " ".join(parts))

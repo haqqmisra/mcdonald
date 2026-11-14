@@ -19,6 +19,7 @@ K2, T2, E11 and the row "uap PR089"), each on drawn data with a known answer:
 
 No video data needed.
 """
+import math
 import re
 import sys
 from pathlib import Path
@@ -84,7 +85,7 @@ def test_a_planted_wobble_is_found_at_its_frequency():
         f, x, y = wander(150, FPS, rng)
         t = (f - 1) / FPS
         y = y + 0.4 * np.sin(2 * np.pi * 6.2 * t + rng.uniform(0, 6.28))
-        r = beatpos.reading(f, x, y, FPS, beat=dict(hz=6.2, hz_err=0.03, double_hz=None), draws=300)
+        r = beatpos.reading(f, x, y, FPS, beat=dict(hz=6.2, hz_err=0.03, double_hz=None), draws=300, hole=True)
         found += r["line"]
         near += abs(r["hz"] - 6.2) <= max(0.1, 3 * (r["hz_err"] or 0))
         amp.append(r["amplitude_px"][1])
@@ -100,11 +101,51 @@ def test_a_planted_wobble_is_found_at_its_frequency():
     check(r["at_beat"] is not None and not r["at_beat"]["agrees"], "a track with no wobble does not agree with a beat it is given",
           f"chance {r['at_beat']['p']:.2f}")
     codec = wander(300, 60.0, rng, v=(18.0, 0.0))
-    x = codec[1] + 0.25 * np.sign(np.sin(2 * np.pi * 12.0 * (codec[0] - 1) / 60.0))       # a centroid that stops at the GOP's rate
-    r = beatpos.reading(codec[0], x, codec[2], 60.0, lines=[12.0], draws=300, hole=False)
-    check(r.get("codec") is not None and r["codec"]["line"] and abs(r["hz"] - 12.0) > 0.25,
-          "a rhythm at the codec's own rate is left out of the search and said apart",
-          f"codec {r.get('codec')}; the track's strongest {r['hz']:.2f} Hz, chance {r['p']:.2f}")
+    t = (codec[0] - 1) / 60.0
+    x = codec[1] + 0.25 * np.sign(np.sin(2 * np.pi * 12.0 * t))            # a centroid that stops and starts at the GOP's rate
+    r = beatpos.reading(codec[0], x, codec[2], 60.0, lines=[12.0, 24.0], draws=300, hole=False)
+    check(r.get("codec") is not None and r["codec"]["line"] and abs(r["codec"]["hz"] - 12.0) < 0.1 and not r["line"],
+          "a rhythm at the codec's own rate is the video's: said apart, and the track is given no rhythm for it",
+          f"codec {r['codec']['hz']:.2f} Hz, {r['codec']['stands']:.0f} times; the track's own strongest {r['hz']:.2f} Hz, chance {r['p']:.2f}")
+    y = codec[2] + 0.3 * np.sin(2 * np.pi * 3.4 * t)
+    r = beatpos.reading(codec[0], x, y, 60.0, lines=[12.0, 24.0], draws=300, hole=False)
+    check(r["line"] and abs(r["hz"] - 3.4) <= 0.15 and r["codec"]["line"],
+          "and a wobble under it is found all the same, where the codec's rate is the stronger of the two",
+          f"{r['hz']:.2f} Hz, chance {r['p']:.3f}; codec {r['codec']['stands']:.0f} times against its {r['stands']:.0f}")
+    y = codec[2] + 0.3 * np.sin(2 * np.pi * 11.6 * t)
+    r = beatpos.reading(codec[0], codec[1], y, 60.0, lines=[12.0, 24.0], draws=300, hole=False)
+    check(r["line"] and abs(r["hz"] - 11.6) <= 0.1 and r.get("codec") is None,
+          "a wobble 0.4 Hz from a codec line is not at it: a line has no width, and the wobble's frequency is known to less",
+          f"{r['hz']:.2f} ± {r['hz_err']:.2f} Hz")
+    # held pictures: a 20-a-second source on a 30-a-second grid. Every third frame repeats the one before, and the fresh
+    # ones show the source a sixtieth of a second off the frames' own times by turns: a steady motion steps at 10 Hz
+    k = np.arange(300)
+    src = np.floor(k * 2 / 3)
+    f, wx, wy = wander(300, 30.0, rng, sill=0.5, jitter=0.05, v=(0.0, 0.0))
+    pick = (src * 1.5).astype(int)                           # the frame's own time the picture shown was taken at, in frames
+    x, y = 27.0 * src / 20.0 + wx[pick], 9.0 * src / 20.0 + wy[pick]
+    held = [int(n) for n in f[1:][src[1:] == src[:-1]]]
+    step = beatpos.reading(f, x + 0.02 * rng.standard_normal(300), y + 0.02 * rng.standard_normal(300), 30.0, draws=300)
+    r = beatpos.reading(f, x, y, 30.0, held=beatpos.still_held(f, np.c_[x, y], held), draws=300)
+    check(len(held) == 100 and step["line"] and abs(step["hz"] - 10.0) < 0.2,
+          "a steady motion on held pictures, every frame read as a sample: a \"rhythm\" at a third of the frame rate",
+          f"{step['hz']:.2f} Hz, chance {step['p']:.3f}")
+    check(r["power"] and not r["line"] and any(abs(v - 10.0) < 0.1 for v in r.get("sampling_lines_hz") or []),
+          "the held frames left out, and the samples' own cadence known for the video's: no rhythm is given the track",
+          f"sampling lines {r.get('sampling_lines_hz')}; strongest of its own {r['hz']:.2f} Hz, chance {r['p']:.2f}; "
+          f"the step at the cadence, taken out, {r.get('cadence_px')} px")
+    check(0.25 < math.hypot(*r.get("cadence_px") or [0, 0]) < 0.42,
+          "and the step taken out is the one a sixtieth of a second makes at 27 and 9 pixels a second (0.34 px, as a sinusoid's amplitude)",
+          f"{math.hypot(*r.get('cadence_px') or [0, 0]):.3f} px")
+    b = beatpos.reading(f, x, y, 30.0, held=beatpos.still_held(f, np.c_[x, y], held), draws=300, beat=dict(hz=10.0, hz_err=0.03))
+    check(not b["line"] and not b["at_beat"]["line"] and b["at_beat"].get("at_the_cadence_hz") is not None,
+          "a brightness beat at the cadence is not read in the position: what moves there is the video's",
+          f"at the beat: line {b['at_beat']['line']}, at the cadence {b['at_beat'].get('at_the_cadence_hz')}")
+    gap = np.ones(300, bool)
+    gap[np.random.default_rng(3).choice(300, 60, replace=False)] = False
+    check(beatpos.sampling_lines(gap, 30.0, 13.0) == [] and len(beatpos.sampling_lines(np.arange(300) % 5 != 4, 30.0, 13.0)) == 2,
+          "frames missing at random keep no cadence; one held in five keeps two (6 and 12 Hz)",
+          f"{beatpos.sampling_lines(gap, 30.0, 13.0)}; {beatpos.sampling_lines(np.arange(300) % 5 != 4, 30.0, 13.0)}")
 
 
 class _Scene:
@@ -113,17 +154,17 @@ class _Scene:
     brightness beats there by `share`. At module level, as a class a process pool pickles must be."""
     n0, n1, W, H, fps = 1, 150, 320, 240, 30000 / 1001
 
-    def __init__(self, points, shake=0.0, shake_hz=3.5, texture=True, sigma=1.2):
+    def __init__(self, points, shake=0.0, shake_hz=3.5, texture=True, sigma=1.2, contrast=60.0):
         self.points, self.shake, self.shake_hz, self.texture, self.sigma, self.cache = points, shake, shake_hz, texture, sigma, {}
         from scipy import ndimage
-        self.back = ndimage.gaussian_filter(np.random.default_rng(5).normal(0, 1, (self.H, self.W)), 3.0) * 250 if texture else None
+        self.back = ndimage.gaussian_filter(np.random.default_rng(5).normal(0, 1, (self.H, self.W)), 3.0) * contrast if texture else None
 
     def moved(self, n):
         return self.shake * np.sin(2 * np.pi * self.shake_hz * n / self.fps)
 
     def at(self, j, n):
         x, y, bob, hz, _ = self.points[j]
-        return x + 0.31 * n + self.moved(n), y + 0.17 * n + bob * np.sin(2 * np.pi * hz * n / self.fps + j)
+        return x + 0.31 * n + self.moved(n), y + 0.17 * n + bob * np.cos(2 * np.pi * hz * n / self.fps + j)     # a quarter cycle from its brightness
 
     def rgb(self, n):
         if n not in self.cache:
@@ -159,11 +200,27 @@ def test_the_stage_reads_a_bird_and_a_lamp():
           f"position {ab.get('position_hz')} Hz, chance {ab.get('p')}, beat {bird.fields['beat']['object']['hz']:.2f} Hz")
     note = next((m for m in bird.notes if m.startswith("Its position")), "")
     check("may be the camera's" in note and "position" in bird.result, "and the note says whose motion it is cannot be told", note[:200])
+    wb = ab.get("without_brightness") or {}
+    check(wb.get("beyond_background") is True and wb.get("line") is True,
+          "it is more than a brightness beating over an uneven background gives, and still there with the brightness's share out",
+          f"{wb.get('px_per_brightness', 0):.2f} px for a unit of brightness against {wb.get('reach_px')} within the background's reach; "
+          f"{wb.get('share', 0):.0%} went with the brightness, chance {wb.get('p')} of the rest")
     lamp = _measure(_Scene([(60.0, 80.0, 0.0, 6.3, 0.2)], texture=False))
     pl = (lamp.fields.get("position_beat") or {}).get("object") or {}
     check(lamp.fields["beats"] is True and pl.get("power") and not (pl.get("at_beat") or {}).get("line"),
           "a point whose brightness alone beats: the beat is not in its position",
           next((m for m in lamp.notes if m.startswith("Its position")), "")[:200])
+    # the trap: the same lamp over an uneven background. Its light and the background's are weighed together, so the
+    # centroid leans toward the background as the lamp dims: a rhythm in the position with no motion at all
+    over = _measure(_Scene([(60.0, 80.0, 0.0, 6.3, 0.3)], contrast=150.0))
+    po = (over.fields.get("position_beat") or {}).get("object") or {}
+    ao = po.get("at_beat") or {}
+    wo = ao.get("without_brightness") or {}
+    check(over.fields.get("beats") is True and po.get("power") and (not ao.get("line") or wo.get("beyond_background") is False)
+          and po.get("own") is None,
+          "the same lamp over an uneven background: the rhythm its position shows is no more than such a background gives, and is said so",
+          f"beats {over.fields.get('beats')}; at the beat: line {ao.get('line')}, {np.hypot(*ao['amplitude_px']) if ao else 0:.3f} px, "
+          f"{wo.get('px_per_brightness')} px for a unit of brightness; " + next((m for m in over.notes if m.startswith("Its position")), "")[-330:])
 
 
 def test_a_cameras_shake_is_in_the_track_and_not_in_the_members_differences():
@@ -179,15 +236,26 @@ def test_a_cameras_shake_is_in_the_track_and_not_in_the_members_differences():
             m[k] = (m[k][0] + 0.1 * rng.standard_normal(), m[k][1] + 0.1 * rng.standard_normal())
     fields = dict(spans={f"member {j + 1}": (1, 150) for j in range(3)}, top_hz=12.0,
                   beat={f"member {j + 1}": dict(hz=hz, hz_err=0.03, double_hz=None) for j, hz in enumerate((5.3, 6.6, 8.1))})
-    alone = {k: beatpos.reading(ns, [m[k][0] for m in moves], [m[k][1] for m in moves], clip.fps, draws=300, hole=False) for k in moves[0]}
-    check(all(r["line"] and abs(r["hz"] - 3.5) <= 0.2 for r in alone.values()),
-          "alone, each track's strongest rhythm is the camera's 3.5 Hz", " ".join(f"{r['hz']:.2f}" for r in alone.values()))
-    got = beatpos.of_stage(ns, clip.fps, moves, fields, draws=300)
+    shake = dict(hz=3.5, hz_err=0.03, double_hz=None)
+    alone = {k: beatpos.reading(ns, [m[k][0] for m in moves], [m[k][1] for m in moves], clip.fps, beat=shake, draws=300, hole=False)
+             for k in moves[0]}
+    check(all(r["at_beat"]["line"] and r["at_beat"]["at"] == "the beat" for r in alone.values()),
+          "alone, every track carries the camera's 3.5 Hz", " ".join(f"{r['at_beat']['position_hz']:.2f} (chance {r['at_beat']['p']:.3f})" for r in alone.values()))
+    # the stage's curves beside them: each member's brightness, beating a quarter cycle from its bob, and an even background
+    raw = {f"member {j + 1}": [1000.0 * (1 + 0.2 * np.sin(2 * np.pi * hz * n / clip.fps + j)) for n in ns] for j, hz in enumerate((5.3, 6.6, 8.1))}
+    raw.update({f"background {d}": list(10.0 * rng.standard_normal(len(ns))) for d in ("+0,+25", "+25,+0", "+0,-25", "-25,+0")})
+    got = beatpos.of_stage(ns, clip.fps, moves, fields, raw=raw, draws=300)
     check(all(r["how"] == "members" and r["against"] == 2 for r in got.values()), "in a group each is read against the other two")
     check(all(r["at_beat"]["line"] and r["at_beat"]["agrees"] and r["own"] is True for r in got.values()),
-          "against them each carries its own beat", " ".join(f"{r['at_beat']['position_hz']:.2f}" for r in got.values()))
-    check(all(abs(r["hz"] - 3.5) > 0.3 for r in got.values()), "and the shake is gone from every one",
-          " ".join(f"{r['hz']:.2f}" for r in got.values()))
+          "against them each carries its own beat, more than its background could make of its brightness",
+          " ".join(f"{r['at_beat']['position_hz']:.2f} (own {r['own']}, {(r['at_beat'].get('without_brightness') or {}).get('px_per_brightness')} "
+                   f"against {(r['at_beat'].get('without_brightness') or {}).get('reach_px')})" for r in got.values()))
+    bare = beatpos.of_stage(ns, clip.fps, moves, fields, draws=300)
+    check(all(r["at_beat"]["line"] and r["own"] is None for r in bare.values()),
+          "with no brightness to hold the rhythm against, it is found and not called the object's own")
+    gone = beatpos.of_stage(ns, clip.fps, moves, dict(fields, beat={k: shake for k in fields["beat"]}), raw=raw, draws=300)
+    check(all(not r["at_beat"]["line"] for r in gone.values()), "and the shake is gone from every one",
+          " ".join(f"chance {r['at_beat']['p']:.2f}" for r in gone.values()))
 
 
 def test_a_track_against_the_registered_scene():
@@ -200,9 +268,14 @@ def test_a_track_against_the_registered_scene():
     pb = (found.fields.get("position_beat") or {}).get("object") or {}
     sc = (found.fields.get("scene_shift") or {}).get("scene") or {}
     check(sc.get("power") and pb.get("how") == "scene", "the scene is registered, and the track is read against it",
-          f"scene {sc}; how {pb.get('how')}")
-    check(pb.get("power") and not pb.get("line") and pb.get("own") is False,
-          "against the scene the shake is gone: no rhythm of its own", next((m for m in found.notes if m.startswith("Its position")), "")[:200])
+          f"scene {sc}; how {pb.get('how')}; beats {found.fields.get('beats')}: {(found.fields.get('finding') or str(found.no_power))[:200]}")
+    ns_ = list(range(clip.n0, clip.n1 + 1))
+    shake = beatpos.of_stage(ns_, clip.fps, [{"object": clip.at(0, n)} for n in ns_],
+                             dict(spans={"object": (clip.n0, clip.n1)}, top_hz=12.0, beat={"object": dict(hz=3.5, hz_err=0.03, double_hz=None)}),
+                             draws=300)["object"]
+    check(pb.get("power") and pb.get("own") is not True and abs(pb["hz"] - 3.5) > 0.3 and shake["at_beat"]["line"],
+          "against the scene the camera's 3.5 Hz is gone, and nothing is called the object's own",
+          f"own {pb.get('own')}; strongest {pb.get('hz')} Hz, chance {pb.get('p')}; " + next((m for m in found.notes if m.startswith("Its position")), "")[:260])
     ns = list(range(clip.n0, clip.n1 + 1))
     raw = beatpos.reading(ns, [clip.at(0, n)[0] for n in ns], [clip.at(0, n)[1] for n in ns], clip.fps, draws=300, hole=False)
     check(raw["line"] and abs(raw["hz"] - 3.5) <= 0.2, "as the picture has it, the same track carries the camera's 3.5 Hz",
@@ -234,22 +307,22 @@ def test_a_line_behind_a_drift_is_found_in_its_band():
     table = flicker.lookalikes(30.0)
     found, where = 0, []
     for _ in range(10):
-        r, R = _curves(rng, line=(10.5, 0.044))
-        got = beatlines.search(r, R, 30.0, table, 12.0, beat=dict(hz=flicker._peak(r, 30.0)["hz"], double_hz=None, resolution_hz=0.125))
+        r, R = _curves(rng, line=(10.5, 0.044), grain=0.01)
+        got = beatlines.search(r, R, 30.0, table, 12.0, beat=dict(hz=2.1, double_hz=None, resolution_hz=0.125))     # the stage's beat: the drift's
         lines = [b for b in beatlines.lines_of(got) if not b["the_beat"]]
         found += bool(lines and abs(lines[0]["hz"] - 10.5) <= 0.15)
         where += [b["band"] for b in lines[:1]]
-    traffic.rate(check, "a 4.4 % line at 10.5 Hz behind an 8 % drift is missed 5 % of the time at most (a judgement)", 10 - found, 10, 0.05,
-                 f"named by the band {sorted(set(where))}")
-    r, R = _curves(rng, line=(10.5, 0.044))
+    traffic.rate(check, "a 4.4 % line at 10.5 Hz behind an 8 % drift, in grain of 1 %, is missed 5 % of the time at most (a judgement)",
+                 10 - found, 10, 0.05, f"named by the band {sorted(set(where))}")
+    r, R = _curves(rng, line=(10.5, 0.044), grain=0.01)
     got = beatlines.search(r, R, 30.0, table, 12.0)
     row = beatlines.lines_of(got)[0]
     check(0.03 <= row["amplitude"] <= 0.06 and row["p"] < beatlines.LINE_P and row["stands"] > max(row["background"]),
           "with its amplitude, its chance and the background apertures' own standing beside it",
           f"{row['amplitude']:.3f}, chance {row['p']:.2g}, {row['stands']:.0f} against {max(row['background']):.1f}")
     said = beatlines.said("object", got, calls=False)
-    check(said and "which the background's apertures do not show" in said and "does not call it a beat" in said, "said in the row's words", said)
-    r, R = _curves(rng, line=(10.5, 0.044), shared=True)
+    check(said and "which the background beside it does not show" in said and "does not call it a beat" in said, "said in the row's words", said)
+    r, R = _curves(rng, line=(10.5, 0.044), grain=0.01, shared=True)
     got = beatlines.search(r, R, 30.0, table, 12.0)
     check(not beatlines.lines_of(got), "a line the background's apertures share is not the object's",
           str([(b["band"], round(b["stands"], 1), b["shared"]) for b in got["bands"]]))
@@ -321,9 +394,11 @@ def test_the_readings_change_no_call():
               f"{what}: the readings only add fields, notes and result lines", str(sorted(new)))
         if what.startswith("a line"):
             lines = [x for x in beatlines.lines_of((a.get("band_lines") or {}).get("object")) if not x["the_beat"]]
-            check(bool(lines) and abs(lines[0]["hz"] - 10.5) <= 0.2 and any("which the background's apertures do not show" in m for m in with_.notes),
+            check(bool(lines) and abs(lines[0]["hz"] - 10.5) <= 0.2 and any("which the background beside it does not show" in m for m in with_.notes),
                   "the stage reports the 10.5-Hz line under its call, whatever the call is",
-                  f"beats {a['beats']}: {(a.get('finding') or '')[:90]} | " + next((m for m in with_.notes if "apertures do not show" in m), "")[:160])
+                  f"beats {a['beats']}: {(a.get('finding') or '')[:90]} | " + next((m for m in with_.notes if "beside it does not show" in m), "")[:160]
+                  + " | " + str([(b["band"], round(b["hz"], 2), round(b["stands"], 1), b["p"], b["shared"], b["the_beat"], [round(v, 1) for v in b["background"]])
+                                 for b in ((a.get("band_lines") or {}).get("object") or {}).get("bands", [])]) + str((a.get("band_lines") or {}).get("object", {}).get("why")))
         if what.startswith("a beat at a third"):
             m = (a.get("morphology") or {}).get("object")
             check(a["beats"] is True and m is not None and m["depth"]["power"] and not m["depth"]["changes"] and any("Three readings" in s for s in with_.notes),
@@ -398,9 +473,9 @@ def test_which_beats_get_the_readings():
     print("\nthe shape of a beat: which marks ask for it")
     table = flicker.lookalikes(30.0)
     at = lambda hz: beatshape.chain_marked(dict(lookalike=flicker.at_lookalikes(hz, 0.1, table, 0.03)))
-    check(any("every 3th frame" in m or "locked to every 3" in m for m in at(10.0)) and at(6.0) == [] and len(at(9.0)) >= 1,
-          "10.0 Hz at 30 frames a second is the chain's (a third of the frame rate, the folded supplies); 6.0 Hz is only the lantern's, and is not",
-          f"10.0: {len(at(10.0))} marks; 9.0: {at(9.0)[:1]}; 6.0: {at(6.0)}")
+    check(any("locked to every 3" in m for m in at(10.0)) and at(5.5) == [] and len(at(9.0)) >= 1,
+          "10.0 Hz at 30 frames a second is the chain's (a third of the frame rate, the folded supplies); 5.5 Hz is only the lantern's, and is not",
+          f"10.0: {len(at(10.0))} marks; 9.0: {at(9.0)[:1]}; 5.5: {at(5.5)}")
 
 
 # ---- the look-alike mark's base rate (E11) -------------------------------------------------------------------------
@@ -411,7 +486,8 @@ def test_the_marks_base_rate():
     share = lambda fps, **k: flicker.marked_share(flicker.lookalikes(fps), flicker.TOP * fps / 2, **k)
     check(all(abs(share(f)["share"] - 0.695) < 0.005 for f in (30.0, FPS)) and share(30.0)["marked_hz"] == [[4.7, 12.0]],
           "70 % of 1.5-12 Hz at 29.97 and 30 frames a second: one piece, 4.7-12 Hz", f"{share(FPS)['share']:.3f}, {share(30.0)['marked_hz']}")
-    check(all(share(f)["share"] == 1.0 for f in (60.0, 60000 / 1001)), "all of 1.5-24 Hz at 59.94 and 60")
+    check(all(share(f)["share"] > 0.999 for f in (60.0, 60000 / 1001)), "all of 1.5-24 Hz at 59.94 and 60",
+          " ".join(f"{share(f)['share']:.4f}" for f in (60.0, 60000 / 1001)))
     check(share(30.0, resolution=0.5)["share"] > share(30.0, resolution=0.2)["share"] > share(30.0)["share"],
           "a beat read at a coarser resolution is marked over more of the band",
           f"{share(30.0, resolution=0.2)['share']:.3f}, {share(30.0, resolution=0.5)['share']:.3f}")

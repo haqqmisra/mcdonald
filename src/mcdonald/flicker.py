@@ -4002,7 +4002,7 @@ def measure(clip, tracks, dark=False, out=None, say=print, progress=None, stop=N
     try:                                                 # the beat in the position (K2, method section 59): a reading beside the beat
         from . import beatpos
         registered = path if path and ((found.fields.get("scene_shift") or {}).get("scene") or {}).get("power") else None
-        pb = beatpos.of_stage(ns, clip.fps, moves, found.fields, scene=registered) if found.fields.get("beat") else {}
+        pb = beatpos.of_stage(ns, clip.fps, moves, found.fields, scene=registered, raw=raw) if found.fields.get("beat") else {}
         if pb:
             found.fields["position_beat"] = pb
             for n, r in pb.items():
@@ -4943,6 +4943,8 @@ def said(fields):
                         if k.get("train") else " -- no train"))
     L += said_astro(fields)
     L += said_seis(fields)
+    from . import beatreadings
+    L += beatreadings.printed(fields)                      # the readings beside the call (method section 59)
     if fields.get("finding"):
         L.append(fields["finding"])
     return L

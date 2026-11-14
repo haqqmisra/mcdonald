@@ -18,8 +18,8 @@ them whose strongest in the band stands as high: the band's width is paid for, a
 The background apertures then say whether this clip is such a curve: their standing at the frequencies searched,
 pooled, is held to the drawn curves' (by their medians and their 90th centiles), and where the background stands higher
 the object's standing is taken down by as much. A line is one where the chance is under LINE_P, it stands over every
-background aperture's strongest in the band, and no background aperture stands that high at its frequency (a rhythm
-they share is the video's).
+background aperture's strongest in the band, and no background aperture beats half as strongly at its frequency (a rhythm
+they share is the video's: `flicker.SHARED`, the stage's own rule).
 
 It reports and decides nothing: the stage's call, the headline rule and the gates are as they were (method section 59).
 The other half of the IDEAS row -- the verdict taken from the battery of tests -- is the headline rule, and is not here.
@@ -36,6 +36,7 @@ DRAWS = 2000           # curves of grain alone the search is repeated on, for th
 SEED = 20261113        # their seed: the same curve gives the same reading twice
 LINE_P = 0.01          # a band holds a line where curves with no line stand as high there this seldom, the search paid for
 POOL_MIN = 20          # the background's frequencies, two resolutions apart, that its standing is read from (four apertures, five each)
+SHARED = 0.5           # a background aperture that beats this strongly at the line, in the object's brightness, shares it (`flicker.SHARED`)
 SAME_RES = 1.0         # resolutions: a line within this of the stage's beat (or its double) is that beat, not another line
 
 
@@ -74,16 +75,19 @@ def standing(r, fps):
     return (fr, Q[0], res, A[0], len(segs)) if Q.shape[0] == 1 else (fr, Q, res, A, len(segs))
 
 
-def search(r, R, fps, table, top, low=1.5, lines=(), beat=None, draws=DRAWS, seed=SEED):
+def search(r, R, fps, table, top, low=1.5, lines=(), beat=None, peak=None, draws=DRAWS, seed=SEED):
     """The band search on the object's deviation curve r, held against the background apertures' R (a list of deviation
     curves over the same frames, in the object's brightness): dict(power, why, stretches, resolution_hz, bands: [{band (its
     short name), what, hz_band (its pieces in the band a beat is looked for in), hz, amplitude, stands, p, background (each
-    aperture's strongest standing in the band), shared (a background aperture stands as high at that frequency), line,
-    at_the_codec_line_hz, the_beat (it is the stage's own beat, or its double)}], pool (the background frequencies read),
+    aperture's strongest standing in the band), shared (a background aperture beats SHARED as strongly there, in the
+    object's brightness: the stage's own rule for a beat the background shares), line,
+    at_the_codec_line_hz, the_beat (it is the beat the stage calls the object's own, or its double), the_peak (it is the
+    stage's strongest peak, which the stage did not call a beat)}], pool (the background frequencies read),
     background_over_grain (how the background's frequencies stand against the drawn curves': the factor the object's
     standing is taken down by, 1 or more), false_alarm (each background aperture searched as the object, against the
     others: how many bands held a line, of how many)). `table` is `flicker.lookalikes`' (the bands not covering the whole
-    band are searched); `beat` the stage's {"hz", "double_hz", "resolution_hz"} for the object, if it has one."""
+    band are searched); `beat` the stage's {"hz", "double_hz", "resolution_hz"} where it calls the beat the object's own,
+    `peak` the same where it reports a strongest peak and does not."""
     out = dict(power=False, why=None, bands=[])
     bands = [d for d in table if d.get("band") is not None and not d.get("covers")]
     if not bands:
@@ -95,7 +99,8 @@ def search(r, R, fps, table, top, low=1.5, lines=(), beat=None, draws=DRAWS, see
         out["why"] = "no background aperture was measured on every frame, so there is nothing to hold a line against"
         return out
     fr, Q, res, A, K = standing(r, fps)
-    QB = [standing(b, fps)[1] for b in R]
+    QB, AB = zip(*[standing(b, fps)[1::2][:2] for b in R])
+    QB, AB = list(QB), list(AB)
     masks = []
     for d in bands:
         m = np.zeros(len(fr), bool)
@@ -114,7 +119,7 @@ def search(r, R, fps, table, top, low=1.5, lines=(), beat=None, draws=DRAWS, see
     drawn = [QW[:, m].max(axis=1) if m.any() else None for m in masks]
     g50, g90 = np.quantile(QW[:, grid], [0.5, 0.9])
 
-    def judged(q, others):
+    def judged(q, amp, others, amps):
         pool = np.concatenate([o[grid] for o in others])       # the background's standing where the bands are searched
         b50, b90 = np.quantile(pool, [0.5, 0.9])
         over = float(max(1.0, b50 / g50, b90 / g90))           # the background stands this much higher than grain alone does
@@ -125,25 +130,25 @@ def search(r, R, fps, table, top, low=1.5, lines=(), beat=None, draws=DRAWS, see
             k = np.flatnonzero(m)[int(np.argmax(q[m]))]
             p = min(1.0, len(bands) * float((1 + np.sum(null >= q[k] / over)) / (1 + len(null))))
             near = np.abs(fr - fr[k]) <= res
-            lvl = over * float(np.quantile(QW[:, grid], 0.99))
             rows.append(dict(band=d["source"], what=d["what"], hz_band=[[float(max(a, low)), float(min(b, top))] for a, b in d["band"]
                                                                         if min(b, top) > max(a, low)],
                              hz=float(fr[k]), stands=float(q[k]), p=p, k=int(k),
                              background=[float(o[m].max()) for o in others],
-                             shared=bool(any(o[near].max() >= lvl for o in others))))
+                             shared=bool(any(a[near].max() >= SHARED * amp[k] for a in amps))))
         return rows, over, len(pool)
-    rows, over, npool = judged(Q, QB)
+    rows, over, npool = judged(Q, A, QB, AB)
     for row in rows:
         k = row.pop("k")
         row["amplitude"] = float(A[k])
         row["line"] = bool(row["p"] < LINE_P and not row["shared"] and row["stands"] > max(row["background"]))
         row["at_the_codec_line_hz"] = next((float(c) for c in lines or () if abs(row["hz"] - c) <= res), None)
-        row["the_beat"] = bool(beat and any(v and abs(row["hz"] - v) <= SAME_RES * max(res, beat.get("resolution_hz") or 0.0)
-                                            for v in (beat.get("hz"), beat.get("double_hz"))))
+        at = lambda b: bool(b and any(v and abs(row["hz"] - v) <= SAME_RES * max(res, b.get("resolution_hz") or 0.0)
+                                      for v in (b.get("hz"), b.get("double_hz"))))
+        row["the_beat"], row["the_peak"] = at(beat), at(peak)
     fa = [0, 0]
     if len(QB) >= 3:                                         # the control by construction: each background aperture as the object
         for i, q in enumerate(QB):
-            got = judged(q, QB[:i] + QB[i + 1:])[0]
+            got = judged(q, AB[i], QB[:i] + QB[i + 1:], AB[:i] + AB[i + 1:])[0]
             fa[0] += sum(1 for g in got if g["p"] < LINE_P and not g["shared"] and g["stands"] > max(g["background"]))
             fa[1] += len(got)
     out.update(power=True, bands=rows, pool=int(npool), background_over_grain=over, draws=int(draws),
@@ -167,9 +172,10 @@ def lines_of(found):
 
 
 def said(name, found, several=False, calls=None):
-    """The reading in a sentence, for the stage's notes; None where no band holds a line that is not the stage's own
-    beat. `calls`: whether the stage calls a beat of the object's own (True), so the sentence can say where the two
-    differ."""
+    """The reading in a few sentences, for the stage's notes; None where no band holds a line that is not the beat the
+    stage calls the object's own. `calls`: whether the stage calls a beat of the object's own (True), so the sentences can
+    say where the two differ: a line the stage never judged (it reads the strongest peak only), or its strongest peak
+    itself, which its tests did not hold."""
     rows = [b for b in lines_of(found) if not b["the_beat"]]
     if not rows:
         return None
@@ -178,9 +184,11 @@ def said(name, found, several=False, calls=None):
     for b in rows:
         lo, hi = b["hz_band"][0][0], b["hz_band"][-1][1]
         parts.append(f"a line at {b['hz']:.2f} Hz, {b['amplitude']:.1%} of its brightness, in the {lo:.1f}-{hi:.1f} Hz band, which "
-                     f"the background's apertures do not show ({_chance_said(b['p'])})"
+                     f"the background beside it does not show ({_chance_said(b['p'])})"
                      + (f", at the codec's {b['at_the_codec_line_hz']:g} Hz" if b.get("at_the_codec_line_hz") else ""))
     s = f"Its brightness{who} has " + "; and ".join(parts) + "."
-    if calls is False:
-        s += " The stage's rule does not call it a beat: it reads the strongest peak of the whole band, and this line is not it."
-    return s + " A line is not a wingbeat: the look-alikes that share its band are listed with the beat."
+    if any(b.get("the_peak") for b in rows):
+        s += " It is the stage's strongest rhythm, which the stage's own tests did not hold to be a beat: the finding says why."
+    elif not calls:
+        s += " The stage's rule does not call it a beat: it reads the strongest rhythm of the whole band, and this line is not it."
+    return s + " A line is not a wingbeat. The look-alikes that share its band are listed with the beat."

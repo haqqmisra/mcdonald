@@ -549,6 +549,28 @@ Without the reference-data folder it skips the curves and still checks the rest.
 After a change to the photometry (what the curves are, not what is judged from them) the saved curves
 are stale: `tools/controls/README.md` says how to make them again.
 
+## `test_beat.py` — do the readings beside the beat say what they should, and leave the call alone? (2026-11-13)
+
+Four readings of `mcdonald flicker` that report and never decide (docs/method.md section 59), each on drawn data with a
+known answer. **The beat in the position** (`beatpos`): tracks drawn from a wander and jitter with no rhythm are given
+one about one time in a hundred; a planted wobble is found at its frequency, with its amplitude; a rhythm at the codec's
+own rate is the video's, and a wobble under it is found all the same; a point that bobs as it beats carries its beat in
+its position and a point whose brightness alone beats does not, through the stage; a camera's shake is in every member's
+track and in none of their differences, and it leaves a track taken against the registered scene; and the trap -- a
+brightness that beats over an uneven background leans a light-weighted centroid with no motion at all -- is held to the
+background's own level. **A line in a look-alike band** (`beatlines`): a 4.4 % line at 10.5 Hz behind an 8 % drift is
+found, with its chance; a line the background shares is not the object's; curves with no line are given one about one
+time in a hundred; a track too short says NO POWER. **The shape of a beat on a look-alike** (`beatshape`): a beat of one
+depth is not said to change and one that deepens is; a blob whose brightness alone beats has no line in its width
+outside a fixed core where a planted change of width shows, one whose width beats has, and a point or a clipped blob is
+NO POWER. **The mark's base rate**: 70 % of the band at 30 frames a second, all of it at 60. And **the call is as it was
+without them**: three drawn clips measured with the readings and with them taken out give the same call, the same
+fields, notes and result lines, the readings only adding.
+
+```bash
+python3 tests/test_beat.py        # about two minutes; no video data
+```
+
 ## `test_gpu.py` — is the graphics card's arithmetic the CPU's? (2026-11-12)
 
 Portable, about a minute; no video data, and no graphics card needed. Since 2026-11-12 the steps that match one

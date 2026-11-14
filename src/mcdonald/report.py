@@ -1444,6 +1444,65 @@ class Case:
                 "was not chosen on.")
 
     @staticmethod
+    def beside_the_beat_said(ff, beats):
+        """The bottom line's sentences for two readings beside the beat (flicker's `position_beat` and `band_lines`, method
+        section 59; 2026-11-13). The first: whether the object's position carries the rhythm of its brightness -- said where it
+        does, and where it does not with the camera's own motion taken out (against the registered scene, or against the
+        other members of its group); as the picture has it, a rhythm is said with the camera's shake as its other reading,
+        and none found is left to the measurements. The second: a rhythm in a look-alike band that the background beside
+        the object does not show and the beat test did not judge, because it reads the strongest only. Readings: neither
+        changes a call."""
+        import math
+        out = []
+        pb = ff.get("position_beat") or {}
+        got = {n: pb[n] for n in beats if (pb.get(n) or {}).get("power") and pb[n].get("at_beat")}
+        how = {"scene": "with the scene's own motion taken out", "members": "measured against the other objects in view"}
+        # a rhythm no larger than a brightness beating over an uneven background makes of a light-weighted position
+        # (`beatpos.LEVER_K` times the background's level, from drawn scenes) is said, and not counted as the position's
+        # own; where that reach was not read (no background beside the object), nothing is said of it
+        def beyond(ab):
+            wb = ab.get("without_brightness")
+            return True if not wb else wb.get("beyond_background")
+        gain = "A camera's gain can change a brightness, but it cannot move a position."
+        step = "A brightness that beats over a background this uneven shifts a measured position by as much, so this adds little."
+        if len(beats) > 1 and got:
+            own = [r for r in got.values() if r["how"] != "picture" and r["at_beat"].get("at_the_cadence_hz") is None]
+            k = sum(bool(r["at_beat"]["line"] and r.get("own") is True) for r in own)
+            if own and k:
+                out += [f"The positions of {k} of the {len(own)} members rise and fall at their own beats, each measured against the others, "
+                        "which takes the camera's motion out.", gain]
+            elif own:
+                out.append(f"None of the {len(own)} members' positions shows a rhythm of its own at its beat, each measured against the others.")
+        elif got:
+            r = next(iter(got.values()))
+            ab = r["at_beat"]
+            rate = {"the beat": "the same rate", "its double": "twice that rate", "its half": "half that rate"}[ab["at"]]
+            amp = math.hypot(*ab["amplitude_px"])
+            if ab["line"] and beyond(ab) is False:
+                out += [f"Its position rises and falls at {rate}, by {amp:.2f} pixels.", step]
+            elif ab["line"] and ab.get("at_the_codec_line_hz") is not None:
+                out += [f"Its position rises and falls at {rate}, by {amp:.2f} pixels.",
+                        "That rate is also one of the video's own rhythms, so this adds little."]
+            elif ab["line"] and beyond(ab) is True and r["how"] != "picture":
+                out += [f"Its position rises and falls at {rate}, by {amp:.1f} pixels, {how[r['how']]}.", gain]
+            elif ab["line"] and beyond(ab) is True:
+                out += [f"Its position in the picture rises and falls at {rate}, by {amp:.1f} pixels.",
+                        "The camera's own motion was not taken out, so that may be the camera's shake."]
+            elif not ab["line"] and r["how"] != "picture" and ab.get("at_the_cadence_hz") is None:
+                out += [f"Its position shows no rhythm at that rate, {how[r['how']]}.",
+                        f"One of {r['needed_px']:.1f} pixels would have shown three times in four."]
+        from .beatlines import lines_of
+        for n, f in (ff.get("band_lines") or {}).items():
+            for b in [b for b in lines_of(f) if not b["the_beat"]][:1]:
+                who = f"{n.capitalize()}: its" if len(ff.get("band_lines") or {}) > 1 else "Its"
+                p = "under 0.001" if b["p"] < 0.001 else f"{b['p']:.3f}"
+                out += [f"{who} brightness {'also ' if n in beats else ''}rises and falls {b['hz']:.1f} times a second, by {100 * b['amplitude']:.1f}%.",
+                        f"The background beside it shows no such rhythm (chance {p}).",
+                        "The beat test did not hold it to be a beat: its own checks say why." if b.get("the_peak") else
+                        "The beat test did not judge it, because that test reads only the strongest rhythm."]
+        return out
+
+    @staticmethod
     def blink_said(lights, several):
         """The bottom line's sentences for a light that flashes in a train (flicker's item 13): the rate, what flashes at it
         (an aircraft's anti-collision light, 40-100 times a minute; to 180 where two lights' beams overlap), and whether the
@@ -1852,6 +1911,7 @@ class Case:
         lights = [(n, k) for n, k in (ff.get("blink") or {}).items() if k.get("train") and not k.get("shared")]
         if lights:                                           # flicker's item 13: a light that flashes in a train
             L.append(self.blink_said(lights, len(ff.get("blink") or {}) > 1))
+        L += self.beside_the_beat_said(ff, beats)            # two readings beside the beat (method section 59): they change no call
 
         tf = st("tether", "fields")
         if tf.get("fellow_member"):
