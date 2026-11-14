@@ -852,7 +852,10 @@ windows; its spread across windows says whether it is steady. The lines are then
   AC-130J of AARO's description.
 - *where each folds*: every heard rhythm folded through the frame rate (`flicker.alias`) into the beat band, in
   `flicker.lookalikes`' form; `flicker` adds them to its table when the clip has sound (`audio.heard`). PR117's
-  67.75 Hz at 30 frames a second is 7.75 Hz, where birds beat.
+  67.75 Hz at 30 frames a second is 7.75 Hz, where birds beat. (Until 2026-11-13 `flicker` did not: its judging asked
+  for the sound by a name it did not have, and the error was taken for a clip with no sound, so no report before
+  that day marks a beat with a heard rhythm. Of the reference-data folder's 145 videos the sound of eight carries
+  one in the beat band: PR106, PR107, PR111, PR113's per-file copy, PR117, PR118, PR119 and NASA-UAP-D008's tape.)
 
 **What it cannot do, and the traps.** On the ground a propeller turns slower -- C-130Js loading and taxiing hummed at
 65.75-75 Hz -- so a match says "in flight" and the report says that a phase of flight decides; the T56 match on
@@ -1121,6 +1124,33 @@ the drift test, and chance's windows would also have to agree in frequency. A re
 far beyond it: 12 of 40 windows give 1.9 in 10,000. Each beat records `windows_independent` and `windows_chance_p`, and
 the finding says when windows apart were no more than chance. A whole track that beats is not asked. A beat that fails
 this falls to the one-stretch rule above.
+
+**Chance from the clip's own background (revised 2026-11-13, IDEAS.md N3).** The drift test's rate is a census over 116
+release videos (§39). A clip whose background is clean passes far less often than that, and on a short track the census's
+9 % makes two windows apart of five no more than chance (7 %). The labelled set lost two of the record's 30 named birds
+this way (§44): IR_BIRD_017 and IR_BIRD_041 under the stage's rule, IR_BIRD_017 and IR_BIRD_038's object 1 under the
+paper's. So where the windows decide (two or more apart, and the whole track does not beat), each background aperture
+beside the object is put through the object's own windows over the object's stretch, held against the other apertures
+and measured in the object's brightness, as the controls are (`background_windows`). Each window's chance of passing is
+then the share of those windows that pass, and at least `CHANCE_FLOOR`, 2 in 100 (`windows_chance`'s `rate`). With fewer
+than two apertures to read, it is the census's rate, as before. Each beat records `background_windows` (passing, of all)
+and `windows_chance_rate`, and the finding says both where they ruled a beat out. The extra windows are read only where
+they decide, so a run takes no longer elsewhere.
+
+It was measured before it was built (the uap repository's `galileo/nevada/n3/`). The labelled set's 432 tracks were
+judged again from their saved curves under both rules, once for each candidate rule. Every named bird of the record
+comes back: 30 under the stage's rule, 27 under the paper's. Every call is the record's but one: IR_BIRD_035's object
+0, refused in the record, now has no beat of its own, since its background's windows pass 6 % of the time and its two
+windows apart of three are what that gives. The record's three false alarms come back with the birds (DRONE_059,
+HELICOPTER_043, HELICOPTER_024); the census's rate had dropped HELICOPTER_043 along with the two birds. Background
+apertures judged as objects come back by windows 2 times in 1,562. On the Galileo Project's objects (§53), T3's false
+beats from every camera fall from 14 of 119 clouds and 3 of 80 aircraft (two windows apart, the rule before) to 5 and
+0 (the census's rate gave 3 and 0). Three of the five clouds beat over the whole track. The other two beat in 10 and 11
+windows of more than 160 while their skies' windows pass none: a cloud's own texture flickers more than the clear sky
+beside it, which no background aperture can measure. The floor was set on these numbers. At 3 in 100 one of those two
+clouds also drops, but two windows apart of five, a short bird's track (IR_BIRD_017), would sit at 0.85 % against the
+1 % line; at 2 in 100 it sits at 0.38 %. Making chance's windows also agree in frequency (each 1-Hz band's own share of
+passing background windows, summed over the band) changed only one helicopter, under the paper's rule, and was not built.
 
 The rate is stated and then held to a null. Drawn with no line, in 100 cells at 30 and 60 frames a second: coloured noise,
 bursts of it, hops, steps, and a level that flips. Of 11,400 tracks 1,800 (15.8 %) come out as one stretch, and 93 keep
@@ -6076,6 +6106,32 @@ against 69 ms on one CPU core, and the two shifts lie 6e-8 px apart; on PR149's 
 `tests/test_gpu.py` holds both on drawn clips: the shake at the beat within 0.0001 px and the same verdict, the scene's
 velocity under the pattern within 0.01 px a frame with the same blocks and pairs read.
 
+**The card's own code for the matches (G3, 2026-11-13).** The batch above makes each template's map of matches and
+goes over the maps about a dozen times in double. On a real card the matches are now read by two small kernels of
+the card's own (`forensics._peaks_fused`, `_FUSED_SOURCE`) that never make the maps: one thread a row of a map reads
+the correlation, divides by the normalisation, leaves out what the masks, the reach, the zone and the peak's square
+leave out, and keeps the row's best match and where it is. The arithmetic of a match is the batch's own (one
+multiplication and one division in double, compiled with nothing fused), and a tie goes to the first placement, so
+the six arrays that come back are the batch's to the last bit: 4,105 template rows over 60 pairs of PR088, PR149 and
+PR113, and every case of the suite's drawn pairs. A pair takes about a fifth less: 11.2 ms against 14.1 on PR088
+(1280 x 720), 29.0 against 35.6 on PR149, 24.4 against 29.9 on PR113 (frames in memory, `shift_field_auto`). Not the
+half first estimated: of what is left of a 1080p pair about half is the card's (the transforms, the filters, the
+kernels), a quarter is each peak read on the CPU in Python by the one function both ways call (`_peak_read`), and the
+rest is the frames sent up and each template's mean. NumPy cannot stand in for the card's own code, so the stand-in
+runs the batch as before, and so does a card that will not take the code (said once; the card stays in use).
+`forensics.FUSED = False` is the way back.
+
+**The peaks read at once (2026-11-13, the same evening).** On the card's path every peak of a pair is now read in one
+piece of NumPy (`forensics._peak_read_many`) and no longer one at a time by `_peak_read`, which stays the CPU's way
+and the reference. The batch does `_peak_read`'s arithmetic in its order with the same LAPACK routines a matrix at a
+time, and its numbers are `_peak_read`'s to the last bit wherever it was tried: 4,000 drawn peaks of every kind
+(sharp, flat along an axis, tied with a neighbour, a runner-up as high as the peak) and every row of 6,694 on real
+frames of PR088, PR149 and PR113 on the card. The suite holds it to a part in a billion, so that another computer's
+linear algebra library may differ in a last digit without failing. Together with the card's own code a pair takes
+8.6 ms where it took 14.1 on PR088 (1280 x 720), 25.0 where 35.6 on PR149 (1920 x 1028), 19.5 where 29.9 on PR113,
+and 71.7 where 125.4 with the second pass's dense templates: 30 to 43 % less. `forensics.BATCH_READ = False` is the
+way back.
+
 **What it is not.** Not every step: Find, Follow, `stabilize`, `groups` and `tether` are the CPU's, on pools or on
 threads, as before. For Find and Follow the reason is measured (2026-11-13): the spot detector's response takes 3 to
 4 ms a frame on the card against 35 to 85 on a CPU core, but on a busy frame two thirds of the time is the picking
@@ -6105,7 +6161,8 @@ and they triangulate to the pipeline's positions within 0.5 %.
   cannot range them, every time, as it should. No aircraft was called a drifter.
 - *Drift, T3* (sections 13 and 34). The rule for a beat that comes back took two windows apart on any track. On a long
   track chance gives two: 14 of the 16 beats on clouds and aircraft were no more than chance. Windows apart now count
-  only beyond chance, and a beat seen from two cameras at once is held to the second camera too.
+  only beyond chance (chance from the clip's own background windows since the revision, §13), and a beat seen from
+  two cameras at once is held to the second camera too.
 - *Size* (`report.extent`). With a track file and no size, the report turned the tracker's default 9-pixel spot into
   metres. In place of that default it now uses the object's length at half its peak brightness, measured on every
   tracked frame by the camera stage, and never turns the default into a size. A spot the marks or `--size` set is what

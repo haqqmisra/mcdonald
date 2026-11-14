@@ -519,6 +519,58 @@ def _peak_read(n9, dx, dy, pk2, runner_up, tpl):
     return (dx + _par(n9[1, 0], pk, n9[1, 2]), dy + _par(n9[0, 1], pk, n9[2, 1]), pk, pk2, ani, theta) + w + (ridge,)
 
 
+BATCH_READ = True               # False: the card's peaks read one at a time by `_peak_read` (a test's switch, and a way back)
+
+
+def _peak_read_many(n9, dx, dy, pk2, qdx, qdy, tpl):
+    """`_peak_read` for many peaks at once: `n9` (N x 3 x 3), the whole-pixel shifts `dx`, `dy`, the runner-ups'
+    heights `pk2` and places from their peaks (`qdx`, `qdy`), each N long; N x 10, a row what `_peak_read` returns.
+
+    For the card's path only (the maintainer, 2026-11-13: "give it a try"): once the card's own code finds the peaks,
+    reading them one at a time in Python was a quarter of a pair (6.6 ms of 26 at 1080p, fifty microseconds a peak in
+    two eigen-decompositions, an inverse and a dozen small arrays). The CPU's path reads each peak with `_peak_read`
+    as it always has, and that function is the reference: this one is written to do its arithmetic in its order --
+    the same differences, the same LAPACK routines a matrix at a time (NumPy's stacked `eigh` and `inv`), the same
+    matrix products in the same association -- and tests/test_gpu.py holds every number of it to `_peak_read`'s."""
+    n9 = np.asarray(n9, dtype=np.float64)
+    N = len(n9)
+    if not N:
+        return np.zeros((0, 10))
+    pk = n9[:, 1, 1]
+    kxx = 2 * pk - n9[:, 1, 0] - n9[:, 1, 2]
+    kyy = 2 * pk - n9[:, 0, 1] - n9[:, 2, 1]
+    kxy = (n9[:, 2, 2] + n9[:, 0, 0] - n9[:, 0, 2] - n9[:, 2, 0]) / 4
+    K = np.empty((N, 2, 2))
+    K[:, 0, 0], K[:, 0, 1], K[:, 1, 0], K[:, 1, 1] = kxx, -kxy, -kxy, kyy
+    ev, vec = np.linalg.eigh(K)
+    ani = np.maximum(ev[:, 0], 0) / np.maximum(ev[:, 1], 1e-9)
+    theta = np.degrees(np.arctan2(vec[:, 1, 0], vec[:, 0, 0]))
+    # `peak_information`: the covariance from the curvatures, and its inverse -- or, where a runner-up as high stands
+    # elsewhere, what the curvature says across the line to it
+    s = PEAK_ERR_SCALE ** 2 * 2 * np.maximum(1.0 - pk, 1e-4) / (tpl * tpl)
+    var = s[:, None] / np.maximum(ev, 1e-12) + PEAK_FLOOR_PX ** 2
+    D = np.zeros((N, 2, 2))
+    D[:, 0, 0], D[:, 1, 1] = var[:, 0], var[:, 1]
+    C = vec @ D @ vec.transpose(0, 2, 1)
+    r = np.hypot(qdx, qdy).astype(np.float64)
+    ridge = (pk - pk2 < PK_GAP) & (r > 0)
+    W = np.empty((N, 2, 2))
+    if (~ridge).any():
+        W[~ridge] = np.linalg.inv(C[~ridge])
+    for i in np.flatnonzero(ridge):                        # the fewer: each as `peak_information` reads it
+        u = np.array((qdx[i], qdy[i]), dtype=np.float64) / r[i]
+        t = np.array([-u[1], u[0]])
+        W[i] = np.outer(t, t) / float(t @ C[i] @ t)
+
+    def par(m1, m0, p1):
+        d = m1 - 2 * m0 + p1
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(d == 0, 0.0, 0.5 * (m1 - p1) / np.where(d == 0, 1.0, d))
+    return np.column_stack([dx + par(n9[:, 1, 0], pk, n9[:, 1, 2]), dy + par(n9[:, 0, 1], pk, n9[:, 2, 1]), pk,
+                            np.asarray(pk2, dtype=np.float64), ani, theta, W[:, 0, 0], W[:, 1, 1], W[:, 0, 1],
+                            np.where(ridge, r, 0.0)])
+
+
 def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None, only=None, zeros=None):
     """Where each clean tpl-px template of frame a is found in frame b.
     Rows of SHIFT_COLS: template centre, shift, ZNCC peak and runner-up, the
@@ -623,6 +675,17 @@ def _shift_field_on(c, ga, gb, bad_a, bad_b, a, tpl, stride, reach, zs, ha, hb, 
                     raise
         py, px, n9, pk2, qy, qx = got
         oy, ox = y0s - rys, x0s - rxs
+        if BATCH_READ:                                                  # every peak of a zone read at once
+            means = np.array([float(ga[y0:y0 + tpl, x0:x0 + tpl].mean()) for y0, x0 in spots])
+            fields = []
+            for k in range(len(zs)):
+                y, x = py[k].astype(np.int64), px[k].astype(np.int64)
+                keep = np.flatnonzero((y > 0) & (y < Py - 1) & (x > 0) & (x < Px - 1) & (n9[k].reshape(len(spots), -1).min(axis=1) > -1.0))
+                p = _peak_read_many(n9[k][keep], x[keep] - ox[keep], y[keep] - oy[keep], pk2[k][keep],
+                                    qx[k][keep].astype(np.int64) - x[keep], qy[k][keep].astype(np.int64) - y[keep], tpl)
+                fields.append(np.column_stack([np.full(len(keep), float(a)), x0s[keep] + tpl / 2, y0s[keep] + tpl / 2, p[:, :6],
+                                               means[keep], p[:, 6:]]).reshape(-1, len(SHIFT_COLS)))
+            return fields
         for i, (y0, x0) in enumerate(spots):
             head = (a, x0 + tpl / 2, y0 + tpl / 2)
             mean = float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())
@@ -639,6 +702,126 @@ def _shift_field_on(c, ga, gb, bad_a, bad_b, a, tpl, stride, reach, zs, ha, hb, 
 def _integral_on(xp, a):
     """`integral` with the array module `xp`: the padded summed-area table, in float64."""
     return xp.cumsum(xp.cumsum(xp.pad(xp.asarray(a, dtype=xp.float64), ((1, 0), (1, 0))), 0), 1)
+
+
+# ---- the fused pass (IDEAS.md G3; the maintainer, 2026-11-13: "Build, keep fallback") ----------------------------------
+# `_peaks_on` makes each template's map of matches and then goes over the maps about a dozen times, in double: the
+# normalisation gathered, multiplied, divided, the masks put in, each zone cleared, the peak found, its square set
+# aside, the runner-up found, the square put back (146 MB for 76 templates at 1080p; the card is bound by the memory it
+# moves, not by arithmetic). The card's own code below never makes the maps. One thread a row of a map reads the
+# correlation, divides by the normalisation, leaves out what the masks, the reach, the zone and the peak's square leave
+# out, and keeps the row's highest match and where it is; the highest row is the peak. So a zone is two passes that
+# read and write next to nothing, where it was a dozen that wrote. The arithmetic of a match is the plain pass's own
+# (one multiplication and one division in double, nothing a compiler may fuse), and a tie goes to the first placement
+# as `argmax` gives it: the six arrays that come back are the plain pass's to the last bit, which is what test_gpu
+# holds on the card. NumPy cannot stand in for this, so the stand-in, and a card that will not take the code, use the
+# plain pass (`_fused_kernels`).
+FUSED = True                    # False: the plain pass on every card (a test's switch, and a way back)
+_fused = {}                     # each card's compiled kernels, or the reason it refused them
+_FUSED_SOURCE = r"""
+__device__ double mcd_match(const float* num, const double* norm, const bool* masked, float e, long long ry, long long rx,
+                            long long oy, long long ox, long long i, long long y, long long x, int Ny, int Nx, int Wn,
+                            int reach, int zone)
+{
+    long long dy = y - oy, dx = x - ox;
+    if (dy < 0) dy = -dy;
+    if (dx < 0) dx = -dx;
+    size_t at = (size_t)(ry + y) * (size_t)Wn + (size_t)(rx + x);
+    if (masked[at] || dy > reach || dx > reach) return -1.0;
+    if (zone >= 0 && dy <= zone && dx <= zone) return -1.0;
+    if (e < 1e-6f) return 0.0;
+    float em = e > 1e-6f ? e : 1e-6f;
+    return (double)num[((size_t)i * (size_t)Ny + (size_t)y) * (size_t)Nx + (size_t)x] / ((double)em * norm[at]);
+}
+
+extern "C" __global__
+void mcd_rows(const float* num, const double* norm, const bool* masked, const float* e, const long long* ry,
+              const long long* rx, const long long* oy, const long long* ox, const long long* py, const long long* px,
+              int n, int Py, int Px, int Ny, int Nx, int Wn, int reach, int zone, int apart, double* rowmax, int* rowarg)
+{
+    long long tid = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= (long long)n * Py) return;
+    long long i = tid / Py, y = tid % Py;
+    long long ay = y - py[i];
+    if (ay < 0) ay = -ay;
+    double best = 0.0;
+    int arg = 0;
+    for (int x = 0; x < Px; ++x) {
+        double v;
+        long long ax = x - px[i];
+        if (ax < 0) ax = -ax;
+        if (apart >= 0 && ay <= apart && ax <= apart) v = -1.0;
+        else v = mcd_match(num, norm, masked, e[i], ry[i], rx[i], oy[i], ox[i], i, y, x, Ny, Nx, Wn, reach, zone);
+        if (x == 0 || v > best) { best = v; arg = x; }
+    }
+    rowmax[tid] = best;
+    rowarg[tid] = arg;
+}
+
+extern "C" __global__
+void mcd_points(const float* num, const double* norm, const bool* masked, const float* e, const long long* ry,
+                const long long* rx, const long long* oy, const long long* ox, const long long* py, const long long* px,
+                int n, int Py, int Px, int Ny, int Nx, int Wn, int reach, int zone, double* n9)
+{
+    long long tid = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= (long long)n * 9) return;
+    long long i = tid / 9, k = tid % 9;
+    long long y = py[i] + k / 3 - 1, x = px[i] + k % 3 - 1;
+    y = y < 0 ? 0 : (y > Py - 1 ? Py - 1 : y);
+    x = x < 0 ? 0 : (x > Px - 1 ? Px - 1 : x);
+    n9[tid] = mcd_match(num, norm, masked, e[i], ry[i], rx[i], oy[i], ox[i], i, y, x, Ny, Nx, Wn, reach, zone);
+}
+"""
+
+
+def _fused_kernels(c):
+    """The card `c`'s own kernels for the fused pass (rows, points), compiled once a card; None for the stand-in, with
+    FUSED off, or where the card would not take the code -- said once, and the plain pass does the work from then on:
+    the same numbers."""
+    if not FUSED or not c.real:
+        return None
+    got = _fused.get(id(c))
+    if got is None:
+        try:
+            got = tuple(c.xp.RawKernel(_FUSED_SOURCE, name, options=("--fmad=false",)) for name in ("mcd_rows", "mcd_points"))
+            for k in got:
+                k.compile()
+        except Exception as e:                                # noqa: BLE001 -- a compiler's refusal comes in many kinds
+            got = f"{type(e).__name__}: {str(e).strip()[:300]}"
+            import sys
+            print(f"mcdonald: the graphics card would not take the fused pass ({got}). The plain pass is used: "
+                  "the same numbers, more slowly.", file=sys.stderr, flush=True)
+        _fused[id(c)] = got
+    return None if isinstance(got, str) else got
+
+
+def _peaks_fused(c, kernels, full, e, norm, masked, y0s, x0s, rys, rxs, reach, zs, places):
+    """`_peaks_on`'s six arrays from the correlations `full` (n x Ny x Nx, single precision, on the card) by the
+    card's own code: no map of matches is made."""
+    xp = c.xp
+    rows_k, points_k = kernels
+    n, Ny, Nx = full.shape
+    Py, Px = places
+    full, e = xp.ascontiguousarray(full, dtype=xp.float32), xp.ascontiguousarray(e, dtype=xp.float32)
+    norm, masked = xp.ascontiguousarray(norm, dtype=xp.float64), xp.ascontiguousarray(masked, dtype=xp.bool_)
+    RY, RX, OY, OX = (xp.ascontiguousarray(c.up(v), dtype=xp.int64) for v in (rys, rxs, y0s - rys, x0s - rxs))
+    none = xp.zeros(n, xp.int64)
+    rowmax, rowarg, n9 = xp.empty((n, Py), xp.float64), xp.empty((n, Py), xp.int32), xp.empty((n, 9), xp.float64)
+    each = xp.arange(n)
+    i32 = np.int32
+    dims = (i32(n), i32(Py), i32(Px), i32(Ny), i32(Nx), i32(norm.shape[1]), i32(reach))
+    grid = lambda count: ((int(count) + 127) // 128,)
+    found = {}
+    for z in sorted(set(zs)):                                             # each zone holds the smaller ones
+        zone = i32(z if z >= 0 else -1)
+        rows_k(grid(n * Py), (128,), (full, norm, masked, e, RY, RX, OY, OX, none, none, *dims, zone, i32(-1), rowmax, rowarg))
+        py = rowmax.argmax(axis=1)
+        px = rowarg[each, py].astype(xp.int64)
+        points_k(grid(n * 9), (128,), (full, norm, masked, e, RY, RX, OY, OX, py, px, *dims, zone, n9))
+        rows_k(grid(n * Py), (128,), (full, norm, masked, e, RY, RX, OY, OX, py, px, *dims, zone, i32(RUNNER_UP_APART), rowmax, rowarg))
+        qy = rowmax.argmax(axis=1)
+        found[z] = [c.down(v) for v in (py, px, n9.reshape(n, 3, 3), rowmax[each, qy], qy, rowarg[each, qy].astype(xp.int64))]
+    return [np.stack([found[z][k] for z in zs]) for k in range(6)]
 
 
 def _peaks_on(c, ha, hb, norm, masked, y0s, x0s, rys, rxs, tpl, reach, zs, region, fft_size):
@@ -660,8 +843,13 @@ def _peaks_on(c, ha, hb, norm, masked, y0s, x0s, rys, rxs, tpl, reach, zs, regio
     UY, UX = (c.up(uniq[:, k])[:, None, None] for k in (0, 1))
     fr = c.fft.rfftn(hb[UY + xp.arange(Sy)[None, :, None], UX + xp.arange(Sx)[None, None, :]], s=fft_size, axes=(1, 2))
     fr = fr if len(uniq) == 1 else fr[c.up(inv.ravel())]
-    num = c.fft.irfftn(fr * xp.conj(ft), s=fft_size, axes=(1, 2))[:, :Py, :Px]
+    full = c.fft.irfftn(fr * xp.conj(ft), s=fft_size, axes=(1, 2))
     del fr, ft
+    kernels = _fused_kernels(c)
+    if kernels is not None:                                               # the card's own code: no maps (G3)
+        return _peaks_fused(c, kernels, full, e, norm, masked, y0s, x0s, rys, rxs, reach, zs, (Py, Px))
+    num = full[:, :Py, :Px]
+    del full
     yy, xx = xp.arange(Py)[None, :, None], xp.arange(Px)[None, None, :]
     cm = num / (xp.maximum(e, 1e-6)[:, None, None] * norm[RY + yy, RX + xx])    # float64, as `zncc` divides
     del num

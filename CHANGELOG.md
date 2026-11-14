@@ -5,6 +5,21 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**A beat is now held against the clip's own sound** (a change to reports; the maintainer's choice of 2026-11-13).
+`flicker` lists the rhythms a supply, a codec or the sampling can put into a brightness curve, its look-alikes, and
+marks a beat that sits at one. Since 0.3.0 that list was meant to hold the rhythms the clip's own sound carries too
+(`mcdonald audio`: a propeller's blade-pass, an aircraft's 400-Hz power, folded through the frame rate). It never
+did: the stage asked for the sound by a name its judging did not have, and the error was taken for a clip with no
+sound. Now the video is handed to the judging (`flicker.judge(video=)`), and a beat at a heard rhythm is marked with
+it. A mark, not a verdict: whether a beat stands is decided as before.
+
+Where a report can change, measured: of the 145 videos of the reference-data folder, the sound of eight carries a
+rhythm that lands in the band a beat is looked for in (PR106, PR107, PR111, PR113's per-file copy, PR117, PR118,
+PR119 and NASA-UAP-D008's tape). None of them is a reference case with a beat: all fourteen case files, measured
+again with and without the change, differ in nothing (31 objects). Reading the sound takes half a second a video at
+the median, seven at the most. Held by test_audio (a drawn clip with a propeller's 68-Hz series and an object
+beating at 8 Hz, where 68 Hz folds at 30 frames a second).
+
 **A long track is measured in two thirds of the time, with the same numbers** (2026-11-13). The whole run of a
 3,678-frame track (PR088's object 2) took the same 406 s at 32 worker processes as at 88: more than half of it was
 one process doing arithmetic that no pool had a share of. Three such places now share it out among threads of that
@@ -30,6 +45,14 @@ one part in a billion.
   frame before, on the card (`flicker._lk_shift_on`). A frame takes 2.5 ms there against 69 ms on one CPU core at
   1280 x 720 (5.7 against 198 ms at 1920 x 1028), and the two shifts lie under a millionth of a pixel apart.
 - *`layers`' third pass* (the scene under a sensor's pattern): a block's mean and its pairs' templates on the card.
+
+*The card's own code for the matches* (IDEAS.md G3, the maintainer's choice of 2026-11-13). On an NVIDIA card the
+templates' matches are read without making each template's map of matches (`forensics._peaks_fused`). Every number
+is the earlier card pass's to the last bit, and a frame pair takes about a fifth less (11.2 ms against 14.1 at
+1280 x 720). With NumPy standing in, or on a card that will not take the code, the earlier pass runs. And on the
+card's path the peaks of a pair are read at once (`forensics._peak_read_many`) with the numbers of the function that
+reads them one by one on the CPU. The two together: a pair in 8.6 ms where it took 14.1 (1280 x 720), in 25.0 where
+35.6 (1920 x 1028), 30 to 43 % less.
 
 Measured and not built: the spot detector on the card for Find and Follow (IDEAS.md G2). The response is ten to
 twenty times sooner there, but most of a frame's time is the picking of the spots, which one process would do more
@@ -105,7 +128,11 @@ that the measurements do not support (IDEAS.md N1-N6). Each changes what some re
   4.5-9.5).
 - **A beat comes back by windows apart only beyond chance** (N3; `flicker.CHANCE_P`, `windows_chance`). On a long track
   two passing windows apart are what chance gives: 14 of 16 beats on clouds and aircraft were. Such a beat is now held to
-  the one-stretch rule, and `drift` weighs envelopes made before this from their own windows. **T3 with two cameras**
+  the one-stretch rule, and `drift` weighs envelopes made before this from their own windows. Each window's chance is the
+  clip's own: its background apertures' windows over the object's stretch, judged as the object's, at least 2 in 100
+  (`CHANCE_FLOOR`, `background_windows`). With the census's 9 % instead, short tracks lost two of the labelled set's 30
+  named birds; now all 30 stay, and every call is the record's but one refusal. T3's false beats on the Galileo
+  Project's clouds and aircraft go from 14 and 3 to 5 and 0. **T3 with two cameras**
   (N4; `--flicker a.json,b.json`): a beat that one camera sees and another, watching at the same time and able to see a
   third of it, does not, is the first camera's view, and T3 passes on it.
 - **No size from the default spot** (N5; `report.extent`). With a track file and no size, the report turned the

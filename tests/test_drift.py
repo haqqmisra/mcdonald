@@ -573,6 +573,24 @@ def test_t3_windows_apart_against_chance():
     check(drift.test_beat(env(2, whole=True))["outcome"] == drift.FAIL, "a whole track that beats: fails, as before")
     check(drift.test_beat(env(2, new=True))["outcome"] == drift.PASS
           and drift.test_beat(env(12, new=True))["outcome"] == drift.FAIL, "the same from flicker's own new fields")
+    # chance from the clip's own background windows (the N3 revision, 2026-11-13): a short track's two windows apart of
+    # five are chance at the census's 9 %, and not where the clip's own background windows rarely pass (IR_BIRD_017)
+    census, own = flicker.windows_chance(2, 5, 2.7), flicker.windows_chance(2, 5, 2.7, flicker.CHANCE_FLOOR)
+    check(census > flicker.CHANCE_P >= own, "2 windows apart of 5: chance at the census's rate, beyond it at the floor",
+          f"{census:.3f}, {own:.4f}")
+    import numpy as np
+    from mcdonald.progress import Beside
+    rng = np.random.default_rng(7)
+    fps, frames = 30.0, 150
+    own_ = {f"background {i}": list(100.0 + rng.normal(0, 0.3, frames)) for i in range(3)}
+    ns = list(range(1, frames + 1))
+    bw = flicker.background_windows(Beside(0), own_, "object", sorted(own_), ns, fps, (), [], 0.8 * fps / 2, 100.0)
+    n_each = len(flicker.windows({m: own_[m] for m in own_}, "background 0", ["background 1", "background 2"], ns, fps, (),
+                                 top=0.8 * fps / 2, scale=100.0))
+    check(bw is not None and bw[1] == 3 * n_each and bw[0] <= bw[1] // 10,
+          "background windows: each aperture's windows judged as the object's, few passing on grain alone", str(bw))
+    check(flicker.background_windows(Beside(0), own_, "object", ["background 0"], ns, fps, (), [], 12.0, 100.0) is None,
+          "one aperture alone has nothing to be held against: no measured chance")
 
 
 def test_t3_two_cameras():
