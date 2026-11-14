@@ -374,6 +374,9 @@ GOLDEN_KINDS = {
     "test_pr43_dash_fitted_whole": ("regression", "PR43's dash fitted whole (method 45), as the tool read it on 2026-11-07"),
     "test_aaro_blind": ("regression", "the one press's labels on AARO's cases as recorded on 2026-11-07; AARO's answers, from "
                         "outside, are scored beside them (method 46), not held"),
+    "test_pr051_drift_from_the_aircrafts_own_track": ("regression", "the drift stage's own numbers on PR051's second leg; its "
+                                                      "inputs are a data bar's, as an agent read them and no person has "
+                                                      "checked, and nothing outside says whether the object drifted"),
     "test_exercises": ("regression", "each page's answer is what the tool said when the page was written (below)"),
 }
 
