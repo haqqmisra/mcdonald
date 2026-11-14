@@ -880,11 +880,16 @@ def az_reference(fit, R, sig, plane, tm, scale, known=None):
     by 1.4 m/s, three times the error the scatter gives it, and on PR051's by 4. So the same rays are fitted again with
     a seventh parameter, one constant added to every azimuth, and that fit's covariance (read with the same errors as
     the first: `scale`) says how far the rays themselves fix the reference (`err_deg`) and how each of the six moves
-    with it. `known` (deg; `--az-ref-err`) is how well the reference is known beforehand: the two are combined as
-    independent knowledge, and None or inf leaves it to the rays alone. Returns dict(fitted_deg, err_deg, used_deg,
-    part, pull), `part` the error each of the six parameters takes from the reference, to be added in quadrature to
-    its error from the rays' scatter, `pull` the same for one degree; or None where the seventh parameter cannot be
-    fitted. The path itself stays the six-parameter fit: the reference is taken as right, and its error is carried."""
+    with it. The path itself stays the six-parameter fit, which takes the reference as right; what is carried is the
+    error of doing so. `known` (deg; `--az-ref-err`) is how well the reference is known beforehand, and the error it
+    leaves in each of the six parameters is that parameter's pull for one degree times `known`. With None or inf
+    nothing is taken as known, and the rays' own reading of the reference stands in: its fitted value and its error,
+    in quadrature. The rays' reading is not used to tighten a reference taken as known: the path was not fitted with
+    it, so it cannot have the benefit (a path drawn with every azimuth a degree off, read with the reference known
+    to a degree, missed the truth by more than two such tightened errors). Returns dict(fitted_deg, err_deg,
+    used_deg, part, pull): the rays' own reading and its error, the reference error carried, the error each of the
+    six takes from it (to be added in quadrature to its error from the rays' scatter) and the same for one degree;
+    or None where the seventh parameter cannot be fitted."""
     from scipy.optimize import least_squares
 
     def res(q):
@@ -897,9 +902,9 @@ def az_reference(fit, R, sig, plane, tm, scale, known=None):
     if not np.all(np.isfinite(C)) or not C[6, 6] > 0:
         return None
     sd = math.sqrt(C[6, 6])
-    used = sd if known is None or not math.isfinite(known) else 1.0 / math.sqrt(1.0 / known ** 2 + 1.0 / sd ** 2)
-    return dict(fitted_deg=float(g.x[6]), err_deg=float(sd), used_deg=float(used), part=np.abs(C[:6, 6]) / sd ** 2 * used,
-                pull=np.abs(C[:6, 6]) / sd ** 2)
+    used = float(known) if known is not None and math.isfinite(known) else math.hypot(float(g.x[6]), sd)
+    pull = np.abs(C[:6, 6]) / sd ** 2
+    return dict(fitted_deg=float(g.x[6]), err_deg=float(sd), used_deg=float(used), part=pull * used, pull=pull)
 
 
 def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err=None):
@@ -1248,7 +1253,7 @@ def test_wind_track(path, winds, readings=None):
         if ref is not None and rays is not None and math.isfinite(ev) and 2 * rays <= VELOCITY_FIX:
             return dict(out, outcome=CANNOT, reading=(      # the rays' scatter alone would fix it: the reference does not
                 f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): they "
-                f"leave the display's azimuth reference open to {path['az_reference_err_deg']:.1f} deg, and a constant "
+                f"leave the display's azimuth reference open to {path.get('az_reference_used_deg', path['az_reference_err_deg']):.1f} deg, and a constant "
                 f"error of one degree in every azimuth moves the velocity by {path['az_reference_pull_m_s']:.1f} m/s"))
         return dict(out, outcome=CANNOT, reading=(
             f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): the "
@@ -1296,9 +1301,10 @@ def test_wind_track(path, winds, readings=None):
     out.update(hold_still_m_s=[round(min(still), 2), round(max(still), 2)], drift_beats_hold=bool(max(need) < min(still)))
     if shear > VELOCITY_FIX and min(need) - tol < FLIER_MIN:
         return dict(out, outcome=CANNOT, reading=(           # no wind near enough in height to tell a drifter by
-            f"no wind was read near its height: the nearest that counts was read {gap:.0f} m from it, and over that much "
-            f"height the wind changes by more than {shear:.1f} m/s in one sounding of ten, so it cannot tell a drifter "
-            f"from a slow flier (that wind leaves it {min(need):.1f}-{max(need):.1f} m/s through the air)"))
+            f"no wind was read near its height: the nearest that counts was read {gap:.0f} m from it. Over that much "
+            f"height the wind changes by more than {shear:.1f} m/s one time in ten (weather balloons), so this test "
+            f"cannot tell a drifter from a slow flier. That wind leaves it {min(need):.1f}-{max(need):.1f} m/s through "
+            "the air"))
     if max(need) <= tol and not out["drift_beats_hold"]:
         return dict(out, outcome=CANNOT, reading=(
             f"holding still fits as well as drifting: the winds at its height are {min(still):.1f}-{max(still):.1f} m/s, and "
@@ -1618,10 +1624,11 @@ def said(fields):
                  f"resamples fitted")
         if g.get("az_reference_err_deg") is not None:
             k = g.get("az_reference_known_deg")
-            known = (f"; it is taken as known to {k:g} deg beforehand, {g['az_reference_used_deg']:.2f} with the lines of sight"
-                     if k is not None and math.isfinite(k) else "; nothing else is taken as known of it")
-            L.append(f"\nthe display's azimuth reference: the lines of sight themselves fix it to {g['az_reference_err_deg']:.2f} "
-                     f"deg{known}. A constant error of one degree in every azimuth moves the velocity by "
+            known = (f"it is taken as known to {k:g} deg beforehand" if k is not None and math.isfinite(k) else
+                     f"nothing is taken as known of it beforehand, so their own reading is carried ({g['az_reference_used_deg']:.2f} deg)")
+            L.append(f"\nthe display's azimuth reference: {known}; the lines of sight themselves read it as "
+                     f"{g['az_reference_fitted_deg']:+.2f} +- {g['az_reference_err_deg']:.2f} deg. A constant error of one degree "
+                     f"in every azimuth moves the velocity by "
                      f"{g['az_reference_pull_m_s']:.2f} m/s and the climb by {g['az_reference_pull_climb_m_s']:.2f} m/s. The "
                      f"errors above carry it: from the rays' scatter alone, two errors of the velocity are "
                      f"{2 * g['velocity_err_rays_m_s']:.2f} m/s and the climb's error is {g['climb_err_rays_m_s']:.2f} m/s")

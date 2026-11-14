@@ -391,7 +391,7 @@ def test_track_the_azimuth_reference_is_carried():
     check(np.allclose(p["v_m_s"], exact["v_m_s"]) and np.allclose(p["v_m_s"], free["v_m_s"]),
           "the path itself does not move with what is known of the reference")
     off = drift.fit_track(drift.rays(platform, {f: dict(L, az=L["az"] + 1.0) for f, L in los.items()}, FPS), (0.1, 0.03),
-                          nboot=0, az_ref_err=1.0)
+                          nboot=200, az_ref_err=1.0)
     moved = float(np.hypot(*(np.array(off["v_m_s"]) - np.array(p["v_m_s"]))))
     check(abs(moved / p["az_reference_pull_m_s"] - 1) < 0.15 and p["az_reference_pull_m_s"] > 0.5,
           "every azimuth a degree off: the velocity moves by the pull the fit reports for a degree",
@@ -400,10 +400,14 @@ def test_track_the_azimuth_reference_is_carried():
     check(miss <= 2 * off["velocity_err_m_s"] and miss > 2 * off["velocity_err_rays_m_s"],
           "with the reference given as known to a degree, two errors hold the true velocity; the rays' scatter alone "
           "would not have", f"{miss:.2f} m/s off, two errors {2 * off['velocity_err_m_s']:.2f} (the rays' alone {2 * off['velocity_err_rays_m_s']:.2f})")
+    check(abs(off["az_reference_fitted_deg"] + 1.0) < 2.5 * off["az_reference_err_deg"] and off["az_reference_used_deg"] == 1.0,
+          "the rays' own reading of the reference is reported beside it (they read the degree they were turned by, to "
+          "their error), and what is carried is the degree given, not the rays' tighter reading",
+          f"{off['az_reference_fitted_deg']:+.2f} +- {off['az_reference_err_deg']:.2f} deg")
     t1 = drift.test_vertical_track(off)
     check(t1["outcome"] == drift.PASS, "T1 still passes: the climb is hardly moved", t1["reading"])
     # where only the reference leaves the velocity open, T2 says so
-    fixed = dict(p, velocity_err_m_s=3.0, velocity_err_rays_m_s=1.0, velocity_err_reference_m_s=2.83, az_reference_err_deg=2.5,
+    fixed = dict(off, velocity_err_m_s=3.0, velocity_err_rays_m_s=1.0, velocity_err_reference_m_s=2.83, az_reference_used_deg=2.5,
                  az_reference_pull_m_s=1.15)
     t2 = drift.test_wind_track(fixed, [dict(label="w", w=truth["v"], counts=True, note="")])
     check(t2["outcome"] == drift.CANNOT and "azimuth reference open to 2.5 deg" in t2["reading"],

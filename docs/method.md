@@ -3698,10 +3698,12 @@ depression below the horizontal.
   the object. A model file counts within its levels, and beyond them, held at its nearest level, only within a factor
   of 4 of the object's height above the model's own ground, as an observed level does (until 2026-11-02 a model wind
   counted at any height: a file with only a 100-m level counted at 3,960 m, and T2 passed or failed on it). T2 passes
-  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity, plus a model's
-  own error where a model's wind is among them; fails when even the smallest is 10 m/s or more beyond that (it
-  flies); and cannot say between, or when two errors of the velocity exceed 5 m/s (T2 cannot then tell a drifter from
-  a slow flier).
+  when every wind that counts leaves it within their own spread plus two errors of the fitted velocity, plus the
+  largest of the counted winds' own errors (a model's, or two errors of the aircraft's own wind) and the wind's own
+  change over the height between the object and the nearest level a wind was read at (both since 2026-11-13, below);
+  fails when even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, when two errors of
+  the velocity exceed 5 m/s (T2 cannot then tell a drifter from a slow flier), or when no wind was read near enough
+  to its height.
 - *A model's own error* (`MODEL_WIND_ERR`, 3 m/s; 2026-11-13). The spread of a model's hours says how much its wind
   changes from hour to hour, not how far it misses the air's own motion. The Galileo Project's three camera sites near
   Las Vegas triangulate clouds 2-5 km up, so their motion over the ground is known (the uap repository's
@@ -3769,6 +3771,54 @@ depression below the horizontal.
   the 400 (its level is 4). What it does not see: an error the
   rays share. Readings that were smoothed or interpolated scatter less than they err, and a constant error of the
   display's own angles moves every ray alike (the next point).
+- *The display's azimuth reference* (`drift.az_reference`, `--az-ref-err`; 2026-11-13, IDEAS.md DR2). Every ray's azimuth
+  rests on one reference, the display's own true north: an inertial heading, or a ground point the display worked
+  out with one. An error in it turns every ray about its own aircraft position by the same angle. The rays' scatter
+  cannot show that, and the fitted path moves with it: by 1.41 m/s of velocity and 0.08 m/s of climb for one degree on
+  the Puerto Rico turn, three times the velocity error the scatter gives; by 3.7-4.5 m/s on PR051's. So the same rays
+  are fitted once more with a seventh parameter, one constant added to every azimuth, and that fit's covariance gives
+  how each of the six moves for a degree (`az_reference_pull_m_s`, `az_reference_pull_climb_m_s`) and what the rays
+  themselves read the reference as (`az_reference_fitted_deg`, `az_reference_err_deg`: -2.6 +- 1.3 deg on Puerto Rico,
+  -1.6 +- 0.7 on PR051's two legs, +0.3 +- 2.7 on its second leg alone). The path stays the six-parameter fit, which
+  takes the reference as right, and the error of doing so is added in quadrature to the errors from the rays'
+  scatter: the pull times how well the reference is taken as known beforehand. **That number is a judgement, not a
+  measurement: nothing here has measured a display's reference.** By default it is the azimuth error given for the
+  rays (`--los-sigma`, 0.3°), taken to hold for the part all rays share as for each ray's own reading;
+  `--az-ref-err` gives another, and `inf` leaves it to the rays (their own reading and its error, in quadrature). The
+  rays' reading is reported and never used to tighten a reference taken as known, since the path was not fitted with
+  it: a path drawn with every azimuth a degree off and read with the reference known to a degree missed the truth by
+  2.5 such tightened errors, and is held by the untightened ones (in the tests). On Puerto Rico the default moves T2's
+  "two errors of the fit" from 1.0 to 1.3 m/s and T1's error from 0.04 to 0.05 m/s; left to the rays alone, two errors
+  are 8.2 m/s and T2 cannot say. Where the rays' scatter alone would fix the velocity and the reference leaves it open,
+  T2's reading names the reference. Not carried: a constant error in depression, and errors that run on from reading
+  to reading (the residuals' lag-1 correlation is +0.07 and +0.51 on Puerto Rico's azimuths and depressions).
+- *The heading box and the direction of flight* (`drift.aircraft_wind`; 2026-11-13, IDEAS.md DR2). The aircraft's own wind
+  comes from its positions and its heading box through a turn, and took the box as the direction of flight. On
+  PR051's upload that fails: the second leg misfits by 17 m where its positions scatter by 3, and the two legs
+  share one wind to 3.7 m only with the aircraft 14.2 +- 0.3° right of its box (52 m without; what the 14° is stays
+  open). The box alone gives 21.6 m/s from 211°, the positions 11.2 from 266°, and T2 failed or passed on that
+  alone. So the positions are fitted again with one constant added to every heading, and the constant is taken where
+  two things hold. An F test of the second fit over the first passes at 1 % (`HEADING_P`). And the constant exceeds
+  half a step of the heading box by two of its errors: a box that prints whole degrees cannot say where in the degree
+  the heading is, and with fine positions that rounding alone passes the F test (28 % of drawn turns at a tenth of
+  an arcsecond, 12 % overall). The rule's false-alarm rate, measured: of 720 drawn turns of 40-157° with the box true,
+  positions rounded to 1, 0.36 and 0.1 arcseconds and the heading to a degree, it takes an offset on 2 (0.3 %; 95 %
+  upper bound 0.9 %). Its power on the same turns: an offset of 1° is taken on 65 of 200, 2° on 150, 5° on 197,
+  14.2° on 200. Where an offset is taken, the wind, the airspeed and their errors are the second fit's. Where none
+  is, the wind is the first fit's, as before, and its error is the larger of the two fits' with what an offset
+  inside the box's own step would do. Both fits' errors use the position error given (10 m) and are scaled up by a
+  misfit, never down: a rounded heading leaves errors that run on from reading to reading, and the positions' own
+  scatter understated them (two such errors held the true wind 74-87 times in 100 on drawn turns of 157°; with the
+  error given, 99-100). The wind's error now enters T2: the tolerance takes the largest of the counted winds' own
+  errors, a model's 3 m/s or two errors of the aircraft's own wind. And a turn too short to tell the wind from the
+  offset and the airspeed gives no wind that counts: two errors over 5 m/s (`VELOCITY_FIX`), which a 41° turn of ten
+  readings does not meet and PR051's 52° turn of 23 readings just does (4.4). The Puerto Rico turn asks for no offset
+  (-0.23 +- 0.15°, p 0.12): its wind is 9.51 m/s from 70.6° as before, its error 0.55 where it was 0.25. What this
+  costs, on drawn orbits with the aircraft's own wind the only one, 60 draws each: with the box 14.2° off, the old rule
+  failed 60 of 60 drifters and the new one passes 60 of 60; with the box true and a 157° turn nothing changes (drifters
+  pass, 25 m/s through the air fails, 5 and 10 m/s cannot say); on a 60° turn a body flying 5 m/s through the air
+  now passes 55 of 60 where 3 did, because the wind from so short a turn is known to about 2.4 m/s once the offset is
+  open. T2 never told 5 m/s from drift where the winds were that uncertain; now it says how uncertain they are.
 - *T3, the beat.* Is its brightness free of a beat at a wingbeat's or a rotor's rate? From `mcdonald flicker`: a beat
   of its own that holds across the video fails (a wingbeat or a rotor). "Holds" is flicker's headline rule (§13,
   `comes_back`): the whole track beats, or passing windows that do not overlap agree, more of them than chance gives
