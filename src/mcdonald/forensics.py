@@ -519,6 +519,58 @@ def _peak_read(n9, dx, dy, pk2, runner_up, tpl):
     return (dx + _par(n9[1, 0], pk, n9[1, 2]), dy + _par(n9[0, 1], pk, n9[2, 1]), pk, pk2, ani, theta) + w + (ridge,)
 
 
+BATCH_READ = True               # False: the card's peaks read one at a time by `_peak_read` (a test's switch, and a way back)
+
+
+def _peak_read_many(n9, dx, dy, pk2, qdx, qdy, tpl):
+    """`_peak_read` for many peaks at once: `n9` (N x 3 x 3), the whole-pixel shifts `dx`, `dy`, the runner-ups'
+    heights `pk2` and places from their peaks (`qdx`, `qdy`), each N long; N x 10, a row what `_peak_read` returns.
+
+    For the card's path only (the maintainer, 2026-11-13: "give it a try"): once the card's own code finds the peaks,
+    reading them one at a time in Python was a quarter of a pair (6.6 ms of 26 at 1080p, fifty microseconds a peak in
+    two eigen-decompositions, an inverse and a dozen small arrays). The CPU's path reads each peak with `_peak_read`
+    as it always has, and that function is the reference: this one is written to do its arithmetic in its order --
+    the same differences, the same LAPACK routines a matrix at a time (NumPy's stacked `eigh` and `inv`), the same
+    matrix products in the same association -- and tests/test_gpu.py holds every number of it to `_peak_read`'s."""
+    n9 = np.asarray(n9, dtype=np.float64)
+    N = len(n9)
+    if not N:
+        return np.zeros((0, 10))
+    pk = n9[:, 1, 1]
+    kxx = 2 * pk - n9[:, 1, 0] - n9[:, 1, 2]
+    kyy = 2 * pk - n9[:, 0, 1] - n9[:, 2, 1]
+    kxy = (n9[:, 2, 2] + n9[:, 0, 0] - n9[:, 0, 2] - n9[:, 2, 0]) / 4
+    K = np.empty((N, 2, 2))
+    K[:, 0, 0], K[:, 0, 1], K[:, 1, 0], K[:, 1, 1] = kxx, -kxy, -kxy, kyy
+    ev, vec = np.linalg.eigh(K)
+    ani = np.maximum(ev[:, 0], 0) / np.maximum(ev[:, 1], 1e-9)
+    theta = np.degrees(np.arctan2(vec[:, 1, 0], vec[:, 0, 0]))
+    # `peak_information`: the covariance from the curvatures, and its inverse -- or, where a runner-up as high stands
+    # elsewhere, what the curvature says across the line to it
+    s = PEAK_ERR_SCALE ** 2 * 2 * np.maximum(1.0 - pk, 1e-4) / (tpl * tpl)
+    var = s[:, None] / np.maximum(ev, 1e-12) + PEAK_FLOOR_PX ** 2
+    D = np.zeros((N, 2, 2))
+    D[:, 0, 0], D[:, 1, 1] = var[:, 0], var[:, 1]
+    C = vec @ D @ vec.transpose(0, 2, 1)
+    r = np.hypot(qdx, qdy).astype(np.float64)
+    ridge = (pk - pk2 < PK_GAP) & (r > 0)
+    W = np.empty((N, 2, 2))
+    if (~ridge).any():
+        W[~ridge] = np.linalg.inv(C[~ridge])
+    for i in np.flatnonzero(ridge):                        # the fewer: each as `peak_information` reads it
+        u = np.array((qdx[i], qdy[i]), dtype=np.float64) / r[i]
+        t = np.array([-u[1], u[0]])
+        W[i] = np.outer(t, t) / float(t @ C[i] @ t)
+
+    def par(m1, m0, p1):
+        d = m1 - 2 * m0 + p1
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(d == 0, 0.0, 0.5 * (m1 - p1) / np.where(d == 0, 1.0, d))
+    return np.column_stack([dx + par(n9[:, 1, 0], pk, n9[:, 1, 2]), dy + par(n9[:, 0, 1], pk, n9[:, 2, 1]), pk,
+                            np.asarray(pk2, dtype=np.float64), ani, theta, W[:, 0, 0], W[:, 1, 1], W[:, 0, 1],
+                            np.where(ridge, r, 0.0)])
+
+
 def shift_field(ga, gb, bad_a, bad_b, a=0, tpl=128, stride=96, reach=245, zero=4, ha=None, hb=None, only=None, zeros=None):
     """Where each clean tpl-px template of frame a is found in frame b.
     Rows of SHIFT_COLS: template centre, shift, ZNCC peak and runner-up, the
@@ -623,6 +675,17 @@ def _shift_field_on(c, ga, gb, bad_a, bad_b, a, tpl, stride, reach, zs, ha, hb, 
                     raise
         py, px, n9, pk2, qy, qx = got
         oy, ox = y0s - rys, x0s - rxs
+        if BATCH_READ:                                                  # every peak of a zone read at once
+            means = np.array([float(ga[y0:y0 + tpl, x0:x0 + tpl].mean()) for y0, x0 in spots])
+            fields = []
+            for k in range(len(zs)):
+                y, x = py[k].astype(np.int64), px[k].astype(np.int64)
+                keep = np.flatnonzero((y > 0) & (y < Py - 1) & (x > 0) & (x < Px - 1) & (n9[k].reshape(len(spots), -1).min(axis=1) > -1.0))
+                p = _peak_read_many(n9[k][keep], x[keep] - ox[keep], y[keep] - oy[keep], pk2[k][keep],
+                                    qx[k][keep].astype(np.int64) - x[keep], qy[k][keep].astype(np.int64) - y[keep], tpl)
+                fields.append(np.column_stack([np.full(len(keep), float(a)), x0s[keep] + tpl / 2, y0s[keep] + tpl / 2, p[:, :6],
+                                               means[keep], p[:, 6:]]).reshape(-1, len(SHIFT_COLS)))
+            return fields
         for i, (y0, x0) in enumerate(spots):
             head = (a, x0 + tpl / 2, y0 + tpl / 2)
             mean = float(ga[y0:y0 + tpl, x0:x0 + tpl].mean())

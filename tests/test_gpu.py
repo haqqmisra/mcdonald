@@ -738,6 +738,66 @@ def test_the_fused_pass_is_the_plain_pass_to_the_bit():
         vf.FUSED = was
 
 
+def test_the_peaks_read_at_once_are_the_peaks_read_one_by_one():
+    """2026-11-13: on the card's path every peak of a pair is read at once (`forensics._peak_read_many`), where the CPU
+    reads each with `_peak_read`, the reference. The batch does `_peak_read`'s arithmetic in its order with the same
+    LAPACK routines, so its numbers are the same; held here on drawn peaks of every kind (sharp, flat along an axis,
+    a saddle, a tie between neighbours, a runner-up as high as the peak, which is read across the line to it), and
+    on whole fields with the switch on and off."""
+    print("\nthe peaks read at once")
+    rng = np.random.default_rng(20261113)
+    N = 4000
+    yy, xx = np.mgrid[-1:2, -1:2]
+    n9 = np.empty((N, 3, 3))
+    for i in range(N):
+        a_, b_, c_ = rng.uniform(0.001, 0.2), rng.uniform(0.0, 0.2), rng.uniform(-0.05, 0.05)
+        sx, sy = rng.uniform(-0.4, 0.4, 2)
+        n9[i] = rng.uniform(0.2, 0.999) - a_ * (xx - sx) ** 2 - b_ * (yy - sy) ** 2 - c_ * (xx - sx) * (yy - sy)
+    n9[::7] = np.round(n9[::7], 2)                         # ties between neighbours, and exact zeros in the differences
+    n9[::11, 1, 0], n9[::11, 1, 2] = n9[::11, 1, 1], n9[::11, 1, 1]      # flat along x: no curvature there
+    dx, dy = rng.integers(-60, 61, N), rng.integers(-60, 61, N)
+    pk2 = n9[:, 1, 1] - rng.choice([0.0, 0.005, 0.02, 0.2, 0.5], N)      # some runner-ups as high as the peak
+    qdx, qdy = rng.integers(-200, 201, N), rng.integers(-200, 201, N)
+    qdx[::13], qdy[::13] = 0, 0                            # a runner-up at the peak's own place: no line to it
+    many = vf._peak_read_many(n9, dx, dy, pk2, qdx, qdy, 128)
+    one = np.array([vf._peak_read(n9[i], int(dx[i]), int(dy[i]), float(pk2[i]), (int(qdx[i]), int(qdy[i])), 128) for i in range(N)])
+    exact = int(sum(np.array_equal(a_, b_, equal_nan=True) for a_, b_ in zip(many, one)))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        apart = np.abs(many - one) / np.maximum(np.abs(one), 1e-12)
+    worst = float(np.nanmax(np.where(np.isfinite(one) & np.isfinite(many), apart, 0.0)))
+    check(many.shape == one.shape and np.array_equal(np.isfinite(many), np.isfinite(one)) and worst <= 1e-9
+          and int((one[:, 9] > 0).sum()) > 200,
+          f"{N} drawn peaks: every number read at once is the one read by `_peak_read`, to a part in a billion",
+          f"{exact} of {N} rows the same to the last bit, the farthest {worst:.1e}; {int((one[:, 9] > 0).sum())} read across the line to a runner-up")
+    check(vf._peak_read_many(n9[:0], dx[:0], dy[:0], pk2[:0], qdx[:0], qdy[:0], 128).shape == (0, 10), "and no peaks are no rows")
+    h, w = 420, 640
+    was = vf.BATCH_READ
+    try:
+        for c in the_cards():
+            rows, same, far = 0, 0, 0.0
+            for scene, shift in ((isotropic(h + 80, w + 80), (17, -9)), (striated(h + 80, w + 80), (38, 12)), (striated(h + 80, w + 80), (0, 0))):
+                ga = scene[40:40 + h, 40:40 + w] + RNG.normal(0, 2, (h, w)).astype(np.float32)
+                gb = scene[40 - shift[1]:40 - shift[1] + h, 40 - shift[0]:40 - shift[0] + w] + RNG.normal(0, 2, (h, w)).astype(np.float32)
+                none = np.zeros((h, w), bool)
+                got = {}
+                for at_once in (True, False):
+                    vf.BATCH_READ = at_once
+                    with on(c):
+                        got[at_once] = vf.shift_field(ga, gb, none, none, a=7, reach=60, zeros=(4, -1))
+                for x, y in zip(got[True], got[False]):
+                    rows += len(y)
+                    if x.shape != y.shape:
+                        far = np.inf
+                        continue
+                    same += int(sum(np.array_equal(p_, q_, equal_nan=True) for p_, q_ in zip(x, y)))
+                    if len(y):
+                        far = max(far, float(np.nanmax(np.abs(x - y) / np.maximum(np.abs(y), 1e-12))))
+            check(rows > 50 and far <= 1e-9, f"{c.name}: a pair's field with its peaks read at once is the field with each read by `_peak_read`",
+                  f"{same} of {rows} rows the same to the last bit, the farthest {far:.1e}")
+    finally:
+        vf.BATCH_READ = was
+
+
 def test_the_card_takes_the_filtered_frames_it_left_there():
     """`shift_field` given the two frames band-passed already (`ha`, `hb`) -- the CPU's arrays, or the card's own left by
     `bandpass_kept` -- reads the same field as when it filters them itself; `shift_field_auto` and its verdict too."""

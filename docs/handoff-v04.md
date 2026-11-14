@@ -143,6 +143,59 @@ or by a person at the window.** Its twelve choices are in the commit's message a
 - The "mcDonald: development" session took `plant`'s design and CPU side (its branch `s23-plant`) and told Jacob; its
   branches are on 3459561 and will meet ba56f53's change to `flicker.judge` when they merge `main`.
 
+### The peaks read at once (Jacob, the same evening: "Sure give it a try, and then we can continue in a new session")
+
+Built: `forensics._peak_read_many`, on the card's path only (`_shift_field_on`; the stand-in runs it too). `_peak_read`
+is unchanged and stays the CPU's way and the reference. The batch is `_peak_read`'s to the last bit on 4,000 drawn
+peaks and on every one of 6,694 real rows on the card (PR088, PR149, PR113; `dev/batch1.py`, job 1485); test_gpu
+holds it to a part in a billion so another computer's LAPACK may differ in a last digit. `forensics.BATCH_READ = False`
+is the way back. With G3, a pair on the card: 8.6 ms where it took 14.1 (PR088), 25.0 where 35.6 (PR149), 19.5 where
+29.9 (PR113), 71.7 where 125.4 (dense templates). All suites with the goldens on the tree with it (snapshot `snapF`;
+jobs 1487 on CPUs, 1488 with the card): every suite before the goldens passed on both (the window's suite 791 with 1 skip, test_gpu 121 with NumPy standing in and 147 on the card); the goldens were still running on CPUs and done with the card (ALL SUITES PASS) when arthur was shut down for a hardware check at about 20:15. **The goldens with this change have therefore not been seen to finish: run `sbatch [--gres=gpu:1] tools/suites.sbatch golden` first thing next session** (the card's path is the one that changed; its numbers are the earlier ones to the bit on every row tried).
+
+### For the next session: where to pick up
+
+**State.** `main` is ahead of `origin/main` (a72784c, 0.5.3's DOI commit) by this session's commits and the merged
+`nevada-fixes`; nothing since 0.5.3 is pushed. The version is 0.5.3; everything since is under `## Unreleased`. Nothing here has run on the Mac or
+on Windows: before a release, push to `macos-ci` and `windows-ci` (new there: `progress.Beside`'s threads in
+`flicker`, `tether` and `camera`; `mcdonald.addon` and its Preferences button; test_gpu's new tests, which must pass
+with NumPy standing in; test_drift from nevada-fixes). Versioning and pushing are Jacob's.
+
+**Open, in the order I would take them:**
+1. **The plants (item 5, Jacob's first choice).** The "mcDonald: development" session holds `plant`'s design and CPU
+   side (branch `s23-plant`, its handoff `docs/handoff-s23.md`); it will send the share of a plant's cost that is
+   Find's. The card's side, and G2 with it (Jacob: "revisit with the plants"), start from that cost model. G2's
+   measurements are in IDEAS.md and `dev/spots1.py`, `spots2.py`.
+2. **What is left of a pair on the card** (1080p, about 20 ms): the card's own work (transforms, the band-pass in
+   double, the kernels) about 12 ms, the frames sent up 3.6, each template's mean 2. The band-pass a frame is kept
+   on the card by `layers` already; the means could come from the card.
+3. **What is still one process on a long track** (PR088, 280 s): kinematics' speed band and model set 28 s (the two
+   are independent: `projective.confidence_set` could run beside `kin.speed_band`), `flicker`'s own drift and
+   steadiness 23 s, `layers`' consensus 10 s, `tether`'s followers.
+4. **`stabilize` on the card**: not looked at beyond its code (an ECC alignment, not the shift field; not part of `run`).
+5. **G5 loose ends**: not tried on Windows, on a slow line or by a person; the bar's sizes are Linux's;
+   `gpu.installed()` takes a half-installed CuPy for a whole one; Help's "Check for updates" still uses message boxes.
+6. **The dense flow field and the error models** (item 5's other parts), after the plants.
+
+**`tests/test_controls.py` is in no suite list and fails on `main`** (the "mcDonald: development" session found it,
+2026-11-13): 117 PASS and 1 FAIL on this session's tree before the nevada merge (380a9d7; the one failure is
+bookkeeping, 0.5.2's tether goldens unclassified, as on 0.5.3), 107 PASS and 11 FAIL after it (e75083d) and the same
+list, line for line, on the tree with G3, the sound fix and the peaks read at once. So the ten new failures came with
+`nevada-fixes` (`comes_back` True to False on bird controls), not with this session's work; whether that cost is
+accepted, and whether test_controls joins the lists, are Jacob's. Logs: `logs/snapPre_controls.log`, `snapA_`, `snapF_`.
+
+**The plants and G2** (the development session's first numbers, one stretch of PR113 at 1080p, not yet repeated):
+Find is 0.27 CPU-s a frame of a plant's about 0.6, the rest the encoder on one thread; 2,000 plants a video on all
+144 is 1,000 to 1,500 CPU-hours, a day or two of arthur. On those numbers the plants do not need Find on the card;
+whether G2 is dropped is Jacob's.
+
+**Tools left for it** (`/scratch/mcdonald/s22-2026-11-13/`): `gate/cases.sbatch SNAP LABEL` and `twice.py A B` (the
+no-number-moves gate; `gate/refA` is the reference for e75083d, and since then only ba56f53 can move a report, on
+eight videos that are not among the cases); `spy088.sbatch` with `venv-spy` and `dev/spy.py` (a whole run's main
+process by thread); `time3.sbatch` (whole runs as the morning's sweep made them); `dev/fused1.py`, `fused2.py`,
+`batch1.py` (a pair on the card, timed and profiled). Snapshots `snap0` to `snapF` and the frames under `out/` are
+safe to delete.
+
 ### What was put to Jacob (answered above)
 
 1. **G3:** build the fused pass, as the card's own code, tested on arthur only (NumPy cannot stand in for it)?

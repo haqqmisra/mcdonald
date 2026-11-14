@@ -49,7 +49,10 @@ one part in a billion.
 *The card's own code for the matches* (IDEAS.md G3, the maintainer's choice of 2026-11-13). On an NVIDIA card the
 templates' matches are read without making each template's map of matches (`forensics._peaks_fused`). Every number
 is the earlier card pass's to the last bit, and a frame pair takes about a fifth less (11.2 ms against 14.1 at
-1280 x 720). With NumPy standing in, or on a card that will not take the code, the earlier pass runs.
+1280 x 720). With NumPy standing in, or on a card that will not take the code, the earlier pass runs. And on the
+card's path the peaks of a pair are read at once (`forensics._peak_read_many`) with the numbers of the function that
+reads them one by one on the CPU. The two together: a pair in 8.6 ms where it took 14.1 (1280 x 720), in 25.0 where
+35.6 (1920 x 1028), 30 to 43 % less.
 
 Measured and not built: the spot detector on the card for Find and Follow (IDEAS.md G2). The response is ten to
 twenty times sooner there, but most of a frame's time is the picking of the spots, which one process would do more

@@ -6094,6 +6094,17 @@ rest is the frames sent up and each template's mean. NumPy cannot stand in for t
 runs the batch as before, and so does a card that will not take the code (said once; the card stays in use).
 `forensics.FUSED = False` is the way back.
 
+**The peaks read at once (2026-11-13, the same evening).** On the card's path every peak of a pair is now read in one
+piece of NumPy (`forensics._peak_read_many`) and no longer one at a time by `_peak_read`, which stays the CPU's way
+and the reference. The batch does `_peak_read`'s arithmetic in its order with the same LAPACK routines a matrix at a
+time, and its numbers are `_peak_read`'s to the last bit wherever it was tried: 4,000 drawn peaks of every kind
+(sharp, flat along an axis, tied with a neighbour, a runner-up as high as the peak) and every row of 6,694 on real
+frames of PR088, PR149 and PR113 on the card. The suite holds it to a part in a billion, so that another computer's
+linear algebra library may differ in a last digit without failing. Together with the card's own code a pair takes
+8.6 ms where it took 14.1 on PR088 (1280 x 720), 25.0 where 35.6 on PR149 (1920 x 1028), 19.5 where 29.9 on PR113,
+and 71.7 where 125.4 with the second pass's dense templates: 30 to 43 % less. `forensics.BATCH_READ = False` is the
+way back.
+
 **What it is not.** Not every step: Find, Follow, `stabilize`, `groups` and `tether` are the CPU's, on pools or on
 threads, as before. For Find and Follow the reason is measured (2026-11-13): the spot detector's response takes 3 to
 4 ms a frame on the card against 35 to 85 on a CPU core, but on a busy frame two thirds of the time is the picking
