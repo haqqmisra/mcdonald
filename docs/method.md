@@ -6247,7 +6247,12 @@ says so. That is the honest answer; a load factor from it would have been the ca
 *Held to.* Drawn loops (420° tilted 40°: 0.800 rad/s for 0.800, the truth inside the error), drawn bends, and the one
 recorded loop over a camera known to stand still, Galileo flyer 4 (a bird): 156° at 0.449 rad/s (0.29-0.61), 26° a
 second, a circle in 14 s; at a bird's 15 m/s that is 1.2 g, inside what birds are measured to bear, and an airliner held
-to 2.5 g could have flown it only below 77 m/s. The figure (`<tag>_load.png`, in the house style: both axes logarithmic,
+to 2.5 g could have flown it only below 77 m/s. The labelled infrared set (432 tracks; its camera follows its objects, so the reading
+is NO POWER there) was read with that condition ignored on purpose, to see what the rule keeps out: a turn rate on 301
+tracks (289 bends, 12 loops; 99 swing about, 32 do not bend), a median 0.7° a second for the airplanes, 4.8 for the
+birds, 7.5 for the drones and 0.9 for the helicopters, at most 96; and no object's own kind "could not have flown it", 0
+of 301. The cautious figure is what does it (a bend's speed limit is taken at 0.439 of the picture's rate), so the
+reading errs toward saying nothing: a class is ruled out only by a turn far tighter than any in that set. The figure (`<tag>_load.png`, in the house style: both axes logarithmic,
 the turn's curve red with its band, each class a bar at its limit across the speeds it flies at, named in a legend under
 the plot) is drawn where the reading has power.
 
