@@ -107,11 +107,32 @@ def usable(cards):
 
 def installed():
     """Whether CuPy is here to compute with, found without importing it (a tenth of a second, and the driver's
-    libraries with it)."""
+    libraries with it), and whole (`whole`)."""
     try:
-        return importlib.util.find_spec("cupy") is not None
+        spec = importlib.util.find_spec("cupy")
     except (ImportError, ValueError):
         return False
+    folders = list(spec.submodule_search_locations or []) if spec is not None else []
+    return bool(folders) and whole(folders[0])
+
+
+def whole(package):
+    """Whether the CuPy in the folder `package` was installed to the end, and not left half way by a pip that was
+    stopped (a window closed, a line lost, a disk full): until 2026-11-14 a folder named cupy was enough, and
+    Preferences said the card was ready. Whole is its compiled core there for this Python
+    (cupy/_core/core.cpython-314-x86_64-linux-gnu.so, core.cp314-win_amd64.pyd) and, where it sits among installed
+    packages, pip's record of it (cupy_cuda13x-14.2.0.dist-info/RECORD). That record is the last file a wheel
+    carries (PEP 427 puts .dist-info at the archive's end), pip writes it again once every file is in place, and pip
+    installs the packages CuPy needs before CuPy itself. A CuPy built in a folder of its own, with no installed
+    packages beside it, has no record to look for."""
+    from importlib.machinery import EXTENSION_SUFFIXES
+    package = Path(package)
+    if not any((package / "_core" / f"core{s}").is_file() for s in EXTENSION_SUFFIXES):
+        return False
+    records = list(package.parent.glob("cupy*.dist-info"))
+    if records:
+        return any((d / "RECORD").is_file() for d in records)
+    return not any(package.parent.glob("*.dist-info"))
 
 
 def linux(root="/sys/bus/pci/devices", ids=PCI_IDS, ask=None, cuda=None):

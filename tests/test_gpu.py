@@ -18,14 +18,17 @@ own error and of a pixel, and the agreed shift of a pair within a thousandth of 
 """
 import contextlib
 import importlib
+import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
 
 import numpy as np
@@ -455,8 +458,9 @@ def test_the_add_on_is_used_without_starting_again():
         sys.path.append(td)
         try:
             gpu.installed()                           # Python has looked in the folder, and found it empty
-            (Path(td) / "cupy").mkdir()
+            (Path(td) / "cupy" / "_core").mkdir(parents=True)
             (Path(td) / "cupy" / "__init__.py").write_text("", encoding="utf-8")
+            (Path(td) / "cupy" / "_core" / f"core{EXTENSION_SUFFIXES[0]}").write_bytes(b"")     # whole (`gpu.whole`)
             card, why, again = addon.use_now()
             check(gpu.installed() and not again, "a package pip has just put in place is found by the process that was "
                   "already running" + (" (CuPy was here before: the folder made for this adds nothing)" if had else ""))
@@ -478,6 +482,48 @@ def test_the_add_on_is_used_without_starting_again():
         gpu.installed = keep
         gpu.forget()
 
+
+
+def test_a_half_installed_cupy_is_not_taken_for_a_whole_one():
+    """`gpu.installed` (what Preferences says beside the card's choice, and what `card` asks first) takes a CuPy that
+    pip left half way for none: a folder named cupy is not enough (until 2026-11-14 it was). Whole is the compiled
+    core there for this Python and, among installed packages, pip's record of it (`gpu.whole`)."""
+    print("\na CuPy that pip left half way is not taken for a whole one")
+    with tempfile.TemporaryDirectory() as td:
+        site = Path(td) / "site-packages"
+
+        def lay(core=True, info=True, record=True, others=True):
+            shutil.rmtree(site, ignore_errors=True)
+            (site / "cupy" / "_core").mkdir(parents=True)
+            (site / "cupy" / "__init__.py").write_text("", encoding="utf-8")
+            if core:
+                (site / "cupy" / "_core" / f"core{EXTENSION_SUFFIXES[0]}").write_bytes(b"")
+            if info:
+                d = site / "cupy_cuda13x-14.2.0.dist-info"
+                d.mkdir()
+                (d / "METADATA").write_text("Name: cupy-cuda13x\nVersion: 14.2.0\n", encoding="utf-8")
+                if record:
+                    (d / "RECORD").write_text("cupy/__init__.py,,\n", encoding="utf-8")
+            if others:
+                (site / "numpy-2.3.4.dist-info").mkdir()
+            return site / "cupy"
+
+        check(gpu.whole(lay()), "a CuPy that pip put in place to the end (its record written) is whole")
+        check(not gpu.whole(lay(record=False)), "one whose record pip has not written is not")
+        check(not gpu.whole(lay(info=False)), "nor one among installed packages with no record of its own at all "
+              "(pip stopped before the end of the wheel, where the record is)")
+        check(not gpu.whole(lay(core=False)), "nor one without its compiled core for this Python")
+        check(gpu.whole(lay(info=False, others=False)), "a CuPy built in a folder of its own, with no installed packages "
+              "beside it, is whole by its compiled core")
+        said = {}
+        for name, how in (("half", dict(record=False)), ("whole", {})):
+            lay(**how)
+            r = subprocess.run([sys.executable, "-c", "import sys; sys.path[:0] = sys.argv[1:3]; from mcdonald import gpu; "
+                                "print(gpu.installed())", str(site), str(SRC)], capture_output=True, text=True, timeout=60)
+            said[name] = r.stdout.strip() or r.stderr.strip()[-200:]
+        check(said == dict(half="False", whole="True"), "and `installed` asks it of the CuPy Python would import", str(said))
+    here = importlib.util.find_spec("cupy") is not None
+    check(not here or gpu.installed(), "the CuPy installed here, if there is one, is whole", f"found: {here}")
 
 def test_setup_installs_the_add_on_from_the_command_line():
     """`mcdonald setup --install-gpu`, the same install for an agent or a person at a terminal (the two audiences), and
