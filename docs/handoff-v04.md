@@ -33,12 +33,14 @@ suspended job's clock keeps running: PR26 object 2 measured again alone (job 224
 pause) the first pass is most of it: about 2.6 s a 1080p pair at 4 CPUs, where the card takes about 25 ms. A batch
 job given `--gres=gpu:1` is the lever for the next catalog run.
 
-**For Jacob (new):** of the CPU's first pass on PR26, a quarter (478 of 1,970 worker-seconds) is each template's own
-summed-area tables over its search region (`forensics.box_of` inside `zncc`). The card makes those tables once a
-frame. Doing the same on the CPU would cut about a quarter off `layers` on every computer without a card, but the
-sums would then start from the frame's corner, so every CPU measurement would change in its last digits and no
-existing case file would rerun to one part in a billion (`share rerun --strict`). Build it, and remake the reference
-case files with the release that carries it, or leave the CPU's arithmetic as the reference it is?
+**The CPU's box sums once a frame** (Jacob, 2026-11-14, asked as a choice: "Build it, remake at release"). Built,
+and **no remake is needed**: the question as put to him was wrong in one place. The CPU already made its summed-area
+tables once a frame (since the audit of 2026-09-26); what each template repeated was reading its own region's box
+sums out of them, and the regions overlap about forty times over. Read once a frame for every placement
+(`forensics.placed`), each value is the same four table entries subtracted in the same order, so the fields are the
+same to the bit (test_measurement, against the way it was; the fourteen-case gate, job 2292: 31 objects, 0
+differences). PR26 object 2, track and `layers` at 4 CPUs, alternating (job 2291): 596 and 673 s before, 382 and 324
+s after. All suites with the goldens on CPUs and the card (jobs 2293, 2294): all pass.
 
 **Open, from the GP Triangulation session:** under `nulls` (`mcdonald flicker`'s default) the control apertures'
 windows (`_control`, `windows_too`) measure the same apertures again, each over its own stretch. Reusing them for

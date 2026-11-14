@@ -16,6 +16,15 @@ fourteen reference case files measured again before and after (31 objects, no di
 and by every suite. A stage run inside someone else's pool of processes (the controls' rejudge) does its pooled
 work in line there, where a pool of its own would not start (`progress.workers`).
 
+**`layers` on a computer without a graphics card in about half the time, with the same numbers** (the maintainer's
+choice of 2026-11-14). Each template of a frame pair used to read its own search region's box sums out of the
+frame's summed-area tables, and the regions overlap about forty times over. Now every placement's normalisation and
+mask count are read once a frame (`forensics.placed`), as the graphics card's path does, and each region takes its
+part. Each value is the same four table entries subtracted in the same order, so every field is the same to the bit
+(held in test_measurement against the way it was). PR26 object 2 (331 frames, 1080p, 4 CPUs): its track and
+`layers` 596 and 673 s before, 382 and 324 s after; the first pass 408-454 s to 205-248. The fourteen reference case
+files measured again: no difference at one part in a billion, so they stand as they are.
+
 **The add-on for graphics cards says its own system's download.** PyPI's wheels for Windows are 1,303 and 1,727 MB,
 not Linux's 1,350 and 1,820; the window's words and its bar now use this system's (`addon.download_mb`).
 
