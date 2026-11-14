@@ -920,6 +920,60 @@ def test_the_cards_batches_change_nothing():
           "out of memory halves what is sent at once, and the card is kept", f"room now {small.less:g} of what it was")
 
 
+
+def test_several_processes_share_the_card_each_within_its_part():
+    """Where several processes compute on one card (`mcdonald batch --pool N` in a job given it), each is told how many
+    (MCDONALD_CARD_SHARED) and plans its batches within its part of the card's memory (`gpu.part`), not on half of
+    whatever is free when it asks: in a pool of 8 videos on a 16 GB card the first to ask took 8.3 GB, and the eight
+    together 15.5 GB of the 15.9 (job 2456). A part changes how much is sent at once, never a number."""
+    print("\nseveral processes on one card, each within its part")
+    gb = 2 ** 30
+    total = 16303 * 2 ** 20                                   # an RTX 5070 Ti
+    p8, p4 = gpu.part(total, 8), gpu.part(total, 4)
+    check(gpu.part(total, 1) is None and abs(p8 / gb - 1.50) < 0.01 and abs(p4 / gb - 3.29) < 0.01
+          and 8 * (p8 + gpu.CONTEXT) <= gpu.SHARED_ROOM * total + 8 and gpu.part(2 * gb, 16) == gpu.PART_LEAST,
+          "a part is the card's room, less each process's own, divided among them; one alone plans as ever",
+          f"8: {p8 / gb:.2f} GB, 4: {p4 / gb:.2f} GB")
+    with environment(MCDONALD_CARD_SHARED=None):
+        alone = gpu.sharers()
+    with environment(MCDONALD_CARD_SHARED="8"):
+        eight = gpu.sharers()
+    with environment(MCDONALD_CARD_SHARED="eight"):
+        said = gpu.sharers()
+    check((alone, eight, said) == (1, 8, 1), "how many share it is read from the environment; nothing or nonsense is one",
+          str((alone, eight, said)))
+    scene = isotropic(520, 760)
+    ga, gb_ = scene[40:460, 40:680].copy(), scene[33:453, 52:692].copy()
+    none = np.zeros(ga.shape, bool)
+    with on(gpu.stand_in()):
+        ref = vf.shift_field(ga, gb_, none, none, reach=60, zeros=(4, -1))
+    small = gpu.stand_in()
+    small.part, small.shared = int(40e6), 8
+    with on(small):
+        got = vf.shift_field(ga, gb_, none, none, reach=60, zeros=(4, -1))
+    check(small.room() == int(40e6) and small.batch(10e6, 50) == 4
+          and all(np.array_equal(r, g) for r, g in zip(ref, got)) and len(ref[0]) >= 12,
+          "a process plans within its part, and its batches give each template the numbers one batch does, to the bit")
+    real = [c for c in the_cards() if c.real]
+    if not real:
+        print("  NOTE  no graphics card here: a part on a real card is not checked")
+        return
+    code = ("from mcdonald import gpu; c = gpu.card(); total = c.run(lambda: c.xp.cuda.Device(c.index).mem_info[1]); "
+            "print(c.shared, c.part, gpu.part(total, c.shared), c.room() <= gpu.SHARE * (c.part or total), gpu.said())")
+    out = {}
+    for n in ("8", None):
+        env = dict(os.environ, PYTHONPATH=str(SRC))
+        env.pop("MCDONALD_CARD_SHARED", None)
+        if n:
+            env["MCDONALD_CARD_SHARED"] = n
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=120)
+        out[n] = (r.stdout.strip() or r.stderr.strip()[-300:]).split(" ", 4)
+    e, a = out["8"], out[None]
+    check(len(e) == 5 and e[0] == "8" and e[1] == e[2] and e[3] == "True" and "shared by 8" in e[4]
+          and len(a) == 5 and a[0] == "1" and a[1] == a[2] == "None" and "shared" not in a[4],
+          "on the card: a process told it is one of 8 plans within its part and says so; one alone has the card",
+          f"{' '.join(e[:4])} / {' '.join(a[:4])}")
+
 def test_a_card_that_stops_hands_over_to_the_cpu():
     """Never required, and never a crash: when the card refuses, it is said once, the CPU computes what was asked, and
     the process computes on the CPU from then on. The numbers are the CPU's own, to the bit."""

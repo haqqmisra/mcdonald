@@ -401,6 +401,29 @@ _OFF = (NONE, "off", "no", "cpu")
 _FIRST = ("", "auto", "first", "yes", "on")
 SHARE = 0.5                     # of the card's free memory, the share one batch may take: the desktop draws on it too
 PLANS = 8                       # FFT plans kept on the card (CuPy's cache): a stage uses two or three sizes
+# Several processes on one card (`mcdonald batch --pool N` in a job given the card): each plans its batches within a
+# part of the card's memory (`part`), not on half of whatever is free when it asks, which let the first to ask take
+# half the card. SHARED_VAR is how many compute on it at once; the pool sets it for its videos.
+SHARED_VAR = "MCDONALD_CARD_SHARED"
+SHARED_ROOM = 0.9               # of the card's memory, what they divide: the desktop's screen keeps the rest
+CONTEXT = 300 * 2 ** 20         # bytes each process holds on the card outside its batches: 230-270 MiB measured
+PART_LEAST = 256 * 2 ** 20      # a part is never planned smaller than this (at worst a batch is one item)
+
+
+def sharers():
+    """How many processes compute on the card at once, this one among them: MCDONALD_CARD_SHARED, which `mcdonald
+    batch --pool N` sets for its videos; 1 where nothing says so."""
+    v = os.environ.get(SHARED_VAR, "").strip()
+    return int(v) if v.isdigit() and int(v) > 0 else 1
+
+
+def part(total, n):
+    """Bytes of a card's memory (`total`) one of `n` processes sharing it plans its batches within: SHARED_ROOM of the
+    card, less each one's own (CONTEXT), divided among them; None for a process alone, which plans on the free memory
+    as ever. An RTX 5070 Ti (15.9 GB) shared by 8 gives each 1.5 GB, by 4 3.3 GB."""
+    if n <= 1:
+        return None
+    return max(int((SHARED_ROOM * total - n * CONTEXT) / n), PART_LEAST)
 
 
 def choose(value):
@@ -492,6 +515,7 @@ class Card:
         self.real = index is not None
         self.less = 1.0                   # `fewer` halves it: the share of `room` a batch is planned on
         self.stopped = ""                 # what `gave_up` was told: from then on it is no card to compute on
+        self.part, self.shared = None, 1  # with others on the card: the bytes this process plans within (`part`)
 
     def __enter__(self):
         global _computed
@@ -535,14 +559,19 @@ class Card:
 
     def room(self):
         """Bytes a batch may take: SHARE of what is free on the card now, counting what this process holds ready to
-        use again, and less after an out-of-memory (`fewer`). The stand-in has 1 GB, so that its batches are split
+        use again, and less after an out-of-memory (`fewer`). Where several processes share the card, no more than
+        SHARE of what is left of this one's `part`. The stand-in has 1 GB (or its part), so that its batches are split
         as a card's are."""
         if not self.real:
-            return int(self.less * 2 ** 30)
-        return int(self.less * SHARE * self.run(self._free))
+            return int(self.less * min(2 ** 30, self.part or 2 ** 30))
+        return int(self.less * SHARE * self.run(self._left))
 
     def _free(self):
         return self.xp.cuda.Device(self.index).mem_info[0] + self.xp.get_default_memory_pool().free_bytes()
+
+    def _left(self):
+        free = self._free()
+        return free if self.part is None else max(0, min(free, self.part - self.xp.get_default_memory_pool().used_bytes()))
 
     def batch(self, each, most):
         """How many items of `each` bytes go to the card at once: as many as `room` has place for, at least one, at
@@ -701,6 +730,8 @@ def _open_cupy(choice):
         cupy.fft.config.get_plan_cache().set_size(PLANS)
         if float(cupy.arange(4, dtype=cupy.float32).sum()) != 6.0:      # it answers: one sum, brought back
             return None, f"{names[i]} gave a wrong sum"
+        c.shared = sharers()
+        c.part = part(cupy.cuda.Device(i).mem_info[1], c.shared)
     except Exception as e:
         return None, f"{names[i]} did not answer ({type(e).__name__}: {str(e)[:200]})"
     return c, ""
@@ -788,8 +819,10 @@ def computed_on():
 
 
 def said():
-    """One line for a log or `mcdonald setup`: what computes, and if it is not a card, why."""
+    """One line for a log or `mcdonald setup`: what computes, and if it is not a card, why; and where several
+    processes share the card, the part of its memory this one plans within."""
     c = card()
     if c is not None:
-        return f"graphics card: {c.name} ({c.library})"
+        shared = f", shared by {c.shared}: {c.part / 2 ** 30:.1f} GB of its memory for this one" if c.part else ""
+        return f"graphics card: {c.name} ({c.library}){shared}"
     return f"graphics card: none in use ({why()})"

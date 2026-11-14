@@ -33,7 +33,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from mcdonald import batch, propose, several, share  # noqa: E402
+from mcdonald import batch, gpu, propose, several, share  # noqa: E402
 
 FAIL = []
 W, H = 540, 300
@@ -50,8 +50,11 @@ def check(cond, label, detail=""):
 def env_of(td, **more):
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), MCDONALD_HOME=str(Path(td) / "home"),
                TMPDIR=str(td), **more)
-    for k in ("MCDONALD_CATALOG", "MCDONALD_CASES", "MCDONALD_DATA", "MCDONALD_CPUS", "SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID"):
+    for k in ("MCDONALD_CATALOG", "MCDONALD_CASES", "MCDONALD_DATA", "MCDONALD_CPUS", "SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID",
+              gpu.SHARED_VAR):
         env.pop(k, None)
+    if not gpu.given() and "MCDONALD_GPU" not in more:      # without the job's id the videos would not know that this job
+        env["MCDONALD_GPU"] = gpu.NONE                       # was not given the card, and would open it
     return env
 
 
@@ -225,6 +228,68 @@ def test_rules():
         check(lines.count("-p some_partition") == len(r["classes"]) + 1 and "--dependency=afterany:" in lines and "%" in lines
               and not r["jobs"] and sum(len(c["units"]) for c in r["classes"]) == 4,
               "what the person passes for sbatch is on every line; the table's job waits for the arrays; --slurm-print submits nothing")
+        rc = batch.submit(td, cpus=4, extra="--nice=100", dry=True, say=said.append, card=8)
+        card = (Path(td) / "batch_submit.sh").read_text(encoding="utf-8").splitlines()[3:]
+        big = sorted((batch.resources(u, 4)[0] for u in units), reverse=True)
+        c = rc["classes"][0]
+        check(len(card) == 2 and card[0].count("--gres=gpu:1") == 1 and "--array" not in card[0] and " -c 16 " in card[0]
+              and card[0].endswith("batch.sbatch --pool 4)") and "--units" not in card[0] and "--dependency=afterany:$j0" in card[1]
+              and "--gres" not in card[1] and c["card"] == 4 and c["mem_mb"] >= sum(big) and c["mem_mb"] % batch.MEM_STEP == 0
+              and c["minutes"] >= 2 * max(batch.resources(u, 4)[1] for u in units) and not rc["jobs"],
+              "--card: one job given the graphics card in place of the arrays, its videos side by side (no more than there are), "
+              "each with its CPUs, the memory of them all; the table's job after it", card[0][card[0].find(" -c "):][:60])
+        batch.submit(td, cpus=4, dry=True, say=said.append, card=2, only=["v1", "v3"])
+        some = (Path(td) / "batch_submit.sh").read_text(encoding="utf-8").splitlines()[3]
+        check(some.endswith("--pool 2 --units 1,3)") and " -c 8 " in some,
+              "and with videos chosen (--units, --except) it is told which, by number", some[-30:])
+        script = (Path(td) / "batch.sbatch").read_text(encoding="utf-8")
+        check('if [ "$#" -gt 0 ]' in script and script.index('--unit "$SLURM_ARRAY_TASK_ID"') < script.index('"$@"') < script.index("--table"),
+              "the job script run with words after it (the card's job: --pool N) runs them; an array's task is still one video")
+        if shutil.which("bash") and sys.platform != "win32":
+            r = subprocess.run(["bash", str(Path(td) / "batch.sbatch"), "--status"], capture_output=True, text=True, env=env_of(td))
+            check(r.returncode == 0 and "4 waiting" in r.stdout + r.stderr, "and does so: the script given --status says how the videos stand",
+                  (r.stdout + r.stderr).strip()[-80:])
+
+
+def test_the_pool_tells_each_video_how_many_share_the_card():
+    """`--pool N` starts each video's process with its share of the CPUs and with how many processes share the
+    graphics card (`gpu.SHARED_VAR`): in a job given the card each one opens it for itself, and plans its batches on it
+    within its part of the card's memory (`gpu.part`). A pool inside a pool's share multiplies."""
+    print("\na pool's videos: their CPUs, and how many share the graphics card")
+    from mcdonald.progress import CPUS_VAR, cpus
+    seen = []
+
+    class Started:
+        def __init__(self, cmd, env=None, **kw):
+            seen.append(dict(cmd=cmd, env=env))
+            self.returncode = 0
+
+        def poll(self):
+            return 0
+
+    with tempfile.TemporaryDirectory(prefix="mcdonald-batch-test-") as td:
+        batch.write_json(Path(td) / batch.PLAN, dict(format=batch.FORMAT, options=dict(window=400, overlap=30, most=12, skip=[], only=[],
+                                                                                     audit=59, keep_frames=False), units=[
+            dict(k=k, name=f"v{k}", folder=f"v{k}", tag=f"v{k}", id=f"V{k}", file=f"v{k}.mp4", n0=None, n1=None) for k in range(3)]))
+        keep, outer = batch.subprocess.Popen, os.environ.pop(gpu.SHARED_VAR, None)
+        batch.subprocess.Popen = Started
+        try:
+            batch.run_pool(td, 3, say=lambda *a: None)
+            alone = list(seen)
+            seen.clear()
+            os.environ[gpu.SHARED_VAR] = "2"
+            batch.run_pool(td, 8, say=lambda *a: None)
+        finally:
+            batch.subprocess.Popen = keep
+            os.environ.pop(gpu.SHARED_VAR, None)
+            if outer is not None:
+                os.environ[gpu.SHARED_VAR] = outer
+    check(len(alone) == 3 and all(x["env"][gpu.SHARED_VAR] == "3" and x["env"][CPUS_VAR] == str(max(1, cpus() // 3))
+                                  and x["cmd"][-2:] == ["--unit", str(i)] for i, x in enumerate(alone)),
+          "three videos side by side: each is told it has a third of the CPUs, and is one of three on the card",
+          str([(x["env"][CPUS_VAR], x["env"][gpu.SHARED_VAR]) for x in alone]))
+    check(len(seen) == 3 and all(x["env"][gpu.SHARED_VAR] == "6" for x in seen),
+          "a pool of 8 with three videos to do runs three; in a process that is itself one of two on the card, each is one of six")
 
 
 # ---------------------------------------------------------------- drawn videos, through the command
@@ -307,6 +372,11 @@ def test_stop_and_go(td):
           "started again, it goes on to the end: four videos done and the one that is not there failed; the exit says a video failed",
           f"exit {rc}; {dict((k, v['state']) for k, v in done.items())}; had {half}")
     check(max(v["attempts"] for k, v in done.items() if k in ("one", "two")) == 2, "a video stopped half way was taken up a second time")
+    logs = "".join(f.read_text(encoding="utf-8", errors="replace") for f in sorted((a / "logs").glob("unit_*.log")))
+    check(all("card" in v and (v["card"] or v["card_why"]) for v in done.values()) and logs.count("graphics card:") >= 5
+          and ("on the graphics card" in out) == any(v["card"] for v in done.values()),
+          "each video says in its log what computes it, and keeps it in its state: the graphics card, or why not",
+          str({k: v["card"] or v["card_why"] for k, v in done.items()})[:120])
 
     # a run left alone, in another folder: the same table
     gone = drawn(vids, "gone", [(80, 80, 5.0, 1.0, 1, FRAMES, 120, 5.0)], seed=13, n=45)
@@ -481,6 +551,7 @@ def main():
         print("SKIP  ffmpeg is not here")
         return 0
     test_rules()
+    test_the_pool_tells_each_video_how_many_share_the_card()
     with tempfile.TemporaryDirectory(prefix="mcdonald-batch-test-") as td:
         a, b, vids = test_stop_and_go(td)
         test_folder(a, b, vids, td)
