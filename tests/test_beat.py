@@ -19,7 +19,6 @@ K2, T2, E11 and the row "uap PR089"), each on drawn data with a known answer:
 
 No video data needed.
 """
-import math
 import re
 import sys
 from pathlib import Path
@@ -130,17 +129,13 @@ def test_a_planted_wobble_is_found_at_its_frequency():
     check(len(held) == 100 and step["line"] and abs(step["hz"] - 10.0) < 0.2,
           "a steady motion on held pictures, every frame read as a sample: a \"rhythm\" at a third of the frame rate",
           f"{step['hz']:.2f} Hz, chance {step['p']:.3f}")
-    check(r["power"] and not r["line"] and any(abs(v - 10.0) < 0.1 for v in r.get("sampling_lines_hz") or []),
-          "the held frames left out, and the samples' own cadence known for the video's: no rhythm is given the track",
-          f"sampling lines {r.get('sampling_lines_hz')}; strongest of its own {r['hz']:.2f} Hz, chance {r['p']:.2f}; "
-          f"the step at the cadence, taken out, {r.get('cadence_px')} px")
-    check(0.25 < math.hypot(*r.get("cadence_px") or [0, 0]) < 0.42,
-          "and the step taken out is the one a sixtieth of a second makes at 27 and 9 pixels a second (0.34 px, as a sinusoid's amplitude)",
-          f"{math.hypot(*r.get('cadence_px') or [0, 0]):.3f} px")
+    check(not r["power"] and any(abs(v - 10.0) < 0.1 for v in r.get("sampling_lines_hz") or []) and "steady rate" in (r.get("why") or ""),
+          "the held frames left out, the positions that are left keep the video's rhythm: the reading is not made, and says why",
+          f"sampling lines {r.get('sampling_lines_hz')}; {r.get('why')}")
     b = beatpos.reading(f, x, y, 30.0, held=beatpos.still_held(f, np.c_[x, y], held), draws=300, beat=dict(hz=10.0, hz_err=0.03))
-    check(not b["line"] and not b["at_beat"]["line"] and b["at_beat"].get("at_the_cadence_hz") is not None,
-          "a brightness beat at the cadence is not read in the position: what moves there is the video's",
-          f"at the beat: line {b['at_beat']['line']}, at the cadence {b['at_beat'].get('at_the_cadence_hz')}")
+    check(not b["power"] and "at_beat" not in b,
+          "nor at a brightness beat given beforehand: what moves at that rate is the video's",
+          f"power {b['power']}")
     gap = np.ones(300, bool)
     gap[np.random.default_rng(3).choice(300, 60, replace=False)] = False
     check(beatpos.sampling_lines(gap, 30.0, 13.0) == [] and len(beatpos.sampling_lines(np.arange(300) % 5 != 4, 30.0, 13.0)) == 2,

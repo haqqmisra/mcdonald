@@ -1466,7 +1466,7 @@ class Case:
         gain = "A camera's gain can change a brightness, but it cannot move a position."
         step = "A brightness that beats over a background this uneven shifts a measured position by as much, so this adds little."
         if len(beats) > 1 and got:
-            own = [r for r in got.values() if r["how"] != "picture" and r["at_beat"].get("at_the_cadence_hz") is None]
+            own = [r for r in got.values() if r["how"] != "picture"]
             k = sum(bool(r["at_beat"]["line"] and r.get("own") is True) for r in own)
             if own and k:
                 out += [f"The positions of {k} of the {len(own)} members rise and fall at their own beats, each measured against the others, "
@@ -1488,7 +1488,7 @@ class Case:
             elif ab["line"] and beyond(ab) is True:
                 out += [f"Its position in the picture rises and falls at {rate}, by {amp:.1f} pixels.",
                         "The camera's own motion was not taken out, so that may be the camera's shake."]
-            elif not ab["line"] and r["how"] != "picture" and ab.get("at_the_cadence_hz") is None:
+            elif not ab["line"] and r["how"] != "picture":
                 out += [f"Its position shows no rhythm at that rate, {how[r['how']]}.",
                         f"One of {r['needed_px']:.1f} pixels would have shown three times in four."]
         from .beatlines import lines_of

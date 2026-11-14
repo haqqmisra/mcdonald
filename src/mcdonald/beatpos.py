@@ -41,7 +41,8 @@ TOP = 0.8              # of the Nyquist frequency, as `flicker.TOP`, where no to
 DETREND_S = 0.5        # s: the running mean a series is taken against, as `flicker.DETREND_S`
 SEG_S = 4.0            # s: the stretch a spectrum is read over; a wingbeat wanders 2-5 % over 4.5 s (`flicker.steadiness`)
 MIN_POINTS = 60        # frames a reading needs, as `flicker.MIN_FRAMES`
-COVER = 0.4            # the share of a stretch's frames that must have a position (a video that holds every other picture has half)
+COVER = 0.7            # the share of a stretch's frames that must have a position. Under it the reading is not made: features followed on
+                       # real backgrounds got a rhythm 4 times in 20 between 0.4 and 0.7, against 11 in 194 above (the members' route)
 FIT_MAX = 300          # points the covariance is fitted on, the middle of the track (one REML fit a coordinate)
 DRAWS = 1000           # tracks drawn from the fitted covariance, with no rhythm, that the reading is held against
 SEED = 20261113        # their seed: the same track gives the same reading twice
@@ -168,38 +169,6 @@ def sampling_lines(present, fps, top):
     return [round(float(f), 3) for f in fr[peak]]
 
 
-def _less_cadence(P, w, fps, hz, L):
-    """(P less its part at the samples' own cadence, that part's amplitude in pixels (x, y)). Where the video holds
-    pictures by a cadence (`sampling_lines`), the fresh pictures run on a slower clock than the frames: each shows the
-    scene a part of a frame off its own time, by turns, and a steady motion read at the frames' times steps at the
-    cadence (a 20-a-second source on a 30-a-second grid: a sixtieth of a second, 0.45 px at 27 px a second). That step is
-    the video's. In each piece of L frames, the least-squares cosine and sine at each of the frequencies `hz`, of the
-    track against its own running mean, are taken out of the positions; a piece too short to fit is left as it is. What
-    is left is fitted and searched as any track is; a rhythm of the object's own at the cadence goes with it, and nothing
-    is said there."""
-    R = _against_trend(P, w)
-    n = len(P)
-    t = np.arange(n) / fps
-    out = P.copy()
-    edges = list(range(0, n, L))
-    if len(edges) > 1 and n - edges[-1] < L // 2:
-        edges.pop()
-    a2, k = np.zeros(2), 0
-    for a, b in zip(edges, edges[1:] + [n]):
-        A = np.column_stack([f(2 * np.pi * h * t[a:b]) for h in hz for f in (np.cos, np.sin)])
-        fitted = False
-        for c in (0, 1):
-            ok = np.isfinite(R[a:b, c])
-            if ok.sum() < 4 * A.shape[1]:
-                continue
-            coef = np.linalg.lstsq(A[ok], R[a:b, c][ok], rcond=None)[0]
-            out[a:b, c] -= A @ coef                         # a frame with no position stays without one
-            a2[c] += float(np.sum((A[ok] @ coef) ** 2) / ok.sum()) * 2.0
-            fitted = True
-        k += fitted
-    return out, [float(math.sqrt(v / k)) if k else 0.0 for v in a2]
-
-
 def _fit(t, v):
     """(s2, ell, tau2) of one coordinate against time: the line, wander and nugget by REML (`kriging.Model`), on the
     middle FIT_MAX points. A coordinate the fit cannot factor gets the line's white jitter."""
@@ -265,10 +234,9 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
     stretch_s, hz, hz_err, p, stands, needed, line, amplitude_px (x, y), needed_px, axis, where (the stretches it stands
     in), fit, hole, codec, at_beat, draws). `lines` are the codec's lines (Hz): a peak within `flicker.Z_LINE` of its own
     frequency error of one is the video's, said apart (`codec`), and the track's periodic part is the strongest that is
-    not; where every peak is at a line, the reading is that line's and `line` is False. The samples' own cadence, where
-    pictures are held by one (`sampling_lines`, given back as `sampling_lines_hz`), is the video's too: the track's part
-    at it is taken out first (`_less_cadence`; `cadence_px`, its amplitude), and a beat at it is not read in the position
-    (`at_beat["at_the_cadence_hz"]`). `beat`, where the brightness
+    not; where every peak is at a line, the reading is that line's and `line` is False. Where the video holds its
+    pictures by a rule (`sampling_lines`, given back as `sampling_lines_hz`), the reading is not made: power False.
+    `beat`, where the brightness
     beats, is {"hz", "hz_err", "double_hz"}
     (`flicker`'s `beat[name]`): the reading is then made at those frequencies too (`at_beat`). `bright`, the object's
     brightness on the same frames (NaN where there is none), and `background`, the level of the background beside it over
@@ -283,22 +251,26 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
     if out["points"] < MIN_POINTS:
         out["why"] = f"{out['points']} frames with a position, under the {MIN_POINTS} a rhythm needs"
         return out
+    okp = np.isfinite(P[:, 0])
+    # the samples' own rhythm. A video made from a slower source holds pictures by a rule (20 a second on a grid of 30:
+    # every third), and the fresh ones run on the source's clock: a steady motion read at the frames' times then steps at
+    # that rate (IR_DRONE_059: 0.34 px at 10.00 Hz, the "beat" of its brightness too). Taking a cosine out at the rule's
+    # lines and searching the rest was built and measured: background features followed on such clips got a rhythm 7
+    # times in 14 (the flyers') and 32 in 68 (the labelled set's), against 11 in 194 on full sets of frames. So the
+    # reading is not made there, and says why
+    sampled = sampling_lines(okp, fps, top)
+    if sampled:
+        out.update(sampling_lines_hz=sampled,
+                   why=(f"the video holds its pictures at a steady rate ({', '.join(f'{v:.2f}' for v in sampled[:3])} Hz), and the "
+                        "positions left between them keep that rhythm, so one of the object's own cannot be told from it"))
+        return out
     w = trend_frames(fps)
     segs = [(a, b) for a, b in stretches(n, fps) if np.isfinite(P[a:b, 0]).mean() >= COVER]
     if not segs:
         out["why"] = f"no stretch of {SEG_S:g} s has a position on {COVER:.0%} of its frames"
         return out
     t = np.arange(n) / fps
-    okp = np.isfinite(P[:, 0])
-    # the sampling's own rhythm: where the samples that are there keep a cadence (a picture held every third frame), the
-    # pictures run on a slower clock than the frames, and a steady motion read at the frames' times steps at the cadence
-    # (IR_DRONE_059: 0.2 px at 10 Hz from a 20-a-second source on a 30-a-second grid). Its lines are the video's, as the
-    # codec's are
-    sampled = sampling_lines(okp, fps, top)
-    lines = sorted(set(float(c) for c in lines or ()) | set(sampled))
-    cadence = None
-    if sampled:                                              # the step at the cadence is the video's: out, before the fit
-        P, cadence = _less_cadence(P, w, fps, sampled, int(round(SEG_S * fps)))
+    lines = sorted(set(float(c) for c in lines or ()))
     theta = [_fit(t, P[:, c]) for c in (0, 1)]
     out["fit"] = {name: dict(wander_px=math.sqrt(th[0]), range_s=th[1], jitter_px=math.sqrt(th[2])) for name, th in zip("xy", theta)}
     R = _against_trend(P, w)                                 # the track against its own running mean
@@ -355,10 +327,6 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
         amp = _amplitude(R, fps, hz, per_seg)
         err = _hz_err(R, fps, hz, per_seg, int(amp[1] >= amp[0]))
         at = flicker.at_line(hz, err, list(lines or ()), res)
-        if at is None and sampled:
-            # beside a cadence too: the step a held-picture cadence makes follows the object's speed, so what `_less_cadence`
-            # leaves of it lies in sidebands about the line (IR_DRONE_059: 0.11 px at 10.16 Hz beside its 10.00)
-            at = next((c for c in sampled if abs(hz - c) <= CLEAR_RES * res), None)
         if at is None:
             break
         if codec is None:
@@ -380,9 +348,6 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
                where=where, draws=int(draws), resolution_hz=float(res), top_hz=top)
     if codec:
         out["codec"] = codec
-    if sampled:
-        out["sampling_lines_hz"] = sampled
-        out["cadence_px"] = cadence
     if hole and H is not None:
         H, Hd = H / K, Hd / K
         mu, sd = Hd.mean(axis=1), Hd.std(axis=1)
@@ -396,14 +361,6 @@ def reading(frames, x, y, fps, top=None, held=(), lines=(), beat=None, bright=No
                                p=float((1 + np.sum(zd[ok].max(axis=0) >= z[i])) / (1 + draws)))
     if beat and beat.get("hz"):
         out["at_beat"] = _at_beat(beat, S, Sd, fr, band, res, R, fps, per_seg, draws, lines)
-        if out["at_beat"]:
-            # the beat at the samples' own cadence, or within CLEAR_RES resolutions of it: the position there went out with
-            # the cadence's step, and what is left beside it is that step's too. Not read, whatever stands there
-            ab = out["at_beat"]
-            ab["at_the_cadence_hz"] = next((c for c in sampled if min(abs(float(beat["hz"]) - c), abs(ab["at_hz"] - c),
-                                                                      abs(ab["position_hz"] - c)) <= CLEAR_RES * res), None)
-            if ab["at_the_cadence_hz"] is not None:
-                ab.update(line=False, agrees=False)
         if out["at_beat"] and out["at_beat"]["line"] and bright is not None:
             out["at_beat"]["without_brightness"] = _without(bright, background, frames, f0, n, w, out["at_beat"], Sd, fr, band, res, R,
                                                             fps, per_seg, draws)
@@ -646,9 +603,7 @@ def of_stage(ns, fps, moves, fields, scene=None, raw=None, draws=DRAWS):
         # beating brightness gives; False where none stands; None where nothing can say (the picture's, within that reach,
         # or the reach not read)
         video = bool(ab.get("line") and ab.get("at_the_codec_line_hz") is not None)      # at one of the video's own lines: may be the video's
-        cadence = ab.get("at_the_cadence_hz") is not None     # the beat at the held pictures' cadence: its position was not read
-        r["own"] = (None if (how == "picture" or not r["power"] or (cadence and not found)) else
-                    (False if not found else (True if beyond is True and not video else None)))
+        r["own"] = None if (how == "picture" or not r["power"]) else (False if not found else (True if beyond is True and not video else None))
         r["within_background"] = bool(found and beyond is False)
         out[name] = r
     return out
@@ -702,11 +657,7 @@ def said(name, r, several=False):
                 f"by chance {r['p']:.2f} of the time. One of about {r['needed_px']:.2f} pixels would have shown three times in four."
                 + ("" if not ab else
                    f" At the rate of its brightness beat, {ab['hz']:.2f} Hz, its position moves by {amp(ab['amplitude_px'])} at most, "
-                   f"which chance gives {ab['p']:.2f} of the time. So the beat is not shown in its position."
-                   if ab.get("at_the_cadence_hz") is None else
-                   f" Its brightness beat at {ab['hz']:.2f} Hz is at the rate the video holds its pictures at "
-                   f"({ab['at_the_cadence_hz']:.2f} Hz), or beside it. A position cannot be read there: what moves at that rate is "
-                   "the video's."))
+                   f"which chance gives {ab['p']:.2f} of the time. So the beat is not shown in its position."))
     tail = ""
     wb = (ab or {}).get("without_brightness")
     if ab and ab["line"] and wb and wb.get("px_per_brightness") is not None and wb.get("reach_px") is not None:
@@ -726,11 +677,7 @@ def said(name, r, several=False):
     if ab and ab["line"] and ab.get("at_the_codec_line_hz"):
         tail += (f" That rate is within the beat's error of one of the video's own rhythms ({ab['at_the_codec_line_hz']:.2f} Hz: its coding, "
                  "or the pictures it holds), so the rhythm may be the video's.")
-    elif (c and c.get("line") and not (ab and ab["line"] and abs(c["hz"] - ab["position_hz"]) <= r["resolution_hz"])
-          and c.get("at_the_codec_line_hz") not in (r.get("sampling_lines_hz") or [])):
+    elif c and c.get("line") and not (ab and ab["line"] and abs(c["hz"] - ab["position_hz"]) <= r["resolution_hz"]):
         tail += (f" The position also moves at one of the video's own rhythms ({c['hz']:.2f} Hz: its coding, or the pictures it holds), "
                  "which is left out.")
-    if r.get("sampling_lines_hz") and max(r.get("cadence_px") or [0.0]) > 0:
-        tail += (f" The video holds pictures at a steady rate ({', '.join(f'{v:.2f}' for v in r['sampling_lines_hz'][:3])} Hz). The "
-                 f"position steps at that rate by {math.hypot(*r['cadence_px']):.2f} pixels, which is the video's and is left out.")
     return head + tail

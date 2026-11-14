@@ -6268,26 +6268,28 @@ the track's. A mask a resolution either side of each line was tried first and dr
 of the six wingbeats. The reading at the brightness beat is held to the brightness's own error, the smaller: a beat the
 stage has told from the codec's line is not put back on it by the position's wider error.
 
-**Held pictures keep a cadence, and a steady motion steps at it.** A video made from a slower source holds pictures by a
-rule: 20 pictures a second on a grid of 30 holds every third (the labelled set's drones, PR44, PR055). Left out as
-missing samples, the held frames still leave a rhythm. The fresh pictures run on the source's clock, so each shows the
-scene a part of a frame off its own frame's time, by turns, and a steady motion read at the frames' times steps at the
-cadence: a sixtieth of a second, 0.45 px at 27 px a second. IR_DRONE_059, whose brightness "beat" at 10 Hz is that
-cadence's (section 47's false alarm), showed 0.2-0.5 px at 10.0 Hz in its position, and the reading as first built
-called it the object's own. Three things hold it now. The running mean is taken with the gaps filled across in a
-straight line (`_against_trend`), so that a window's mean sits at its middle whatever is missing from it. The samples'
-own spectral window is read (`sampling_lines`: a line where it stands at WINDOW_LINE = 0.01 or more and WINDOW_CHANCE =
-20 times what the same number of frames missing at random gives; one frame held in three gives 0.25 at a third of the
-frame rate, one in five 0.06 at a fifth and at two fifths), and its lines are the video's, as the codec's are. And the
-track's part at those lines is taken out before the covariance is fitted (`_less_cadence`: a cosine and a sine a line
-in each 4-s piece; `cadence_px`, its amplitude). Left in, the step reads as jitter, the drawn tracks come out white, and
-the track's own slow wander then stands above them as a "rhythm" (a drawn wander with no rhythm in it: 2.72 Hz at
-chance 0.003, `test_beat`). A brightness beat at the cadence is not read in the position
-(`at_beat["at_the_cadence_hz"]`, `own` None): what moves at that rate is the video's. The same holds within CLEAR_RES
-resolutions of the line (1 Hz for 4-s stretches): the step follows the object's speed, so what is left of it after a
-steady cosine is taken out lies in sidebands about the line (IR_DRONE_059: 0.34 px taken out at 10.00 Hz, 0.11 px left
-at 10.16). A rhythm of the object's own at the cadence goes out with it, and the reading says nothing there. The two bars are judgement, set where a cadence of
-one frame in ten still shows (0.012) and 60 frames missing at random from 300 do not (`test_beat`).
+**Held pictures keep a cadence, and there the reading is not made.** A video made from a slower source holds pictures
+by a rule: 20 pictures a second on a grid of 30 holds every third (the labelled set's drones, PR44, PR055). Left out
+as missing samples, the held frames still leave a rhythm. The fresh pictures run on the source's clock, so each shows
+the scene a part of a frame off its own frame's time, by turns, and a steady motion read at the frames' times steps at
+the cadence: a sixtieth of a second, 0.45 px at 27 px a second. IR_DRONE_059, whose brightness "beat" at 10 Hz is that
+cadence's (section 47's false alarm), showed 0.34 px at 10.00 Hz in its position, and the reading as first built called
+it the object's own. The samples' own spectral window finds the rule (`sampling_lines`: a line where the window, under
+a Hann taper, stands at WINDOW_LINE = 0.01 or more and WINDOW_CHANCE = 20 times what the same number of frames missing
+at random gives; one frame held in three gives 0.25 at a third of the frame rate, one in five 0.06 at a fifth and at
+two fifths, one in ten 0.012). Two remedies were built and measured before the present one. Calling the window's lines
+the video's, as the codec's are, left the step's sidebands (0.11 px at 10.16 Hz on the drone). Taking a cosine and a
+sine out at each line in every 4-s piece before the fit, and leaving out 1 Hz either side, was held to the null of
+background features followed on such clips, each against its fellows: a rhythm on 7 of 14 of the flyers' features and
+on 32 of 68 of the labelled set's, against 11 of 194 on full sets of frames. So where the rule is found the reading has
+NO POWER and says so (`sampling_lines_hz`, and `why`: "the video holds its pictures at a steady rate ..."). That gives
+up PR44, a bird whose position carried its 3.06-Hz beat at 3.09 ± 0.02 Hz by 0.91 px when it was read; a reading that
+is wrong half the time on what holds still is not one to keep for the sake of one that came out right. The running
+mean is taken with the gaps filled across in a straight line (`_against_trend`), so that a window's mean sits at its
+middle whatever is missing from it. And a stretch is read only where 70 % of its frames have a position (COVER):
+between 40 and 70 %, with no rule found, the same null gave a rhythm on 4 features of 20. The bars WINDOW_LINE and
+WINDOW_CHANCE are judgement, set where a cadence of one frame in ten still shows and 60 frames missing at random from
+300 do not (`test_beat`); COVER is from that null.
 
 **What else moves a centroid: a brightness over an uneven background.** Gain-proof is not lamp-proof. The centroid
 weighs the object's light and what is behind it together, so a brightness that beats over an uneven background leans
@@ -6312,26 +6314,26 @@ changes as the background slides under the object, which is why the lever is the
 
 **The null, and the rate it really holds.** On tracks drawn with no rhythm (`test_beat`: a wander and jitter, jitter
 with a frame's memory, a fast wander; 36 tracks) none is given one. On recorded objects with no wingbeat, as the picture
-has it: AARO's 42, 0; PR23, 0; of WA9ONY-5's balloon, PR055's sphere, PR071, PR28 and PR105 one, PR105's upper point
-(2.72 Hz at 2.2 px over 28 stretches: a real swing, or the camera's). At a frequency drawn at random: 0 of 42, 0, 1 of 5
-(PR105 again). With the camera's motion out, by the members' route: each background feature of those clips (bright
-patches away from every track, each followed by the same centroid) against the mean of the others followed with it,
-211 with the power to say -- a rhythm with no frequency given on 13 (6.2 %: AARO 8 of 88, the flyers 2 of 24, PR23 1 of
-8, the others 2 of 21, the reference clips 0 of 70), and at a frequency drawn at random on 5 (2.4 %; exact 95 %
-0.8-5.4 %). So the stated 1 in 100 is the drawn tracks'; on these cameras' real backgrounds a rhythm is found at a
-frequency given beforehand about 2 times in 100 and with none given about 6, because a real feature's jitter is not a
+has it: of AARO's 40 with the power to say, 1 (3.1 Hz; 2.5 %, exact 95 % 0.1-13 %); PR23, 0; of WA9ONY-5's balloon,
+PR071, PR28 and PR105, one, PR105's upper point (2.7 Hz at 2.2 px over 28 stretches: a real swing, or the camera's);
+PR055's sphere is not read (held pictures). At a frequency drawn at random: 0 of 40, 0, 1 of 4 (PR105 again). With the
+camera's motion out, by the members' route: each background feature of those clips (bright patches away from every
+track, each followed by the same centroid) against the mean of the others followed with it, 197 with the power to say
+-- a rhythm with no frequency given on 12 (6.1 %, exact 95 % 3.2-10.4 %: AARO 8 of 86, the flyers 0 of 12, PR23 1 of 8,
+the others 2 of 21, the reference clips 1 of 70), and at a frequency drawn at random on 7 (3.6 %; exact 95 %
+1.4-7.2 %). So the stated 1 in 100 is the drawn tracks'; on these cameras' real backgrounds a rhythm is found at a
+frequency given beforehand about 4 times in 100 and with none given about 6, because a real feature's jitter is not a
 Matérn's and a nugget's (section 39 met the same on brightness). On the labelled set's clips (320 x 256, a scene that
-slides several pixels a frame behind a followed target) the same null does far worse: 264 of 1,221 features against
-their fellows (21.6 %) with no frequency given and 117 (9.6 %; 5 to 19 % by class) at one drawn at random. The mean of
-a few features does not take that platform's motion out; a rate from that set does not speak for this reading.
+slides several pixels a frame behind a followed target) the same null does far worse: 198 of 1,078 features against
+their fellows (18.4 %) with no frequency given and 97 (9.0 %) at one drawn at random. The mean of a few features does
+not take that platform's motion out; a rate from that set does not speak for this reading.
 
-**Completeness** (wobbles planted in the stage's own centroids, a direction and a frequency drawn at random): on the 83
-recorded tracks 2, 10, 32, 48 and 72 % are found at 0.05, 0.1, 0.2, 0.4 and 0.8 px with no frequency given, and 15, 27,
-50, 69 and 85 % at the frequency given; on the labelled set's 432, whose tracks are quieter, 55, 76, 88, 95 and 99 %
-with none given. `needed_px` is NEEDED = 2.2 times the amplitude that would just stand at the level, along the quieter
-coordinate at the band's middle: of the 3,390 wobbles planted in both sets, 70 % of those at 0.75 to 1 times it are
-found, 85 % at 1 to 1.5 times, 88 % at 1.5 to 2 times, 99 % over 3 times (on the recorded tracks alone 74, 79 and 87 %
-from 1 times up).
+**Completeness** (wobbles planted in the stage's own centroids, a direction and a frequency drawn at random): on the 78
+recorded tracks that can be read, 2, 12, 29, 51 and 75 % are found at 0.05, 0.1, 0.2, 0.4 and 0.8 px with no frequency
+given, and 13, 26, 51, 72 and 87 % at the frequency given; on the labelled set's 421, whose tracks are quieter, 54, 76,
+87, 95 and 99 % with none given. `needed_px` is NEEDED = 2.2 times the amplitude that would just stand at the level,
+along the quieter coordinate at the band's middle: of the 3,275 wobbles planted in both sets, 71 % of those at 0.75 to
+1 times it are found, 83 % at 1 to 1.5 times, 89 % at 1.5 to 2 times, 99 % over 3 times.
 
 **The known birds.** The five flyers through the stage, the scene registered (a camera that does not move, so the
 scene's path is nought and the track is the object's): flyer 1 3.41 ± 0.17 Hz (the paper's 3.36), 0.18 px, the codec's
@@ -6344,16 +6346,16 @@ and its reading says "the object may not move at all". PR135's six, each against
 7.17, 7.69 and 7.74 Hz against their brightness's 7.85, 7.39, 8.02, 7.09, 7.90 and 7.74, by 0.46-0.72 px, chance 0.002
 each, all six within their errors and beyond their backgrounds' reach (2.2-5.9 px for a unit of brightness against
 0.17-0.54).
-Of the 28 reference objects with a
-beat, as the picture has it, 21 carry it in their position (PR077's object 1 at 9.88 ± 0.08, PR085 at 7.41 ± 0.06, PR088's
-object 2 at 10.53 ± 0.13 by 0.36 px over 59 stretches, PR41 at 6.44 ± 0.01 by 0.92 px, PR44 at 3.09 ± 0.02 by 0.91 px);
-PR144's object, which has no beat of its own, does not. GL6's lead (PR085, frames 2983-3548: a line in the brightness with the track bending at the same rate) is that
+Of the 27 reference objects with a beat that can be read, as the picture has it, 19 carry it in their position at 1
+in 100 (PR085 at 7.41 ± 0.06, PR088's object 2 at 10.53 ± 0.12 by 0.37 px over 59 stretches, PR41 at 6.44 ± 0.01 by
+0.92 px); 8 do not, PR144's object, which has no beat of its own, among them. PR44, whose position carried its beat
+at 3.09 ± 0.02 Hz by 0.91 px before held pictures were left unread, is now NO POWER (above). GL6's lead (PR085, frames 2983-3548: a line in the brightness with the track bending at the same rate) is that
 reading. With the scene registered the position moves at 7.34 ± 0.04 Hz by 0.24 px, chance 0.002, 4.8 px for a unit
 of brightness where its background gives 0.41 at most. The stage calls no beat on that stretch (its one window at
 7.28 Hz is not kept); the band search holds the same line (section 59.2).
 
-**Cost.** One REML fit a coordinate (300 points at most) and the draws: 0.4 s at the median and 1.4 s at the 90th
-centile a track on one CPU; PR088's object 2 (3,558 frames, 59 stretches) 3.8 s.
+**Cost.** One REML fit a coordinate (300 points at most) and the draws: 1.2 s at the median and 1.4 s at the 90th
+centile a track on one CPU of Cannon's; PR088's object 2 (3,558 frames, 59 stretches) 5.4 s.
 
 **What it does not do, and its traps.** It does not say a rhythm is a wingbeat: a swinging payload moves a position
 too (PR105). As the picture has it, it does not say whose motion it is. A rhythm at a codec line cannot be told from
