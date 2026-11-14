@@ -645,9 +645,9 @@ def measure(clip, track, masks=None, rows=None, radius=RADIUS, size=SIZE, dark=F
     result = dict(points=f"{np.median(counts):g} a frame moving with the track (median; {counts.min()}-{counts.max()}), "
                          f"within {radius:g} px of it" + (f", {fixed} spots on the sensor left out" if fixed else ""),
                   finding=rig["finding"])
-    read = readings(tracks) if several else dict(one_body=None, places=None)
-    fields.update(read)
-    if several:                                         # the two calibrated readings, beside `rigid` (section 60)
+    if several:                                         # the two calibrated readings, beside `rigid` (section 60):
+        read = readings(tracks)                         # a single object's record has neither, and stays as it was
+        fields.update(read)
         result.update({"one rigid body or several": read["one_body"]["finding"],
                        "do the members keep their places": read["places"]["finding"]})
     notes = [] if moved >= STILL else [

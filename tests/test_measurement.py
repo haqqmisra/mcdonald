@@ -1669,7 +1669,7 @@ def test_yes_no_or_cannot_say_one_rigid_body_and_whether_members_keep_their_plac
     check(s["rigid"] is False and s["places"]["outcome"] != g.KEEP and any(q["large"] for q in s["places"]["pairs"]),
           "on six that drift 8 px about their places: shuffling as before, and their places are not said to be kept",
           s["places"]["finding"][:100])
-    check(o["one_body"] is None and o["places"] is None and "do the members keep their places" in got["rigid"].result
+    check("one_body" not in o and "places" not in o and "do the members keep their places" in got["rigid"].result
           and "one rigid body or several" in got["rigid"].result, "one point has neither reading; a group's report has a line for each")
     lines = g.said(r)
     check(sum("one rigid body or several: " in ln or "do the members keep their places: " in ln for ln in lines) == 2,
