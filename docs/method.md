@@ -6213,3 +6213,40 @@ that stands still, at a nominal 9 px): 2.2 to 16 a second, the birds never exclu
 objects, so the reading is NO POWER there; were that ignored, the rate over the box's longer side is 0.1 to 1 lengths a
 second (a following camera reads low, the safe side for a lower bound) and no object's own kind is called outside, 0 of
 432.
+
+### 61.3 A turn as a load-factor curve (Av10; `envelopes.load_curve`, `figures.load_curve`)
+
+A level turn at the rate Ω and the true airspeed V takes a load factor n = √(1 + (ΩV/g)²). The track gives Ω, the rate
+its heading turns (not ω, the angular rate across the view: section 5), an angle in the picture and so free of k and R; it
+does not give V. So the reading is a curve, and for
+each class with a sourced limit load the fastest it could have flown the turn, V_max = g √(n_max² − 1) / Ω: at 1 rad/s a
+body held to a transport's 2.5 g flew no faster than 22.5 m/s, 1.8 g at a bird's 15 m/s and 20 g at 200 (the aviation
+survey's two). `could` is false where even the cautious V_max is under the class's least flying speed (it cannot fly
+that slowly: the turn was not its); `binds` says whether the limit is reached inside the speeds the class flies at at
+all; where a size gave body lengths a second (61.2), a body within the limit is no longer than V_max / N
+(`length_max_m`), set beside the class's own lengths and left to the reader, the length in the picture carrying no error.
+
+*The turn rate* (`turn_rate`). From a loop read whole (M4's ellipse, section 33): the ellipse's rate, the same in every
+view, with its error from the nine-number fit under the track's own covariance (`against_wander` now returns
+`omega_err_rad_per_s`); the cautious V_max is at 1.645 errors under it. From a bend: the heading the arc sweeps, 4 atan(2 s
+/ L) for a sagitta s over a chord L (exact for a circle's arc), over the track's time. A short arc does not fix the
+turn's plane: the picture's heading turns at cos i / (sin²φ + cos²i cos²φ) of the turn's own rate, so with the plane's
+normal isotropic and the phase uniform the turn's own rate is **0.439 to 10.0 times the picture's** nine times in ten
+(`TILT_RATE`; the same grid as `TILT_OWN`, recomputed by the suite), and the cautious V_max is at 0.439 of it. On 200
+drawn arcs of 30° at random tilts the band held the true rate on 179.
+
+*Conditions, each said*: a level turn (a pull-up or a dive adds or takes up to 1 g); the camera stood still and did not
+turn; the speed is the true airspeed. **NO POWER** where `platform_of` says the camera moved, and where the picture
+behind held still on screen (the camera may have turned, and its turn bends the track as the object's does: E3's and the
+checklist's camera row's own no-power); where the camera held the object in view; where the track does not bend beyond
+its scatter; and where it **swings about more than a bend does with no loop claimed**. That last is PR077's object 1, the
+track that "loops through 705°": its ellipse is a back and forth 212 by 23 px that fails the minor-axis test, a sagitta is
+a formula for a small bend and measures nothing on a path that doubles back, so the reading gives no turn rate there and
+says so. That is the honest answer; a load factor from it would have been the camera's sway.
+
+*Held to.* Drawn loops (420° tilted 40°: 0.800 rad/s for 0.800, the truth inside the error), drawn bends, and the one
+recorded loop over a camera known to stand still, Galileo flyer 4 (a bird): 156° at 0.449 rad/s (0.29-0.61), 26° a
+second, a circle in 14 s; at a bird's 15 m/s that is 1.2 g, inside what birds are measured to bear, and an airliner held
+to 2.5 g could have flown it only below 77 m/s. The figure (`<tag>_load.png`, in the house style: both axes logarithmic,
+the turn's curve red with its band, each class a bar at its limit across the speeds it flies at, named in a legend under
+the plot) is drawn where the reading has power.
