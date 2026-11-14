@@ -151,7 +151,7 @@ peaks and on every one of 6,694 real rows on the card (PR088, PR149, PR113; `dev
 holds it to a part in a billion so another computer's LAPACK may differ in a last digit. `forensics.BATCH_READ = False`
 is the way back. With G3, a pair on the card: 8.6 ms where it took 14.1 (PR088), 25.0 where 35.6 (PR149), 19.5 where
 29.9 (PR113), 71.7 where 125.4 (dense templates). All suites with the goldens on the tree with it (snapshot `snapF`;
-jobs 1487 on CPUs, 1488 with the card): every suite before the goldens passed on both (the window's suite 791 with 1 skip, test_gpu 121 with NumPy standing in and 147 on the card); the goldens were still running on CPUs and done with the card (ALL SUITES PASS) when arthur was shut down for a hardware check at about 20:15. **The goldens with this change have therefore not been seen to finish: run `sbatch [--gres=gpu:1] tools/suites.sbatch golden` first thing next session** (the card's path is the one that changed; its numbers are the earlier ones to the bit on every row tried).
+jobs 1487 on CPUs, 1488 with the card): every suite before the goldens passed on both (the window's suite 791 with 1 skip, test_gpu 121 with NumPy standing in and 147 on the card); the goldens were still running on CPUs and done with the card (ALL SUITES PASS) when arthur was shut down for a hardware check at about 20:15. **With the card, the path that changed, all suites passed, golden 228 (job 1488). On CPUs the goldens were not seen to finish (job 1487 was suspended at the shutdown; Slurm requeues it, so its result will be in `snapF/logs/s22_suitesF_cpu_1487.out` after the boot): read it first thing next session, or run `sbatch tools/suites.sbatch golden` again**.
 
 ### For the next session: where to pick up
 
