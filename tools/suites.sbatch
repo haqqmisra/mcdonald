@@ -37,7 +37,7 @@ export MCDONALD_FIGURE_CLASHES="$SLURM_SUBMIT_DIR/logs/figure_clashes_${SLURM_JO
 rm -f "$MCDONALD_FIGURE_CLASHES"
 
 python3 -c "from mcdonald import gpu; print('==', gpu.said())"
-suites="test_measurement test_reduction test_drift test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_zoom test_horizon test_focus test_haze test_streak test_camera test_gpu test_gui"
+suites="test_measurement test_reduction test_drift test_controls test_published test_tether test_audio test_cli test_share test_sweep test_stabilize test_aspect test_waves test_slew test_zoom test_horizon test_focus test_haze test_streak test_camera test_gpu test_gui"
 [ "${1:-}" = "golden" ] && suites="$suites test_golden"
 failed=""
 for s in $suites; do

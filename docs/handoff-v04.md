@@ -1,4 +1,230 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 22's brief on top (2026-11-13: the card's remaining work, all of it, and the window's CPU default measured), then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 22 (2026-11-13): what was built from the brief below, and what was measured and left
+
+**Jacob:** "Start session 22 from the brief at the top of docs/handoff-v04.md. Use /slurm."
+
+### Where it stands (read this first)
+
+**On `main` locally, not versioned, not pushed.** The CHANGELOG's entries are under `## Unreleased`; the version is
+0.5.3. Four commits of this session, then a merge by another session the same afternoon:
+
+| commit | what |
+|---|---|
+| 4ef5f57 | G6: `share rerun` holds every sentence to the letter; only a file's path is compared by its file name |
+| 284fe41 | a long track in two thirds of the time: `flicker`'s judging, `tether`'s passes and `camera`'s shapes on threads |
+| 1696096 | `flicker`'s camera-shake pass and `layers`' third pass on the card; G2 measured, not built |
+| 380a9d7 | merge of `g5-addon` (8b30d35, an agent's worktree): the add-on installed from the window, `mcdonald setup --install-gpu` |
+| 3459561 | *not this session's*: the "GP Triangulation" session merged `nevada-fixes` on top (Jacob asked it to; `docs/handoff-nevada.md`) |
+
+The working folders: `/scratch/mcdonald/g6-2026-11-13/` (G6: the reruns, `hidden.py`, `caught.py`, `twice.py`),
+`/scratch/mcdonald/s22-2026-11-13/` (profiles, timings, the gate, `dev/` the probes) and `/scratch/mcdonald/g5-2026-11-13/`
+(the agent's: two venvs of 5.8 GB, screenshots in `look/`). All safe to delete; nothing was deleted.
+
+### 1. G6, `rerun`'s slash rule: fixed, and what it had hidden
+
+`rerun.is_path`: a path is an absolute one, or a string with no space and a file's ending; two paths are the same
+where their file names are; every other string must be the same string. The fourteen reference cases were rerun on
+arthur (job 836, 30 min). Their files were made on merlin, so numbers differ in their last digits here, as the
+benchmark found: 4,739 differences by the old rule, 4,760 by the new.
+
+- **The 21 the old rule hid** are on 11 of the 31 objects, each a printed number moved by one in its last digit.
+  Fifteen repeat a number field that differs too. Six do not: `integrity`'s shake test prints both axes' slopes and
+  keeps only the stronger axis's `r` and `sigma`, so PR135 objects 1, 2 and 4 had "-646.24" against "-646.25" held by
+  nothing. **No object's verdict changes**: each of the 31 already differed in a number field.
+- **The control:** two reruns of all 31 objects on arthur, a day and five commits apart and in different folders,
+  differ in nothing at one part in a billion. So nothing since 0.5.2 has moved a number the CPU gives on these files.
+- Left: the shake test's second axis has no fields. Whether a case file is remade is still Jacob's.
+
+### 2. "Look first at what no number of workers shortens": it was one process, not the card's work
+
+PR088 object 2's run under py-spy (`dev/spy.py`): the main thread was busy 338 of 458 s. `tether` 143 s (each frame's
+noise 60, the stack's sums 28, the followers 21, the background's step 18); `flicker` 110 s, nearly all of it `judge`
+(four background apertures judged as the object 53 s, the object's own nulls 38, steadiness 10; the pooled aperture
+pass is a few seconds of the step); `camera` 24 s reading frames one after another. So the fix was threads, not the
+card: `progress.Beside`, `Frames.each(also=)`, `flicker.controls_started`, `camera.shapes`. Each piece is the same
+function on the same arguments, so no number moves.
+
+Whole runs, seconds (80-CPU jobs, `MCDONALD_CPUS` the workers; "before" is this morning's sweep):
+
+| object | workers, card | before | after |
+|---|---|---:|---:|
+| PR088 object 2 (3,678 frames) | 32, card | 405.9 | 279.9 |
+| | 32, no card | 426.4 | 295.3 |
+| | 8, card | 467.8 | 349.1 |
+| PR135 object 2 (270 frames) | 32, card | 59.5 | 54.3 |
+| | 32, no card | 65.5 | 61.8 |
+| PR149 (158 frames) | 32, card | 49.6 | 49.3 |
+| | 32, no card | 63.7 | 61.5 |
+
+PR088 by step at 32 workers: Flicker 106.7 to 43.1 s, Stack 24.7 to 15.1, Frames 96.8 to 50.2, zoom and rate steps
+22.2 to 10.6.
+
+**The gate that no number moves:** the fourteen case files measured again with the finished code (job 909, snapshot
+`snap7`) against the morning's reruns with the code before: **31 objects, 0 differences at 1e-9**
+(`gate/same.sh r7`; an earlier snapshot, job 876, the same). Each threaded pass is also held to the pass in one thread,
+to the last bit, in test_tether, test_camera and test_measurement.
+
+Still one process, for another day: kinematics' speed band and model set (28 s on PR088), `flicker`'s own drift and
+steadiness (23 s), `tether`'s followers' own arithmetic, `layers`' consensus (10 s). With the card, `Layers` (50 s)
+is bound by the card's own thread, which is G3's subject.
+
+### 3. The card: two passes built, Find and Follow measured and left
+
+- **`flicker`'s camera-shake pass** (`_shift_job_on`, `_lk_shift_on`, `_fshift_on`). On the card a frame is registered in
+  2.5 ms against 69 ms on one core (1280 x 720), the shifts 6e-8 px apart. In a run: 16.8 s on the card at 8 workers
+  where the pool of 8 took 40.4; at 32 workers the same as the pool (17 s).
+- **`layers`' third pass** (`_mean_out` through `pooled_or_on_card`, `_mean_sd_on`). On the card 13 to 15 s on PR088;
+  the pool takes 19.6 s at 8 workers and 9.2 s at 32. **So on this workstation the card is 6 s slower here**: a
+  block is about a fifth of a second in one process, and 32 workers take the blocks side by side. A choice for Jacob,
+  below.
+- **test_gpu on the real card: 101 PASS, 0 FAIL** (job 910); 79 with NumPy standing in.
+- **G2, Find and Follow: measured, not built** (`dev/spots1.py`, `spots2.py`; IDEAS.md's row; method section 52).
+  Find does not call the spot detector. Follow does, and the response is 3 to 4 ms on the card against 35 to 85, but
+  the picking and centroids are 100 to 260 ms of a busy frame in Python, so one process beside the card is slower
+  than a pool of eight; and the card's list is the CPU's on 41 of 240 frame readings (the same spots on 201). It
+  would need the picking on the card as one batch, and `tools/find_rank.py --link` on both.
+- **`stabilize`**: not looked at beyond its code. Its pools run an ECC alignment (`align`), not the shift field; a
+  card version is a new routine, and `stabilize` is not part of `run`.
+
+### 4. G5, the add-on installed from the window (an agent in a worktree, merged as 380a9d7)
+
+`mcdonald.addon`; Preferences' **Install the add-on** with its wait in the right column (teal until done, the oval
+"setup", a Cancel, no dialog); `mcdonald setup --install-gpu`; `gpu.cuda()` reads the driver's CUDA and each card's
+compute capability. pip is given the add-on's own requirement and a constraints file that pins every installed
+package, so it adds and never replaces, and the window stays open. Tried for real in fresh venvs: CUDA 13's add-on
+1,353 MB and 22 s, CUDA 12's 1,823 MB and 34 s, the card computing with each. Its suites on its own snapshot (jobs
+892 on CPUs, 893 with the card): all passing, the window's 791 with 1 skip. **Not tried on Windows, on a slow line,
+or by a person at the window.** Its twelve choices are in the commit's message and in the report of this session.
+
+### Not done from the brief, and why
+
+- **G3, the fused pass:** the brief says ask first. Not asked while Jacob was away; it is the first question below.
+  What this session adds to it: with the card, `Layers` on a long track is bound by the card's own thread (50 s of
+  PR088's 280), so G3 is now the largest single gain left on a long run with a card.
+- **Item 5, the work the card is for** (the dense field, the plants at scale, the error models): not begun; each part
+  wants Jacob's choices first.
+- **Item 6, the card out of memory:** watched; it did not happen.
+
+### Jacob's answers (2026-11-13, afternoon, put to him as choices)
+
+1. **G3: "Build, keep fallback."** The fused pass is built as the card's own code, today's pass kept beside it for the
+   runners and for a card that refuses the new code; test_gpu holds the fused pass to it on arthur.
+2. **The third pass of `layers`: "Keep on the card."** One arithmetic for the whole stage; the 6 s on arthur is accepted.
+3. **G2: "Revisit with the plants."** Find and Follow stay on pools until the planted objects at scale are designed.
+4. **Item 5: "Planted objects at scale"** first (then the dense field and the error models). He did not say which
+   session builds it; the "mcDonald: development" session had asked for `plant`'s CPU side.
+5. **G5: "Confirm all as built."** All twelve choices stand, the window's words included.
+6. **The clip's own sound among the look-alikes: "Fix as a report-changer."** Pass the clip in, rerun the fourteen
+   reference cases and the goldens, and list every report whose look-alikes or wording change, for him to see before
+   it is kept.
+
+### What followed the answers, the same evening (45824df, ba56f53; local, not pushed)
+
+- **G3 built** (45824df): `forensics._peaks_fused`, two kernels of the card's own; the plain batch kept for the
+  stand-in and for a card that refuses the code; `forensics.FUSED = False` is the way back. On the real card every
+  field is the plain batch's to the last bit (test_gpu 143 PASS; 4,105 rows of PR088, PR149 and PR113; 4,678 rows
+  with the second pass's dense templates). **The gain is a fifth of a pair, not half**: 11.2 ms against 14.1 on
+  PR088, 29.0 against 35.6 on PR149, 97.5 against 125.4 with dense templates. Of a 1080p pair's 26 ms now, about 12
+  is the card's, 6.6 is `_peak_read` on the CPU in Python (the one function both ways call), 3.6 the frames sent up,
+  2 each template's mean. The peak read for a batch at once was the other half of the old estimate; it is not
+  built, and whether to build it is a new question for Jacob (it would be a second way of reading a peak).
+- **The sound among the look-alikes fixed** (ba56f53, its own commit so it can be taken back alone): `judge(video=)`.
+  **No reference report changes**: the fourteen cases measured again with and without it, 31 objects, nothing
+  different; the goldens 228 PASS. Of the 145 videos of the data folder the sound of eight carries a rhythm in the
+  beat band (PR106, PR107, PR111, PR113's per-file copy, PR117, PR118, PR119, NASA-UAP-D008's tape); none has a
+  recorded track, so there is no changed report to show. Jacob had asked to see the changed reports before it is
+  kept: the list is empty, and the commit stands unless he says otherwise.
+- All suites with the goldens on the tree with both (snapshot `snapD`; jobs 1266 on CPUs, 1267 with the card): ALL
+  SUITES PASS on both -- golden 228, the window's suite 791 with 1 skip, audio 65, test_gpu 118 with NumPy standing in
+  and 143 on the card.
+- The queue was paused by Jacob from 16:21 to 16:58 (`queue-pause.sh --suspend`); jobs resumed by themselves.
+  The reference for the no-number-moves gate on today's `main` is now `gate/refA` (code e75083d).
+- The "mcDonald: development" session took `plant`'s design and CPU side (its branch `s23-plant`) and told Jacob; its
+  branches are on 3459561 and will meet ba56f53's change to `flicker.judge` when they merge `main`.
+
+### The peaks read at once (Jacob, the same evening: "Sure give it a try, and then we can continue in a new session")
+
+Built: `forensics._peak_read_many`, on the card's path only (`_shift_field_on`; the stand-in runs it too). `_peak_read`
+is unchanged and stays the CPU's way and the reference. The batch is `_peak_read`'s to the last bit on 4,000 drawn
+peaks and on every one of 6,694 real rows on the card (PR088, PR149, PR113; `dev/batch1.py`, job 1485); test_gpu
+holds it to a part in a billion so another computer's LAPACK may differ in a last digit. `forensics.BATCH_READ = False`
+is the way back. With G3, a pair on the card: 8.6 ms where it took 14.1 (PR088), 25.0 where 35.6 (PR149), 19.5 where
+29.9 (PR113), 71.7 where 125.4 (dense templates). All suites with the goldens on the tree with it (snapshot `snapF`;
+jobs 1487 on CPUs, 1488 with the card): every suite before the goldens passed on both (the window's suite 791 with 1 skip, test_gpu 121 with NumPy standing in and 147 on the card); the goldens were still running on CPUs and done with the card (ALL SUITES PASS) when arthur was shut down for a hardware check at about 20:15. **With the card, the path that changed, all suites passed, golden 228 (job 1488). On CPUs the goldens were not seen to finish (job 1487 was suspended at the shutdown; Slurm requeues it, so its result will be in `snapF/logs/s22_suitesF_cpu_1487.out` after the boot): read it first thing next session, or run `sbatch tools/suites.sbatch golden` again**.
+
+### For the next session: where to pick up
+
+**State.** `main` is ahead of `origin/main` (a72784c, 0.5.3's DOI commit) by this session's commits and the merged
+`nevada-fixes`; nothing since 0.5.3 is pushed. The version is 0.5.3; everything since is under `## Unreleased`. Nothing here has run on the Mac or
+on Windows: before a release, push to `macos-ci` and `windows-ci` (new there: `progress.Beside`'s threads in
+`flicker`, `tether` and `camera`; `mcdonald.addon` and its Preferences button; test_gpu's new tests, which must pass
+with NumPy standing in; test_drift from nevada-fixes). Versioning and pushing are Jacob's.
+
+**Open, in the order I would take them:**
+1. **The plants (item 5, Jacob's first choice).** The "mcDonald: development" session holds `plant`'s design and CPU
+   side (branch `s23-plant`, its handoff `docs/handoff-s23.md`); it will send the share of a plant's cost that is
+   Find's. The card's side, and G2 with it (Jacob: "revisit with the plants"), start from that cost model. G2's
+   measurements are in IDEAS.md and `dev/spots1.py`, `spots2.py`.
+2. **What is left of a pair on the card** (1080p, about 20 ms): the card's own work (transforms, the band-pass in
+   double, the kernels) about 12 ms, the frames sent up 3.6, each template's mean 2. The band-pass a frame is kept
+   on the card by `layers` already; the means could come from the card.
+3. **What is still one process on a long track** (PR088, 280 s): kinematics' speed band and model set 28 s (the two
+   are independent: `projective.confidence_set` could run beside `kin.speed_band`), `flicker`'s own drift and
+   steadiness 23 s, `layers`' consensus 10 s, `tether`'s followers.
+4. **`stabilize` on the card**: not looked at beyond its code (an ECC alignment, not the shift field; not part of `run`).
+5. **G5 loose ends**: not tried on Windows, on a slow line or by a person; the bar's sizes are Linux's;
+   `gpu.installed()` takes a half-installed CuPy for a whole one; Help's "Check for updates" still uses message boxes.
+6. **The dense flow field and the error models** (item 5's other parts), after the plants.
+
+**`tests/test_controls.py` is in no suite list and fails on `main`** (the "mcDonald: development" session found it,
+2026-11-13): 117 PASS and 1 FAIL on this session's tree before the nevada merge (380a9d7; the one failure is
+bookkeeping, 0.5.2's tether goldens unclassified, as on 0.5.3), 107 PASS and 11 FAIL after it (e75083d) and the same
+list, line for line, on the tree with G3, the sound fix and the peaks read at once. So the ten new failures came with
+`nevada-fixes` (`comes_back` True to False on bird controls), not with this session's work; whether that cost is
+accepted, and whether test_controls joins the lists, are Jacob's. Logs: `logs/snapPre_controls.log`, `snapA_`, `snapF_`.
+
+**The plants and G2** (the development session's first numbers, one stretch of PR113 at 1080p, not yet repeated):
+Find is 0.27 CPU-s a frame of a plant's about 0.6, the rest the encoder on one thread; 2,000 plants a video on all
+144 is 1,000 to 1,500 CPU-hours, a day or two of arthur. On those numbers the plants do not need Find on the card;
+whether G2 is dropped is Jacob's.
+
+**Tools left for it** (`/scratch/mcdonald/s22-2026-11-13/`): `gate/cases.sbatch SNAP LABEL` and `twice.py A B` (the
+no-number-moves gate; `gate/refA` is the reference for e75083d, and since then only ba56f53 can move a report, on
+eight videos that are not among the cases); `spy088.sbatch` with `venv-spy` and `dev/spy.py` (a whole run's main
+process by thread); `time3.sbatch` (whole runs as the morning's sweep made them); `dev/fused1.py`, `fused2.py`,
+`batch1.py` (a pair on the card, timed and profiled). Snapshots `snap0` to `snapF` and the frames under `out/` are
+safe to delete.
+
+### What was put to Jacob (answered above)
+
+1. **G3:** build the fused pass, as the card's own code, tested on arthur only (NumPy cannot stand in for it)?
+2. **The third pass of `layers` on the card:** keep it (one arithmetic for the whole stage; faster under about 16
+   workers, 6 s slower at 32 on a long track), or give it back to the pool where the pool is large?
+3. **G2:** build the spot detector's picking on the card as a batch (it changes Find's and Follow's lists in their
+   last digits, so the proposer's gate runs on both), or leave Find and Follow on pools?
+4. **Item 5:** which first, the dense flow field (A14), the plants at scale, or the error models, and for each the
+   choices the brief names.
+5. **G5's twelve choices** (the window stays open; CUDA 13's build only where every card still runs it; the oval
+   says "setup"; the wait stays until Close; no pip cache; the words).
+6. **The clip's own sound among `flicker`'s look-alikes** has never been read: `judge` asks
+   `audio.heard(str(clip.video), fps)` and has no `clip`, and the error is caught. Fixing it can change what a report
+   says of a beat: fix it as a report-changer, or take the lines out?
+
+### Found on the way, not fixed
+
+- The sound's look-alikes, as above (6).
+- `integrity`'s shake test keeps one axis's numbers and prints both (G6).
+- From the agent: `gpu.installed()` only checks that a `cupy` can be found, so a half-installed one shows Preferences
+  as ready; Help's "Check for updates" still uses message boxes; the download sizes on the add-on's bar are Linux's;
+  the maintainer's editable install records 0.5.2 and no `gpu` extra until `pip install -e .` is run again.
+
+### Slurm jobs of the session (arthur)
+
+836 (G6's fourteen cases); 852, 861, 874 (PR088 under cProfile and py-spy, before and after); 876 and 909 (the gate,
+first and final snapshots); 904 (the timings); 910 (test_gpu and timings on the card); 927 and 928 (all suites with
+the goldens on the merged tree 3459561, on CPUs and with the card: **both ALL SUITES PASS** -- measurement 608, reduction 691, drift 145, published 32, tether 47, audio 62, cli 139, share 31, sweep 20, stabilize 13, aspect 10, waves 14, slew 95, zoom 37, horizon 25, focus 19, haze 9, streak 20, camera 152, the window's suite 791 with 1 skip, golden 228, none failing; test_gpu 117 with NumPy standing in (927) and 139 on the card (928)). The agent's: 860, 864-873, 892, 893.
+Everything else was `srun`, a few minutes each.
 
 ## Session 22's brief (written 2026-11-13): the card's remaining work, all of it
 
