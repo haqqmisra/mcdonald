@@ -42,10 +42,14 @@ def check(cond, label, detail=""):
     return cond
 
 
+MADE = []                                 # the drawn tables written to the temporary folder: taken away again by main()
+
+
 def drawn_table(text=DRAWN):
     f = tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8")
     f.write(text)
     f.close()
+    MADE.append(f.name)
     return f.name
 
 
@@ -459,9 +463,13 @@ def test_the_ledger_carries_the_asks():
 
 
 def main():
-    for name, fn in list(globals().items()):
-        if name.startswith("test_") and callable(fn):
-            fn()
+    try:
+        for name, fn in list(globals().items()):
+            if name.startswith("test_") and callable(fn):
+                fn()
+    finally:
+        for made in MADE:
+            Path(made).unlink(missing_ok=True)
     for w in traffic.WARNS:
         print("  WARN ", w)
     print(f"\n{len(FAIL)} FAILED: {', '.join(FAIL)}" if FAIL else "\nALL PASS")
