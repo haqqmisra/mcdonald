@@ -80,18 +80,22 @@ def manifest(every=False):
 # like a bird": the same at BIRD_FLOOR of the brightness or more, the camera's shake not at the beat) -- at BIRD_FLOOR 0.07
 # since the floor's merge (method section 43), the two tracks with a beat between 7 and 8 % measured again so that their
 # shake was read. Held to the table in the reference-data folder: a regression on the table. The rate is the set's.
+# Made again on 2026-11-13 from the saved curves (`summarise.py --rejudge`), after two changes to the judging: the revision
+# of "a beat that comes back" (IR_BIRD_035's refusal became "no beat": birds answered 110 to 111 and 108 to 109), and the
+# cadence read in blocks (IR_DRONE_059 and IR_DRONE_098 lose a 10-Hz call: non-birds called a bird 18 to 16 and 25 to 23,
+# drones 3 to 1 and 7 to 5; non-birds named 3 to 2, drones 1 to 0, distant non-birds 1 to 0 under the stage's rule).
 RECORD = {
     "stage": {
-        "BIRD: bird": (31, 125), "BIRD: named": (30, 125), "non-bird: bird": (18, 307), "non-bird: named": (3, 307),
-        "AIRPLANE: bird": (7, 82), "DRONE: bird": (3, 168), "HELICOPTER: bird": (8, 57), "AIRPLANE: named": (0, 82),
-        "DRONE: named": (1, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (5, 57), "non-bird DISTANT: named": (1, 100),
-        "BIRD: answered": (110, 125), "non-bird: answered": (288, 307),
+        "BIRD: bird": (31, 125), "BIRD: named": (30, 125), "non-bird: bird": (16, 307), "non-bird: named": (2, 307),
+        "AIRPLANE: bird": (7, 82), "DRONE: bird": (1, 168), "HELICOPTER: bird": (8, 57), "AIRPLANE: named": (0, 82),
+        "DRONE: named": (0, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (5, 57), "non-bird DISTANT: named": (0, 100),
+        "BIRD: answered": (111, 125), "non-bird: answered": (288, 307),
     },
     "paper": {
-        "BIRD: bird": (30, 125), "BIRD: named": (27, 125), "non-bird: bird": (25, 307), "non-bird: named": (2, 307),
-        "AIRPLANE: bird": (11, 82), "DRONE: bird": (7, 168), "HELICOPTER: bird": (7, 57), "AIRPLANE: named": (0, 82),
+        "BIRD: bird": (30, 125), "BIRD: named": (27, 125), "non-bird: bird": (23, 307), "non-bird: named": (2, 307),
+        "AIRPLANE: bird": (11, 82), "DRONE: bird": (5, 168), "HELICOPTER: bird": (7, 57), "AIRPLANE: named": (0, 82),
         "DRONE: named": (0, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (6, 57), "non-bird DISTANT: named": (0, 100),
-        "BIRD: answered": (108, 125), "non-bird: answered": (287, 307),
+        "BIRD: answered": (109, 125), "non-bird: answered": (287, 307),
     },
 }
 
@@ -351,6 +355,8 @@ GOLDEN_KINDS = {
     "test_pr055_nothing_tied": ("regression", "unidentified; the clouds seen by eye"),
     "test_pr004_companion_and_no_pendulum": ("regression", "the companion and the wander null as 0.5.2 reads them; AARO's "
                                              "'almost certainly a balloon' is from outside, the pendulum's absence is not"),
+    "test_pr016_a_row_of_birds_is_not_symbology": ("control", "AARO resolved PR-016 as birds: nothing was laid over the "
+                                                   "picture, so a flag from the layer-order test there is a false one"),
     "test_pr105_companion_is_not_followed_away": ("regression", "the point under the object where 0.5.2's stack puts it"),
     "test_no_pendulum_on_the_birds": ("regression", "birds known by the tool's own beat (X7), read by 0.5.2's follower"),
     "test_nothing_tied_leaves_nothing_in_the_record": ("regression", "the record's fields and words as 0.5.2 writes them"),
