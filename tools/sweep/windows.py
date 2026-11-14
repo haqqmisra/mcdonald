@@ -38,12 +38,10 @@ def found(file):
 
 
 def cut(frames, window, overlap):
-    """[(n0, n1)]: windows of `window` frames, `window - overlap` apart, the last ending on the last frame."""
-    step = window - overlap
-    out = [(a, min(a + window - 1, frames)) for a in range(1, max(2, frames - overlap), step)]
-    if out and out[-1][1] < frames:
-        out.append((max(1, frames - window + 1), frames))
-    return out
+    """[(n0, n1)]: windows of `window` frames, `window - overlap` apart, the last ending on the last frame. The
+    package's own since 2026-11-13 (`mcdonald.batch.cut`: `mcdonald batch` cuts a video the same way)."""
+    from mcdonald.batch import cut as cut_
+    return cut_(frames, window, overlap)
 
 
 def main(argv=None):

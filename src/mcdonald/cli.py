@@ -13,6 +13,7 @@ COMMANDS = {
     "setup": ("run once after installing: is everything here, and what next?", "mcdonald.setup_cli"),
     "readme": ("print the technical README (for AI agents): every command, and how each step works", "mcdonald.readme_cli"),
     "run": ("every stage on one clip, into one case report", "mcdonald.run"),
+    "batch": ("many videos with nobody looking: every frame searched, each lasting spot followed, measured and reported", "mcdonald.batch"),
     "look": ("see the clip with no window: an overview, a frame's candidates, a place enlarged", "mcdonald.look"),
     "mark": ("say which spot is the object: in a window, or with --set and no window", "mcdonald.mark"),
     "stabilize": ("a screen filmed by a phone: hold the display still, and write the display's own video", "mcdonald.stabilize"),

@@ -173,14 +173,16 @@ def thread_of(folder, tag=None):
 
 
 def make(out, video, folder=None, part=None, look=(), note="", by="", agent=False, attach=(), objects=None,
-         identity=None, when=None):
+         identity=None, when=None, leave_out=()):
     """Write a shared file at `out` and return its path.
 
     `video` is the video file; `folder` its results folder (the window's: the one with `<tag>_marks.json` and the
     object-N folders), or None; `part` (first, last) is the part to open; `look` is [(first, last, what)], the
     stretches to look at; `note` is what this file says or asks, `by` who says it and `agent` whether an agent
     does; `attach` is more files to send (a figure). `objects` is {k: label} for the objects' names, if any.
-    A folder an opened shared file was unpacked into carries its thread on: the new note is added to it."""
+    A folder an opened shared file was unpacked into carries its thread on: the new note is added to it.
+    `leave_out` is file-name patterns (`*_all_frames*.jpg`) of results not to put in, for a folder too large to
+    send whole (`mcdonald batch`: a long video's track sheets); the file then lists them as `left_out`."""
     video = Path(video)
     ident = identity or video_identity(video)
     tag = (ident.get("catalog") or {}).get("id", "").lower() or video.stem.lower()
@@ -189,6 +191,9 @@ def make(out, video, folder=None, part=None, look=(), note="", by="", agent=Fals
     if note or not thread:
         thread.append({"by": by or "someone", "agent": bool(agent), "when": when, "text": note or ""})
     files = _case_files(folder) if folder else []
+    if leave_out:
+        from fnmatch import fnmatch
+        files = [(rel, p) for rel, p in files if not any(fnmatch(p.name, pat) for pat in leave_out)]
     old_attached = [(rel, p) for rel, p in files if rel.startswith("attached/")]
     files = [(rel, p) for rel, p in files if not rel.startswith("attached/")]
     att = [(f"attached/{Path(a).name}", Path(a)) for a in attach] + old_attached
@@ -218,6 +223,7 @@ def make(out, video, folder=None, part=None, look=(), note="", by="", agent=Fals
         "thread": thread,
         "files": [{"path": f"case/{rel}", "bytes": p.stat().st_size} for rel, p in files],
         "attached": [rel for rel, _ in att],
+        **({"left_out": [str(x) for x in leave_out]} if leave_out else {}),
     }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)

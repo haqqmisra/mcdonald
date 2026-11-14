@@ -5,6 +5,44 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`mcdonald batch`: many videos with nobody looking** (ROADMAP 0.6, objective 1; 2026-11-13). The beat sweep of October
+was a folder of scripts, and it measured each object by `flicker` alone. It is now one command, with the whole of
+`mcdonald run` behind each object: `mcdonald batch --catalog --out DIR --slurm`, or `--list FILE`, or videos named on
+the line (`PR149:1-158` for a part of one). `docs/method.md` section 54 says what its rules are.
+
+- *What it does to a video.* It searches every frame with Find, 400 frames at a time. A spot seen on 40 frames or
+  more becomes an object, if it has background all round it and is not part of a scrolling tape. The same spot in two
+  stretches is one object. The first twelve by Find's own score are followed and measured (`--most`). The rest are
+  listed. These are the sweep's rules, moved into the package, and `tools/sweep/` now calls them.
+- *What it leaves.* Each video gets a folder with its objects (`object-N`, as `run --each` makes them), their list,
+  Find's proposals and one file to send (`<tag>_batch.mcdonald`). `share rerun` measures that file again to its
+  numbers. Over all the videos there is one table, `batch.tsv`, `batch.json` and `batch.md`, with a row for each
+  object. A video with no object is a row too, and says why: nothing lasted, the picture never changes, or it failed.
+- *What a row is.* A row is a spot that lasted, not an object anyone has identified. One object that Find lost and
+  found again has several rows. A group that Find lists as one spot is one row. A spot in view for under 40 frames is
+  counted in its video's rows and never measured: PR113's four-frame transit is such a count.
+- *Nobody chose, and it says so.* The marks are recorded as an agent's, with the rule as the reason. Every report
+  says an agent decided which spot is the object, and that its numbers are provisional.
+- *It can be stopped and started again.* A video that is done is not done twice. One stopped half way goes on from
+  the stretches and objects it had finished. The version and the options that decide results are kept with each
+  video. A video made otherwise is left as it is, and `--status`, every row and the head of `batch.md` say so.
+- *Where it runs.* One video after another; or `--pool N`, side by side with the CPUs shared out; or `--slurm`, as
+  job arrays by size class. The job script names no partition and no account: `--sbatch` passes the site's own
+  arguments through, and `--slurm-print` submits nothing.
+- *How deep it goes.* Every step by default. `--quick` leaves out the two long steps. `--only track,report` stops
+  after the link, and `--most 0` after Find. `--keep N` keeps more of Find's rows than the 30 a person is shown.
+- *A video that is not searched.* Where no part of the picture ever changes by as much as Find needs to see a spot,
+  the video is a row that says so. It is a strict check: no PURSUE video falls under it.
+- *The audit* (IDEAS.md E8). For each object, 59 frames of its track are drawn at random, more often near the track's
+  ends, and shown ringed on one sheet (`<tag>_audit.png`). `mcdonald batch --audit FOLDER --wrong none --by NAME`
+  records a look. With none wrong, under 5 % of the track's weight is on wrong frames (95 % confidence). A second
+  picture, `<tag>_refused.png`, samples what the rules refused.
+
+No report of an existing case changes: the batch adds a command, and it calls the stages as `run --each` does. Two
+small changes ride with it. `share make` can leave named pictures out of a file too large to send, and lists them
+(`left_out`). The rule for which rows the one press takes is one function (`propose.one_press_rows`), for the window
+and for the command line.
+
 **The report no longer says the picture held still behind an object where the pixels show it moving** (2026-11-13;
 IDEAS.md GL4, found on PR058). Two things, one in the measurement and one in the words:
 

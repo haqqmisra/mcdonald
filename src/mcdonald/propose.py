@@ -1040,6 +1040,19 @@ def shortlist(props, most=8):
     return [p for i, p in enumerate(props[:most]) if i < 3 or p.score >= 0.25 * props[0].score]
 
 
+def one_press_rows(props, asked=None):
+    """The rows of a list of proposals (numbered from 0) that are followed when nobody chooses: the window's one press
+    (`auto_qt.AutoRun`), and the same press from a command line (tools/aaro_blind.py). The first row whatever it is,
+    and every other row that is at least fair (Galileo flyer 1 has four things; one report each: Jacob, 2026-10-07);
+    or, where the person said how many objects they are looking for, that many of the likeliest, weak ones too
+    (2026-10-08). `props` are Proposals, or their dicts as `look --propose --json` prints them. One function, so that
+    the window and a command line take the same rows. (`mcdonald batch` over a whole video takes by another rule,
+    said in its own module: every spot seen on 40 frames or more.)"""
+    if asked:
+        return list(range(min(int(asked), len(props))))
+    strength = lambda q: q["strength"] if isinstance(q, dict) else q.strength()
+    return [i for i, q in enumerate(props) if i == 0 or strength(q) != "weak"]
+
 
 # ---- showing one to a person -------------------------------------------------------------------
 def strip(clip, proposal, tiles=6, box=96, zoom=2):

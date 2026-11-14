@@ -66,16 +66,24 @@ for updates in the window, and the `version` line of `mcdonald setup` (`--json`:
   2 MB to 3 GB (most under 100 MB). Both go in one folder you choose on the first screen.
 - **Memory**: 8 GB is enough for a segment of a few hundred frames; more for whole videos.
 - **Time.** mcdonald compares frames pixel by pixel, and some steps are slow. On the machine it
-  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment:
+  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment, and on 8 CPUs
+  (4 cores) of the workstation it is developed on now (a 48-core Xeon of 2025), for whole videos:
 
-  | step | about |
-  |---|---|
-  | saving the frames (once) | a few seconds per 100 frames |
-  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) |
-  | Follow it | about ten seconds |
-  | Measure, without the two slow checks | under a minute |
-  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) |
-  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) |
+  | step | the 2012 workstation, about | 8 CPUs of the 2025 workstation, about |
+  |---|---|---|
+  | saving the frames (once) | a few seconds per 100 frames | 1 s per 100 frames |
+  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) | 0.16 s a frame, 720p and 1080p alike (a 5-minute video: 25 minutes) |
+  | Follow it | about ten seconds | 5 s + 0.02 s a frame (a 9-second track: 10 s) |
+  | Measure, without the two slow checks | under a minute | 45 s |
+  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) | 50 s + 0.07 s a frame (9 s: ~1 minute) |
+  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) | 45 s + 0.04 s a frame (9 s: ~1 minute) |
+
+  The right-hand column is the record of whole videos run through `mcdonald batch` (November 2026: eleven PURSUE
+  videos, 35 objects followed and measured with every check; `docs/method.md` §54). There an object takes 3 minutes
+  on 8 CPUs (1 to 9, by the length of its track) and 4 minutes on 4, and the two slow checks are 70 % of it. A whole
+  video is Find over every frame and then its objects: a 52-second video with 7 objects (PR149, 1,545 frames) took
+  33 minutes on 8 CPUs and 43 on 4; a 5-minute video with 12 (PR088, 8,964 frames) 52 minutes on 8 CPUs. Half the
+  CPUs take about 1.3 times as long, so several videos side by side on 4 CPUs each get through more than fewer on 8.
 
   On four CPUs (a laptop) count on about twice these: a 2-second segment of PR113 measured with
   every check took 8 minutes there. The long steps use every CPU there is, as far as the memory
@@ -698,6 +706,48 @@ each report with the banner that says its track sheet has not been looked at, th
 and "Open in the window" for the object whose track needs a hand. Measure's form -- what is known
 of the video, which slow checks to make -- is used for every one of them. The window's own marks
 are not touched: an object in the list is a folder.
+
+### Many videos, with nobody looking (`batch`)
+
+`mcdonald batch` is the queue above with nobody choosing the objects, over a list of videos or the whole catalog
+(ROADMAP 0.6; [docs/method.md](docs/method.md) §54 says what its rules are and what a row of its table can be read as):
+
+```bash
+mcdonald batch PR113 PR149:1-158 --out runs                # these, one after the other, with every CPU
+mcdonald batch --list videos.txt --out runs --pool 4       # four videos side by side, each with a quarter of the CPUs
+mcdonald batch --catalog --out runs --slurm --sbatch="--nice=100 -p some_partition"   # job arrays, a size class each
+mcdonald batch --out runs --status                         # done, running, stalled, stopped, failed and why; nothing is run
+mcdonald batch --out runs                                  # go on: what is done is not done twice
+mcdonald batch --out runs --table                          # the table again, from the folders as they are
+mcdonald batch --audit runs/pr149/object-1 --wrong none --by "A. Reader"   # a look at an object's audit sheet, recorded
+```
+
+One unit of work is one video (`batch.run_unit`; `mcdonald batch --out DIR --unit K` is what a pool's worker and an
+array's task both run). In order: is there a picture that changes at all (`batch.picture`: a sound recording released
+as a video is a row that says so); the frames, whole and once, in a folder of the unit's own; Find over every frame in
+windows of 400 frames overlapping by 30 (`find/wNN.json`); the proposals seen on 40 frames or more, with background
+all round, not a scrolling tape, the same object in two windows made one (`batch.long_lived`, `batch.merged`: the beat
+sweep's rules, which `tools/sweep/` now calls); the first twelve by Find's score (`--most`) each an `object-N` folder
+with marks at Find's seeds, recorded as an agent's with the rule as its reason; `several.run_each` on them, every
+stage (`--quick` leaves out `layers` and `integrity`; `--only track,report` stops after the link, `--most 0` after
+Find; `--keep N` keeps more of Find's rows a window than 30); the index; each object's audit (59 frames of its track drawn at
+random by leverage, `<tag>_audit.png` and `.json`) and `<tag>_refused.png`, samples of what the rules refused; one
+shared file, `<tag>_batch.mcdonald`, which `share rerun` measures again to its numbers; the unit's rows; and the
+frames removed (`--keep-frames`). `DIR/batch.tsv`, `.json` and `.md` are the table over all of them: a row an object,
+and a row for each video with none (nothing that lasted, a picture that does not change, a failure with its error).
+A row is a spot that lasted, not an identified object: one object lost and found again is several rows, a group Find
+listed as one spot is one row (`several`, `members`), and a spot in view under 40 frames is counted (`brief`,
+`brief_spots`, `brief_longest`) and never measured -- PR113's four-frame transit is a count in a row that says
+"nothing found".
+
+It is resumable (`batch_plan.json`, a `batch_state.json` and a lock a unit): a unit that is done is left, one killed
+half way goes on from the windows and objects it finished, and a unit done by another version or with other options
+(`batch.make_of`) is left as it is and said to be so by `--status`, in every row and at the head of `batch.md`.
+`--slurm` writes `DIR/batch.sbatch` (no partition, no account: those go through `--sbatch`) and submits one array a
+size class (`batch.classes`: time and memory from the video's frames and size, fitted to a pilot on the 2025
+workstation), then the table's job after them; `--slurm-print` writes the lines and submits nothing. `--units` and
+`--except` take part of a plan (a long video on more CPUs than the rest); `--note` is a line kept with the batch and
+printed at the head of its table.
 
 ### Sharing an analysis (`share`)
 

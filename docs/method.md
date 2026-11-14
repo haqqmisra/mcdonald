@@ -6425,6 +6425,151 @@ and they triangulate to the pipeline's positions within 0.5 %.
 wingbeat. A search of its pixels cannot work on these files: the encoder copies a still sky unchanged, and a far bird
 would be half a grey level.
 
+## 54. Every frame of every video: the batch, what a row of its table is, and the audit's draw (ROADMAP 0.6, objective 1; E8; added 2026-11-13)
+
+**What it is.** `mcdonald batch` (`mcdonald.batch`) runs a list of videos, or the whole catalog, with nobody at the
+window: Find on every frame, each lasting spot followed and measured by `stages.run_case`, a report each, a folder a
+video, one table over them all. It is the beat sweep of October (`tools/sweep/`, 126 videos, each object measured by
+`flicker` alone) as one command with the whole of `mcdonald run` behind each object. It measures nothing of its own:
+Find is section 3's, the link section 2's, every stage its own section's. What is its own, and what this section is
+for, is four rules -- what a unit of work is, how a video is cut, which of Find's proposals become objects and in what
+order, and when a video is not searched at all -- and the audit's draw. Each rule is given with where its numbers came
+from, because none of the first three has a null yet.
+
+**The unit is one video.** A video owns its frames from extraction to removal. The frames of a video are extracted
+whole and once, into a folder of the unit's own, before any window is searched: windows that overlap and extract at
+the same time leave gaps that `Clip.extracted()` did not see until 2026-10-20 (the sweep's trap), and an extraction
+decodes from the video's first frame, so forty windows extracted one by one decode a long video forty times. The frames
+are removed when the unit is done, so the disk a batch holds at once is that of the videos running at once (about 0.8 MB a
+frame at 1920 x 1080: 7.5 GB for a five-minute video). The folder is named for the batch as well as the unit: in the pilot two
+batches shared one, and the first to finish removed the frames under the other.
+One process runs one unit (`mcdonald batch --out DIR --unit K`), whether a scheduler's array task starts it, a pool on
+this computer, or a plain loop; a unit's own pools take the CPUs that process was given (`progress.cpus`), so N units
+side by side never ask for more than the machine has.
+
+**How a video is cut, and which proposals are objects** (`cut`, `long_lived`, `merged`, `ordered`; the sweep's
+`windows.py` and `collect.py`, moved into the package, which the sweep's scripts now call). Find searches windows of
+400 frames that overlap by 30 (`propose.find`, 30 proposals kept a window, as `look --propose --more`), each with
+static masks made from its own frames. A proposal is an object where Find saw it on 40 frames or more, with background
+all round it on 0.3 of them or more (a spot, not an edge or a stroke), and not as one of a row of marks that slide
+together (a scrolling tape). Two proposals are one object where they share 5 frames or more, have one polarity and
+lie under 15 px apart on the frames they share (the median); the one seen longest leads. The objects are then put in
+order of Find's own score, the best an object had in any window, highest first (ties: seen on more frames, then
+earlier), and the first twelve (`--most`) are measured; the rest are listed in the video's `<tag>_batch.json` with why
+not. How deep a unit goes is an option, and part of its make: every stage by default; `--quick` without `layers` and
+`integrity`; `--only track,report` to the link and no further (each object followed, nothing measured); `--most 0` to
+Find alone (the objects listed, none followed). `--keep` keeps more of Find's rows a window than the 30 a person is
+shown, for a planted object low on the list. **These numbers are the sweep's, and are judgement with a record, not thresholds from a null**: they found the bird
+paper's Table 1 on the sweep's 126 videos, and nothing says what they miss. Completeness -- the share of planted objects
+the whole chain finds, per video -- is objective 4 of ROADMAP 0.6 and is not measured here.
+
+What the rule cannot find, by construction:
+
+- *An object in view for fewer than 40 frames.* PR113's transit is four frames and PR43's streak 26: Find proposed
+  both, the rule refused both for that alone, and each video is a row "nothing found". So that a short transit is
+  counted and not silence, every row carries its video's `brief` (proposals seen on fewer than 40 frames),
+  `brief_spots` (those refused for that alone) and `brief_longest`, and `batch.md` has the count a video. A short
+  event needs a person or an agent at `look --propose` (section 3), where every row is shown.
+- *An object Find cannot see*: one held still on a still scene, or one fainter than Find's floor (section 3's limits).
+- *An object in view for 40 to 48 frames across a cut.* With an overlap of 30, an object seen on exactly 40 frames is
+  whole in no window when it begins on 9 of every 370 frames (2.4 %); from 49 frames on it is always whole in one.
+  `--overlap 40` closes the gap and moves every window off the sweep's.
+- *The thirteenth object.* A sea of glitter gives dozens of lasting spots. They are counted and listed (`found`,
+  against `measured`), and `<tag>_refused.png` shows a sample; raising `--most` measures them.
+
+Each object's marks are Find's own seeds (`Proposal.seeds`), from every window the object was seen in, so that no
+stretch between two marks is long; the sweep marked from the first window only and let the link run on. They are
+recorded as an agent's, with the row, the rule and "with nobody looking" as the reason (`batch.HOW`), never as
+proposed-and-accepted: nobody accepted them. The report built on them says on its face that an agent, not a person
+looking at the frames, decided which spot is the object, and that its numbers are provisional.
+
+**A video that is not searched** (`picture`). A sound recording released as a video is one caption card for
+minutes. Before any frame is extracted the picture is read at moments spread evenly over the video (one every 10 s, at
+least 40 and at most 600, each a seek), and each is held against the first: the difference, smoothed with a Gaussian
+of 2 px, at the point where it is largest. Where that never reaches 4.0 grey levels the video is a row that says so
+and nothing more is done. The level and the smoothing are not the batch's: they are the floor and the sigma
+`propose.peaks` holds a residual's peak to before it is a candidate, so a picture under them holds nothing Find could
+propose at those moments (tests/test_batch.py holds the two pairs of numbers together). The first version of this
+test was the frame's mean difference against the level of a repeated frame (0.35 grey levels, `forensics.repeats`),
+and it was wrong: a 5-px disc crossing a still sky moves the mean by 0.2 and was called a still picture, which is the
+case Find's still pass exists for. It is a strict guard, against a picture that truly never changes, and it spares
+little: **of the 144 PURSUE videos none lies under it.** The one sound recording on a single card (NASA-UAP-D3A)
+differs from its first moment by 5.8 grey levels at some point, so it was searched: 11,137 frames, no proposal, 21
+minutes. The next lowest videos change by 34, 47 and 51, and the median video by 214. A level that also spared D3A
+would be the batch's own judgement, and was not set. What the check cannot see is a change shorter than the gap
+between two moments, which the row states.
+
+**Resumable, and never mixed.** The plan (`batch_plan.json`) lists the units; a unit's folder holds its state
+(`batch_state.json`) and, while it runs, a lock whose time a thread keeps fresh. A lock is dead when its time is ten
+minutes old, or when it was made on this computer by a process that no longer runs. Every file a later step reads is
+written under another name and renamed. A unit that is done is not done again. One killed half way goes on from the
+windows already searched and the objects already measured (`several.measured`: a report from the same marks, measured
+to its end); an object half measured is removed and measured again from its marks. A unit's state records its *make*:
+the package's version, the options that reach the measuring (`--window`, `--overlap`, `--most`, the stages left out,
+the audit's draws) and the rules' own numbers. A unit done by another make is left as it is and counted apart: by
+`--status`, in every row (`mcdonald`, `make`), and in `batch.md`'s first lines. `--again` does it again and moves the
+old folder aside.
+
+**What a row of the table is, and is not.** A row is one spot that Find saw on 40 frames or more, followed from Find's
+marks and measured, with nobody looking. Read it so:
+
+- It is not an identified object. It may be a wave, a rock, a symbol the masks missed, the edge of a redaction block
+  that Find's all-round test let through. The counts of labels over the table are counts of reports, not of objects
+  in the sky.
+- Two rows can be one object, and seven can. Followed twice from two of Find's rows, the second says so (`same_as`,
+  section 9's rule). Lost and found again, it is a row each time: two proposals are joined only where they share 5
+  frames. In the pilot PR088's seven rows named a bird are one bird of the bird paper's Table 1 in seven pieces, each
+  on its recorded track to under a pixel.
+- A row can be several objects. Where Find lists a group of points as one spot, the row is the group, measured member
+  by member (section 9), and its label is the group's; `several` and `members` say so. PR135's flock is two such rows
+  over the frames of the paper's six, each "Beats like a bird". The members become objects of their own only where a
+  count is given (`run --each --objects N`), which a batch has none of.
+- "Nothing found" means Find proposed nothing that lasted, by the rule above. It does not mean the video is empty.
+- A label is the report's, by the stage's own rules and the toolkit's defaults: the stage's beat rule, no aperture
+  chosen, no other object kept clear of. The reference case files of the two papers were measured the papers' way
+  (the paper's beat rule, its aperture), so a bird of Table 1 can be a row here with another label: PR088's second
+  bird is found and followed on its recorded track, measures 3.41 Hz where the paper has 3.52, and is not named.
+- Every row is provisional (section 1's gate): `sheet_looked` and the audit's columns say what a person has looked at.
+- `no_power` counts are over objects measured; a video with nothing found adds none.
+
+**The audit's draw** (E8; `leverage`, `audit_draw`, `audit_sheet`, `audit_record`). A track sheet of a 3,000-frame
+track is forty pages, and "I looked" says nothing of how much was looked at. For each measured object the batch draws
+59 frames of its track at random, with replacement, by a generator seeded from the video's file name, the object's
+folder and its track's span (so nobody chose them, and anyone can draw them again). A frame's chance is half its
+leverage on a straight-line fit of position against time, 1/N + (t - mean)^2 / sum: half the weight is even over the
+frames and half grows toward the ends, which move a fitted rate most. `<tag>_audit.png` shows each drawn frame's own
+pixels round the track's position, ringed and numbered, and `<tag>_audit.json` holds the draw and, once
+`mcdonald batch --audit FOLDER --wrong ...` records a look, who looked, which were wrong, and the bound: the exact
+binomial upper limit at 95 % on the share of the track's *weight* that lies on wrong frames (Clopper and Pearson
+1934). With none wrong of 59 it is 1 - 0.05^(1/59) = 4.95 %; 58 draws do not reach 5 %. With even weights the bound
+would be on the share of frames; with these it is on the share of what the rate rests on. A track of 59 frames or
+fewer is shown whole, and its wrong share is then known, not bounded. **The weights are a judgement**: they are right
+where the answer is a rate fitted to the whole track, and no better than even weights where it is a beat, to which
+every frame counts alike. What an audit does not check: that the spot is an object worth a report (the track sheet
+and the strip are for that), or the frames the track does not have. `<tag>_refused.png` is the other half of E8:
+up to five proposals, drawn at random by the same seed, of each kind the rules refused -- seen too briefly, an edge
+or a line, a scrolling tape, past the cap -- each as Find's own strip.
+
+**How it fails, and its traps.**
+
+- A unit's cost is two parts. Find takes 0.11 to 0.22 s a frame on 8 CPUs of the 2025 workstation, 720p and 1080p
+  alike, so a five-minute video is 25 minutes before anything is measured. An object then takes 0.6 to 9 minutes
+  (2.8 on average over the pilot's first 21), by the length of its track, and 71 to 81 % of that is `layers` and
+  `integrity`, which `--quick` leaves out. Half the CPUs take 1.3 to 1.4 times as long for a whole unit, so several
+  units side by side on 4 CPUs each do about 1.5 times the work of half as many on 8.
+- Find's proposals are per window; an object that Find drops for a window and finds again later is two objects unless
+  their tracks overlap by 5 frames.
+- The order is Find's score, which "orders a list for a person" and is "not a probability" (section 3). Past the cap
+  the batch trusts it.
+- A case file larger than a shared file may be (200 MB) leaves out its track sheets' pages, then every picture, and
+  says so in its note and its manifest (`left_out`); it still measures again to its numbers, which need none of them.
+- The table is only as current as the folders: `--table` reads them again (a sheet looked at, an audit recorded).
+- A scheduler's time limit ends a unit like any kill: the next submission takes it up, but nothing resubmits by
+  itself. The size classes' limits and memory (`resources`, `classes`) are fitted to the pilot on one workstation
+  (eleven videos; a unit's processes held 1.7 to 4.1 GB), and will be wrong elsewhere by the ratio of the machines.
+- A scheduler's own count of a job's memory reads up to the job's limit whatever the unit needs, because it counts the
+  frames the system keeps to hand. Size by the unit's `peak_rss_mb`, which counts each process's fair share.
+
 ## 60. One rigid body or several, and do the members keep their places: two calibrated readings in `mcdonald groups` (M7, B23, E21, S14; added 2026-11-13)
 
 `groups` has called a group rigid or shuffling since 0.2 by two numbers set by hand: every pair's separation within

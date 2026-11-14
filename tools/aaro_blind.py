@@ -226,7 +226,7 @@ def _call(cmd, log, out_json=None):
 
 def press(video, folder, segment=None, objects=None, skip=QUICK):
     """The protocol's first run: the window's one press (`auto_qt.AutoRun`) from the command line. Find over the segment;
-    the rows the one press takes (`AutoRun._found`: the N likeliest where a count is given, else row 1 whatever its
+    the rows the one press takes (`propose.one_press_rows`: the N likeliest where a count is given, else row 1 whatever its
     strength and every other row that is not weak), each an object folder by `mark --no-window --set` at the row's own
     seeds, recorded as an agent's with the row and the rule as the reason; then `run --each`. Returns the rows taken."""
     d = Path(folder)
@@ -240,8 +240,8 @@ def press(video, folder, segment=None, objects=None, skip=QUICK):
         props = []
     if not props:
         return []
-    rows = (list(range(min(objects, len(props)))) if objects else
-            [i for i, q in enumerate(props) if i == 0 or q["strength"] != "weak"])
+    from mcdonald import propose
+    rows = propose.one_press_rows(props, objects)             # the window's own rule: one function for both
     for j, i in enumerate(rows, 1):
         q = props[i]
         sets = [x for s in re.findall(r"--set (object@\d+=[-\d.]+,[-\d.]+)", q["to_accept"]) for x in ("--set", s)]
