@@ -15,6 +15,11 @@ exactly as before. Whole runs at 8 CPUs, alternating before and after: PR149 150
 object 2 134 and 129 s to 111 and 99 s. The fourteen reference case files measured again: no difference at one part
 in a billion.
 
+**`tether` finds the overlay's strokes on a graphics card**, where the stage has one: the same mask to the pixel
+(an opening only picks minima and maxima), 2.6 ms a crop on the card against 55 ms on a CPU core. On the 48-core
+workstation the gain is small (PR088 object 2 with the card: 289 and 281 s to 282 and 272 s, every number the same);
+on a computer with fewer cores, where the frames' reading is the wait, it is more.
+
 ## 0.5.5 (2026-11-14)
 
 **A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone
