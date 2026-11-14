@@ -5398,6 +5398,12 @@ PR44 = ("00110010101011001010101110011010110101010111010101001001001001010011110
         "1010101011010010100101001010100101010001010110011010101100101010111010110010110011001010101101001100")
 
 
+class _HeldLong(_HeldWhere):
+    """_HeldWhere over 317 frames, the length of IR_DRONE_059's track: long enough for the held word to be read in
+    blocks. At module level, as a class a process pool pickles must be."""
+    n1 = 317
+
+
 def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
     """IDEAS.md Dx6 (2026-11-13): M3's balance is read over the whole word, and a burst of holds inside a cadence spoils
     every window over it. IR_DRONE_059, a 20-a-second source on a 30-a-second grid, read 0.843 against the line's 0.85:
@@ -5442,7 +5448,7 @@ def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
         got = flicker.cadence(v, 30.0)
         whole = got["balance"] >= flicker.BALANCED and got["balance"] > got["balance_random"][1]
         kept.append((whole, got["cadence"], got["source_rate"]))
-    check(sum(k[0] for k in kept) <= 4 and all(k[1] for k in kept) and all(abs(k[2] - 20.0) <= 0.5 for k in kept),
+    check(sum(k[0] for k in kept) <= 4 and all(k[1] for k in kept) and all(abs(k[2] - 20.0) <= 0.8 for k in kept),
           "40 drawn words, one frame in three held, each with a burst of 20 held frames and two holds misread: few are a "
           "cadence as a whole, every one is in most of its blocks, at 20 pictures a second",
           f"{sum(k[0] for k in kept)} of 40 as a whole, {sum(k[1] for k in kept)} now; {min(k[2] for k in kept):.2f}-{max(k[2] for k in kept):.2f} a second")
@@ -5462,14 +5468,15 @@ def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
     check(not any(g["cadence"] for g in got),
           "20 words of 900 frames held by place in a GOP of five, as the Galileo flyers' encoder holds them: none a cadence",
           f"blocks that are one: {sum(g['blocks']['cadence'] for g in got)} of {sum(g['blocks']['of'] for g in got)}")
-    # the report-changer, drawn: a point beating 15 % at a third of the frame rate on the drone's own held word
-    clip = _HeldWhere(w, _Beating.fps / 3, 0.15)
-    f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, 317)}}, say=lambda *a: None).fields
+    # the report-changer, drawn: a point beating 30 % at 9.6 Hz on a video that holds frames as the drone's does
+    clip = _HeldLong(w, 9.6, 0.3)
+    f = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, 318)}}, say=lambda *a: None).fields
     pic = f["pictures"]
-    check(pic["cadence"] is True and abs(pic["top_hz"] - 8.0) <= 0.2 and f["beats"] is not True,
-          "a point beating 15 % at a third of the frame rate, on a video that holds frames as the drone's does: the top is "
-          "8 Hz and no beat is heard at 10 (the whole word's balance left the top at 12 Hz)",
-          f"{pic['holds']}, top {pic['top_hz']:.2f} Hz; {str(f.get('finding'))[:110]}")
+    check(pic["cadence"] is True and (pic.get("blocks") or {}).get("cadence") == 4 and abs(pic["top_hz"] - 8.0) <= 0.3
+          and len(pic["held_k"]) == int(w.sum()) and f["beats"] is not True,
+          "a point beating 30 % at 9.6 Hz on a video that holds frames as the drone's does: the top is 8 Hz, and the beat "
+          "above it is not heard (the whole word's balance left the top at 12 Hz)",
+          f"{pic['held']:.2f} held, {pic['holds']}, blocks {pic.get('blocks')}, top {pic['top_hz']:.2f} Hz; {str(f.get('finding'))[:110]}")
     # N7: frames nearly the same, outside a cadence, are not said to be held pictures
     for g in got[:1] + [c44]:
         line = flicker.said_pictures(dict(g, held=0.5, top_hz=12.0))

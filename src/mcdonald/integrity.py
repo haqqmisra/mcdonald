@@ -345,6 +345,17 @@ def _overlay_static(o, masks):
 DRAWN_WINDOW = 8          # frames either side over which text held for a stretch is taken from their median
 DRAWN_FRAMES = 60        # at most this many frames are looked at for it
 DRAWN_MIN = 3            # frames a reading of symbology drawn frame by frame needs before it decides anything
+# What is drawn is thin, and what is drawn for a stretch stays (2026-11-13; AARO's PR-016, a row of birds 15 px apart, each
+# ringed dark by the sensor's edge enhancement). The rings of a row join into one net of dark strokes along it -- a rail
+# under the points, a rung between each two -- 85 px long and 26-33 px across, which ran through the bird followed "in on
+# one side and out on the other" and was read as a line the bird was drawn over; and where the row slid along itself, the
+# dark gaps passing a place left it dark in the window's far quarter, which was read as text the bird was drawn over.
+LINE_THIN = 0.5          # a line's width across its own axis, rms, is at most this share of a stroke's width
+                         # (`forensics.stroke_step`: 3 px to 576 rows, 4 to 800, 5 above -- what `ridges` itself takes a
+                         # stroke to be): 2.5 px at 1080 rows. A stroke w px wide reads w / sqrt(12), two pieces joined 2 px
+                         # off each other's line 1 px more (`_collinear`); PR-016's nets read 6.2-8.3 px on its 13 frames.
+TEXT_HELD = 0.75         # text held for a stretch is at its own level on at least this share of the window's frames that
+                         # the object is clear of it; a place the dark gaps of a moving row pass is dark on some of them
 
 
 def _axis(px):
@@ -355,6 +366,13 @@ def _axis(px):
     c = px.mean(0)
     ev, evec = np.linalg.eigh(np.cov((px - c).T))
     return (c, evec[:, 1]) if ev[1] >= 9 * max(ev[0], 0.05) else None
+
+
+def _across(px):
+    """A group's width across its own axis, rms px: the root of the smaller eigenvalue of its pixels' covariance. A
+    straight stroke w px wide reads w / sqrt(12)."""
+    ev = np.linalg.eigvalsh(np.cov((px - px.mean(0)).T))
+    return float(np.sqrt(max(float(ev[0]), 0.0)))
 
 
 def _collinear(groups):
@@ -455,7 +473,8 @@ def _overlay_drawn(o, masks, polarity):
     mid = max(1.0, 0.3 * o.size)                         # the object's middle: what it covers, not the rest of the disc
     beyond = max(3.0, 3.0 * H / 240)                     # how far a line must run on past the object's image
     box = lambda x, y: (max(0, int(x) - R), min(clip.W, int(x) + R + 1), max(0, int(y) - R), min(H, int(y) + R + 1))
-    lines, crossed, text_frames = [], [], []
+    lines, crossed, text_frames, widths, wide = [], [], [], [], []
+    thin = LINE_THIN * vf.stroke_step(H)
     for n in sorted(o.trk):
         x, y = o.trk[n]
         x0, x1, y0, y1 = box(x, y)
@@ -482,8 +501,13 @@ def _overlay_drawn(o, masks, polarity):
             line = _line_through(px, (x, y), r, own_px, beyond) if len(px) >= 9 * H / 240 else None
             if line is None:
                 continue
+            across = _across(px)
+            if across > thin:                            # too wide for a stroke: the rings of a row of points, a texture
+                wide.append((n, across))
+                continue
             found = True
             crossed.append(n)
+            widths.append(across)
             if not opposite:
                 break
             foot, u, half = line
@@ -515,7 +539,11 @@ def _overlay_drawn(o, masks, polarity):
             "on the same side of the picture's level as the object: under a display's blur a thin line over it and "
             "one under it look alike, so that decides nothing" if not opposite else
             f"{len(lines)} of them readable: too few to decide"), {"moving_frames": crossed}))
-    rows, same = [], 0
+    if out and widths:
+        out[-1][2]["moving_width_px"] = float(np.median(widths))
+    if out and wide:                                     # set aside as too wide for a stroke, beside the lines taken
+        out[-1][2].update(wide_frames=[n for n, _ in wide], wide_width_px=float(np.median([w for _, w in wide])))
+    rows, same, passing = [], 0, []
     pick = text_frames if len(text_frames) <= DRAWN_FRAMES else \
         [text_frames[i] for i in np.linspace(0, len(text_frames) - 1, DRAWN_FRAMES).astype(int)]
     for n in pick:
@@ -527,7 +555,8 @@ def _overlay_drawn(o, masks, polarity):
         x0, x1, y0, y1 = box(x, y)
         # the picture without the object: the window's quarter on the far side of the object's level. Its median still
         # holds the faint trail a small moving object leaves, which is a stroke too (a 6-px object at 1.25 px a frame)
-        M = np.percentile(np.stack([clip.grey(m)[y0:y1, x0:x1] for m in win]), 75 if o.dark else 25, axis=0)
+        stack = np.stack([clip.grey(m)[y0:y1, x0:x1] for m in win])
+        M = np.percentile(stack, 75 if o.dark else 25, axis=0)
         g = clip.grey(n)[y0:y1, x0:x1]
         yy, xx = np.mgrid[y0:y1, x0:x1]
         d = np.hypot(xx - x, yy - y)
@@ -540,6 +569,14 @@ def _overlay_drawn(o, masks, polarity):
         obj = float(g[core].min() if o.dark else g[core].max())
         if not opposite or np.median(np.abs(obj - M[near])) < 40:
             same += 1
+            continue
+        # text held for a stretch is there on every frame of the window the object is clear of it: the share of those
+        # frames, over the text's pixels at the object, that are nearer the text's level than the object's
+        away = [i for i, m in enumerate(win) if m in o.trk
+                and np.hypot(o.trk[m][0] - x, o.trk[m][1] - y) >= 1.5 * max(o.size, 4.0)]
+        held = float(np.mean(np.abs(stack[away][:, near] - M[near]) <= 0.5 * np.abs(obj - M[near]))) if away else 0.0
+        if held < TEXT_HELD:                             # dark there on some frames only: something passing, not text
+            passing.append((n, held))
             continue
         # how far each pixel moved toward the object's level, as a share of the way. A text pixel is set beside its
         # mirror through the object's centre, which is not text: the object covers both alike (it is about as wide one
@@ -554,18 +591,21 @@ def _overlay_drawn(o, masks, polarity):
             if np.isfinite(c) and np.isfinite(cov[qy, qx]) and c >= 0.3 and (best is None or c > best[0]):
                 best = (c, cov[qy, qx])
         if best:
-            rows.append((n, float(np.clip(best[1] / best[0], 0.0, 1.5))))
+            rows.append((n, float(np.clip(best[1] / best[0], 0.0, 1.5)), held))
     if len(rows) >= DRAWN_MIN:
         R_ = np.array(rows)
         ratio = float(np.median(R_[:, 1]))
         out.append((PASS if ratio < 0.4 else FLAG if ratio > 0.7 else INC,
                     f"passes symbology drawn for a stretch (text) in {len(R_)} frames; its pixels move {ratio:.2f} as "
                     "far toward the object's level as the object's own do",
-                    {"text_frames": R_[:, 0].astype(int).tolist(), "text_ratio": ratio}))
+                    {"text_frames": R_[:, 0].astype(int).tolist(), "text_ratio": ratio, "text_held": float(np.median(R_[:, 2]))}))
     elif rows or same:
         out.append((NOP, f"passes symbology drawn for a stretch (text) in {len(rows) + same} frames, " + (
             "on the same side of the picture's level as the object, or at its level: that decides nothing" if same else
             "too few to decide"), {"text_frames": [int(q[0]) for q in rows]}))
+    if passing and out and "text_frames" in out[-1][2]:  # set aside as not held through the window, beside the text taken
+        out[-1][2].update(passing_frames=[n for n, _ in passing], passing_held=float(np.median([h for _, h in passing])))
+    _overlay_drawn.seen = dict(widths=widths, wide=wide, held=[q[2] for q in rows], passing=passing)   # for a null's reading
     return out
 
 
