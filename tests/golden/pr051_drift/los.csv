@@ -1,0 +1,39 @@
+# PR051 ("Syrian UAP instant acceleration"), the second leg of the MQ-9's turn, 37.5-73.5 s of the unredacted upload
+# (the data folder's pr051/yt_nKtJslcHlCQ_1080p60_h264.mp4; frame n = round(t * 59.94) + 1; the released copy redacts
+# the data bar). The line of sight: TGT A's grid (MGRS 37S CR/CS to a metre, ELV 1,725 ft) as the
+# boresight's ground point, and the object's offset from the crosshair in degrees (by eye to about 10 px of the upload; the
+# field of view from FVW over SLR: 0.3212 deg in ULTN, 0.0801 in 4X).
+# READ BY AN AGENT, NOT CHECKED BY A PERSON (mcdonald session 19, 2026-11-09/10: the bar's digits by template match on
+# every frame, each number timed to the frame where a digit changes and taken linearly between changes). Checked on
+# 2026-11-13 by a second agent, on seven of the 23 frames (2969, 3059, 3239, 3687, 3777, 3867, 3957): the whole seconds
+# of the position, the height and the hundreds of metres of TGT A's grid agree on all seven, and the ground and slant
+# ranges recomputed from these readings agree with the ranges the bar prints to 1-12 m and 0.005 NM on the four frames
+# where they were read. The tenths of a second and the last two digits of the grid rest on the first agent's timing.
+# Which stretch each reading is from: frames 2249-3507 (37.5-58.5 s) are the ULTN field, where `mcdonald scene` reads
+# the scene streaming behind the held object at the rate the bar's TGT A gives (0.8-0.97 of it): TGT A is the
+# boresight's ground point there. Frames 3597-4407 (60-73.5 s) are the 4X zoom of the same hold, where no reading of
+# the picture has power and the bar alone carries them.
+frame,tgt_lat,tgt_lon,tgt_elev_m,off_right_deg,off_down_deg
+2249,32.4775697,36.9256312,525.8,0.04550,0.01963
+2339,32.4755859,36.9278365,525.8,0.03547,0.01561
+2519,32.4712827,36.9326907,525.8,0.03814,-0.00714
+2609,32.4697834,36.9358528,525.8,0.01840,0.00067
+2699,32.4692434,36.9386737,525.8,-0.01840,0.02677
+2789,32.4675946,36.9415304,525.8,-0.02208,0.01784
+2879,32.4659280,36.9443982,525.8,-0.02007,0.01294
+2969,32.4644389,36.9471022,525.8,-0.01506,0.00335
+3059,32.4632614,36.9501075,525.8,-0.01087,0.00223
+3239,32.4610038,36.9560307,525.8,-0.00870,0.00178
+3329,32.4599895,36.9591066,525.8,-0.00586,0.00000
+3419,32.4592143,36.9619111,525.8,0.00134,-0.00558
+3507,32.4585700,36.9650105,525.8,-0.00167,-0.00401
+3597,32.4579079,36.9681315,525.8,-0.00104,-0.00195
+3687,32.4574448,36.9712905,525.8,-0.00125,-0.00195
+3777,32.4570199,36.9745870,525.8,-0.00146,-0.00167
+3867,32.4567631,36.9776882,525.8,-0.00146,-0.00167
+3957,32.4566221,36.9807016,525.8,-0.00125,-0.00139
+4047,32.4565644,36.9838516,525.8,-0.00125,-0.00139
+4137,32.4566255,36.9871052,525.8,-0.00188,-0.00111
+4227,32.4568780,36.9904929,525.8,-0.00167,-0.00139
+4317,32.4570068,36.9934791,525.8,-0.00209,-0.00167
+4407,32.4573009,36.9966532,525.8,-0.00229,-0.00083

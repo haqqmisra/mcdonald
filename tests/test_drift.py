@@ -18,7 +18,8 @@ Hellfire/Yemen clip: its inputs, read off the display, are in tests/golden/hellf
 the case (every test from the inputs alone, and the command line on the clip when $MCDONALD_DATA holds it, else
 skipped). AARO's Puerto Rico lanterns, a known drifter (tests/golden/puerto_rico_drift/: T1/T2 from the aircraft's own
 track). Santa Barbara's Huey, a helicopter known to have hovered in calm air (tests/golden/santa_barbara_drift/: its
-rotor's held beat fails T3).
+rotor's held beat fails T3). And PR051's second leg (tests/golden/pr051_drift/: a second display for the route from the
+aircraft's own track, from an agent's readings of its data bar that no person has checked; no verdict is drawn).
 
     python3 tests/test_drift.py        # or: pytest tests/
 
@@ -1214,6 +1215,55 @@ def test_santa_barbara_huey_by_the_command_line():
           "T3 fails on the rotor's held beat, T1, T2 and T4 cannot say",
           ", ".join(f"{k} {v}" for k, v in sorted(T.items())))
     check(d["results"]["verdict"] == "not drifting", "verdict: not drifting")
+
+
+P51_GOLDEN = reference_data.GOLDEN / "pr051_drift"
+P51_FPS = 60000 / 1001
+
+
+def test_pr051_second_leg_from_its_readings():
+    """A second display for the route from the aircraft's own track: PR051's unredacted upload, the second leg of the
+    MQ-9's turn (IDEAS.md DR1; 2026-11-13). The readings in tests/golden/pr051_drift/ were read off the data bar by an
+    agent and have not been checked by a person; their headers say what a second agent checked, and which of them lie
+    where the scene's motion is read (the ULTN field) and which where the bar alone carries them (the 4X zoom). Three of
+    this session's rows show on it: the rays fit a hundred times closer than the errors given (DR3), the aircraft flew
+    14.7 deg right of its heading box (DR2), and its one wind was read 1.4 km above the object (DR4)."""
+    print("\nPR051, the second leg: from its readings (an agent's, not checked by a person; no video)")
+    g = P51_GOLDEN
+    platform, los = drift.read_platform(g / "platform.csv"), drift.read_los(g / "los.csv")
+    flk = json.loads((g / "flicker.json").read_text(encoding="utf-8"))
+    found = drift.measure(P51_FPS, platform=platform, los=los, ground_m=525.8, flicker=flk)
+    T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
+    p, w = found.fields["ground_path"], T["T2"].get("aircraft_wind") or {}
+    check(len(platform) == 23 and 9.0 <= p["speed_m_s"] <= 9.8 and 100 <= p["toward_deg"] <= 106 and 4270 <= p["height_m"] <= 4330
+          and 10.9e3 <= p["range_m"][0] and p["range_m"][1] <= 11.8e3 and p["path_gate"] and p["range_bound"] < 0.05,
+          "the path from 23 rays: 9.4 m/s toward 103 deg, 4,298 m above the sea, 11.0-11.7 km from the aircraft",
+          f"{p['speed_m_s']:.2f} m/s toward {p['toward_deg']:.1f}, {p['height_m']:.0f} m, {p['range_m'][0] / 1e3:.2f}-{p['range_m'][1] / 1e3:.2f} km, "
+          f"bound {p['range_bound']:.4f}")
+    check(p["errors_from"] == "the rays' own scatter" and p["chi2_dof"] < 0.01 and 0.014 <= p["sigma_deg"][0] <= 0.023
+          and p["sigma_deg"][1] < 0.006 and p["velocity_err_rays_m_s"] < 2.5,
+          "DR3: the rays fit far closer than the errors given (reduced chi-square 0.0024), and the errors are their own scatter's",
+          f"{p['sigma_deg'][0]:.4f} and {p['sigma_deg'][1]:.4f} deg; velocity +- {p['velocity_err_rays_m_s']:.2f} m/s from the scatter")
+    check(T["T1"]["outcome"] == drift.PASS and abs(T["T1"]["climb_m_s"] - 0.08) <= 0.05 and 0.14 <= T["T1"]["climb_err_m_s"] <= 0.24,
+          "T1: it holds its height, +0.08 +- 0.19 m/s (+- 2.74 until 2026-11-13)", T["T1"]["reading"])
+    check(w.get("heading_offset_seen") and 13.0 <= w["heading_offset_deg"] <= 16.5 and abs(w["speed_m_s"] - 11.2) < 0.6
+          and abs(w["from_deg"] - 265.7) < 4 and abs(w["as_displayed_speed_m_s"] - 21.6) < 0.5 and w["fixed"],
+          "DR2: the aircraft flew 14.7 deg right of its heading box; its own wind is 11.2 m/s from 266 deg, where the box "
+          "alone gives 21.6 from 211", f"{w.get('heading_offset_deg')} deg; {w.get('speed_m_s')} m/s from {w.get('from_deg')}")
+    check(T["T2"]["outcome"] == drift.CANNOT and "no wind was read near its height" in T["T2"]["reading"]
+          and 1380 <= T["T2"]["winds_level_gap_m"] <= 1460 and T["T2"]["wind_change_m_s"] > 12,
+          "DR4: T2 cannot say, the only wind having been read 1.4 km above the object (it failed on that wind before)",
+          T["T2"]["reading"][:110])
+    check(T["T3"]["outcome"] == drift.PASS and found.fields["verdict"] == "cannot say",
+          "T3 passes on the 4 s of the hold it was given; the verdict is cannot say", found.fields["verdict"])
+    # the readings of the ULTN field alone, the stretch where the scene's motion behind the object is read
+    ultn = {f: v for f, v in platform.items() if f <= 3507}
+    part = drift.measure(P51_FPS, platform=ultn, los={f: los[f] for f in ultn}, ground_m=525.8)
+    Tu = {t["test"]: t for t in drift.flat(part.fields["tests"])}
+    pu = part.fields.get("ground_path")
+    check(len(ultn) == 13 and pu is not None and 4200 <= pu["height_m"] <= 4450 and Tu["T2"]["outcome"] == drift.CANNOT,
+          "the 13 readings of the ULTN field alone put it at the same height, and T2 cannot say",
+          f"{pu and round(pu['height_m'])} m; T1 {Tu['T1']['outcome']}: {Tu['T1']['reading'][:70]}; T2: {Tu['T2']['reading'][:100]}")
 
 
 if __name__ == "__main__":

@@ -3952,6 +3952,21 @@ T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap
   of its brightness, over the whole stretch (frames 13250-13530, a disc of 90 px, ring 100-130, background apertures
   320 px away) and in windows apart, the blade-pass of its two-bladed main rotor (its double folds to 8.68 Hz).
   Verdict: not drifting, the right answer, which only a held beat could give.
+- *PR051's second leg, a second display for the route from the aircraft's own track* (IDEAS.md DR1; 2026-11-13;
+  `tests/golden/pr051_drift/`, held in test_drift and test_golden). **Its inputs were read off the data bar of the
+  unredacted upload by an agent and have not been checked by a person**; a second agent checked seven of the 23
+  frames (the whole seconds, the height and the grid's hundreds of metres agree; the ranges recomputed from the
+  readings match the ranges the bar prints to 1-12 m). It is kept as a test of the route's arithmetic on a real
+  display, not as a finding about the object, and no verdict is drawn from it. The route takes the bar's TGT A as the
+  boresight's ground point while the gate holds the object, so the scene must stream behind the object. On the ULTN
+  part of the hold (39-58.5 s; 13 readings) `mcdonald scene` reads that stream at 0.8-0.97 of the rate TGT A's
+  motion gives, on the upload, on a 29.97 copy of it and on the released copy, with a control at 0.88 where the scene
+  is known; on the 4X part (60-73.5 s; 10 readings) no reading of the picture has power, and the bar alone carries
+  them. What the stage says of the 23 rays: 9.4 m/s toward 103° at 4,298 m above the sea, 11.0-11.7 km from the
+  aircraft; their own scatter (0.018° and 0.004°) in place of the errors given; T1 passes (+0.08 +- 0.19 m/s); the
+  aircraft flew 14.7 +- 1.3° right of its heading box, and its wind is 11.2 m/s from 266°; T2 cannot say, since that
+  wind, the only one, was read 1.4 km above the object; T3 passes on the 4 s of the hold it was given. Verdict:
+  cannot say. Three of this stage's rules were found on it (the errors, the heading box, the far wind).
 - *PR055* (a dark sphere seen passing into cloud): `comotion` on the zoomed frames, pairs of 6 frames, finds it moving
   through the cloud field at 1.31 and 3.66 of its diameters a second on its two visible legs (15.0 D in 5.6 s; 15.0-15.7 D
   for every ring from 450 px out), and turning about 110 deg against a steady flow. The cloud places it only within the

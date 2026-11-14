@@ -1,0 +1,38 @@
+# PR051 ("Syrian UAP instant acceleration"), the second leg of the MQ-9's turn, 37.5-73.5 s of the unredacted upload
+# (the data folder's pr051/yt_nKtJslcHlCQ_1080p60_h264.mp4; frame n = round(t * 59.94) + 1; the released copy redacts
+# the data bar). The aircraft's own position (the ACFT block) and its heading box:
+# latitude and longitude in decimal degrees, height above the sea (HAT, its height above TGT A's ground, plus ELV 1,725 ft), the heading box in whole degrees true.
+# READ BY AN AGENT, NOT CHECKED BY A PERSON (mcdonald session 19, 2026-11-09/10: the bar's digits by template match on
+# every frame, each number timed to the frame where a digit changes and taken linearly between changes). Checked on
+# 2026-11-13 by a second agent, on seven of the 23 frames (2969, 3059, 3239, 3687, 3777, 3867, 3957): the whole seconds
+# of the position, the height and the hundreds of metres of TGT A's grid agree on all seven, and the ground and slant
+# ranges recomputed from these readings agree with the ranges the bar prints to 1-12 m and 0.005 NM on the four frames
+# where they were read. The tenths of a second and the last two digits of the grid rest on the first agent's timing.
+# Which stretch each reading is from: frames 2249-3507 (37.5-58.5 s) are the ULTN field, where `mcdonald scene` reads
+# the scene streaming behind the held object at the rate the bar's TGT A gives (0.8-0.97 of it): TGT A is the
+# boresight's ground point there. Frames 3597-4407 (60-73.5 s) are the 4X zoom of the same hold, where no reading of
+# the picture has power and the bar alone carries them.
+frame,lat,lon,alt_m,heading_deg
+2249,32.0880944,36.9194889,5720.8,298.0
+2339,32.0886417,36.9188139,5720.2,296.0
+2519,32.0899278,36.9173611,5719.3,291.0
+2609,32.0905444,36.9166194,5718.7,289.0
+2699,32.0909556,36.9158083,5718.7,286.0
+2789,32.0914611,36.9149611,5718.4,284.0
+2879,32.0919361,36.9141917,5718.4,282.0
+2969,32.0923694,36.9133111,5718.0,279.0
+3059,32.0927389,36.9124611,5718.0,277.0
+3239,32.0933944,36.9106889,5718.4,272.0
+3329,32.0936639,36.9097222,5718.4,270.0
+3419,32.0938972,36.9088361,5718.4,268.0
+3507,32.0941194,36.9079472,5718.7,265.0
+3597,32.0943000,36.9069639,5718.7,263.0
+3687,32.0944250,36.9060667,5719.0,261.0
+3777,32.0945250,36.9050917,5719.0,259.0
+3867,32.0945833,36.9041028,5719.0,257.0
+3957,32.0945833,36.9031250,5719.3,255.0
+4047,32.0945833,36.9022306,5719.6,253.0
+4137,32.0945528,36.9011889,5719.9,252.0
+4227,32.0944694,36.9003222,5720.2,251.0
+4317,32.0943528,36.8992972,5720.8,249.0
+4407,32.0942194,36.8983722,5720.8,246.0

@@ -1,0 +1,1340 @@
+{
+ "command": "flicker",
+ "mcdonald": "0.5.1",
+ "inputs": {
+  "video": "/models/data/mcdonald/pr051/yt_nKtJslcHlCQ_1080p60_h264.mp4",
+  "track": "/hugespace/models/mcdonald/tests/golden/pr051_release_track.csv",
+  "workdir": "/scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/work",
+  "n0": 4201,
+  "n1": 4437,
+  "out": "/scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/out"
+ },
+ "clip": {
+  "video": "/models/data/mcdonald/pr051/yt_nKtJslcHlCQ_1080p60_h264.mp4",
+  "width": 1920,
+  "height": 1080,
+  "fps": 59.94005994005994,
+  "fps_exact": "60000/1001",
+  "fps_note": null,
+  "n0": 4201,
+  "n1": 4437,
+  "duration_s": 176.693183,
+  "encoding": {
+   "codec": "h264",
+   "profile": "High",
+   "pix_fmt": "yuv420p",
+   "reorder_depth": 1,
+   "bit_rate": 80738,
+   "container_bit_rate": 5240064,
+   "container": "mov,mp4,m4a,3gp,3g2,mj2",
+   "gop": {
+    "types": "IBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBB",
+    "frames_read": 150,
+    "i_period": null,
+    "anchor_period": 3.0,
+    "b_frames": true,
+    "lines_hz": [
+     19.98
+    ],
+    "i_hz": null
+   },
+   "levels": {
+    "range": "studio",
+    "tag": "tv",
+    "matrix": "bt709",
+    "transfer": "bt709",
+    "stretched": true
+   }
+  }
+ },
+ "files": [
+  "/scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/out/yt_nktjslchlcq_1080p60_h264_flicker.csv"
+ ],
+ "results": {
+  "frames": 237,
+  "first": 4201,
+  "last": 4437,
+  "codec": {
+   "types": "IBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBBPBB",
+   "frames_read": 600,
+   "i_period": 278.0,
+   "anchor_period": 2.0,
+   "b_frames": true,
+   "lines_hz": [],
+   "i_hz": 0.216
+  },
+  "aperture_px": {
+   "object": 88.8
+  },
+  "tracks": [
+   "object"
+  ],
+  "spans": {
+   "object": [
+    4201,
+    4437
+   ]
+  },
+  "extent_read": {
+   "object": {
+    "frames": 20,
+    "fit": 20,
+    "read": 19,
+    "median": 74.0,
+    "spread": 0.07432432432432433,
+    "used": "frames"
+   }
+  },
+  "extent_px": {
+   "object": 74.0
+  },
+  "ring_px": {
+   "object": [
+    91.8,
+    117.0
+   ]
+  },
+  "background_px": 239,
+  "recentred": [
+   "object"
+  ],
+  "light_reach_px": {
+   "object": 65.58060111038954
+  },
+  "pictures": {
+   "rate": 29.970029970027348,
+   "held": 0.5,
+   "top_hz": 11.988011988010939,
+   "held_k": [
+    1,
+    3,
+    5,
+    7,
+    9,
+    11,
+    13,
+    15,
+    17,
+    19,
+    21,
+    23,
+    25,
+    27,
+    29,
+    31,
+    33,
+    35,
+    37,
+    39,
+    41,
+    43,
+    45,
+    47,
+    49,
+    51,
+    53,
+    55,
+    57,
+    59,
+    61,
+    63,
+    65,
+    67,
+    69,
+    71,
+    73,
+    75,
+    77,
+    79,
+    81,
+    83,
+    85,
+    87,
+    89,
+    91,
+    93,
+    95,
+    97,
+    99,
+    101,
+    103,
+    105,
+    107,
+    109,
+    111,
+    113,
+    115,
+    117,
+    119,
+    121,
+    123,
+    125,
+    127,
+    129,
+    131,
+    133,
+    135,
+    137,
+    139,
+    141,
+    143,
+    145,
+    147,
+    149,
+    151,
+    153,
+    155,
+    157,
+    159,
+    161,
+    163,
+    165,
+    167,
+    169,
+    171,
+    173,
+    175,
+    177,
+    179,
+    181,
+    183,
+    185,
+    187,
+    189,
+    191,
+    193,
+    195,
+    197,
+    199,
+    201,
+    203,
+    205,
+    207,
+    209,
+    211,
+    213,
+    215,
+    217,
+    219,
+    221,
+    223,
+    225,
+    227,
+    229,
+    231,
+    233,
+    235
+   ],
+   "holds": "cadence",
+   "cadence": true,
+   "balance": 1.0,
+   "balance_random": [
+    0.30821967694566815,
+    0.5727568125998986
+   ],
+   "slope": 0.5000000000000437,
+   "strip": 0.5000000000102733,
+   "source_rate": 29.970029970027348,
+   "every": [
+    1,
+    2
+   ],
+   "places": null
+  },
+  "rule": "stage",
+  "curves": {
+   "object": {
+    "hz": 1.9600652512044914,
+    "amplitude": 0.05735266096518096,
+    "stands": 326.752836959035,
+    "half_power_hz": [
+     1.501662894067957,
+     2.2287838743534945
+    ],
+    "resolution_hz": 0.2529116453167086,
+    "rms": 0.070160540191504,
+    "hz_err": 0.2588034343966327,
+    "noise_rms": 0.06718070000349759,
+    "at_the_codec_line_hz": null,
+    "edge": true,
+    "over_drift": 4.422133329059358,
+    "drift_needed": 6.858863231116422,
+    "above_top": false
+   },
+   "background +0,+25": {
+    "hz": 1.9442582733721971,
+    "amplitude": 0.050100489148856446,
+    "stands": 288.52816350008555,
+    "half_power_hz": [
+     1.7861884950492541,
+     2.924290898974443
+    ],
+    "resolution_hz": 0.2529116453167086,
+    "rms": 0.07818108163343267,
+    "hz_err": null,
+    "noise_rms": null,
+    "at_the_codec_line_hz": null,
+    "edge": false
+   },
+   "background +25,+0": {
+    "hz": 2.1339420073597286,
+    "amplitude": 0.04003540878394559,
+    "stands": 355.97214646500134,
+    "half_power_hz": [
+     1.9442582733721971,
+     2.9717118324713256
+    ],
+    "resolution_hz": 0.2529116453167086,
+    "rms": 0.053839467072614174,
+    "hz_err": null,
+    "noise_rms": null,
+    "at_the_codec_line_hz": null,
+    "edge": false
+   },
+   "background +0,-25": {
+    "hz": 3.193009522123446,
+    "amplitude": 0.033335015217476,
+    "stands": 169.40827444614342,
+    "half_power_hz": [
+     3.003325788135914,
+     3.4143072117755655
+    ],
+    "resolution_hz": 0.2529116453167086,
+    "rms": 0.03362475007336671,
+    "hz_err": null,
+    "noise_rms": null,
+    "at_the_codec_line_hz": null,
+    "edge": false
+   },
+   "background -25,+0": {
+    "hz": 2.54492343099938,
+    "amplitude": 0.037005723386496055,
+    "stands": 271.4888813881892,
+    "half_power_hz": [
+     2.0074861847013743,
+     2.7346071649869113
+    ],
+    "resolution_hz": 0.2529116453167086,
+    "rms": 0.05363660584739569,
+    "hz_err": null,
+    "noise_rms": null,
+    "at_the_codec_line_hz": null,
+    "edge": false
+   }
+  },
+  "short": [],
+  "noise_floor": 0.03852056608522082,
+  "windows": {
+   "object": [
+    {
+     "first": 4201,
+     "last": 4320,
+     "hz": 2.622377622377622,
+     "hz_err": 0.4217460920881196,
+     "amplitude": 0.02209708690843612,
+     "stands": 41.46459708606404,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.03911881557633158,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 0.842925024443896,
+     "drift_needed": 6.368082759881423,
+     "edge": false,
+     "fundamental_hz": 2.622377622377622,
+     "fundamental_err": 0.4217460920881196,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4216,
+     "last": 4335,
+     "hz": 2.278971028971029,
+     "hz_err": 0.4072597102522864,
+     "amplitude": 0.02635705826293648,
+     "stands": 48.877136657224874,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.04750310252277422,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 0.9154327850857862,
+     "drift_needed": 6.368082759881418,
+     "edge": true,
+     "fundamental_hz": 2.278971028971029,
+     "fundamental_err": 0.4072597102522864,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4231,
+     "last": 4350,
+     "hz": 1.5297202797202796,
+     "hz_err": 0.3564271644565707,
+     "amplitude": 0.050912235305532655,
+     "stands": 159.67452514646843,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.041640189965553624,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 3.4782907309627817,
+     "drift_needed": 6.36808275988142,
+     "edge": true,
+     "fundamental_hz": 1.5297202797202796,
+     "fundamental_err": 0.3564271644565707,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4246,
+     "last": 4365,
+     "hz": 1.717032967032967,
+     "hz_err": 0.2746010810463474,
+     "amplitude": 0.08434159688472181,
+     "stands": 392.49119951369545,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.043211308556945535,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 5.559883158177024,
+     "drift_needed": 6.368082759881424,
+     "edge": false,
+     "fundamental_hz": 1.717032967032967,
+     "fundamental_err": 0.2746010810463474,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4261,
+     "last": 4380,
+     "hz": 1.6858141858141857,
+     "hz_err": 0.246220213859829,
+     "amplitude": 0.1038305641279609,
+     "stands": 464.2174405353489,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.0436210332932877,
+     "shared": false,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 5.694604200344128,
+     "drift_needed": 6.3680827598814185,
+     "edge": false,
+     "fundamental_hz": 1.6858141858141857,
+     "fundamental_err": 0.246220213859829,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4276,
+     "last": 4395,
+     "hz": 1.5609390609390608,
+     "hz_err": 0.3765701671491957,
+     "amplitude": 0.09810797688475315,
+     "stands": 419.4740187894113,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.04612167107389112,
+     "shared": false,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 5.2578331324135466,
+     "drift_needed": 6.3680827598814185,
+     "edge": false,
+     "fundamental_hz": 1.5609390609390608,
+     "fundamental_err": 0.3765701671491957,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4291,
+     "last": 4410,
+     "hz": 1.9667832167832167,
+     "hz_err": 0.2546227987199387,
+     "amplitude": 0.06889829993605474,
+     "stands": 272.15005829206217,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.06409855351055224,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 3.318012584344968,
+     "drift_needed": 6.368082759881417,
+     "edge": true,
+     "fundamental_hz": 1.9667832167832167,
+     "fundamental_err": 0.2546227987199387,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4306,
+     "last": 4425,
+     "hz": 2.0916583416583414,
+     "hz_err": 0.22861224871897948,
+     "amplitude": 0.05375961595372825,
+     "stands": 129.709269062059,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.055896535995296405,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 2.1100820601445736,
+     "drift_needed": 6.368082759881422,
+     "edge": true,
+     "fundamental_hz": 2.0916583416583414,
+     "fundamental_err": 0.22861224871897948,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    },
+    {
+     "first": 4318,
+     "last": 4437,
+     "hz": 2.278971028971029,
+     "hz_err": 0.30792192680371344,
+     "amplitude": 0.05254501608444999,
+     "stands": 86.08685698309262,
+     "resolution_hz": 0.4995004995004995,
+     "floor": 0.05093791024998626,
+     "shared": true,
+     "at_the_codec_line_hz": null,
+     "codec_by_resolution_hz": null,
+     "over_drift": 1.562694972818372,
+     "drift_needed": 6.368082759881422,
+     "edge": true,
+     "fundamental_hz": 2.278971028971029,
+     "fundamental_err": 0.30792192680371344,
+     "double_hz": null,
+     "above_top": false,
+     "passes": false,
+     "passes_by_resolution": false
+    }
+   ]
+  },
+  "beat": {
+   "object": {
+    "first": 4201,
+    "last": 4437,
+    "hz": 1.9600652512044914,
+    "hz_err": 0.2588034343966327,
+    "double_hz": null,
+    "amplitude": 0.05735266096518096,
+    "stands": 326.752836959035,
+    "resolution_hz": 0.2529116453167086,
+    "source": "the whole track",
+    "hz_range": null,
+    "windows_passing": 0,
+    "windows": 9,
+    "windows_passing_by_resolution": 0,
+    "whole_passes": false,
+    "windows_apart": 0,
+    "comes_back": false,
+    "lookalike": [],
+    "double_lookalike": [],
+    "rotor": {
+     "coherence": 0.4010140497916289,
+     "background": "background +25,+0",
+     "offset_px": 8.889732976484574,
+     "marked": [
+      "off its middle"
+     ]
+    }
+   }
+  },
+  "top_hz": 11.988011988010939,
+  "analytic": {
+   "object": {
+    "sigma": 0.06718070000349759,
+    "frames": 237,
+    "looks": 41.5,
+    "alpha": 0.010000000000000009,
+    "complete": 0.75,
+    "amplitude": 0.03602532369577719,
+    "with_floor": 0.11556169825566247,
+    "seconds_for": {
+     "0.05": 23.9,
+     "0.1": 6.2,
+     "0.2": 1.6
+    }
+   }
+  },
+  "strong": [],
+  "lookalikes": [
+   {
+    "hz": 6.7,
+    "what": "a sky lantern's flame, which puffs at 4.7-8.7 Hz with its own phase",
+    "source": "sky lantern",
+    "band": [
+     [
+      4.7,
+      8.7
+     ]
+    ],
+    "covers": false
+   },
+   {
+    "hz": 6.744,
+    "what": "a rotor's blade-pass doubled, for an odd number of blades",
+    "source": "rotor, odd blades",
+    "band": [
+     [
+      1.5,
+      11.988
+     ]
+    ],
+    "covers": true
+   },
+   {
+    "hz": 6.744,
+    "what": "a turboprop's blade-pass (50-150 Hz)",
+    "source": "propeller",
+    "band": [
+     [
+      1.5,
+      11.988
+     ]
+    ],
+    "covers": true
+   },
+   {
+    "hz": 6.744,
+    "what": "a multirotor drone's blade-pass (150-300 Hz)",
+    "source": "multirotor",
+    "band": [
+     [
+      1.5,
+      11.988
+     ]
+    ],
+    "covers": true
+   },
+   {
+    "hz": 6.744,
+    "what": "a cooled sensor's cryocooler drive (40-80 Hz), whose jitter moves the whole picture",
+    "source": "cryocooler",
+    "band": [
+     [
+      1.5,
+      11.988
+     ]
+    ],
+    "covers": true
+   },
+   {
+    "hz": 9.94,
+    "what": "a 50-Hz mains supply, folded through 59.94 frames a second",
+    "source": "50 Hz"
+   },
+   {
+    "hz": 9.99,
+    "what": "a rhythm locked to every 6th frame (a codec's anchors, a pulldown, a display's refresh)",
+    "source": "fps/6"
+   },
+   {
+    "hz": 10.0,
+    "what": "a bundle of candles' flame, which flickers near 10 Hz",
+    "source": "candle flames",
+    "band": [
+     [
+      9.5,
+      10.5
+     ]
+    ],
+    "covers": false
+   },
+   {
+    "hz": 10.994,
+    "what": "a helicopter rotor's blade-pass (10-30 Hz)",
+    "source": "rotor",
+    "band": [
+     [
+      10.0,
+      11.988
+     ]
+    ],
+    "covers": false
+   }
+  ],
+  "astro": {
+   "object": {
+    "frames": [
+     4201,
+     4437
+    ],
+    "lombscargle": {
+     "hz": 2.1955070246209463,
+     "power": 0.1691117431409943,
+     "fap": 0.0031786898289745125,
+     "kept": 119,
+     "dropped": 118,
+     "resolution_hz": 0.2539833048307624,
+     "window_lines_hz": [],
+     "window_at_peak": 0.0008158915274243619,
+     "at_a_window_line": false
+    },
+    "scramble": {
+     "p": 0.01990049751243781,
+     "stands": 75.72056290574136,
+     "needed": 82.48584596243458,
+     "runs": 200,
+     "chunk_s": 0.25025000000000003,
+     "valid_above_hz": 3.996003996003996
+    },
+    "common_mode": {
+     "components": 2,
+     "r2": 0.4781273574224586,
+     "r2_scene": 0.42080200242608923,
+     "share_of_controls": 0.6346613876929893,
+     "frames": [
+      4201,
+      4437
+     ],
+     "before_hz": 1.9600652512044914,
+     "before_amplitude": 0.05735266096518096,
+     "after_hz": 2.1339420073597286,
+     "after_amplitude": 0.04347078784955809,
+     "after_stands": 243.23566704700974,
+     "mode_hz": 2.623958320160851,
+     "mode_at_the_codec_line_hz": null
+    },
+    "pixel_phase": {
+     "r2": 0.07537815527404312,
+     "after_hz": 1.501662894067957,
+     "after_amplitude": 0.050263418722166324
+    }
+   }
+  },
+  "continuum": {
+   "object": {
+    "hz": 1.9600652512044914,
+    "ratio": 1.3639616789430289,
+    "needed95": 4.233342932493118,
+    "needed99": 5.76484829287114,
+    "p": 0.713,
+    "runs": 2000,
+    "frames": [
+     4201,
+     4437
+    ]
+   }
+  },
+  "seis": {
+   "object": {
+    "frames": [
+     4201,
+     4437
+    ],
+    "line": {
+     "hz": 2.149748985192023,
+     "F": 1.9960175641042437,
+     "p": 0.2165169469566181,
+     "p_band": 0.999959681364609,
+     "amplitude": 0.037026723042100425,
+     "strongest": {
+      "hz": 9.689677411196397,
+      "F": 18.886017188951232,
+      "p": 0.0025755118726137837,
+      "amplitude": 0.006466371393859648
+     },
+     "lines": [
+      {
+       "hz": 9.689677411196397,
+       "F": 18.886017188951232,
+       "p": 0.0025755118726137837,
+       "p_band": 0.10142209349908027,
+       "amplitude": 0.006466371393859648,
+       "at_the_codec_line_hz": null
+      }
+     ],
+     "K": 4,
+     "bandwidth_hz": 1.264558226583543,
+     "resolution_hz": 0.2529116453167086
+    },
+    "comb": null,
+    "line_windows": {
+     "windows": 5,
+     "passing": 0,
+     "share": 0.0,
+     "best_p": 0.022846222481292935,
+     "best_frames": [
+      0,
+      119
+     ],
+     "amplitudes": [],
+     "frames": [
+      4201,
+      4320
+     ],
+     "best_lines": [
+      {
+       "hz": 9.74025974025974,
+       "p": 0.0036043510812957726,
+       "amplitude": 0.00602653671467857
+      }
+     ]
+    },
+    "glide": {
+     "t": [
+      0.5005000000000001,
+      0.6172833333333333,
+      0.7340666666666666,
+      0.85085,
+      0.9676333333333333,
+      1.0844166666666666,
+      1.2012,
+      1.3179833333333333,
+      1.4347666666666667,
+      1.55155,
+      1.6683333333333334,
+      1.7851166666666667,
+      1.9019,
+      2.018683333333333,
+      2.135466666666667,
+      2.25225,
+      2.3690333333333333,
+      2.4858166666666666,
+      2.6026000000000002,
+      2.7193833333333335,
+      2.8361666666666667,
+      2.95295,
+      3.069733333333333,
+      3.186516666666667,
+      3.3033,
+      3.4200833333333334
+     ],
+     "hz": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      2.3726273726273726
+     ],
+     "double_hz": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ],
+     "stands": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+     ],
+     "from_double": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ],
+     "windows": 26,
+     "slope_hz_per_s": null,
+     "range_hz": null,
+     "r2": null,
+     "start_hz": null,
+     "end_hz": null,
+     "together": null,
+     "windows_with_both": 0,
+     "resolution_hz": 0.999000999000999,
+     "frames": [
+      4201,
+      4437
+     ]
+    },
+    "sompi": {
+     "hz": null,
+     "growth_per_s": null,
+     "q": null,
+     "amplitude": null,
+     "over": null,
+     "stability": null,
+     "orders": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+     ],
+     "lines": [],
+     "weak": null,
+     "n": 237
+    },
+    "onebit": {
+     "hz": 1.9758722290367856,
+     "hz_err": null,
+     "stands": 42.86121475916188,
+     "amplitude": 0.5873092650559033,
+     "agrees": true,
+     "at_the_codec_line_hz": null
+    },
+    "coherence": {
+     "background +0,+25": {
+      "gamma2": 0.027107177026211262,
+      "level": 0.7845565309968117,
+      "above": false,
+      "phase_deg": -95.01479668894149,
+      "phase_err_deg": 132.57468033845277,
+      "looks": 4
+     },
+     "background +25,+0": {
+      "gamma2": 0.4010140497916289,
+      "level": 0.7845565309968117,
+      "above": false,
+      "phase_deg": -153.30059476039432,
+      "phase_err_deg": 9.777279943094834,
+      "looks": 4
+     },
+     "background +0,-25": {
+      "gamma2": 0.027970997282756982,
+      "level": 0.7845565309968117,
+      "above": false,
+      "phase_deg": -174.88395725109922,
+      "phase_err_deg": 138.11562711435695,
+      "looks": 4
+     },
+     "background -25,+0": {
+      "gamma2": 0.3175893056605528,
+      "level": 0.7845565309968117,
+      "above": false,
+      "phase_deg": -124.22455152804041,
+      "phase_err_deg": 20.42555377277546,
+      "looks": 4
+     },
+     "scene level": {
+      "gamma2": 0.6364780767787862,
+      "level": 0.7845565309968117,
+      "above": false,
+      "phase_deg": -176.41452050822576,
+      "phase_err_deg": 18.081475071953758,
+      "looks": 4
+     },
+     "scene contrast": {
+      "gamma2": 0.2841585021825561,
+      "level": 0.7845565309968117,
+      "above": false,
+      "phase_deg": 174.97169227009226,
+      "phase_err_deg": 33.02174664779099,
+      "looks": 4
+     }
+    },
+    "noise": {
+     "hz": 1.9600652512044914,
+     "windows": 8,
+     "object_windows": 2,
+     "object_amplitude": 0.05080608241780768,
+     "centile": 100.0,
+     "share_over_99": 0.5,
+     "level50": 0.02656819409722195,
+     "level90": 0.04353186783212359,
+     "level99": 0.04386725926440352
+    }
+   }
+  },
+  "steadiness": {
+   "object": {
+    "pieces": 2,
+    "hz": [
+     2.4933,
+     2.2008
+    ],
+    "bounds": [
+     0.1706,
+     0.1154
+    ],
+    "stat": 1.4200361149407745,
+    "clock_99": 10.196386413714203,
+    "p": 0.6069651741293532,
+    "wanders": false,
+    "wander_share": 0.14920310016578273,
+    "power": true,
+    "why": null,
+    "frames": [
+     4201,
+     4437
+    ]
+   }
+  },
+  "in_step": null,
+  "controls": {
+   "background +0,+25": {
+    "passes": false,
+    "hz": 1.9442582733721971,
+    "amplitude": 0.050100489148856446,
+    "over_drift": 4.943654170343782,
+    "drift_needed": 6.858863231116419,
+    "windows_passing": 0,
+    "windows": 9
+   },
+   "background +25,+0": {
+    "passes": false,
+    "hz": 2.1339420073597286,
+    "amplitude": 0.04003540878394559,
+    "over_drift": 4.128613464439147,
+    "drift_needed": 6.858863231116416,
+    "windows_passing": 0,
+    "windows": 9
+   },
+   "background +0,-25": {
+    "passes": false,
+    "hz": 3.193009522123446,
+    "amplitude": 0.033335015217476,
+    "over_drift": 5.1352543647490965,
+    "drift_needed": 6.547236049201926,
+    "windows_passing": 0,
+    "windows": 9
+   },
+   "background -25,+0": {
+    "passes": false,
+    "hz": 2.54492343099938,
+    "amplitude": 0.037005723386496055,
+    "over_drift": 4.193170642428164,
+    "drift_needed": 6.646093321813434,
+    "windows_passing": 0,
+    "windows": 9
+   }
+  },
+  "false_alarm": {
+   "whole": [
+    0,
+    4
+   ],
+   "windows": [
+    0,
+    36
+   ]
+  },
+  "injection": {
+   "amplitudes": [
+    0.02,
+    0.05,
+    0.1,
+    0.2
+   ],
+   "hz": [
+    2.5,
+    5.329,
+    8.159,
+    10.988
+   ],
+   "recovered": [
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.75,
+     0.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ]
+   ],
+   "trials": 4,
+   "frames": 237,
+   "complete_from": 0.2,
+   "analytic": {
+    "sigma": 0.05373803646000493,
+    "frames": 237,
+    "looks": 41.5,
+    "alpha": 0.010000000000000009,
+    "complete": 0.75,
+    "amplitude": 0.02881676073852111,
+    "with_floor": 0.11556169825566247,
+    "seconds_for": {
+     "0.05": 23.9,
+     "0.1": 6.2,
+     "0.2": 1.6
+    }
+   }
+  },
+  "slice": null,
+  "fold": {
+   "object": {
+    "hz": 1.9600652512044914,
+    "bins": [
+     -0.03940715054669487,
+     0.014009339805063307,
+     0.03734544245167733,
+     0.01095744504440869,
+     0.010806220450479553,
+     0.001004502036127606,
+     -0.009882447532783657,
+     -0.031361549613414474
+    ],
+    "bright_frames": 123,
+    "dim_frames": 114,
+    "amplitude": 0.012967545144486534,
+    "controls_amplitude": -0.0004332041874141393,
+    "in_aperture_share": 1.0,
+    "area_share": 1.0,
+    "concentration": 1.0,
+    "offset_px": 8.889732976484574,
+    "object_peak": 0.24012942119615202,
+    "scene_rms": 4.819254087069877,
+    "at": [
+     223.04174999999992,
+     134.537,
+     26.258375000000054,
+     26.126500000000032
+    ],
+    "phase_inside": 0.4856258546027853,
+    "phase_outside": null,
+    "phase_frames": 237
+   }
+  },
+  "pairs": [],
+  "beats": false,
+  "finding": "no beat reaches 3 times what the background beside it does (3.9% of the object's brightness, the median of their strongest) in 237 frames (4.0 s, resolution 0.25 Hz)",
+  "resolution_hz": 0.2529116453167086,
+  "tau": {
+   "object": {
+    "route": null,
+    "tau_s": null,
+    "tau_err_s": null,
+    "closing": null,
+    "n": 193,
+    "tried": 237,
+    "dropped": 23,
+    "median_px": 73.0,
+    "looming": {
+     "z": 0.3021673296582429,
+     "grew_px": 1.6625093946007894,
+     "dlns_dt": 0.005627387352597587,
+     "dlns_err": 0.018623414248530014
+    },
+    "light": null,
+    "why": "its size held, 73.0 px in radius: no trend in it stands out of its own wander (+1.7 px over the stretch, 0.3 sigma), so no closing is seen in it"
+   }
+  },
+  "blink": {
+   "object": {
+    "curves": {
+     "brightness": {
+      "read": true,
+      "why": "0 flashes, under the 4 a train needs",
+      "flashes": 0,
+      "at": [],
+      "runs": [],
+      "height_sigma": null,
+      "width_s": null,
+      "hz": null,
+      "hz_err": null,
+      "per_minute": null,
+      "z2": null,
+      "p": null,
+      "train": false,
+      "rule": null,
+      "first": 4201,
+      "last": 4437
+     },
+     "white": {
+      "read": true,
+      "why": "0 flashes, under the 4 a train needs",
+      "flashes": 0,
+      "at": [],
+      "runs": [],
+      "height_sigma": null,
+      "width_s": null,
+      "hz": null,
+      "hz_err": null,
+      "per_minute": null,
+      "z2": null,
+      "p": null,
+      "train": false,
+      "rule": null,
+      "first": 4201,
+      "last": 4437
+     },
+     "red": {
+      "read": true,
+      "why": "0 flashes, under the 4 a train needs",
+      "flashes": 0,
+      "at": [],
+      "runs": [],
+      "height_sigma": null,
+      "width_s": null,
+      "hz": null,
+      "hz_err": null,
+      "per_minute": null,
+      "z2": null,
+      "p": null,
+      "train": false,
+      "rule": null,
+      "first": 4201,
+      "last": 4437
+     }
+    },
+    "best": null,
+    "train": false,
+    "hz": null,
+    "controls": [],
+    "controls_read": null,
+    "controls_n": 8,
+    "shared": false,
+    "beat_kept": null,
+    "marked": false,
+    "black_hot": false
+   }
+  },
+  "said": [
+   "yt_nKtJslcHlCQ_1080p60_h264.mp4: 1920x1080, 59.940 fps, frames 4201-4437",
+   "  aperture follows the object: object 74.0 px across in radius -> aperture 88.8 px, ring 92-117 px, re-centred each frame",
+   "  the video holds pictures in a cadence (50% of frames repeat the one before, 1 of every 2), so it carries 30.0 pictures a second, and a beat is heard only up to 12.0 Hz",
+   "wrote /scratch/mcdonald/next-2026-11-09/drift/pr051/flicker/out/yt_nktjslchlcq_1080p60_h264_flicker.csv",
+   "the codec: an I frame every 278, an anchor every 2; no rhythm of its anchors under Nyquist",
+   "frames 4201-4437: 237, resolution 0.25 Hz",
+   "  object: 1.96 \u00b1 0.26 Hz, 5.7% of its brightness, 327 times the band's median, 4.4 times what its drift makes there (6.9 needed; empty apertures in real frames pass that line 9 % of the time under 4.5 Hz)",
+   "  background +0,+25: 1.94 Hz, 5.0% of the object brightness, 289 times the band's median",
+   "  background +25,+0: 2.13 Hz, 4.0% of the object brightness, 356 times the band's median",
+   "  background +0,-25: 3.19 Hz, 3.3% of the object brightness, 169 times the band's median",
+   "  background -25,+0: 2.54 Hz, 3.7% of the object brightness, 271 times the band's median",
+   "  look-alikes at this frame rate: 9.94 Hz (50 Hz), 9.99 Hz (fps/6)",
+   "  look-alike bands at this frame rate: 4.70-8.70 Hz (sky lantern); 1.50-11.99 Hz (rotor, odd blades, the whole band: marks nothing); 1.50-11.99 Hz (propeller, the whole band: marks nothing); 1.50-11.99 Hz (multirotor, the whole band: marks nothing); 1.50-11.99 Hz (cryocooler, the whole band: marks nothing); 9.50-10.50 Hz (candle flames); 10.00-11.99 Hz (rotor)",
+   "  object: steadiness over frames 4201-4437, in 2 pieces at 2.493, 2.201 Hz: 1.42 apart in their bounds against 10.20 for 99 in 100 steady clocks, p 0.607 -- no more than a clock's",
+   "  object, in windows of 2 s along the track: 0 of 9 beat; no beat of its own, the strongest: 1.96 \u00b1 0.26 Hz, 5.7%, 327x, frames 4201-4437 (the whole track)",
+   "  object, in closed form: a beat needs 3.6% of its brightness to be heard 75% of the time over its 237 frames of noise (6.7% a frame), 11.6% with the background's own flicker; one of 10 % needs 6.2 s",
+   "  object, the paper's continuum null over frames 4201-4437: its strongest, 1.96 Hz, stands 1.4 times over the power law of its own spectrum; 0.713 of 2000 noise curves of that continuum stand as high anywhere in the band (5.8 would be 1 in 100)",
+   "  object, flashes (item 13): brightness 0 flashes; brightest pixels 0 flashes; reddest pixels (a red light) 0 flashes -- no train",
+   "  object, over frames 4201-4437, Lomb-Scargle on 119 frames (118 held or lost, left out): 2.20 Hz, power 0.17, false-alarm probability 3.2e-03",
+   "  object, scrambled in 0.25-s chunks: 0.020 of 200 copies stand as high (76x the band; 82x would be 1 in 100), said above 4.0 Hz",
+   "  object, the scene's level and contrast and the background's common mode (2 components) account for 48% of its curve (the scene alone 42%); without them 2.13 Hz, 4.3% (before 5.7%); the mode itself peaks at 2.62 Hz",
+   "  object, the pixel phase accounts for 8% of its curve; without it 1.50 Hz, 5.0%",
+   "  the background apertures through the object's own tests: 0 of 4 beat over the whole track, 0 of 36 of their windows",
+   "  beats planted in the background apertures (4 apertures, 237 frames, at 2.5, 5.3, 8.2, 11.0 Hz), recovered: 2% of the brightness in 0% of trials; 5% of the brightness in 0% of trials; 10% of the brightness in 19% of trials; 20% of the brightness in 100% of trials -- complete from 20%; in closed form, from their noise, 11.6%",
+   "  object, folded on 1.96 Hz: bright half over dim 1.3% (the background beside it -0.0%); the difference picture holds 100% of its change within the aperture, 1.0x the aperture's share of it, peaking 8.9 px off the object; the rest of the frame changes 4.82 levels rms",
+   "  object, over frames 4201-4437, the multitaper F-test (4 tapers, bandwidth 1.26 Hz) at its beat: a line at 2.15 Hz, 3.7%, F 2.0, chance 2.2e-01 (1.0e+00 anywhere in the band) -- no stationary line over the whole stretch (a wingbeat's rate wanders); in windows of 2 s along it 0 of 5 have one (the best chance 2.3e-02, frames 4201-4320); stationary lines in the band at 9.69 Hz",
+   "  object, by Sompi: no line holds still across the model's orders",
+   "  object, one bit (every sample its sign alone): 1.98 Hz, 43x the band -- the beat",
+   "  object, against the background's own windows (8 of 2 s): its windows' amplitude at the beat, 5.1%, sits at their 100th centile (their 99th is 4.4%); 50% of its windows are over it",
+   "  object, coherence at the beat with the background beside it and the frame's level and contrast: 0.03, 0.40, 0.03, 0.32, 0.64, 0.28 (chance clears 0.78 with 4 looks); none coherent",
+   "no beat reaches 3 times what the background beside it does (3.9% of the object's brightness, the median of their strongest) in 237 frames (4.0 s, resolution 0.25 Hz)"
+  ]
+ },
+ "no_power": [],
+ "needs": [],
+ "notes": [
+  "A beat that is the object's own says it varies; it does not say it is a wingbeat. A tumbling or rotating body beats too, and so does a light that blinks.",
+  "The object is wider than the point-sized aperture, so the aperture follows it: object falls to 10% of its height 74.0 px out, so its aperture is 88.8 px, its ring 92-117 px, re-centred each frame on its own centroid; the background apertures are 239 px from it."
+ ],
+ "exit": 0,
+ "error": null
+}

@@ -349,6 +349,8 @@ mcdonald drift CLIP.mp4 --comotion comotion.json --tracer-depth layer --flicker 
 # line of sight's ground point but ranges nothing: the rays from a turning aircraft fix the object's path
 mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5.json --obs-winds obs.csv --ground-m 72 \
   --when 2013-04-27T01:22:47 --flicker f.json
+# its errors carry a constant error of the display's own azimuths: --az-ref-err DEG says how well the display's true
+# north is known (by default the azimuth error of --los-sigma, 0.3; inf leaves it to the lines of sight themselves)
 ```
 
 `stabilize`, `aspect`, `waves`, `slew`, `zoom`, `streak`, `readout`, `events`, `versions` and `drift` are not

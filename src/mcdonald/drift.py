@@ -1234,7 +1234,13 @@ def test_wind_track(path, winds, readings=None):
     even the smallest is FLIER_MIN or more beyond it; cannot say when the rays fix no path (`unfixed`: too few
     readings, a straight-flying aircraft, a range the bound leaves open), when they do not fix the velocity (two
     errors over VELOCITY_FIX) or between. So with a model's winds a body flying a few metres a second through the air
-    is not told from a drifter: the model's error is that large. `readings` as in test_vertical_track."""
+    is not told from a drifter: the model's error is that large. Since 2026-11-13 (IDEAS.md DR2, DR4) the tolerance
+    takes the largest of the counted winds' own errors, a model's MODEL_WIND_ERR or two errors of the aircraft's own
+    wind (`err_m_s`), and the wind's own change with height (`wind_change`) over the smallest distance in height
+    between the object and a level a counted wind was read at (`level_gap_m`; none where a wind was interpolated to
+    its height). Where that change is over VELOCITY_FIX no wind was read near enough to tell a drifter from a slow
+    flier: it cannot pass, says so, and still fails a body FLIER_MIN beyond the whole tolerance. `readings` as in
+    test_vertical_track."""
     out = dict(test="T2", question="does its motion over the ground fit the winds at its height?", source="lines of sight")
     if path is None:
         return dict(out, outcome=CANNOT, reading=too_few(readings) if readings is not None and readings < READINGS_MIN
