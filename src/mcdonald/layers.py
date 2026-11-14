@@ -975,7 +975,9 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
                               f"not a measurement (a pattern on the sensor can hold it at zero)"))
     if not any(fields["px_per_s"].values()):
         npw.append(("layers", "no one-second window had enough frame pairs with a consensus background motion: "
-                              "the scene is held still, has too little texture, or the window is under a second"))
+                              + ("in many pairs the scene moved but its templates did not agree on a shift (scene moved, not read)"
+                                 if hs.get("not_read_share", 0) >= 0.2 else
+                                 "the scene is held still, has too little texture, or the window is under a second")))
     if out:
         figure(Path(f"{out}_layers.png"), clip, names, w, par, {a: l["groups"] for a, l in lay.items()}, say=say)
         files.append(f"{out}_layers.png")

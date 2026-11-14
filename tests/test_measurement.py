@@ -631,7 +631,8 @@ def test_a_pair_whose_templates_do_not_agree_is_not_held_still():
               "held still even over a second, beside pairs that read 100 px (the bug, drawn)",
               f"still over a second in {a['still_again_share']:.0%} of pairs; {(np.abs(da) < 20).sum()} pairs at under 20 px, {(da > 80).sum()} over 80")
         check(b["still_again_share"] <= 0.05 and b.get("not_read_share", 0) >= 0.15 and len(db) >= 10 and np.abs(db - 100.0).max() <= 15.0
-              and "scene moved, not read" in now.result and not any("held still" in why for _, why in now.no_power),
+              and "scene moved, not read" in now.result and not any("held still" in why for _, why in now.no_power)
+              and all("not read" in why for _, why in now.no_power if why.startswith("no one-second window")),
               "with it: those pairs are not read and not held, every pair read is within 15 px of the sea's 100 (none at zero), and the stage says so",
               f"not read {b.get('not_read_share', 0):.0%}, still {b['still_again_share']:.0%}; {len(db)} pairs read, at {db.min():.1f} to {db.max():.1f} px; "
               + now.result.get("scene moved, not read", "")[:60])
