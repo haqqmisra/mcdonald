@@ -4248,16 +4248,20 @@ where the whole word is not one, at the worst cell:
 
 | frames | random | in runs | by GOP place | flyers' tables | by the whole word (the rule before) |
 |---|---|---|---|---|---|
-| 180 | 0 | 0.15 % | 0 | not drawn | 0.09 % |
+| 180 | 0 | 0.10 % | 0.05 % | 0 | 0 |
 | 240 | 0 | 0 | 0 | 0 | 0 |
 | 300 | 0 | 0.05 % | 0.05 % | 0 | 0 |
 | 450 and up | 0 | 0 | 0 | 0 | 0 |
 
-Seven words of 3.97 million, in four cells of 2,078: three of 2,000 at 180 frames held in runs of mean three at a
-share of 0.75, two of 2,000 at 180 frames in runs of mean two at 0.65 (M3's own worst cell), one of 2,000 twice at 300
-frames. A single block is a cadence in at most 2.3 % of them (runs of mean two; 1.9 % by GOP place, 0.1 % at random):
-under the line's 5 %, and the word needs more than half its blocks. So the block reading adds at most 0.15 % to the
-false alarms at 180 frames and nothing found from 450, where the rate the line was set to is 5 %.
+Seven words of 4.24 million, in six cells of 2,216. At 180 frames: two of 2,000 held in runs of mean two at a share of
+0.65 (M3's own worst cell), and one of 2,000 in each of three cells (runs of mean three at 0.75; a GOP of 5, flat, and
+a GOP of 12, a pyramid, at 0.70). At 300 frames: one of 2,000, twice. (A first draw of the 180-frame cells, cut short by
+a shutdown, had three of 2,000 in the runs-of-three cell, 0.15 %, and one word in 2,000 past the whole word's line.)
+A single block is a cadence in at most 2.3 % of them (runs of mean two; 1.9 % by GOP place, 0.1 % at random): under
+the line's 5 %, and the word needs more than half its blocks. So the block reading adds at most 0.15 % to the false
+alarms at 180 frames and nothing found from 450, where the rate the line was set to is 5 %.
+
+POWERTABLE
 
 *On the saved words* (the 432 labelled tracks, the 27 controls, the 31 reference objects: 170 with a tenth of their
 frames held). Four change, one track twice: IR_DRONE_059 (4 of its 5 blocks; the control `sv_drone_059` is the same
