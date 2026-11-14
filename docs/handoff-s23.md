@@ -7,39 +7,45 @@ and/or merlin, and cannon is also available."
 
 This file is the session's record in the repository; `docs/handoff-v04.md` stays the usual handoff (the GPU session
 writes it). The working record, with every agent's id, brief and notes, is `/scratch/mcdonald/s23-2026-11-13/`
-(`COORDINATOR.md` first). **Interim state, brought current at 15:00 on 2026-11-14: eight strands merged, one (hang)
-finishing; the 144-video catalog run about two thirds done.** The session ran on Fable until the usage limit stopped
-every agent twice (16:19 and ~23:45 on 11-13), and on Opus 5.5 from 07:26 on 11-14 at Jacob's word; each agent
-resumed from its own transcript. arthur was shut down three times for its fans (11-13 20:35, 11-14 ~13:00) and the
-queue paused twice (11-13 16:02-16:14 and 21:57-23:12).
+(`COORDINATOR.md` first). **State at 17:30 on 2026-11-14: all nine strands merged and tested on `s23`; the
+144-video catalog run nearly done.** The session ran on Fable until the usage limit stopped every agent twice (16:19
+and ~23:45 on 11-13), and on Opus 5.5 from 07:26 on 11-14 at Jacob's word; each agent resumed from its own
+transcript. arthur was shut down for its fans (11-13 20:35, 11-14 ~13:00) and the queue paused twice.
 
 ## Where it stands (read this first)
 
-`s23` (worktree `/hugespace/models/mcdonald-s23`) is **0.5.4 as released plus the GPU session's later rounds on
-`main`** (ce4a121, f0da3a2, 4395ed8; merged as 194f9cf and ace76de) **plus eight strands and one fix** below. Every
-suite and every golden passes on it (Cannon run 20261114-110919-s23-fcac2f5: test_golden 249 PASS, 0 FAIL, 0 SKIP;
-arthur run 20261114-135752-s23-ace76de on the latest tree: test_gui 791, test_measurement 672, test_reduction 721),
+`s23` (worktree `/hugespace/models/mcdonald-s23`, 15c4587) is **`main` as it stands (0.5.5 and the GPU session's
+rounds through 6263ce0) plus the nine strands and one fix** below. Nothing of it is on `main`, nothing versioned or
+pushed. **Every suite and every golden passes on it, on CPUs and with the card** (arthur runs 20261114-170237 and
+-170248-s23-15c4587: test_golden 266 PASS, 0 FAIL, 0 SKIP; test_gpu 153 on the card; test_gui 791 + 1 skip earlier),
 **except ten checks of test_controls**, which compare against the data folder's table of record: the small strand
-remade the record in the code, and the table is swapped only when `s23` goes into `main` (it is shared with `main`
-and the other sessions). Against the new table test_controls passes whole, 118 of 118 (job 2278). Each strand is a
-branch `s23-<name>` in `/hugespace/models/mcdonald-s23-<name>`; **do not delete those worktrees or the scratch folder
-until `s23` is on `main`.**
+remade the record in the code; the table is swapped with the merge into `main` (it is shared with `main` and the other
+sessions; the strand's `holds/rejudge/SWAP.md` has the three commands). Against the new table test_controls passes
+whole, 118 of 118 (job 2278).
 
-| strand | ROADMAP | state at 15:00 on 11-14 | merged as |
-|---|---|---|---|
-| drift | 0.5.x: `drift`'s report-changers DR2-DR5; PR051 as a known answer (DR1, in part) | merged | 9aea557 |
-| groups | 0.5.x: M7 with B23, S14, E21 | merged | f25311f |
-| kin | 0.4.x: Av11, Av10, A16 (set aside), D8 | merged | 7037f60 |
-| plant | 0.6 objective 4: planted objects (design, CPU path, pilot) | merged | 1c933da |
-| scene | 0.5.x: GL4 and GL5 (PR058); K10 not merged | merged; **a report-changer: words on 17 reference objects** | 5fc8cbf |
-| batch | 0.6 objectives 1 and 2: `mcdonald batch` | merged; **the 144-video run: 88 done at 14:00**, its table and page to come | 742108e |
-| beat | 0.3's leftovers: K2, T2, E11, the band search, as readings | merged; no call moves | fb5ef54 |
-| small | W8, shake fields, `_overlay_drawn`, the cadence rule, E15, test_cli; the controls' record remade | merged; the data folder's table to swap at `main` | fcac2f5 |
-| (fix) | `integrity` near the picture's edge (found by the catalog run) | committed on s23 | 5c19921 |
-| hang | 0.5.x, H5: "does something hang under it?" | finishing (its golden run queued) | -- |
+**The fourteen reference case files measured again on the full tree** (gate `final1` against `gate/ref-4847926`, main
+4847926's CPU reference; `coord/gate_diff_final1.txt`): **0 conclusions differ**; 22 bottom lines grow, every old
+sentence kept; the numbers that move are exactly the scene strand's (PR41's pointer read on 259 frames instead of 134,
+-0.413 to -0.409 deg/s; PR113's held share 48 to 46 %; PR088 object 2's 0.9924 to 0.9897); words change by the scene
+strand (the background) and the hang strand (tether's sentences on 30 objects); the rest are additions (kin, beat,
+small, hang). After main's later rounds (`final2`, c649965): 0 differences from `final1` at one part in a billion.
+
+| strand | ROADMAP | merged as |
+|---|---|---|
+| drift | 0.5.x: `drift`'s report-changers DR2-DR5; PR051 as a known answer (DR1, in part) | 9aea557 |
+| groups | 0.5.x: M7 with B23, S14, E21 | f25311f |
+| kin | 0.4.x: Av11, Av10, A16 (set aside), D8 | 7037f60 |
+| plant | 0.6 objective 4: planted objects (design, CPU path, pilot) | 1c933da |
+| scene | 0.5.x: GL4 and GL5 (PR058); K10 not merged -- **a report-changer** | 5fc8cbf |
+| batch | 0.6 objectives 1 and 2: `mcdonald batch` (the catalog's table and page to come) | 742108e |
+| (fix) | `integrity` near the picture's edge (found by the catalog run) | 5c19921 |
+| beat | 0.3's leftovers: K2, T2, E11, the band search, as readings | fb5ef54 |
+| small | W8, shake fields, `_overlay_drawn`, the cadence rule, E15, test_cli; the controls' record remade | fcac2f5 |
+| hang | 0.5.x, H5: "does something hang under it?" -- **a report-changer** (tether's words) | 51f4006 |
 
 Method sections: 54 batch, 55 hang, 56 scene (used 1, 41 and its own), 57 drift (used 34), 58 small (used the stages'
-own), 59 beat, 60 groups, 61 kin, 62 plant.
+own), 59 beat, 60 groups, 61 kin, 62 plant. **Do not delete the `mcdonald-s23-*` worktrees or the scratch folder until
+`s23` is on `main`.**
 
 ## What is merged on `s23`
 
@@ -123,6 +129,14 @@ the controls' record remade in the code (RECORD; the data folder's table at the 
 on the CPU in about half the time with 4395ed8). The scene strand's `lost_pairs` and main's `_by_pair` both rewrote
 one line of `layers.measure`; the merge keeps both.
 
+**hang** (merge 51f4006). `tether` answers "does something hang under the object?" on every object: hangs, beside
+it, nothing tied, cannot say. "Hangs" is a line within 18 degrees of the picture's vertical (a random line lies that
+close one time in five; the smallest round value that keeps AARO's known balloon PR-004). Null: 0 of 160 null tracks,
+2 of 68 objects with nothing known under them (PR097 objects 7 and 8, a neighbour flying under the bird: the false
+alarm of record), 9 of 9 known answers. PR105, PR28's stem and PR071 hang; PR29 nothing tied. Run once on 434 tracks
+it had not seen: 2 hang (a ground band keeping pace). The scene's roll is now read from the shifts across the scene's
+motion (a similarity fit gave PR105's clouds a 34-degree roll). Nothing in the headline.
+
 ## Found on the way
 
 - **`tests/test_controls.py` is in no suite list and fails on `main`.** At 0.5.3 (a72784c): 117 PASS, 1 FAIL (0.5.2's
@@ -145,8 +159,8 @@ one line of `layers.measure`; the merge keeps both.
 
 ## For Jacob to decide (collected as the strands report; each strand's notes have the full lists)
 
-1. **`s23` into `main`**, when hang is merged and the merged tree has passed the suites, the goldens and the
-   fourteen-case rerun; with it the swap of the controls' table (small's SWAP.md). Eight strands are in.
+1. **`s23` into `main`**: every strand is merged and the tree has passed the suites, the goldens and the
+   fourteen-case rerun; with it the swap of the controls' table (small's SWAP.md). Asked at 17:30 on 11-14.
 2. **plant, forks F1-F10** (`plant/notes.md`; F9: completeness against the contrast after the encoder; F10: the
    planted rate beside the labelled table) and **the full run** (500 points a video on 144 videos, about 320 CPU-hours,
    a night on arthur, as batch units once batch is merged): what is planted, how it moves, what stands for the clip's own
