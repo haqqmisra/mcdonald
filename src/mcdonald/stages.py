@@ -1649,6 +1649,13 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 f.fields["finding"] = f.result["finding"] = (
                     f"the {c['sign']} feature {c['r_px']:.0f} px ({c['r_over_size']:.1f} object sizes) away that moves with the "
                     f"object is {who} of the group it is in, not something tied to it")
+                h = f.fields.get("hang")                    # "does it hang?" (H5): a member followed in its own right is a
+                if h and h.get("of") == "companion":        # neighbour, whatever its line; the line's numbers stay in the record
+                    h.update(outcome=tether.BESIDE_IT, of="fellow member", why=None, cannot=None,
+                             said=f"does something hang under it? beside it: what moves with the object is {who} of the group it is in")
+                    f.fields["hangs"] = f.result["hangs"] = h["outcome"]
+                if h:
+                    f.fields["finding"] = f.result["finding"] = f.fields["finding"] + "; " + h["said"]
             say(f"  {f.fields.get('finding', '')}")
             f.into(case, command=f"mcdonald tether {shlex.quote(video_arg)}" + _flags(track=track, size=tsize) + window
                    + _flags(mask_rows=mask_rows))

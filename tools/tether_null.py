@@ -10,6 +10,14 @@ companions (WA9ONY-5's payload, PR071's string, PR105's lower point, AARO's PR-0
     python3 tools/tether_null.py collect TASKS.json INDEX --out DIR [--frames DIR]   # one video's tracks, frames read
     python3 tools/tether_null.py table DIR                                           # every followed candidate a row
     python3 tools/tether_null.py gate DIR [--scan] [--control 0.6 --followed 0.3 --steady 1.5 --scene 0.5]
+    python3 tools/tether_null.py stage TASKS.json INDEX --out DIR [--frames DIR]     # the stage itself, on the three tracks
+    python3 tools/tether_null.py hang DIR [--scan] [--vertical 18]                   # "does it hang?" counted from that
+
+The last two hold the stage's first outcome, "does something hang under the object?" (docs/method.md, section 55; set
+2026-11-13): `stage` runs `tether.measure` itself on each recorded track and on its two null tracks, and keeps its record
+and the companion's places; `hang` counts the four outcomes on the null tracks, on the real tracks of objects with
+nothing known under them, and on the known answers, and with --scan again under each number changed in turn (the
+outcome is a function of the record, `tether.hang_of`, so no frame is read again).
 
 TASKS.json is [[name, {"set": .., "video": path, "objs": [{"name": .., "track": path, "n0": .., "n1": .., "size": ..,
 "r_max": .., "mask_rows": ..}]}]]; paths are absolute or relative to the reference-data folder (`$MCDONALD_DATA`). The
@@ -224,24 +232,183 @@ def gate(a):
     print(f"\nfeatures on null tracks that are the real object or its own companion, not counted: {owned}")
 
 
+# ---- "does it hang?" (H5): the stage itself on the three tracks, and its outcomes counted -------------------------------
+# what is known to hang, and must: (set, video, object) -> which line. The candidates are named, and counted with neither
+HANGING = {("kit", "wa9ony5", "balloon"): "companion"}
+HANGING.update({("aaro", "dod_111300649", f"object-{i}"): "companion" for i in range(1, 9)})
+CANDIDATES = {("kit", "pr105", "upper_1075_2155"): "PR105", ("kit", "pr28", "head"): "PR28", ("kit", "pr29", "head"): "PR29",
+              ("kit", "pr071", "object"): "PR071"}
+
+
+def plain(o):
+    if isinstance(o, dict):
+        return {str(k): plain(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [plain(v) for v in o]
+    if isinstance(o, (np.floating, np.integer, np.bool_)):
+        return o.item()
+    return o.tolist() if isinstance(o, np.ndarray) else o
+
+
+def stage(a):
+    """`tether.measure` on each track of one video and on its two null tracks (the same ring, about a place the object
+    is not at): its record as <kind>.json, the companion's places beside it, the stage's figure for the real track."""
+    tasks = json.load(open(a.tasks))
+    name, t = tasks[a.index]
+    procs = int(os.environ.get("SLURM_CPUS_PER_TASK", "2"))
+    for o in t["objs"]:
+        out = os.path.join(a.out, t["set"], name, o["name"])
+        os.makedirs(out, exist_ok=True)
+        if os.path.exists(f"{out}/done"):
+            print(name, o["name"], "already done", flush=True)
+            continue
+        track = vf.read_track(data(o["track"]))
+        n0, n1 = o.get("n0") or min(track), o.get("n1") or max(track)
+        clip = vf.Clip(data(t["video"]), os.path.join(a.frames or os.path.join(a.out, "frames"), name), n0, n1)
+        ns = sorted(n for n in track if clip.n0 <= n <= clip.n1)
+        track = {n: track[n] for n in ns}
+        masks, rows = vf.static_masks(clip), vf.parse_rows(o.get("mask_rows"))
+        size, r_min = o.get("size"), tether.R_MIN
+        for kind in KINDS:
+            if kind != "real" and len(ns) < 30:              # the null asks 30 frames (PR113's track of 4, PR43's of 24)
+                continue
+            t0 = time.time()
+            f = tether.measure(clip, null_track(track, ns, kind), masks, rows, size=size, r_min=r_min, r_max=o.get("r_max", tether.R_MAX),
+                               out=f"{out}/{kind}" if kind == "real" else None, say=lambda line: None, procs=procs)
+            if kind == "real" and "r_min" in f.fields:       # the nulls search the same ring
+                size, r_min = f.fields["object_size_px"], f.fields["r_min"]
+            json.dump(plain(dict(fields=f.fields, no_power=f.no_power, fps=clip.fps)), open(f"{out}/{kind}.json", "w"), indent=1)
+            got = f.carry or {}
+            np.savez_compressed(f"{out}/{kind}_places.npz", track=np.array([[n, *track[n]] for n in ns]),
+                                companion=np.array([[n, *got[n][:2]] for n in sorted(got)]) if got else np.zeros((0, 3)))
+            print(name, o["name"], kind, f"{len(ns)} frames, {time.time() - t0:.0f} s:", f.fields.get("hangs"), "|",
+                  (f.fields.get("hang") or {}).get("said", "")[:200], flush=True)
+        open(f"{out}/done", "w").write("ok\n")
+
+
+def records(d0):
+    """{(set, video, object): {kind: the stage's fields}} of a folder `stage` filled, each null record marked `own`
+    where its companion is the real object, or what the real track's own run followed with it (not a false one)."""
+    out = {}
+    for done in sorted(glob.glob(f"{d0}/*/*/*/done")):
+        d = os.path.dirname(done)
+        key = tuple(d.split(os.sep)[-3:])
+        recs = {}
+        for kind in KINDS:
+            if not os.path.exists(f"{d}/{kind}.json"):
+                continue
+            f = json.load(open(f"{d}/{kind}.json"))["fields"]
+            if kind != "real" and f.get("companion"):
+                z, real = np.load(f"{d}/{kind}_places.npz"), np.load(f"{d}/real_places.npz")
+                rt = {int(n): np.array([x, y]) for n, x, y in real["track"]}
+                rc = {int(n): np.array([x, y]) - rt[int(n)] for n, x, y in real["companion"]}
+                q = {int(n): np.array([x, y]) - rt[int(n)] for n, x, y in z["companion"] if int(n) in rt}
+                size = max(json.load(open(f"{d}/real.json"))["fields"].get("object_size_px") or 0.0, 12.0)
+                is_object = float(np.mean([np.hypot(*v) <= size for v in q.values()])) if q else 0.0
+                same = sum(np.hypot(*(q[n] - rc[n])) <= 6.0 for n in q if n in rc) / len(q) if q else 0.0
+                f["own"] = bool(is_object >= 0.3 or same >= 0.3)
+            recs[kind] = f
+        out[key] = recs
+    return out
+
+
+def outcome(f, vertical=None, at=None):
+    """The stage's answer on one record, with the rule's numbers as given (None: as the package has them)."""
+    if "hang" not in f:
+        return tether.CANNOT, None
+    keep = (tether.VERTICAL, tether.AT_STRENGTH, tether.AT_MIRROR, tether.AT_SEEN, tether.AT_BESIDE)
+    try:
+        if vertical is not None:
+            tether.VERTICAL = vertical
+        if at is not None:
+            tether.AT_STRENGTH, tether.AT_MIRROR, tether.AT_SEEN, tether.AT_BESIDE = at
+        line = None if f.get("own") else f.get("line")      # a null track's own object or its own companion is no false one
+        h = tether.hang_of(f["moved_on_screen_px"], line, f.get("at_object") or {}, unsure=f["hang"].get("unsure", False),
+                           ring=f["hang"].get("ring", True))
+        return h["outcome"], h["of"]
+    finally:
+        tether.VERTICAL, tether.AT_STRENGTH, tether.AT_MIRROR, tether.AT_SEEN, tether.AT_BESIDE = keep
+
+
+def tally(recs, **rule):
+    """Counts of the four outcomes: on the null tracks, on the real tracks with nothing known under them, and whether
+    each known answer hangs."""
+    null, real, known, cand = {}, {}, {}, {}
+    for key, r in recs.items():
+        for kind in KINDS[1:]:
+            if kind in r:
+                o = outcome(r[kind], **rule)
+                null.setdefault(o[0], []).append((key, kind, o[1]))
+        if "real" not in r or "hang" not in r["real"]:
+            continue
+        o = outcome(r["real"], **rule)
+        (known if key in HANGING else cand if key in CANDIDATES else real).setdefault(o[0], []).append((key, o[1]))
+    return null, real, known, cand
+
+
+def hang(a):
+    recs = records(a.dir)
+    n_of = lambda d: sum(len(v) for v in d.values())
+    at0 = (tether.AT_STRENGTH, tether.AT_MIRROR, tether.AT_SEEN, tether.AT_BESIDE)
+    if a.scan:
+        print("%-66s %14s %14s %12s   %s" % ("the rule", "null tracks", "nothing known", "known hang", "candidates that hang"))
+        variants = [("as set: within %g deg; a line at the object %g x, mirror %g, seen %g, beside %g" % (a.vertical, *at0), a.vertical, at0)]
+        variants += [("within %g deg of the picture's vertical" % v, v, at0) for v in (6, 9, 12, 15, 18, 20, 25, 30, 45) if v != a.vertical]
+        variants += [("a line at the object from %g x the other directions' scatter" % v, a.vertical, (v, *at0[1:])) for v in (3, 4, 6, 8, 10) if v != at0[0]]
+        variants += [("... with under %g of it opposite" % v, a.vertical, (at0[0], v, *at0[2:])) for v in (0.2, 0.3, 0.45, 0.8, 1e9) if v != at0[1]]
+        variants += [("... on %g of the single frames" % v, a.vertical, (*at0[:2], v, at0[3])) for v in (0.1, 0.2, 0.4, 0.5) if v != at0[2]]
+        variants += [("... at a right angle on under %g of those" % v, a.vertical, (*at0[:3], v)) for v in (0.25, 0.75, 1e9) if v != at0[3]]
+        variants += [("no line at the object looked for", a.vertical, (1e9, *at0[1:]))]
+        for name, v, at in variants:
+            null, real, known, cand = tally(recs, vertical=v, at=at)
+            print("%-66s %5d of %-5d %5d of %-5d %4d of %-4d   %s" % (
+                name, len(null.get(tether.HANGS, [])), n_of(null), len(real.get(tether.HANGS, [])), n_of(real),
+                len(known.get(tether.HANGS, [])), n_of(known), ", ".join(sorted(CANDIDATES[k] for k, _ in cand.get(tether.HANGS, [])))))
+        return
+    null, real, known, cand = tally(recs, vertical=a.vertical, at=at0)
+    print(f"hangs: the line within {a.vertical:g} deg of the picture's vertical at the median of the frames that show it\n")
+    for name, d in (("null tracks (run backwards, shifted)", null), ("real tracks, nothing known under the object", real),
+                    ("real tracks, known to hang", known), ("real tracks, the candidates", cand)):
+        print(f"{name}: " + ", ".join(f"{k} {len(d.get(k, []))}" for k in (tether.HANGS, tether.BESIDE_IT, tether.NOTHING, tether.CANNOT))
+              + f" (of {n_of(d)})")
+        for k in (tether.HANGS, tether.BESIDE_IT, tether.CANNOT):
+            for row in d.get(k, []):
+                key, kind = row[0], (row[1] if d is null else "real")
+                f = recs[key][kind]
+                ln = (f.get("hang") or {}).get("line") or {}
+                at = f.get("at_object") or {}
+                print("   %-9s %-4s %-14s %-16s %-5s of %-18s %s%s" % (
+                    k, *key, kind, row[-1], ("%5.1f deg off, +-%4.1f, %3d frames, %5.1f px, roll %s" % (
+                        ln["off_vertical_deg"], ln["spread_deg"], ln["frames"], ln["length_px"],
+                        "n/a" if (ln.get("scene") or {}).get("roll_deg") is None else "%.1f" % ln["scene"]["roll_deg"])) if "off_vertical_deg" in ln
+                    else (f["hang"].get("cannot") or ""),
+                    "  | at the object: %+4.0f deg, %4.1f x, mirror %.2f, seen %.2f, beside %.2f" % (
+                        at["direction_deg"], at["strength"], at["mirror"], at["seen_on"], at["beside_on"]) if "strength" in at else ""))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="what", required=True)
-    c = sub.add_parser("collect")
-    c.add_argument("tasks")
-    c.add_argument("index", type=int)
-    c.add_argument("--out", required=True)
-    c.add_argument("--frames", help="where the frames are extracted (default: OUT/frames)")
-    for name in ("table", "gate"):
+    for name in ("collect", "stage"):
+        c = sub.add_parser(name)
+        c.add_argument("tasks")
+        c.add_argument("index", type=int)
+        c.add_argument("--out", required=True)
+        c.add_argument("--frames", help="where the frames are extracted (default: OUT/frames)")
+    for name in ("table", "gate", "hang"):
         p = sub.add_parser(name)
         p.add_argument("dir")
-    p.add_argument("--scan", action="store_true", help="the count under each number changed in turn")
-    p.add_argument("--control", type=float, default=tether.CONTROL)
-    p.add_argument("--followed", type=float, default=tether.FOLLOWED)
-    p.add_argument("--steady", type=float, default=tether.STEADY)
-    p.add_argument("--scene", type=float, default=tether.SCENE)
+        if name != "table":
+            p.add_argument("--scan", action="store_true", help="the count under each number changed in turn")
+        if name == "gate":
+            p.add_argument("--control", type=float, default=tether.CONTROL)
+            p.add_argument("--followed", type=float, default=tether.FOLLOWED)
+            p.add_argument("--steady", type=float, default=tether.STEADY)
+            p.add_argument("--scene", type=float, default=tether.SCENE)
+        if name == "hang":
+            p.add_argument("--vertical", type=float, default=tether.VERTICAL)
     a = ap.parse_args()
-    dict(collect=collect, table=table, gate=gate)[a.what](a)
+    dict(collect=collect, table=table, gate=gate, stage=stage, hang=hang)[a.what](a)
 
 
 if __name__ == "__main__":

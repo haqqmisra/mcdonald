@@ -3,7 +3,10 @@ companion is told from the frame and the scene, the overlay's strokes are masked
 dark line is not, repeated frames stay out of the series, and a short window is
 tentative; a slow wander is not a swing; and, on drawn clips, a companion is re-found
 where it hangs past a stronger spot going by, a pendulum is followed along its swing,
-and nothing tied leaves no swing in the record. Portable: no video data.
+and nothing tied leaves no swing in the record; and the stage's first outcome, "does
+something hang under it?": hangs, beside it, nothing tied or cannot say, of a companion
+or of a line that starts at the object, with the scene's own turn beside it. Portable:
+no video data.
 
     python3 tests/test_tether.py
 """
@@ -283,11 +286,27 @@ class Drawn:
         return dict(blocks=z, graphics=z.copy(), colour=True)
 
 
-def drawn(seed=5, n=150, W=480, H=360, hang=(4.0, 40.0), swing_deg=0.0, period_s=2.0, passer=None, companion=True, fps=30.0):
-    """(clip, track): the object, a bright blob moving 0.9, 0.25 px a frame across a textured scene that slides 1.5 px
-    a frame under it; a dark dot `hang` px from the object, swinging `swing_deg` about that direction every `period_s`;
-    and `passer`, (how close in px, on which frame): a darker dot fixed in the scene that passes that close to where
-    the dot hangs."""
+def turned(img, alpha_deg, scale=1.0, shift=(0.0, 0.0)):
+    """A picture turned by alpha_deg about its centre (+: what was to the right goes down the screen, so a line straight
+    down the picture then leans to the left), made larger by `scale` and moved by `shift` (x, y)."""
+    from scipy.ndimage import map_coordinates
+    H, W = img.shape
+    cx, cy = (W - 1) / 2.0, (H - 1) / 2.0
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    a = np.radians(alpha_deg)
+    u, v = (xx - cx - shift[0]) / scale, (yy - cy - shift[1]) / scale
+    return map_coordinates(img, [cy - np.sin(a) * u + np.cos(a) * v, cx + np.cos(a) * u + np.sin(a) * v], order=1, mode="reflect")
+
+
+def drawn(seed=5, n=150, W=480, H=360, hang=(4.0, 40.0), swing_deg=0.0, period_s=2.0, passer=None, companion=True, fps=30.0,
+          twin=False, stems=(), roll_deg=0.0, start=(150.0, 120.0)):
+    """(clip, track): the object, a bright blob moving 0.9, 0.25 px a frame from `start` across a textured scene that
+    slides 1.5 px a frame under it; a dark dot `hang` px from the object, swinging `swing_deg` about that direction every
+    `period_s` (with `twin`, the object's own bright blob again instead of a dark dot); `passer`, (how close in px, on
+    which frame): a darker dot fixed in the scene that passes that close to where the dot hangs; `stems`, bright bars
+    3 px wide that start at the object, each (its direction in degrees from straight down, from how far out, to how
+    far); and with `roll_deg` the whole picture turned about its centre by that much over the clip, the object and
+    what hangs under it with it."""
     from scipy.ndimage import gaussian_filter
     rng = np.random.default_rng(seed)
     big = gaussian_filter(rng.normal(0, 1, (H + 40, W + 2 * n + 80)), 2.5) * 55
@@ -297,15 +316,26 @@ def drawn(seed=5, n=150, W=480, H=360, hang=(4.0, 40.0), swing_deg=0.0, period_s
     for i in range(n):
         sx = int(round(1.5 * i))
         g = 130 + big[20:20 + H, 40 + 2 * n - sx:40 + 2 * n - sx + W].copy()
-        ox, oy = 150 + 0.9 * i, 120 + 0.25 * i
+        ox, oy = start[0] + 0.9 * i, start[1] + 0.25 * i
         g += 95 * np.exp(-0.5 * ((xx - ox) ** 2 + (yy - oy) ** 2) / 3.0 ** 2)
         if companion:
             a = a0 + np.radians(swing_deg * np.sin(2 * np.pi * i / (period_s * fps) + 0.6))
-            g -= 70 * np.exp(-0.5 * ((xx - ox - r0 * np.sin(a)) ** 2 + (yy - oy - r0 * np.cos(a)) ** 2) / 1.6 ** 2)
+            at = (xx - ox - r0 * np.sin(a)) ** 2 + (yy - oy - r0 * np.cos(a)) ** 2
+            g += 95 * np.exp(-0.5 * at / 3.0 ** 2) if twin else -70 * np.exp(-0.5 * at / 1.6 ** 2)
+        for direction, near, far in stems:
+            d = np.radians(direction)
+            along = (xx - ox) * np.sin(d) + (yy - oy) * np.cos(d)
+            across = (xx - ox) * np.cos(d) - (yy - oy) * np.sin(d)
+            g += 80 * np.exp(-0.5 * across ** 2 / 1.2 ** 2) * ((along >= near) & (along <= far))
         if passer:                                   # fixed in the scene: against the object it moves 0.6, -0.25 px a frame
             miss, at = passer
             px, py = ox + hang[0] + 0.6 * (i - at) - miss * 0.385, oy + hang[1] - 0.25 * (i - at) - miss * 0.923
             g -= 110 * np.exp(-0.5 * ((xx - px) ** 2 + (yy - py) ** 2) / 1.6 ** 2)
+        if roll_deg:
+            al = roll_deg * i / (n - 1)
+            g = turned(g, al)
+            cx, cy, c, s_ = (W - 1) / 2.0, (H - 1) / 2.0, np.cos(np.radians(al)), np.sin(np.radians(al))
+            ox, oy = cx + c * (ox - cx) - s_ * (oy - cy), cy + s_ * (ox - cx) + c * (oy - cy)
         g += rng.normal(0, 1.5, g.shape)
         frames[i + 1] = np.clip(np.rint(g), 0, 255).astype(np.uint8)
         track[i + 1] = (ox + rng.normal(0, 0.15), oy + rng.normal(0, 0.15))
@@ -379,6 +409,168 @@ def test_nothing_tied_leaves_no_swing_and_says_where_it_looked():
               f"{name}: the finding says the ring it searched", f"{a:.0f} to {b:.0f} px")
 
 
+def test_does_something_hang_under_it():
+    """H5 (session 23, 2026-11-13): the stage's first outcome, one of four answers on every object. A feature that
+    moves with the object hangs where its line from the object lies within VERTICAL of the picture's vertical at the
+    median of the frames that show it, whichever end of the pair the track sits on, and whether it swings or not; it
+    is beside the object where the line does not; nothing tied where nothing moves with it; and it cannot be said
+    where the object hardly moves on the screen."""
+    print("does something hang under it? the four answers on drawn clips")
+    f, _ = _stage()                                         # a dark dot 40 px under the object, 5.7 deg off straight down
+    h = f["hang"]
+    ln = h["line"] or {}
+    check(f["hangs"] == "hangs" and h["of"] == "companion" and abs(ln.get("off_vertical_deg", 99) - 5.7) < 1.0 and ln.get("above") is False,
+          "a dot under the object, 5.7 deg off straight down the picture: hangs", h["said"][:150])
+    check(h["outcome"] == "hangs" and abs(ln["chance"] - ln["off_vertical_deg"] / 90.0) < 1e-9 and ln["within"] > 0.95
+          and h["rule"]["vertical_deg"] == tether.VERTICAL and h["vertical"] == "the picture's",
+          "with how often a chance line lies as near the vertical, the rule it was held to, and which vertical",
+          f"chance {ln.get('chance', 0):.3f}, within {tether.VERTICAL:g} deg on {100 * ln.get('within', 0):.0f}% of {ln.get('frames')} frames")
+    check("hangs: the dark feature keeps to a line under the object" in f["finding"] and "the picture's vertical" in f["finding"],
+          "and the finding says so in the stage's words", f["finding"][-260:])
+    again = tether.hang_of(f["moved_on_screen_px"], f["line"], f["at_object"], unsure=h["unsure"], ring=h["ring"])
+    check(again["outcome"] == h["outcome"] and again["of"] == h["of"], "the answer is a function of the record: asked again of it, the same")
+    f, _ = _stage(hang=(-4.0, -40.0))                       # the same dot over the object: the track on the lower end of the pair
+    h = f["hang"]
+    check(f["hangs"] == "hangs" and (h["line"] or {}).get("above") is True and abs(h["line"]["off_vertical_deg"] - 5.7) < 1.0
+          and "over the object" in h["said"], "the same dot over the object (the track on the lower end of the pair): hangs, and says over",
+          h["said"][:110])
+    f, _ = _stage(swing_deg=12.0, n=180)
+    h = f["hang"]
+    check(f["hangs"] == "hangs" and (h["line"] or {}).get("spread_deg", 0) > 5 and h["line"]["off_vertical_deg"] < 14,
+          "a dot that swings 12 deg about its line: hangs, its spread beside the angle",
+          "" if not h["line"] else f"{h['line']['off_vertical_deg']:.1f} deg off at the median, +-{h['line']['spread_deg']:.1f}")
+    f, _ = _stage(hang=(40.0, 4.0))
+    h = f["hang"]
+    check(f["hangs"] == "beside it" and h["of"] == "companion" and abs((h["line"] or {}).get("off_vertical_deg", 0) - 84.3) < 1.5
+          and "beside it" in f["finding"], "the dot level with the object, 84 deg off: beside it", h["said"][:120])
+    for name, kw in (("an empty scene", dict(companion=False)), ("a spot of the scene that passes under the object and leaves", dict(companion=False, passer=(0.0, 75)))):
+        f, _ = _stage(**kw)
+        check(f["hangs"] == "nothing tied" and f["hang"]["of"] is None and f["line"] is None and "nothing tied" in f["finding"]
+              and "no line starts at the object" in f["finding"], f"{name}: nothing tied, said of the ring and of the object's own picture",
+              f["finding"][-200:])
+    f, _ = _stage(n=20)                                     # 18 px across the screen in all: under the 20 the stage asks
+    check(f["hangs"] == "cannot say" and f["hang"]["cannot"] == "still", "an object that hardly moves on the screen: cannot say",
+          f["hang"]["said"][:140])
+
+
+def test_the_companion_is_read_against_the_objects_own_picture():
+    """H5, H6. Two points too small to resolve are the same point-spread pattern: the companion's place is read by
+    sliding the object's own picture over it, to a fraction of a pixel and free of the track's own error; a dark dot
+    under a bright object is no such pair, and its place stays the follower's."""
+    print("the companion read against the object's own picture")
+    f, _ = _stage(twin=True, hang=(6.3, 29.4))
+    ln = f["line"] or {}
+    want = np.degrees(np.arctan2(6.3, 29.4))
+    check(f["hangs"] == "hangs" and ln.get("read_against") == "the object's own picture" and ln.get("same_picture_on", 0) > 0.9,
+          "the object's own picture again, 30 px under it: the two agree on nearly every frame, and the line is read off them",
+          f"agree on {100 * ln.get('same_picture_on', 0):.0f}% of the frames")
+    check(abs(ln.get("length_px", 0) - np.hypot(6.3, 29.4)) < 0.15 and abs(ln.get("off_vertical_deg", 0) - want) < 0.3 and ln.get("spread_deg", 9) < 0.5,
+          "its length and its angle to a fraction of a pixel and of a degree",
+          f"{ln.get('length_px', 0):.2f} px (drawn {np.hypot(6.3, 29.4):.2f}), {ln.get('off_vertical_deg', 0):.2f} deg (drawn {want:.2f}), +-{ln.get('spread_deg', 0):.2f}")
+    f, _ = _stage()
+    ln = f["line"] or {}
+    check(ln.get("read_against") == "its own centre" and ln.get("same_picture_on", 1) < 0.1,
+          "a dark dot under a bright object is not the object's picture: its place stays the follower's",
+          f"agree on {100 * ln.get('same_picture_on', 0):.0f}% of the frames")
+    clip, track = drawn(twin=True, hang=(6.3, 29.4), n=3)
+    g = clip.frames[2].astype(float)
+    got = tether.against_own_picture(g, np.zeros(g.shape, bool), track[2], (8.0, 28.0))
+    check(got is not None and abs(got[0] - 6.3) < 0.2 and abs(got[1] - 29.4) < 0.2 and got[2] > 0.9,
+          "one frame, started 2 px off: the place comes back to a fifth of a pixel", str(got))
+    check(tether.against_own_picture(g, np.zeros(g.shape, bool), track[2], (4.0, 12.0)) is None,
+          "nearer than the two pictures are wide, nothing is read: the object would find itself")
+
+
+def test_a_line_that_starts_at_the_object():
+    """H5 (and H4's promise). 0.5.2 said the ring it searched and that nearer in was not: PR28's stem hangs straight
+    under the head, inside it. The object's own picture is now read on rings about it, the median over direction
+    and the first harmonic taken out of each (A19's azimuthal residual): a bar that starts at the object stands out
+    in one direction. Straight down the picture, it hangs; out to one side, it is beside the object; a bar through
+    the object, as strong on both sides, is the object's own length and no line that starts at it. A bright bar
+    under a bright object makes a run long enough for the stroke mask to take it for the overlay's, as PR28's does:
+    the reading takes back the strokes that lie wholly within its reach."""
+    print("a line that starts at the object")
+    f, _ = _stage(companion=False, stems=[(0.0, 7, 20)])
+    at, h = f["at_object"], f["hang"]
+    check(at.get("starts") is True and abs(at.get("direction_deg", 99)) <= 5 and at["mirror"] < 0.3 and at["seen_on"] > 0.8 and at["beside_on"] < 0.1,
+          "a bar from 7 to 20 px straight under the object: a line that starts at it, on one side, on nearly every frame",
+          f"{at.get('direction_deg')} deg, {at.get('strength', 0):.1f} x, mirror {at.get('mirror', 0):.2f}, seen {at.get('seen_on', 0):.2f}, beside {at.get('beside_on', 0):.2f}")
+    check(f["hangs"] == "hangs" and h["of"] == "line at the object" and h["line"]["off_vertical_deg"] < 3 and f["companion"] is None
+          and "a line starts at the object" in f["finding"], "it hangs, said of the line at the object", f["finding"][-330:-150])
+    clip, track = drawn(companion=False, stems=[(0.0, 7, 20)], n=3)
+    g = clip.frames[2].astype(float)
+    x, y = int(round(track[2][0])), int(round(track[2][1]))
+    check(bool(tether.stroke_mask(g)[y + 14, x]), "the stroke mask takes that bar for the overlay's, so the reading rests on taking it back")
+    f, _ = _stage(companion=False, stems=[(90.0, 7, 20)])
+    at, h = f["at_object"], f["hang"]
+    check(at.get("starts") is True and abs(at.get("direction_deg", 0) - 90) <= 5 and f["hangs"] == "beside it" and h["of"] == "line at the object",
+          "the same bar out to the right: a line that starts at the object, beside it", h["said"][:120])
+    f, _ = _stage(companion=False, stems=[(0.0, 7, 20), (180.0, 7, 20)])
+    at = f["at_object"]
+    check(at.get("starts") is False and at.get("mirror", 0) > 0.6 and f["hangs"] == "nothing tied",
+          "a bar through the object, as strong above as below: the object's own length, no line that starts at it",
+          f"mirror {at.get('mirror', 0):.2f}")
+    f, _ = _stage(companion=False)
+    check(f["at_object"].get("starts") is False and "no line starts at the object" in f["finding"], "and a plain blob has none",
+          f"{f['at_object'].get('strength', 0):.1f} x the other directions' scatter")
+
+
+def test_the_scenes_own_turn_is_read_beside_the_line():
+    """H5. A line under an object turns with the picture when the camera rolls: the scene's own roll and scale are
+    read beside the line's angle (a similarity fitted to the shifts of patches of the scene), and where the picture
+    turned by more than the gate over the line's frames it has no one vertical: cannot say."""
+    print("the scene's own turn and scale, beside the line")
+    from scipy.ndimage import gaussian_filter
+    rng = np.random.default_rng(11)
+    base = 130 + gaussian_filter(rng.normal(0, 1, (720, 960)), 2.5) * 55
+    none = np.zeros(base.shape, bool)
+    b = turned(base, 1.0, scale=1.01, shift=(3.0, -2.0))
+    step = tether.scene_step(tether.scene_small(base, none), tether.scene_small(b, none))
+    check(step is not None and abs(step[3] + 1.0) < 0.1 and abs(step[2] - 0.01) < 0.003 and abs(step[0] - 3.0) < 0.5 and abs(step[1] + 2.0) < 0.5,
+          "a picture turned 1 deg (a line straight down then leans left: -1), 1 % larger and moved 3, -2 px: read back",
+          "" if step is None else f"roll {step[3]:+.2f} deg, scale {step[2]:+.4f}, shift {step[0]:+.1f}, {step[1]:+.1f} px, {step[4]} patches")
+    flat = tether.scene_step(tether.scene_small(np.full((720, 960), 130.0), none), tether.scene_small(np.full((720, 960), 130.0), none))
+    check(flat is None, "an empty sky gives no reading: not read, which is not \"did not turn\"")
+    kw = dict(W=960, H=720, n=60, start=(430.0, 300.0))
+    f, _ = _stage(roll_deg=-6.0, **kw)
+    sc = ((f["hang"]["line"] or {}).get("scene") or {})
+    check(f["hangs"] == "hangs" and sc.get("roll_deg") is not None and abs(sc["roll_deg"] - 6.0) < 1.0 and abs(sc["scale"] - 1.0) < 0.02,
+          "a picture that rolls 6 deg in all while a dot hangs under the object: hangs, with the roll beside it",
+          f"roll {sc.get('roll_deg')}, scale {sc.get('scale')}, read on {sc.get('read_on')}")
+    f, _ = _stage(roll_deg=-40.0, **kw)
+    h = f["hang"]
+    check(f["hangs"] == "cannot say" and h["cannot"] == "roll" and abs(h["line"]["scene"]["roll_deg"] - 40.0) < 3.0 and "turned by" in h["why"],
+          "a picture that rolls 40 deg has no one vertical: cannot say, and why", h["said"][:150])
+    f, _ = _stage()
+    sc = ((f["hang"]["line"] or {}).get("scene") or {})
+    check(sc.get("roll_deg") is None and "could not be read" in f["hang"]["said"],
+          "on a picture too small to read its turn the vertical is taken as it stands, and the words say so",
+          f"read on {sc.get('read_on')} of {sc.get('steps')} steps")
+
+
+def test_pr135s_pairs_of_birds_do_not_hang():
+    """H5's null on recorded tracks: the six birds of PR135 (the bird paper's own tracks, vendored), as fifteen pairs.
+    The line from one bird to the next is read as a companion's is. None lies within VERTICAL of the picture's
+    vertical: a flock spreads across the picture, not down it."""
+    print("PR135's six birds as fifteen pairs: no pair hangs")
+    import csv
+    import itertools
+    by = {}
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden", "pr135_tracks.csv"), encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r["x"] and r["y"]:                               # a frame a bird was not found on has no place
+                by.setdefault(r["letter"], {})[int(r["frame"])] = (float(r["x"]), float(r["y"]))
+    got = []
+    for a, b in itertools.combinations(sorted(by), 2):
+        places = {n: (by[b][n][0] - by[a][n][0], by[b][n][1] - by[a][n][1]) for n in by[a] if n in by[b]}
+        ln = tether.line_of(places, 29.97)
+        got.append((a + b, tether.hangs(ln)[0], ln.get("off_vertical_deg", 0.0), ln.get("spread_deg", 0.0)))
+    near = min(got, key=lambda g: g[2])
+    check(len(got) == 15 and all(g[1] == "beside it" for g in got) and near[2] > tether.VERTICAL + 5,
+          "fifteen pairs, none within the gate of the picture's vertical",
+          f"the nearest, {near[0]}: {near[2]:.0f} deg off (the gate {tether.VERTICAL:g}); spreads {min(g[3] for g in got):.0f} to {max(g[3] for g in got):.0f} deg")
+
+
 def main():
     for t in (test_a_swinging_point_gives_its_line, test_a_steady_line_gives_no_length,
               test_too_few_cycles_are_not_a_period, test_repeated_frames_are_left_out,
@@ -388,7 +580,9 @@ def main():
               test_the_objects_own_glints_are_inside_its_extent, test_the_overlays_strokes_are_masked_and_a_dark_line_is_not,
               test_followed_how_tells_the_object_from_the_scene_and_the_screen,
               test_a_spot_passing_by_does_not_take_the_follower, test_a_drawn_pendulum_is_followed_and_read,
-              test_nothing_tied_leaves_no_swing_and_says_where_it_looked):
+              test_nothing_tied_leaves_no_swing_and_says_where_it_looked, test_does_something_hang_under_it,
+              test_the_companion_is_read_against_the_objects_own_picture, test_a_line_that_starts_at_the_object,
+              test_the_scenes_own_turn_is_read_beside_the_line, test_pr135s_pairs_of_birds_do_not_hang):
         t()
     print(f"\n{'OK' if not FAIL else 'FAILED'}: {len(FAIL)} failing check(s)" + ("" if not FAIL else "\n  " + "\n  ".join(FAIL)))
     return 1 if FAIL else 0
