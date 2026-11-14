@@ -1,4 +1,29 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.4 released 2026-11-14; session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 22, Saturday afternoon (2026-11-14): 0.5.5 out; CPU runs a tenth sooner again
+
+**0.5.5 released** by the "GP Triangulation" session on Jacob's word: version commit 719d120 plus d3b0e7b (test_gui's
+check of the add-on's offer asked for Linux's "1.4 GB" on Windows, where `download_mb` rightly says 1.3; my miss),
+tag v0.5.5 on d3b0e7b, GitHub release, PyPI, the site, Zenodo's version DOI 10.5281/zenodo.24229312 (568c56b,
+`origin/main`). Tested: arthur's suites on 719d120; Mac and Windows green on d3b0e7b (runs 116, 117). Run 115 on
+Windows had also failed test_cli's three update-helper checks, which passed on the rerun: the runner's timing (the
+test allows 10 s, 4 of them fixed waits). A larger poll budget there is open for Jacob. It carried ce4a121, f0da3a2
+and 4395ed8 (`layers` on a CPU in about half the time).
+
+**After it, on `main` (local, not pushed): c53bf90**, two more bit-identical CPU changes found by profiling whole runs
+at 8 CPUs without the card with every process sampled (job 2331, `dev/spyall.py`): `integrity`'s background reads
+both zones (zero left out, zero allowed) from one search instead of a second run on held-still scenes; `layers`'
+first pass on a CPU hands out chains of pairs sharing frames, so each frame is read and filtered once. Gate (job 2353)
+31 objects 0 differences; suites with goldens on CPUs and card (2354, 2355) all pass. Whole runs at 8 CPUs: PR149
+150 and 140 s to 128 and 125, PR135 object 2 134 and 129 to 111 and 99.
+
+**Where a CPU run goes now** (PR149 at 8 CPUs, 641 CPU-s before c53bf90; PR088 at 32 workers, 6,600 CPU-s): `layers`'
+first pass is still the largest (its FFTs, now its own arithmetic); then `tether`'s three reads of every frame on a
+long track (its stroke mask, about 0.07 s a frame, opened in double; single precision was tried and gave 5 %);
+`flicker`'s camera-shake registration (0.3 s a frame on a CPU, 2.5 ms on the card); `integrity`'s background pass.
+None of what is left repeats work that could be shared without changing a number, as far as the profiles show,
+except `tether`'s third read (the reverse pass) on clips too long for its frame cache: its followers need only crops
+about the object, which the forward pass could keep. Not built.
 
 ## Session 22, continued overnight (2026-11-13/14): 0.5.4 out, the next round on a branch
 

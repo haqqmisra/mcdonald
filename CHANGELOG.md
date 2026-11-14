@@ -430,6 +430,16 @@ New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_r
 `winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
 has each rule, its null and what it costs.
 
+**A run on a computer without a graphics card, about a tenth sooner again, with the same numbers** (2026-11-14).
+Two more steps did part of their work twice. `integrity` reads the background's motion with zero shift left out
+and, where that reads under a third of the frame pairs (a scene held nearly still on screen), with zero shift
+allowed: the second reading was a pass of its own, every frame read, filtered and matched again; now both come from
+the one search of each pair. And `layers`' first pass hands a computer's worker processes short chains of pairs
+that share frames (a, a+5, a+10, a+15), so that each frame is read and filtered once, not twice. Each pair is read
+exactly as before. Whole runs at 8 CPUs, alternating before and after: PR149 150 and 140 s to 128 and 125 s, PR135
+object 2 134 and 129 s to 111 and 99 s. The fourteen reference case files measured again: no difference at one part
+in a billion.
+
 ## 0.5.5 (2026-11-14)
 
 **A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone

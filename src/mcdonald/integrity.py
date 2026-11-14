@@ -128,9 +128,9 @@ def container_report(clip):
 
 
 # ---- scene motion, every frame pair ----------------------------------------------------------
-def _init(video, workdir, n0, n1, masks, rows, trk, reach, zero):
+def _init(video, workdir, n0, n1, masks, rows, trk, reach, zero, zeros=None):
     masks = {k: v for k, v in masks.items() if k in ("blocks", "graphics", "colour", "tinted")}
-    _G.update(clip=vf.Clip(video, workdir, n0, n1), masks=masks, rows=rows, reach=reach, zero=zero,
+    _G.update(clip=vf.Clip(video, workdir, n0, n1), masks=masks, rows=rows, reach=reach, zero=zero, zeros=zeros,
               pos=vf.interp_track(trk) if trk else None)
 
 
@@ -168,6 +168,15 @@ def _pair1(a):
     return a, {c: lay[c] for c in ("striated", "isotropic", "all")}
 
 
+def _pair1_zones(a):
+    """`_pair1` for each zone of `_G["zeros"]` from the one search: (a, [its layers, a zone at a time, in their order]).
+    A zone is only where the peak is looked for (`forensics.shift_field`'s `zeros`), so each zone's field is the one a
+    search with that zone alone gives, to the bit."""
+    (ga, ba, ha), (gb, bb, hb) = _frame(a), _frame(a + 1)
+    fields = vf.shift_field(ga, gb, ba, bb, a=a, stride=192, reach=_G["reach"], zeros=_G["zeros"], ha=ha, hb=hb)
+    return a, [{c: lay[c] for c in ("striated", "isotropic", "all")} for lay in (vf.layers_of(f, minn=5) for f in fields)]
+
+
 def _pair5(a):
     ga, ba = _bad(a)
     gb, bb = _bad(a + 5)
@@ -179,16 +188,19 @@ def _pair5(a):
 def per_frame_background(clip, masks, rows, trk, reps, procs=None, max_shift=45.0, progress=None, stop=None):
     """{n: (shift n -> n+1, class)}, one texture class preferred throughout so
     that consecutive pairs refer to the same layer."""
-    def run(zero, what):
-        pairs = [n for n in range(clip.n0, clip.n1) if n + 1 not in reps]
-        _G.pop("frame_n", None)                       # `_frame` keeps one frame: none from an earlier run
-        asks = [n for i, a in enumerate(pairs) for n in ((a + 1,) if i and pairs[i - 1] == a - 1 else (a, a + 1))]
-        return dict(vf.pooled_or_on_card(_G, _read, asks, procs, _pair1, pairs, _init,
-                                         (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, zero),
-                                         8, progress, stop, what, pixels=clip.W * clip.H))
-    res, note = run(2, "Background motion"), ""
+    # Both readings -- zero shift left out (2 px about it), and allowed -- from the one search of each pair: the second
+    # is taken where the first reads under a third of the pairs. Until 2026-11-14 the second was a run of its own,
+    # every frame read, filtered and matched again, on every scene held nearly still on screen (PR149, PR135: 8-10 s
+    # of a two-minute run on 8 CPUs). A zone is only where the peak is looked for, so each is what its own run gave.
+    pairs = [n for n in range(clip.n0, clip.n1) if n + 1 not in reps]
+    _G.pop("frame_n", None)                           # `_frame` keeps one frame: none from an earlier run
+    asks = [n for i, a in enumerate(pairs) for n in ((a + 1,) if i and pairs[i - 1] == a - 1 else (a, a + 1))]
+    both = dict(vf.pooled_or_on_card(_G, _read, asks, procs, _pair1_zones, pairs, _init,
+                                     (clip.video, clip.dir, clip.n0, clip.n1, masks, rows, trk, int(max_shift) + 20, 2, (2, -1)),
+                                     8, progress, stop, "Background motion", pixels=clip.W * clip.H))
+    res, note = {a: z[0] for a, z in both.items()}, ""
     if np.mean([r["all"] is not None for r in res.values()]) < 0.3:
-        res = run(-1, "Zero-shift background")
+        res = {a: z[1] for a, z in both.items()}
         note = "scene nearly still on screen: zero shift allowed, so a static pattern could lock the estimate"
     count = {c: sum(r[c] is not None for r in res.values()) for c in ("striated", "isotropic")}
     first = max(count, key=count.get)
