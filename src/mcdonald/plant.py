@@ -405,7 +405,8 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
          polarity="both", at_once=AT_ONCE, life=LIFE, apart=APART, margin=MARGIN, masks=None, first_id=1, taken=()):
     """k objects (a group is one) drawn for a stretch of n frames: (plants, skipped). Each takes its kind in turn from
     `kinds` and its contrast, sigma and speed at random from the grids; its direction and where it starts are uniform;
-    it lasts `life` frames or as long as it stays `margin` in from the edge. At most `at_once` are in the frame
+    it lasts `life` frames or as long as it stays `margin` in from the edge (and is drawn again if that is not most of
+    its life, or most of the way across for a fast one). At most `at_once` are in the frame
     together -- they are given turns in `at_once` lanes, one after another with GAP frames between -- and no two come
     within `apart` px on a frame they share, nor does one spend more than HIDDEN_MOST of its frames under the overlay
     (`masks`). Each object's draws come from a generator of its own, seeded by (seed, its number), so an object is the
@@ -422,6 +423,10 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
     if k > turns * at_once:
         raise ValueError(f"{k} objects do not fit in {n} frames at {at_once} at once, each for {life} frames: "
                          f"{turns * at_once} do (fewer frames each, more at once, or a longer stretch)")
+    # how long a drawn object must stay inside the margin: its whole life, or for one too fast for that, most of the way
+    # across the frame's shorter side (12 frames at the least). A fast object that starts near an edge and is gone in a
+    # dozen frames is a draw of where it started, not of its speed.
+    need = lambda sp: max(min(life, 12), int(min(life, 0.6 * (min(W, H) - 2 * margin) / max(sp, 1e-9))))
     for j in range(k):
         kind = kinds[j % len(kinds)]
         preset = KINDS[kind]
@@ -439,7 +444,7 @@ def draw(k, W, H, n, fps, seed=1, kinds=("dot",), contrast=CONTRAST, sigma=SIGMA
                 tx = ((W - margin - x0) / vx if vx > 0 else (margin - x0) / vx) if abs(vx) > 1e-9 else np.inf
                 ty = ((H - margin - y0) / vy if vy > 0 else (margin - y0) / vy) if abs(vy) > 1e-9 else np.inf
                 frames = int(min(life, math.floor(min(tx, ty))))
-            if frames < min(life, 12):
+            if frames < need(sp):                          # leaving so soon is no test of anything: draw it again
                 continue
             base = dict(kind=kind, shape=preset["shape"], sigma=float(rng.choice(sigma)), contrast=float(rng.choice(contrast)),
                         dark=bool(rng.random() < 0.5) if polarity == "both" else polarity == "dark",
@@ -516,37 +521,39 @@ TWIN_APART = 80.0       # px: a recorded path moved elsewhere keeps this far fro
 
 
 def place_recorded(plants, masks, W, H, n, fps, seed, margin=MARGIN):
-    """Say where each recorded path goes that asks to be placed (`path.place` is "auto"): turned about the frame's
-    centre, or moved whole by one of a few offsets -- whichever keeps most of its frames inside the margin and out
-    from under the overlay, and TWIN_APART px or more from where it was recorded (so the copy never touches the
-    object it copies). The members of a group are moved together. Changes the plants' `path` in place."""
+    """Say where the recorded paths go that ask to be placed (`path.place` is "auto"): all of them together, turned
+    about the frame's centre or moved whole by one of a few offsets -- whichever keeps most of their frames inside
+    the margin, out from under the overlay, and TWIN_APART px or more from where any of them was recorded (so a copy
+    never touches an object it copies, and the copies keep the places the objects have among themselves). Changes
+    the plants' `path` in place."""
     over = None if masks is None else (masks["blocks"] | masks["graphics"])
-    groups = {}
-    for p in plants:
-        pt = p.get("path") or {}
-        if pt.get("kind") == "recorded" and pt.get("place") == "auto":
-            groups.setdefault(p.get("group", ("alone", p["id"])), []).append(p)
+    members = [p for p in plants if (p.get("path") or {}).get("kind") == "recorded" and p["path"].get("place") == "auto"]
+    if not members:
+        return
     ways = [dict(mirror=True, dx=0.0, dy=0.0)] + [dict(mirror=False, dx=float(dx), dy=float(dy))
                                                    for dx in (0, -W // 3, W // 3, -W // 6, W // 6) for dy in (0, -H // 3, H // 3, -H // 6, H // 6)
                                                    if (dx, dy) != (0, 0)]
-    for members in groups.values():
-        best = None
-        for way in ways:
-            good = total = 0
-            for p in members:
-                here = dict(p, path=dict(p["path"], place=None, **way))
-                was = dict(p, path=dict(p["path"], place=None, mirror=False, dx=0.0, dy=0.0))
-                r, r0 = realise(here, n, fps, W, H, seed), realise(was, n, fps, W, H, seed)
-                ok = (r["x"] >= margin) & (r["x"] <= W - margin) & (r["y"] >= margin) & (r["y"] <= H - margin)
-                ok &= np.hypot(r["x"] - r0["x"], r["y"] - r0["y"]) >= TWIN_APART
-                if over is not None:
-                    xi, yi = np.clip(np.round(r["x"]).astype(int), 0, W - 1), np.clip(np.round(r["y"]).astype(int), 0, H - 1)
-                    ok &= ~over[yi, xi]
-                good, total = good + int(ok.sum()), total + len(ok)
-            if best is None or good > best[0]:
-                best = (good, total, way)
+    was = [(p, realise(dict(p, path=dict(p["path"], place=None, mirror=False, dx=0.0, dy=0.0)), n, fps, W, H, seed)) for p in members]
+    best = None
+    for way in ways:
+        good = total = 0
         for p in members:
-            p["path"].update(best[2], place="placed", frames_clear=round(best[0] / max(best[1], 1), 3))
+            r = realise(dict(p, path=dict(p["path"], place=None, **way)), n, fps, W, H, seed)
+            ok = (r["x"] >= margin) & (r["x"] <= W - margin) & (r["y"] >= margin) & (r["y"] <= H - margin)
+            for q, r0 in was:                              # clear of every recorded object, on the frames both are there
+                lo, hi = max(p["first"], q["first"]), min(p["last"], q["last"])
+                if lo <= hi:
+                    d = np.hypot(r["x"][lo - p["first"]:hi - p["first"] + 1] - r0["x"][lo - q["first"]:hi - q["first"] + 1],
+                                 r["y"][lo - p["first"]:hi - p["first"] + 1] - r0["y"][lo - q["first"]:hi - q["first"] + 1])
+                    ok[lo - p["first"]:hi - p["first"] + 1] &= d >= TWIN_APART
+            if over is not None:
+                xi, yi = np.clip(np.round(r["x"]).astype(int), 0, W - 1), np.clip(np.round(r["y"]).astype(int), 0, H - 1)
+                ok &= ~over[yi, xi]
+            good, total = good + int(ok.sum()), total + len(ok)
+        if best is None or good > best[0]:
+            best = (good, total, way)
+    for p in members:
+        p["path"].update(best[2], place="placed", frames_clear=round(best[0] / max(best[1], 1), 3))
 
 
 def realise(plant, n, fps, W, H, seed):
@@ -1000,8 +1007,9 @@ def on_path(track, truth, size=0.0, px=12.0, share=0.7):
 def recovered(truth, proposals, px=12.0):
     """Find's list held against a truth table: dict(plants: one row an object -- id, kind, group, contrast, sigma,
     speed, dark, frames (seen: on the frame, not hidden), found, rank (the place on the list of the first row on its
-    path), strength, score, shared, px (the median distance), polarity (the row's is the object's), points (how many
-    points the row holds: a group's) --, others: the rows on no planted path, each with rank, strength, score and
+    path), rank_alone (that place less the rows above it that are on planted paths: where it would stand with no other
+    object planted), strength, score, shared, px (the median distance), polarity (the row's is the object's), points
+    (how many points the row holds: a group's) --, others: the rows on no planted path, each with rank, strength, score and
     frames --, found, planted, rows). `proposals` are `look --propose --json`'s (`results.proposals`: each with
     `track`, `dark`, `size_px`, `score`, `strength`), best first, on the planted video's own frames."""
     props = []
@@ -1028,11 +1036,14 @@ def recovered(truth, proposals, px=12.0):
                          light=(pl.get("light") or {}).get("kind"), hz=(pl.get("light") or {}).get("hz"),
                          frames=pl.get("frames_on", len(path_)) - pl.get("frames_hidden", 0),
                          clipped=pl.get("frames_clipped", 0), found=hit is not None,
-                         rank=hit[0] if hit else None, strength=hit[1].get("strength") if hit else None,
+                         rank=hit[0] if hit else None, rank_alone=None, strength=hit[1].get("strength") if hit else None,
                          score=hit[1].get("score") if hit else None, shared=hit[2][0] if hit else None,
                          px=round(hit[2][1], 2) if hit else None,
                          polarity=bool(hit[1].get("dark")) == bool(pl.get("dark")) if hit else None,
                          points=hit[1].get("points") if hit else None))
+    for r in rows:                                         # its place if the rows above it that are other planted objects were
+        if r["found"]:                                     # not there: with twenty planted, a faint one's place is theirs to push down
+            r["rank_alone"] = r["rank"] - sum(1 for i in taken if i < r["rank"])
     others = [dict(rank=i, strength=p.get("strength"), score=p.get("score"), frames=p.get("frames"), dark=p.get("dark"),
                    size_px=p.get("size_px")) for i, (tr, p) in enumerate(props, 1) if i not in taken]
     return dict(plants=rows, others=others, found=sum(r["found"] for r in rows), planted=len(rows), rows=len(props))

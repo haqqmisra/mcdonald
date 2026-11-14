@@ -225,7 +225,7 @@ def main():
     (out / f"{stem}_rows.json").write_text(json.dumps(rows))          # Find's list, kept: the tables hold it against any control
     rec = plant.recovered(truth, rows)
     for r in rec["plants"]:
-        r["shown"] = bool(r["found"] and r["rank"] <= SHOWN)
+        r["shown"] = bool(r["found"] and r["rank_alone"] <= SHOWN)       # among the 30 rows a person is shown, the other plants' rows aside
     result["find"] = dict(rows=len(rows), found=rec["found"], strengths=_strengths(rows))
     real = dict(plants=[dict(id=t["id"], kind="recorded", contrast=t["contrast"], sigma=t["sigma"], dark=t["dark"],
                              track=t["recorded"], frames_on=len(t["recorded"])) for t in twins])

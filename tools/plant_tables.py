@@ -139,6 +139,38 @@ def markdown_table(tab, by, title, keys=("found", "shown", "followed"),
     return L + [""]
 
 
+def groups_of(rows):
+    """One row a planted group (a flock, a formation, the copies of a recorded group): its members, how many of them
+    Find lists, whether any is, whether the row that has one says it holds several points, and whether the link followed
+    any member over half its frames."""
+    by = {}
+    for r in rows:
+        if r.get("group") is not None:
+            by.setdefault((r["video"], r["seed"], r["group"]), []).append(r)
+    return [dict(video=k[0], seed=k[1], group=k[2], kind=v[0].get("kind"), members=len(v), found_members=sum(r["found"] for r in v),
+                 found=any(r["found"] for r in v), as_group=any(r["found"] and (r.get("points") or 0) >= 2 for r in v),
+                 all_found=all(r["found"] for r in v), followed=any(r["followed"] for r in v)) for k, v in sorted(by.items())]
+
+
+def recorded(units):
+    """The real objects of the videos that have a recorded track, and their planted copies: each found or not on the
+    original's list, the control's and the planted video's (IDEAS.md B22's check, on the same videos)."""
+    out = []
+    for u in units:
+        rec = u.get("recorded")
+        if not rec:
+            continue
+        twins = {r["id"]: r for r in u["plants"] if r.get("kind") == "twin"}
+        for i, r in enumerate(rec.get("planted") or []):
+            pick = lambda name: (rec.get(name) or [{}] * (i + 1))[i]
+            t = twins.get(r["id"], {})
+            out.append(dict(video=u["tag"], id=r["id"], original=pick("original").get("found"), original_rank=pick("original").get("rank"),
+                            control=pick("control").get("found"), control_rank=pick("control").get("rank"),
+                            beside_plants=r["found"], beside_plants_rank=r["rank"], copy=t.get("found"), copy_rank=t.get("rank"),
+                            copy_contrast=t.get("contrast_written"), copy_frames=t.get("frames")))
+    return out
+
+
 def reliability(units, rows):
     with_control = [u for u in units if u.get("control")]
     planted_c = sum(u["planted"] for u in with_control)
@@ -213,6 +245,32 @@ def main():
         L += [f"## {name}", "", f"{len(part_u)} planted videos, {frames} frames, {len(part)} objects; "
               f"the scene moved {np.median([u.get('scene_speed') or 0 for u in part_u]):.2f} px a frame at the median.", ""]
         L += markdown_table(tabs["kind"], "kind", "By kind")
+        gr = groups_of(part)
+        if gr:
+            tabs["groups"] = [dict(kind=k, groups=share([g for g in gr if g["kind"] == k], "found"),
+                                   as_group=share([g for g in gr if g["kind"] == k], "as_group"),
+                                   every_member=share([g for g in gr if g["kind"] == k], "all_found"),
+                                   followed=share([g for g in gr if g["kind"] == k], "followed"),
+                                   members=dict(n=sum(g["members"] for g in gr if g["kind"] == k),
+                                                k=sum(g["found_members"] for g in gr if g["kind"] == k)))
+                              for k in sorted({g["kind"] for g in gr})]
+            L += ["**Groups** (a group is listed where any member is; \"as a group\": the row says it holds two points or more)", "",
+                  "| kind | groups listed | listed as a group | every member listed | a member followed | members listed |", "|---|---|---|---|---|---|"]
+            for c in tabs["groups"]:
+                L.append(f"| {c['kind']} | {said(c['groups'])} | {said(c['as_group'])} | {said(c['every_member'])} | {said(c['followed'])} | "
+                         f"{c['members']['k']}/{c['members']['n']} |")
+            L.append("")
+        rc = recorded(part_u)
+        if rc:
+            tabs["recorded"] = rc
+            yn = lambda v, r: "-" if v is None else (f"row {r}" if v else "not listed")
+            L += ["**The recorded objects and their planted copies** (B22's check on the same video)", "",
+                  "| object | in the original | in the control | beside the plants | its copy |", "|---|---|---|---|---|"]
+            for r in rc:
+                L.append(f"| {r['video']} {r['id']} | {yn(r['original'], r['original_rank'])} | {yn(r['control'], r['control_rank'])} | "
+                         f"{yn(r['beside_plants'], r['beside_plants_rank'])} | {yn(r['copy'], r['copy_rank'])} "
+                         f"({r['copy_contrast']} DN, {r['copy_frames']} frames) |")
+            L.append("")
         L += markdown_table(tabs["contrast"], "contrast_cell", "Constant points, by contrast as written (grey levels)")
         L += markdown_table(tabs["speed"], "speed_cell", "Constant points, by speed against the scene (px a frame)")
         L += markdown_table(tabs["speed_loud"], "speed_cell", "The same for points of 30 grey levels or more")

@@ -60,7 +60,7 @@ def drawn_video(path, seed=0):
     grain of 1.2 grey levels, through libx264 with B frames at 700 kb/s."""
     rng = np.random.default_rng(seed)
     big = ndimage.gaussian_filter(rng.normal(0, 1, (H + 40, W + 4 * N + 40)), 6)
-    big = 110 + 28 * big / big.std()
+    big = 110 + 12 * big / big.std()               # 12 grey levels of texture: enough to register, well under the objects planted
     frames = []
     for n in range(N):
         g = ndimage.shift(big, (0, DRIFT * n), order=1, mode="nearest")[20:20 + H, 20 + 2 * N:20 + 2 * N + W]
@@ -92,7 +92,7 @@ def point(ident, x, y, vx=0.0, vy=0.0, contrast=60.0, sigma=1.5, dark=False, **m
 
 PLANTS = [point(1, 60.0, 120.0, 1.5, 0.4, contrast=60.0, sigma=1.5),
           point(2, 150.3, 180.6, 1.0, -0.3, contrast=80.0, sigma=2.5),
-          point(3, 100.0, 150.0, 0.5, -0.2, contrast=50.0, sigma=2.0, dark=True),
+          point(3, 90.0, 195.0, 0.5, -0.2, contrast=50.0, sigma=2.0, dark=True),       # 30 px or more from the others, always
           point(4, 170.0, 45.0, 0.9, 0.0, contrast=80.0, sigma=1.5),            # goes behind the block: hidden there
           point(5, 40.0, 40.0, 0.2, 0.3, contrast=400.0, sigma=2.0),            # too bright for the picture: clips
           dict(id=6, kind="scene", shape="point", sigma=2.0, contrast=60.0, dark=False, light=dict(kind="constant"),
@@ -333,10 +333,15 @@ def test_the_score_against_the_truth(tmp, made):
              dict(track=on2, dark=False, size_px=6.0, score=4.0, strength="fair", frames=[6, 40], points=1)]
     res = plant.recovered(t, props)
     r2 = next(r for r in res["plants"] if r["id"] == 2)
-    check(res["found"] == 1 and r2["found"] and r2["rank"] == 2 and abs(r2["px"] - 3.6) < 0.2 and r2["polarity"] is True,
+    check(res["found"] == 1 and r2["found"] and r2["rank"] == 2 and r2["rank_alone"] == 2 and abs(r2["px"] - 3.6) < 0.2 and r2["polarity"] is True,
           "a row on a planted path is that object, found at its place on the list", str({k: r2[k] for k in ("rank", "px", "shared")}))
     check(len(res["others"]) == 1 and res["others"][0]["rank"] == 1 and sum(r["found"] for r in res["plants"]) == 1,
           "a row on no planted path is another row, and the objects with no row are not found")
+    two = plant.recovered(t, [dict(track=by[1]["track"], dark=False, size_px=5.0, score=9.0, strength="fair"), props[0],
+                              dict(track=by[2]["track"], dark=False, size_px=5.0, score=3.0, strength="weak")])
+    got = {r["id"]: r for r in two["plants"]}
+    check(got[2]["rank"] == 3 and got[2]["rank_alone"] == 2 and got[1]["rank_alone"] == 1,
+          "an object's place with the other planted objects' rows set aside: third on the list, second among what is not planted")
     lo, hi = plant.wilson(0, 20)
     lo2, hi2 = plant.wilson(18, 20)
     check(lo == 0.0 and 0.15 < hi < 0.17 and 0.69 < lo2 < 0.70 and 0.97 < hi2 < 0.98 and plant.wilson(0, 0) == (None, None),
