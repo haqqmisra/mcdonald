@@ -3854,8 +3854,14 @@ depression below the horizontal.
   or more), or if it could not have seen a beat a third as strong. Where it could have and does not, the beat is the first
   camera's view, and T3 passes on it. On the Galileo clouds, Hideout's 7 % beat at 1.94 Hz went where Sphere, able to see
   1 %, saw none; a 5 % beat at 2.44 Hz stayed, the other camera seeing 0.8 % where only 2 % would have shown. The
-  envelopes must be of the same moments; nothing here can check it. No beat passes, with the smallest beat the clip could have shown (the injections' floor, else the
-  rule's own threshold, three times the background's).
+  envelopes must be of the same moments; nothing here can check it. No beat passes, with the smallest beat the clip could have shown. That is the injections' floor
+  where `mcdonald flicker` ran them. A result out of `mcdonald run` or a case file has none, and there it is the track's
+  own closed-form floor (§13, `flicker.analytic`'s `with_floor`: what a beat needs in the track's own noise and over the
+  background's flicker), which the stage records for every object and the report's beat row already reads (2026-11-13,
+  IDEAS.md DR5). Until then the rule's own threshold was quoted there, three times the background's beat, which says
+  nothing of the track's noise: on 18 of the 28 reference objects the track's own floor is higher, by up to 17 times
+  (PR088 object 2: 2 % quoted, 36 % in truth), and PR097 object 4 read "only a beat over 2 % would have shown" beside
+  an 8.7 % peak that did not show. Only the sentence moves, no outcome; the rule's threshold stays the last resort.
 - *T4, other evidence.* Does other evidence in the video, where there is any, agree with drift? Few videos show a strike
   or anything shed, so this test runs only on whichever of its parts the inputs allow. It fails when a part fails,
   passes when a part passes and none fails, and cannot say otherwise; only its tracer part bears on the airspeed.
@@ -3864,7 +3870,9 @@ depression below the horizontal.
     speed against the remains, in L per second (a straight line in time to their difference, its error from a
     moving-block bootstrap), divided by sin δ bounds the airspeed in the object's own lengths per second, with no field
     of view, range or wind. Fixed-wing drones cruise at two or more of their lengths a second, birds at four or more: a
-    bound under 2 passes; pieces leaving at 2 L/s or more fail. L is taken at its smallest (the rate kindest to a
+    bound under 2 passes; pieces leaving at 2 L/s or more fail, with or without δ: what shows across the line of
+    sight is the least the airspeed can be, and flight along it only adds (2026-11-13, IDEAS.md DR5; until then a
+    missing δ was asked for first and such pieces could not say). L is taken at its smallest (the rate kindest to a
     flier). Cloud is a tracer too (`--comotion`, the envelope of `mcdonald comotion`), but only where it is shown at the
     object's depth: cloud passing in front of the object places it within the layer (`--tracer-depth layer`), not at a
     cloud feature's depth, and a relative motion through it can then come from a depth offset inside the layer, from
