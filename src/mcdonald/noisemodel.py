@@ -941,6 +941,9 @@ def figure(model, path, points=()):
         if pts:
             ax.plot([q[0] for q in pts], [q[1] for q in pts], "o", color=figures.RED, ms=3.5, zorder=5)
         ax.set_yscale("log")
+        lo, hi = ax.get_ylim()                             # from the decade under the lowest line, so the medians' level
+        least = min(np.nanmin(np.asarray(g.get_ydata(), float)) for g in ax.get_lines())     # has a labelled tick under
+        ax.set_ylim(min(lo, 10.0 ** np.floor(np.log10(least))), hi)                          # it in every panel
         ax.set_xlim(flicker.LOW, 15.0)
         vids = ", ".join(f"{l['aperture'].split(' ')[0]} {l['videos']}" for l in here)
         ax.set_title(f"{kind[0].upper() + kind[1:]} grey levels", loc="left")
