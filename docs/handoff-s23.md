@@ -9,7 +9,11 @@ This file is the session's record in the repository; `docs/handoff-v04.md` stays
 writes it). The working record, with every agent's id, brief and notes, is `/scratch/mcdonald/s23-2026-11-13/`
 (`COORDINATOR.md` first). **State at 18:15 on 2026-11-14: all nine strands merged and tested; at Jacob's word ("Merge
 all now, local") `main` is fast-forwarded to `s23` (fe96011, not pushed, still 0.5.5) and the data folder's
-controls table swapped; the 144-video catalog run nearly done.** The session ran on Fable until the usage limit stopped every agent twice (16:19
+controls table swapped; the 144-video catalog run nearly done.** **State on 2026-11-15, ~03:00:** the nine strands went
+out in 0.5.6, cut by the Triangulation session (version commit 571c499; its Mac and Windows runs failed three tests,
+fixed on branch `s23-macfix`, see "Found on the way"). Wave 3 (`noise`, `rank`) and the batch strand's follow-up are
+merged on `s23` (032027e) **for 0.5.7, held until the Triangulation session says 0.5.6 is out**; every suite passes
+on it on Cannon. The session ran on Fable until the usage limit stopped every agent twice (16:19
 and ~23:45 on 11-13), and on Opus 5.5 from 07:26 on 11-14 at Jacob's word; each agent resumed from its own
 transcript. arthur was shut down for its fans (11-13 20:35, 11-14 ~13:00) and the queue paused twice.
 
@@ -138,6 +142,39 @@ alarm of record), 9 of 9 known answers. PR105, PR28's stem and PR071 hang; PR29 
 it had not seen: 2 hang (a ground band keeping pace). The scene's roll is now read from the shifts across the scene's
 motion (a similarity fit gave PR105's clouds a 34-degree roll). Nothing in the headline.
 
+## Wave 3 and the batch's follow-up, on `s23` for 0.5.7 (2026-11-15)
+
+`s23` is 0.5.6's version commit (571c499) plus three merges, 032027e: **every suite passes on Cannon** (run
+20261115-015113-s23-032027e: test_gui 689 + 4 skips, test_cli 137, test_measurement 675, test_reduction 732, test_noise,
+test_rank); each strand's fourteen-case gate against `final2`: 31 objects, **0 differences** (rerun by the
+coordinator). Readings and tools only: no call, floor or report sentence changes. Method sections 63 and 64.
+
+**batch's follow-up** (merge f888644 of 561284e). The table takes the scheduler's pauses out of its times (a person
+writes `DIR/batch_pauses.tsv`); a table read by a later version counts only its videos of another make apart; method
+section 54 gains what the first run over the catalog gave; README-technical's timing table is the catalog's record.
+
+**noise** (merge e678b4b of 5d033e9; `noise/notes.md`). `mcdonald noise`: every background aperture of the catalog run
+read as `flicker` reads it (7,064 columns, 4,314 kept by three stated rules), a beat's strength as a centile of the
+backgrounds' at its frequency in its stratum (frame rate, contrast, aperture, length; each video once), a generalised
+Pareto past the corpus's strongest (shape +0.11; trusted to about 1 in 2,000), and the false discovery rate over the
+pass: of 38 "Beats like a bird" rows outside the held-out third, Benjamini-Hochberg at q 0.05 keeps 25, Benjamini-
+Yekutieli 20; ten survive nothing (their calls rest on 2-s windows); the held-out third's one bird row does not
+survive. The model of record is in the data folder's new `noise/` (sums pass, synced to Cannon). **Built on the 66
+videos outside the held-out third, decided after seeing that one held-out video (pr063) was a third of the null** --
+said in the ledger and the notes. The coordinator redrew its figure so every panel labels its lowest decade.
+
+**rank** (merge 032027e of 74ca918; `rank/notes.md`). `mcdonald rank`: the catalog's 786 rows as 696 objects, the
+record's defects first (129 by the package's rules, 136 after an agent's look at the top twenty set seven aside: the
+overlay's north pointer and corner bracket, redaction blocks), then a conformal p-value for each object against each
+labelled class (birds, drones, airplanes, helicopters) within its contrast stratum, with the axis that drove it.
+Calibrated: each class held out by video against itself holds 4.9-6.5 % at 0.05. **12 of 298 objects are unlike every
+class that could tell at 0.05, about what chance gives; none survives Benjamini-Hochberg or -Yekutieli.** 172 objects
+have no class to compare with (wider or fainter than every labelled object). Nothing is named anomalous. **Its
+controls' table is not in the data folder**: the agent's write there was refused by the session's permission check,
+and nobody placed it; until it is, `mcdonald rank` needs `--controls /scratch/mcdonald/s23-2026-11-13/rank/out/controls_all.tsv`.
+`rank/scripts/place_controls.sh` places it (fixed by the coordinator to keep `controls/README.md`'s sum right; tried on
+a copy only).
+
 ## Found on the way
 
 - **`tests/test_controls.py` is in no suite list and fails on `main`.** At 0.5.3 (a72784c): 117 PASS, 1 FAIL (0.5.2's
@@ -155,6 +192,15 @@ motion (a similarity fit gave PR105's clouds a 34-degree roll). Nothing in the h
   gate held the object in the ULTN hold the scene streamed behind it at 0.78-0.97 of the rate the data bar gives; in
   the 4X hold the rate (210-230 px a picture) is beyond either stage's search, so nothing can be said, and the
   check's "the camera was not turning against the ground" is not supported. Neither strand edited the check.
+- **0.5.6's Mac (GitHub 118) and Windows (119) runs failed three tests**, fixed on branch `s23-macfix` (5a800fb,
+  d0f8c4a; from df4db97, cherry-picked by the Triangulation session onto the version commit). test_plant: the most a
+  planted object moved on one frame was 1.03 px on the Mac's encoder against a bound of 1 px (now 1.5; the median
+  stays at 0.25). test_measurement on Windows: `layers` held its cached `.npz` open and Windows cannot delete an open
+  file; both cache reads and the test's now close it at once. test_batch on the Mac: the test set TMPDIR to its own
+  folder, which put the fork server's socket file at 109 characters, over macOS's 103, so no pool started and Find
+  failed in every window; reproduced on arthur (Python 3.12 with a socket file; 3.14 falls back on its own); fixed in
+  the test. A person on macOS with Python before 3.14 and a very deep TMPDIR would meet the same; each row would say
+  "Find failed ... AF_UNIX path too long". A guard in `progress.context` is left for 0.5.7.
 - **After a reboot Slurm kept the suspended jobs as lost, still marked SUSPENDED**, holding 88 GB in its books until
   Jacob ran `requeue-lost-jobs.sh`; they then ran again from their start.
 
@@ -195,6 +241,16 @@ motion (a similarity fit gave PR105's clouds a 34-degree roll). Nothing in the h
 13. **Sizing the next catalog run**: the slow objects were the queue's pauses and `layers`' first pass, not the third
     (the GPU session's measurement); a batch job given the card, or 4395ed8's halving on the CPU, is the lever.
 14. **How hard agents may load arthur by day** (asked 2026-11-13 16:15; never answered, so "as before").
+15. **noise** (`noise/notes.md`, "For Jacob to decide" and "Words for Jacob"): whether a report quotes a beat's centile
+    or its line's p (recommended: the centile in the flicker notes, for the PURSUE sensors only; two sentences
+    proposed); whether ABOVE or BIRD_FLOOR follows the corpus's levels (recommended: not until a window-level p
+    exists); the model's videos (the 66 outside the held-out third, or every video with a weighted tail); four
+    judgement lines (ten videos a stratum, contrast edges 20 and 40, the threshold rule, the cautious p).
+16. **rank** (`rank/notes.md`): placing the controls' table in the data folder (`rank/scripts/place_controls.sh`; the
+    agent's own write was refused); the strata (contrast in two; every scheme tried gave 2 to 8 at 0.05); four
+    judgement lines (a quarter on the masks, half for "lost", a tenth of margin on a class's range, the largest
+    distance as the score); whether an agent's look may set objects aside; wider controls (airborne infrared of
+    aircraft and balloons at the corpus's widths) are what the list needs to gain power.
 
 ## How it ran (for next time)
 
@@ -218,3 +274,7 @@ motion (a similarity fit gave PR105's clouds a 34-degree roll). Nothing in the h
   Cannon login dies with arthur's reboot (only Jacob reopens it), so test on arthur (`mcdonald-test --on arthur`) then.
 - A wall-clock time across a queue pause includes the pause (a suspended job's clock runs): the catalog's slowest
   "objects" were the pause.
+- A test that sets TMPDIR deep inside its own folder can stop every pool on macOS (the fork server's socket path, 103
+  characters at most there); Linux's sockets have no path and Windows spawns, so only the Mac shows it. The Mac and
+  Windows runners both have ffmpeg 9.0.2 (arthur 7.1.5), so a codec difference shows on both.
+- Wave 3 ran two agents at once (noise, rank) from the version commit; they took about 1.5 and 2 hours, each with its own gate.
