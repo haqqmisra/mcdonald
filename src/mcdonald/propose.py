@@ -122,13 +122,14 @@ About 0.2 s a 1080p frame on ten processes, twice that where the scene holds sti
 """
 import itertools
 import shlex
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import ndimage
 
 from . import forensics as vf
-from .progress import pool_of, streamed, workers
+from .progress import Stopped, pool_of, streamed, workers
 
 K = 2                       # frames either side for the double difference
 PER_FRAME = 10              # peaks kept per frame and polarity
@@ -812,20 +813,21 @@ def score(props, company=True):
             continue
         c.company = 0
         for i in np.flatnonzero((first <= b) & (last >= a)):
-            o = props[i]
+            o, o0, o1 = props[i], int(first[i]), int(last[i])           # o.frames[0] and [-1], without sorting its frames again
             so = float(np.hypot(*o.velocity))
             # A direction needs a speed of a pixel a frame, or a way of 30 px made at its speed over its frames: PR149's
             # ship, drifting at 0.98 px a frame under a still camera, is seven rows going the same way (2026-09-29), a
             # flow like any other. At its speed, not its extent: six scattered peaks over 12 frames on PR144 had an
             # extent of 830 px at 1.4 px a frame, and counted as the followed object's company.
-            way = min(sc * (b - a), so * (o.frames[-1] - o.frames[0]))
-            if o is c or (min(sc, so) < 1.0 and way < 30.0) or len(o.track) < 4 or o.frames[0] > b or o.frames[-1] < a:
+            way = min(sc * (b - a), so * (o1 - o0))
+            if o is c or (min(sc, so) < 1.0 and way < 30.0) or len(o.track) < 4 or o0 > b or o1 < a:
                 continue
-            n = max(a, o.frames[0])
+            n = max(a, o0)
             cosang = (c.velocity[0] * o.velocity[0] + c.velocity[1] * o.velocity[1]) / (sc * so)
-            far = np.hypot(_at(c, n)[0] - _at(o, n)[0], _at(c, n)[1] - _at(o, n)[1]) > 60
-            if cosang > np.cos(np.radians(25)) and 0.5 <= sc / so <= 2.0 and far:
-                c.company += 1                              # going the same way at the same time, somewhere else: a flow
+            if cosang > np.cos(np.radians(25)) and 0.5 <= sc / so <= 2.0:
+                (cx, cy), (ox, oy) = _at(c, n), _at(o, n)
+                if np.hypot(cx - ox, cy - oy) > 60:
+                    c.company += 1                          # going the same way at the same time, somewhere else: a flow
         mid = c.frames[len(c.frames) // 2]
         c.tape = is_tape(c, [props[i] for i in np.flatnonzero((first - 2 <= mid) & (mid <= last + 2))])
         # Motion against the background: how fast (3 px a frame is the whole of it), or how far over the frames it was
@@ -848,7 +850,7 @@ def _apart(c, b, shared):
     put the same object 15-19 px "from" itself and left it in three rows."""
     both = [n for n in shared if n in b.track]
     if len(both) >= 2:
-        return float(np.median([np.hypot(c.track[n][0] - b.track[n][0], c.track[n][1] - b.track[n][1]) for n in both]))
+        return _median([np.hypot(c.track[n][0] - b.track[n][0], c.track[n][1] - b.track[n][1]) for n in both])
     ns, d = b.frames, []
     for n in shared:
         i = int(np.searchsorted(ns, n))
@@ -857,7 +859,21 @@ def _apart(c, b, shared):
         seg = B - A
         t = float(np.clip(np.dot(P - A, seg) / np.dot(seg, seg), 0.0, 1.0)) if np.dot(seg, seg) > 0 else 0.0
         d.append(float(np.hypot(*(P - (A + t * seg)))))
-    return float(np.median(d))
+    return _median(d)
+
+
+def _median(values):
+    """`float(np.median(values))` of a short list, the same to the bit -- the middle value, or the two middle ones added
+    and halved, as NumPy does -- without making an array for each: the fold asks for tens of thousands, and NumPy's
+    median of a few numbers takes 20 microseconds (2026-11-15). A NaN, or nothing, goes to NumPy, which says NaN."""
+    s = sorted(values)
+    if not s or any(x != x for x in s):
+        return float(np.median(values))
+    m = len(s) // 2
+    return float(s[m] if len(s) % 2 else (s[m - 1] + s[m]) / 2)
+
+
+FOLD_BLOCK = 64     # frames: `_fold` files its rows by block of this many frames
 
 
 def distinct(props, near=30.0):
@@ -884,11 +900,21 @@ def _fold(props, near):
     # 60 frames from a row is passed over at once: it shares no frame with it, and one after the other needs a gap of
     # 60 or less, so it could not fold there. The same rows to the bit; on a long video (PR051's 3,000 frames) the
     # fold had been most of Find's time (2026-11-14).
-    out, span = [], []
+    # And the rows a piece could fold into are looked up, not looked through (2026-11-15): each row is filed under every
+    # block of FOLD_BLOCK frames that its span, widened by 60 frames on each side, reaches into, filed again as it grows;
+    # a piece is held only against the rows filed under the blocks its own span covers, in the rows' order. Every row
+    # within 60 frames of it is among them, so it is the same fold. On PR051's 3,000 frames the passing over had been 29
+    # million steps, a third of the fold.
+    out, span, filed = [], [], {}
+
+    def file(j, lo, hi):
+        for k in range((lo - 60) // FOLD_BLOCK, (hi + 60) // FOLD_BLOCK + 1):
+            filed.setdefault(k, set()).add(j)
     for c in props:
         cf = c.frames
         c0, c1 = cf[0], cf[-1]
-        for j, b in enumerate(out):
+        for j in sorted(set().union(*(filed.get(k, ()) for k in range(c0 // FOLD_BLOCK, c1 // FOLD_BLOCK + 1)))):
+            b = out[j]
             b0, b1 = span[j]
             gap = max(c0 - b1, b0 - c1)
             if gap > 60:
@@ -915,24 +941,44 @@ def _fold(props, near):
                             or np.hypot(c.velocity[0] - b.velocity[0], c.velocity[1] - b.velocity[1]) <= max(2.5, 0.3 * np.hypot(*b.velocity)))
                 same, alike = apart <= near, alike and apart <= 8.0 and same_way
             else:                                          # one after the other: is the later where the earlier was heading?
-                n = c.frames[0] if c.frames[0] > b.frames[-1] else c.frames[-1]
-                same = (alike and gap <= 60 and off_path(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1], b.velocity, gap, near) <= 1.0
-                        and np.hypot(c.velocity[0] - b.velocity[0], c.velocity[1] - b.velocity[1]) <= max(4.0, 0.4 * np.hypot(*b.velocity)))
+                # The velocity is asked first: it is cheap, and most pairs fail it; where it was asked second the path was
+                # worked out for every pair alike and near in time (half a million on PR051's first 540 frames, 2026-11-15).
+                n = c0 if c0 > b1 else c1
+                same = (alike and gap <= 60
+                        and np.hypot(c.velocity[0] - b.velocity[0], c.velocity[1] - b.velocity[1]) <= max(4.0, 0.4 * np.hypot(*b.velocity))
+                        and off_path(c.track[n][0] - _at(b, n)[0], c.track[n][1] - _at(b, n)[1], b.velocity, gap, near) <= 1.0)
             if same:
                 if alike:
                     for n in cf:
                         b.track.setdefault(n, c.track[n])
                     b.parts += c.parts
                     span[j] = (min(b0, c0), max(b1, c1))
+                    file(j, *span[j])
                 break
         else:
             out.append(c)
             span.append((c0, c1))
+            file(len(out) - 1, c0, c1)
     return out
 
 
 # ---- the whole search ------------------------------------------------------------------------
-def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, progress=None, stop=None, keep=12, show=True):
+SHOW_SHARE = 4.0    # with `show` a number of seconds: a list waits at least this many times as long as the last took
+LISTING = "Making the list of what was found so far"     # the step said while a list is made: the bar stands still meanwhile
+
+
+def show_now(waited, took, every):
+    """Whether `search`, showing its list at most every `every` seconds, makes one now: `waited` seconds since it
+    last gave one (or began), the last having taken `took` seconds to make and to be shown. A list on a long video
+    takes longer to make than a block of frames takes to search -- PR051's after 3,000 frames about 20 s at 30 rows,
+    against 16 s a block at 4 CPUs and 2 s at 32 -- so it waits SHOW_SHARE times as long as the last took: the
+    lists then take at most a fifth of this process's time, the rest is the search's, and the bar moves meanwhile
+    (it moves as this process takes each frame's peaks, and does not while it makes a list)."""
+    return waited >= max(every, SHOW_SHARE * took)
+
+
+def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, progress=None, stop=None, keep=12, show=True,
+           enough=None):
     """Yields (frames done, frames in all, [Proposal], best first) as it goes, a block of
     frames at a time, so that a caller can show what has been found so far and stop when the
     object is on the list. `progress` and `stop` are mcdonald.progress's.
@@ -945,7 +991,17 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, pr
     catalog run (2026-11-14) Find was half of all the time, 0.26 s a frame at 4 CPUs on most
     videos and 0.75-0.89 s on the longest. PR051's first 1,500 frames took 753 s and its first
     3,000 took 3,138 s, 98 % of it this process; with the list made once (and `_fold` and `score`
-    held to what is near in time), 518 s."""
+    held to what is near in time), 518 s.
+
+    With `show` a number of seconds (the window's Find) a list is made after a block only when
+    `show_now` says so -- at most that often, and no oftener than leaves the search four fifths of
+    this process -- and after the last block always: the same last list again, to the bit. The
+    window's Find made one after every block until 2026-11-14 and took 924 s on PR051's 3,000.
+
+    `enough` (the window's Stop) ends the search as `stop` does, but first yields the list of every
+    frame looked at, those of the last part-block too, unless the last list yielded already had
+    them all: with lists made seconds apart, the one showing when Stop is pressed can be some
+    blocks old. `stop` ends it with nothing more (the person has taken a row, or closed the panel)."""
     n_lo, n_hi = max(n_lo or clip.n0, clip.n0) + k, min(n_hi or clip.n1, clip.n1) - k
     if n_hi - n_lo < 2:
         return
@@ -954,36 +1010,65 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, pr
     bad, bad_still = not_scene(clip, masks), not_scene(clip, masks, EDGE_STILL)
     frames = list(range(n_lo, n_hi + 1))
     found, still, vbg, raw, back = {}, {}, {}, [], 40
+    every = None if isinstance(show, bool) else float(show)
+
+    def chained(first):
+        """Chains are made afresh only where they could have changed: from `back` frames before this block on. One that
+        began earlier is kept as it was; if it runs on into this block its continuation is a chain of its own, and
+        `things` and `distinct` make one thing of the two. The still pass's peaks are chained apart from the residual's
+        at k, and held to what that pass is for (`lasting`): the k pass's chains, and what is said of them, are as they
+        were."""
+        since = first - back
+        return ([c for c in raw if c[0][0] < since]
+                + chains({n: pk for n, pk in found.items() if n >= since})
+                + lasting(chains({n: pk for n, pk in still.items() if n >= since}), half_second(clip, k)))
+
+    def listed():
+        """Scored, folded, and scored again: the fold needs the order, and a folded row's path is all it was lent. The bar
+        moves as this process takes each frame's peaks, so it stands still while a list is made -- on a long video for
+        many seconds (PR051's at 3,000 frames, about 20 s): `progress` says so."""
+        if progress:
+            progress(LISTING, got, len(frames))
+        props = score(distinct(score(describe(things(raw), found, vbg, still))), company=False)[:keep]
+        for p in props:
+            p.frame_size = (clip.W, clip.H)
+            p.points = points_in(clip, p, bad)
+            p.why = p.describe()
+        return props
+
+    halt = stop if enough is None else (lambda: bool(enough()) or (stop is not None and bool(stop())))
     # One pool for the search, fed every frame at once: it goes on with the next block while this process makes
     # chains of the last and the caller shows them (until 2026-10-09 it waited for each block, idle, and at its tail).
     n_workers = workers(procs, clip.W * clip.H)
     pool = pool_of(n_workers, _init, (clip, bad, k, bad_still), pixels=clip.W * clip.H) if n_workers else None
     if pool is None:                                           # procs=0: the same, in this process
         _init(clip, bad, k, bad_still)
+    got, shown, i, part = 0, 0, 0, []
+    since_shown, took = time.monotonic(), 0.0
     try:
-        each = streamed(pool, _frame, frames, chunksize=2, progress=progress, stop=stop, what="Motion search")
+        each = streamed(pool, _frame, frames, chunksize=2, progress=progress, stop=halt, what="Motion search")
         for i in range(0, len(frames), block):
             part = frames[i:i + block]
             for n, pk, v in itertools.islice(each, len(part)):
                 found[n], still[n], vbg[n] = [p for p in pk if not p[11]], [p for p in pk if p[11]], v
-            # Chains are made afresh only where they could have changed: from `back` frames before this
-            # block on. One that began earlier is kept as it was; if it runs on into this block its
-            # continuation is a chain of its own, and `things` and `distinct` make one thing of the two.
-            # The still pass's peaks are chained apart from the residual's at k, and held to what that
-            # pass is for (`lasting`): the k pass's chains, and what is said of them, are as they were.
-            since = part[0] - back
-            raw = ([c for c in raw if c[0][0] < since]
-                   + chains({n: pk for n, pk in found.items() if n >= since})
-                   + lasting(chains({n: pk for n, pk in still.items() if n >= since}), half_second(clip, k)))
-            if not show and i + block < len(frames):
+                got += 1
+            raw = chained(part[0])
+            if i + block < len(frames) and (show is False or (every is not None
+                                                              and not show_now(time.monotonic() - since_shown, took, every))):
                 continue
-            # Scored, folded, and scored again: the fold needs the order, and a folded row's path is all it was lent.
-            props = score(distinct(score(describe(things(raw), found, vbg, still))), company=False)[:keep]
-            for p in props:
-                p.frame_size = (clip.W, clip.H)
-                p.points = points_in(clip, p, bad)
-                p.why = p.describe()
-            yield i + len(part), len(frames), props
+            began = time.monotonic()
+            props = listed()
+            shown = got
+            yield got, len(frames), props
+            since_shown = time.monotonic()
+            took = since_shown - began                         # the caller's part too: the window cuts each new row's strip
+    except Stopped:
+        if enough is None or not enough() or (stop is not None and stop()) or got == shown:
+            raise
+        if got > i:                                            # the part-block it was in: its frames are looked at too
+            raw = chained(part[0])
+        yield got, len(frames), listed()
+        raise
     finally:
         if pool is not None:
             pool.terminate()
