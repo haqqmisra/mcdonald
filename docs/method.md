@@ -6932,6 +6932,34 @@ or a line, a scrolling tape, past the cap -- each as Find's own strip.
 - A scheduler's own count of a job's memory reads up to the job's limit whatever the unit needs, because it counts the
   frames the system keeps to hand. Size by the unit's `peak_rss_mb`, which counts each process's fair share.
 
+**The first run over the catalog** (2026-11-13/14; all 144 PURSUE videos; the code of commit abdc399, before the CPU
+speed-ups of 0.5.5 and after; 4 CPUs a video, 8 for NASA-UAP-D024; arthur, no graphics card; stopped on purpose once
+and by two power-downs, and taken up each time from where each video was). Every video is a row or more; none failed.
+
+- 99 videos have objects measured; 45 have nothing that lasted 40 frames (35 of them have spots refused for that
+  alone, 5 have no proposal at all). 68,508 proposals in all; 22,744 were refused only for lasting under 40 frames
+  (the longest such in a video is 35 frames, the median), in 134 videos. 1,715 spots lasted; 786 were measured (the
+  cap of twelve reached in 44 videos), 88 of them not followed (the link found no track from Find's marks), 90
+  followed onto the track of another of their video (`same_as`), 100 measured as groups of points.
+- The labels: 659 "No physical conclusion", 88 "No conclusion" (not followed), 39 "Beats like a bird", in 14
+  videos. Grades: 667 Low, 31 Very low. Every report is provisional: no track sheet has been looked at.
+- Against the October pass (the research record of the whole-video beat pass, 121 videos in both): **the same 1,576
+  objects, video by video**. The rules moved into the package give the pass's list again.
+- Against the reference case files (31 objects of the two papers): 22 have a batch object on their track; 7 more
+  are lasting spots past the cap of twelve (PR097's objects 5-8, PR099's object 1, PR141's two); 2 were refused as
+  brief (PR113's four-frame transit, PR43's 26-frame streak). Of the 20 objects the papers name birds, 16 are
+  followed and 9 named a bird by the toolkit's default rule; the others are measured by the papers' own rule and
+  aperture in their files, which the batch does not use.
+- The held-out third (42 videos): 248 objects with a row, 1 named a bird (grade Very low); on the other 102 videos
+  538 objects and 38 named a bird. Entered in `tools/sweep/looks.tsv`; nothing was tuned on it.
+- The `integrity` stage raised on 12 objects of 9 videos, every one 21 px wide or more: its self-test drew its
+  synthetic object, or read a window, off the picture (section 54's run found it; fixed after the run, 5c19921).
+  Those objects' integrity tests are NO POWER in the table.
+- Cost: 153 unit-hours of wall time (151 with the scheduler's pauses taken out), about 650 CPU-hours; Find 78 of
+  them, measuring 76. A unit held 0.5 to 4.3 GB (each process's fair share); two videos ran out of 3,000 MB on group
+  objects of thousands of followed points (PR063, LLE-PR002) and were measured with 12 GB: a unit's memory depends on
+  its objects, which the size classes, fitted to the frame's size, do not see.
+
 ## 55. Does something hang under it? `mcdonald tether`'s first outcome (IDEAS.md H5; added 2026-11-13)
 
 **What it is.** Section 6's stage finds what moves with an object and asks whether it swings. Most of what moves

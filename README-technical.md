@@ -66,24 +66,29 @@ for updates in the window, and the `version` line of `mcdonald setup` (`--json`:
   2 MB to 3 GB (most under 100 MB). Both go in one folder you choose on the first screen.
 - **Memory**: 8 GB is enough for a segment of a few hundred frames; more for whole videos.
 - **Time.** mcdonald compares frames pixel by pixel, and some steps are slow. On the machine it
-  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment, and on 8 CPUs
-  (4 cores) of the workstation it is developed on now (a 48-core Xeon of 2025), for whole videos:
+  was built on (a 2012 six-core Xeon workstation, 2 GHz, 32 GB), for a 1080p segment, and on 4 CPUs
+  (2 cores) of the workstation it is developed on now (a 48-core Xeon of 2025), for whole videos:
 
-  | step | the 2012 workstation, about | 8 CPUs of the 2025 workstation, about |
+  | step | the 2012 workstation, about | 4 CPUs of the 2025 workstation, about |
   |---|---|---|
   | saving the frames (once) | a few seconds per 100 frames | 1 s per 100 frames |
-  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) | 0.16 s a frame, 720p and 1080p alike (a 5-minute video: 25 minutes) |
-  | Follow it | about ten seconds | 5 s + 0.02 s a frame (a 9-second track: 10 s) |
-  | Measure, without the two slow checks | under a minute | 45 s |
-  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) | 50 s + 0.07 s a frame (9 s: ~1 minute) |
-  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) | 45 s + 0.04 s a frame (9 s: ~1 minute) |
+  | Find the object | 15 s + 0.2 s a frame (a 3-second segment: under a minute) | 0.26 s a frame (0.29 at 1080p, 0.21 at 720p; a 5-minute video: 40 minutes) |
+  | Follow it | about ten seconds | 15 s (median; 0.06 s a frame) |
+  | Measure, without the two slow checks | under a minute | 50 s (median) |
+  | Measure: the *layers* check | about 1.4 s per pair of frames (3 s: ~2 minutes) | 2 minutes (median; 0.5 s a frame; 6.5 minutes or more on a tenth of the tracks) |
+  | Measure: the *integrity* check | about 1.5 s per pair of frames + 30 s (3 s: ~3 minutes) | 1.5 minutes (median; 1 minute + 0.15 s a frame) |
 
-  The right-hand column is the record of whole videos run through `mcdonald batch` (November 2026: eleven PURSUE
-  videos, 35 objects followed and measured with every check; `docs/method.md` §54). There an object takes 3 minutes
-  on 8 CPUs (1 to 9, by the length of its track) and 4 minutes on 4, and the two slow checks are 70 % of it. A whole
-  video is Find over every frame and then its objects: a 52-second video with 7 objects (PR149, 1,545 frames) took
-  33 minutes on 8 CPUs and 43 on 4; a 5-minute video with 12 (PR088, 8,964 frames) 52 minutes on 8 CPUs. Half the
-  CPUs take about 1.3 times as long, so several videos side by side on 4 CPUs each get through more than fewer on 8.
+  The right-hand column is the record of the first run of `mcdonald batch` over all 144 PURSUE videos (13 and 14
+  November 2026, the code of commit abdc399, 4 CPUs a video with other jobs beside them, no graphics card; 620 objects
+  followed and measured with every check, those whose clock ran across a pause of the scheduler left out;
+  `docs/method.md` §54). There an object takes 4.5 minutes (median; 0.6 to 80, by its track's length and its
+  background), and the two slow checks are 80 % of it. A whole video is Find over every frame and then its objects,
+  up to twelve: 5 minutes (median) where nothing lasted, 47 where objects were measured; PR149 (52 s, 7 objects) 42
+  minutes, PR088 (5 minutes, 12 objects measured of 30) 110, PR098 (18 minutes, 12 of 120) 4 hours. The catalog took
+  about 650 CPU-hours. On 8 CPUs a video takes about three quarters as long, so several videos side by side on 4 CPUs each
+  get through more than fewer on 8. Since that run the *layers* check takes about half as long on a CPU, and the
+  *integrity* check's background is read once, with the same numbers to the bit (the CHANGELOG, 0.5.5 and after); a
+  batch job given the graphics card takes both in minutes.
 
   On four CPUs (a laptop) count on about twice these: a 2-second segment of PR113 measured with
   every check took 8 minutes there. The long steps use every CPU there is, as far as the memory
