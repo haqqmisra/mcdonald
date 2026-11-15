@@ -246,7 +246,9 @@ def test_rules():
         big = sorted((batch.resources(u, 4)[0] for u in units), reverse=True)
         c = rc["classes"][0]
         check(len(card) == 2 and card[0].count("--gres=gpu:1") == 1 and "--array" not in card[0] and " -c 16 " in card[0]
-              and card[0].endswith("batch.sbatch --pool 4)") and "--units" not in card[0] and "--dependency=afterany:$j0" in card[1]
+              # the script's path is quoted where it needs to be (a Windows path, a folder with a space): it ends .sbatch' there
+              and card[0].endswith(" --pool 4)") and "batch.sbatch" in card[0].split(" --pool")[0][-14:]
+              and "--units" not in card[0] and "--dependency=afterany:$j0" in card[1]
               and "--gres" not in card[1] and c["card"] == 4 and c["mem_mb"] >= sum(big) and c["mem_mb"] % batch.MEM_STEP == 0
               and c["minutes"] >= 2 * max(batch.resources(u, 4)[1] for u in units) and not rc["jobs"],
               "--card: one job given the graphics card in place of the arrays, its videos side by side (no more than there are), "
