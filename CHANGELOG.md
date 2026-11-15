@@ -460,7 +460,10 @@ each hold it, so they ran one after another. Each video's process opens the card
 there within its part of the card's memory, told how many share it (`MCDONALD_CARD_SHARED`; `gpu.part`): before,
 each planned on half of whatever was free when it asked, so the first to ask took the most, and eight 1080p videos
 together filled 15.5 GB of the card's 15.9. A part decides how much is sent at once, never a number. Each video's
-log and `batch_state.json` say what computed it (`card`, and `card_why` where it was the CPU). MEASURED_LINE
+log and `batch_state.json` say what computed it (`card`, and `card_why` where it was the CPU). Eight parts of 1080p
+PURSUE videos in one job of 32 CPUs, every step: 447 s eight at a time on the card, 476 s four at a time, 1,297 s one
+after another, and 961 s eight at a time on the CPUs alone. Every case is the same to the bit as the same video
+measured alone on the card; with the parts the card held at most 8.8 GB where it held 13.8 without them.
 
 **A half-installed add-on is no longer taken for an installed one** (2026-11-14). Preferences said the card was ready
 wherever a folder named `cupy` could be found, also one that pip had begun and not finished (a window closed, a lost

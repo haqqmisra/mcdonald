@@ -6699,17 +6699,24 @@ among the catalog run's slowest in `layers`, every stage, one job of 32 CPUs on 
 |---|---:|---:|---:|---:|---:|
 | on the card, one after another (32 CPUs each) | 1,297 s | 1,296 s | 6 of 32 | 25 % of the time | 9.6 GB |
 | on the card, 4 at a time (8 CPUs each) | 476 s | 1,470 s | 12 of 32 | 53 % | 10.9 GB |
-| on the card, 8 at a time (4 CPUs each) | 447 s | 1,933 s | | 48 % | 15.5 GB |
+| on the card, 8 at a time (4 CPUs each) | 447 s | 1,933 s | (not read) | 48 % | 15.5 GB |
 | CPUs alone, 8 at a time (4 CPUs each) | 961 s | 4,535 s | 16 of 32 | | |
 
-Every case of the pools is the same to the bit as the same video measured alone on the card: 10 cases, every field
-and every table beside them. A process's arithmetic does not depend on what else is on the card, only on how it
-batches, and its batches change nothing (`test_the_cards_batches_change_nothing`). With the card a video in its
-measuring keeps two to four CPUs busy whatever it is given, so a card's job wants many videos with few CPUs each, and
-the card's memory becomes the limit: each process planned its batches on half of what was free when it asked, so the
-first to ask took up to 8.3 GB and the eight together 15.5 GB of the 15.9. Since then each plans within its part
-(`gpu.part`: 0.9 of the card less 300 MB a process for what CUDA itself holds, 230-270 MB measured, divided among
-them; 1.5 GB each of eight), told how many share it by `MCDONALD_CARD_SHARED`, which the pool sets. SHARE_RESULT
+Every case of the pools is the same to the bit as the same video measured alone on the card: 10 cases, every field and
+every table beside them. A process's arithmetic does not depend on what else is on the card, only on how it batches,
+and its batches change nothing (`test_the_cards_batches_change_nothing`). With the card a video in its measuring keeps
+two to four CPUs busy whatever it is given, so a card's job wants many videos with few CPUs each, and they share the
+card's memory. Each process planned its batches on half of what was free when it asked, so the first to ask took up to
+8.3 GB and the eight together 15.5 GB of the 15.9. Since then each plans within its part (`gpu.part`: 0.9 of the card
+less 300 MB a process for what CUDA itself holds, 230-270 MB measured, divided among them; 1.5 GB each of eight), told
+how many share it by `MCDONALD_CARD_SHARED`, which the pool sets. A batch takes what is left of the part, never more
+than half of what is free on the card. Back to back in one job each (2508, 2527), eight at a time: without parts 430
+and 391 s, the card's memory at most 14.3 and 13.8 GB, `layers` 238 and 250 s over the ten objects; with parts 404 s,
+5.9 GB and 270 s where a batch took half of what was left (its batches small), 405 s, 8.8 GB and 256 s where it takes
+all (as built). Every case of every pool, parts or none, is the same to the bit as alone. No process ran short of
+memory in any run, also with 6 GB of the card held by another program, where without parts the card filled to 97 %:
+planning on half of what is free adapts by itself. The parts are for the desktop the card also draws, which is why one
+process plans on half (SHARE).
 
 ## 53. Known answers from three cameras: the Galileo Project's triangulated objects (added 2026-11-13)
 

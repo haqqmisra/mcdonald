@@ -571,8 +571,8 @@ class Card:
         """Bytes a batch may take: SHARE of what is free on the card now, counting what this process holds ready to
         use again, and less after an out-of-memory (`fewer`). Where several processes share the card, no more than what
         is left of this one's `part`: the part has the desktop's room taken out already, so it is not halved again
-        (halved, a pool of eight's `layers` took 13 % longer, and 52 % at a part of 0.6 GB). The stand-in has 1 GB (or
-        its part), so that its batches are split as a card's are."""
+        (halved, a pool of eight's `layers` took 13 % longer than with no part, and 52 % at a part of 0.6 GB; not
+        halved, 2 %). The stand-in has 1 GB (or its part), so that its batches are split as a card's are."""
         if not self.real:
             return int(self.less * min(2 ** 30, self.part or 2 ** 30))
         return int(self.less * self.run(self._room))
