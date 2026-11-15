@@ -996,7 +996,9 @@ def test_a_newer_version_is_found_said_and_put_in_place():
                     again = [sys.executable, "-c", f"import pathlib; pathlib.Path({str(opened)!r}).write_text('x')"]
                     log = update.start(cmd=pip, again=again, pid=window.pid)
                     closed = None
-                    for _ in range(100):
+                    # up to 30 s: 4 s of it are fixed (the stand-in window's 2 s, and the helper's own 2 s after it on
+                    # Windows), then two Python processes start; a slow Windows runner ran past 10 s once (run 115)
+                    for _ in range(300):
                         if closed is None and window.poll() is not None:
                             closed = time.time()
                         if (opened.exists() if works else log.exists() and "\npip ran" in log.read_text(encoding="utf-8")):
