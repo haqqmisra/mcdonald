@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.7 (2026-11-15)
 
 **`mcdonald batch`'s table takes the scheduler's pauses out of its times, and counts only the videos of another
 make apart** (2026-11-14; method section 54 gains what the first run over the catalog gave). A Slurm job that is
@@ -74,8 +74,9 @@ finished batch and writes a list for a person. No report changes, no call change
   balloons and aircraft, the Galileo flyers) with a class to compare, none comes out unlike every class (10 of 22).
 
 New suite `tests/test_rank.py` (in `tools/suites.sbatch` and the workflows' lists). `cli.py` gains the `rank` line; README-technical and
-docs/agents.md a section each. The controls' table the command reads by default (`controls/rank_controls.tsv` in the
-data folder) is to be placed there; until it is, give `--controls`.
+docs/agents.md a section each. The controls' table the command reads by default is `controls/rank_controls.tsv` in the
+data folder (placed 2026-11-15: 342 known objects, 309 of them the labelled infrared set's; its README paragraph and
+checksum with it).
 
 **The window's Find on a long video: its list at most every few seconds, and Stop gives the list of all it looked at**
 (2026-11-15). While it looked, the window's Find made its whole list again after every 90 frames. It joined,

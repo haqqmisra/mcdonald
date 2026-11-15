@@ -176,6 +176,8 @@ class that could tell at 0.05, about what chance gives; none survives Benjamini-
 have no class to compare with (wider or fainter than every labelled object). Nothing is named anomalous. **Its
 controls' table is not in the data folder**: the agent's write there was refused by the session's permission check,
 and nobody placed it; until it is, `mcdonald rank` needs `--controls /scratch/mcdonald/s23-2026-11-13/rank/out/controls_all.tsv`.
+**Placed 2026-11-15** (Jacob's word; `place_controls.sh` on `out/controls_all.tsv`, both sums OK; synced to Cannon's copy),
+before 0.5.7.
 `rank/scripts/place_controls.sh` places it (fixed by the coordinator to keep `controls/README.md`'s sum right; tried on
 a copy only).
 

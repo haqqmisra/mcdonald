@@ -9,7 +9,7 @@ authors:
   - family-names: Haqq Misra
     given-names: Jacob
     affiliation: Blue Marble Space
-version: 0.5.6
+version: 0.5.7
 date-released: 2026-11-15
 license: BSD-3-Clause
 doi: 10.5281/zenodo.23652954
