@@ -50,6 +50,8 @@ COMMANDS = {
               "mcdonald.plant"),
     "noise": ("what the background beside every object of a batch does: how often noise alone beats as strongly, and which beats stand",
               "mcdonald.noisemodel"),
+    "rank": ("a batch's objects held against known classes: the record's defects first, then how unlike each class each one is",
+             "mcdonald.rank"),
 }
 
 USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video of unidentified objects

@@ -3,6 +3,80 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+**`mcdonald batch`'s table takes the scheduler's pauses out of its times, and counts only the videos of another
+make apart** (2026-11-14; method section 54 gains what the first run over the catalog gave). A Slurm job that is
+suspended keeps its clock running, so a video measured across a pause counted the pause as its own time: a queue paused
+for 75 minutes put 4,450 s into one object's `layers`. A person may now write `DIR/batch_pauses.tsv` (from, to, what);
+each row of the table then says whether its last try ran across a pause (`paused`: yes, perhaps, no), how long
+(`paused_s`) and how long it really ran (`running_s`), and the tally adds the running seconds. A table read by a later
+version than made it was called "another make" whole (144 of 144); now its own make is the one most of its done videos
+have, and only the others are counted apart. README-technical's timing table gives the catalog's record at 4 CPUs.
+
+**`mcdonald noise`: what the sensors' own backgrounds do, over a whole pass** (ROADMAP 0.6 objective 6; IDEAS.md S3, E24,
+D7; 2026-11-15; method section 63). The flicker stage holds a beat against four small circles of background beside the
+object, the background apertures. Four of them cannot say how strong a line noise alone makes. The new command reads
+every background aperture that a `mcdonald batch` run left behind. It reads each one exactly as the stage read it, and
+gives three readings. **They are readings only. No call, no floor and no sentence of a report changes.**
+
+- *How strong a beat is.* `mcdonald noise --model DIR --hz F --share A --contrast C --frames N --aperture R` places a
+  beat among the background lines at its frequency. The answer is a centile: the share of those lines that are weaker.
+  They come from apertures like the object's, with the same frame rate, contrast, aperture size and track length.
+  Each video counts once. PR41's bird of the bird paper is stronger than 97 % of them (92 % to 100 %).
+- *A p-value past the strongest background.* A fitted curve, a generalised Pareto, extends the background lines' tail
+  past the strongest of them. The real tail is heavier than that of Gaussian noise. The held-out third's 2,286
+  background apertures were kept out of the model to test it, and 1.3 % of them pass at p 0.01. The p is measured down
+  to about 1 in 2,000. It holds within a factor of ten a little past that, and further out only its order is known. A
+  cautious p, from the heaviest tail the data allow, is given beside it.
+- *The false discovery rate over the pass* (`--fdr`): the share of the beats found that would be noise. The pass has
+  38 "Beats like a bird" rows outside the held-out third. At a rate of 5 %, 25 of them survive by Benjamini and
+  Hochberg's method and 20 by Benjamini and Yekutieli's, which allows for tests that depend on each other. Ten survive
+  neither even at 10 %: their calls rest on 2-s windows, which one line over the whole track does not show. The
+  held-out third's one bird row, PR152's object 9, does not survive. The stage's own continuum p cannot do this alone:
+  its 2,000 drawn curves cannot give a p small enough for 602 rows.
+- *The model of record* is in the reference-data folder's new `noise/` folder: 2,028 background apertures in 65
+  videos. It was made from the catalog run of 2026-11-13 and 14, whose flicker readings are those of the code then.
+  `tests/test_noise.py` holds the readings to the stage's own, and PR41's bird to the model of record.
+
+**`mcdonald rank`: a batch's objects held against known classes, the record's defects first** (ROADMAP 0.6
+objective 5; IDEAS T12, P9, Av14, D9; 2026-11-15; method section 64). A new command and module, `rank.py`, that reads a
+finished batch and writes a list for a person. No report changes, no call changes, and nothing is named anomalous.
+
+- *Rows to objects, and defects first.* A row followed onto another row's track is counted through it; a group stays
+  one object. Then the defects, each by a test the package has with its line stated: not followed, a stage that
+  failed, integrity's FLAGs (the overlay's layer order apart), a track on the display's overlay or a redaction block
+  for a quarter of its frames or more (`--masks`: the package's static masks of each case's own clip), a group read as
+  one blend, a spot fixed on the sensor (`forensics.on_the_sensor`'s test on the object's own track), the report's "does
+  not move against the background", a track with no compact spot under it on most of its frames, a beat refused for
+  held pictures. A defect is listed with its reason and never ranked.
+- *The axes.* Every object on fixed axes, missing as missing. Scored: the strongest line's amplitude and (where it stands
+  above the slow wander) its frequency, the brightness's spread, its frame-to-frame spread over the background's, the
+  size's change (not across a zoom), the rate against the background in widths a second and its spread. Shown only:
+  rates in pixels and the path on the screen (the sensor's scale and the camera's motion are in them).
+- *The p-value.* Against each class, a full-conformal p-value within the object's contrast stratum: the share of the
+  class's objects at least as far from its middle, the score the largest robust distance over the axes both have, with
+  the axis that drove it. NO POWER, with its reason, where the class has under 19 objects there, the object lies outside
+  the class's width, contrast or frame rate, or it is a group.
+- *The controls.* Known objects through `mcdonald batch` with the very code that made the catalog, matched to their
+  labels (`tools/rank_controls.py`): the labelled infrared set's 365 clips (309 of its 432 labelled objects found and
+  followed), the Galileo flyers, AARO's resolved segments.
+- *Measured on the catalog run* (code abdc399; the labels are that code's). 786 rows are 696 objects; 129 are defects
+  of the record (88 not followed, 16 lost, 8 on the overlay by integrity, 7 on the sensor, 6 added, 4 on the static
+  masks). 305 objects have a class to compare with; 172 single objects have none, mostly because they are wider or
+  fainter than every labelled object of a class. At 0.05, 18 of 305 are unlike every class that could tell (5.9 %;
+  3.3-8.7 % over videos), as many as chance gives; none survives Benjamini-Hochberg or Benjamini-Yekutieli. The held-out
+  third, counted apart: 2 of 87. Held out with its own video, each labelled class's p-values against itself hold the
+  level (4.9-6.5 % at 0.05). A look at the top twenty found seven records no test had caught -- the overlay's north
+  pointer, its corner bracket, redaction blocks -- and with them set aside (`--looked`), 12 of 298. The rest of the top
+  are steady lights, objects over sea and cloud, a ground feature, the bird paper's PR44 bird and unsplit pairs: known
+  kinds outside the labelled set's narrow range, or the record's. Of the known objects of other kinds (AARO's resolved
+  balloons and aircraft, the Galileo flyers) with a class to compare, none comes out unlike every class (10 of 22).
+
+New suite `tests/test_rank.py` (in `tools/suites.sbatch` and the workflows' lists). `cli.py` gains the `rank` line; README-technical and
+docs/agents.md a section each. The controls' table the command reads by default (`controls/rank_controls.tsv` in the
+data folder) is to be placed there; until it is, give `--controls`.
+
 ## 0.5.6 (2026-11-15)
 
 **The package's own cut of the labelled set's table follows the record made again** (2026-11-14). `controls_beat.csv`,
