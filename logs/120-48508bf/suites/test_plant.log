@@ -1,0 +1,74 @@
+  PASS  the picture of the planted objects is written
+test_planted_as_the_truth_table_says
+  PASS  the planted video and the control have the stretch's frames  72, 72 of 72
+  PASS  after the encoder each object is where the truth table has it: within 0.25 px at the median, 1.5 px at the most  object 1: 0.08 px (most 1.03), contrast x0.93, width x0.80; object 2: 0.07 px (most 0.29), contrast x0.98, width x0.78; object 3: 0.09 px (most 0.91), contrast x0.98, width x0.80
+  PASS  its contrast survives the encoder: 0.75 to 1.15 of what was asked, at the median  object 1: 0.08 px (most 1.03), contrast x0.93, width x0.80; object 2: 0.07 px (most 0.29), contrast x0.98, width x0.78; object 3: 0.09 px (most 0.91), contrast x0.98, width x0.80
+  PASS  and its width: 0.75 to 1.25 of the sigma asked (the half-peak core's second moment)  object 1: 0.08 px (most 1.03), contrast x0.93, width x0.80; object 2: 0.07 px (most 0.29), contrast x0.98, width x0.78; object 3: 0.09 px (most 0.91), contrast x0.98, width x0.80
+  PASS  the table also gives each object's contrast after the encoder (the planted video less the control): here 0.75 to 1.15 of what was written, and the same as this test reads  [(57.7, 55.9), (79.2, 77.4), (48.9, 47.7)]
+  PASS  the table's contrast as written (the most a pixel was changed by) is 0.9 to 1 of the contrast asked where nothing cut it  [(60.0, 57.7), (80.0, 79.2), (50.0, 48.9)]
+test_under_the_overlay_and_past_the_ceiling
+  PASS  an object that goes behind the redaction block is hidden there and seen before it, and the table says on which frames  overlay 0.10 of the frame, 21 frames in the open, 43 wholly hidden
+  PASS  and nothing is written into the block  the most a pixel inside it differs from the control: 2 codes
+  PASS  an object brighter than the picture can hold is cut at the picture's ceiling: a flat top there after the encoder, and the table says so  asked 400 DN, written 161.8; ceiling 235, its middle in the planted video 234 at the median (the encoder rings to 252 beside it)
+  PASS  the levels are the stretch's own: a studio-range picture, a contrast in grey levels divided into codes  {'floor': 8, 'ceiling': 235, 'lowest': 8, 'highest': 149, 'codes_per_dn': 0.8588235294117647, 'range': 'unsaid'}
+test_the_scene_and_what_moves_with_it
+  PASS  the scene's own motion is read as the frames go by: the drawn drift, to 0.15 px a frame  2.01 px a frame for 2.0 drawn
+  PASS  an object planted with the scene moves as the scene does: within 1 px of the drawn drift over its life, its steps scattered under 0.1 px, and still against it  moved -120.48, 0.58 px in 60 frames for -120, 0; steps scattered 0.070 px; 0.0 px a frame against the scene
+  PASS  every object's speed is given on the screen and against the scene  object 1: 1.552 on the screen, 3.532 against the scene (3.52 drawn); object 2: 1.044 on the screen, 3.025 against the scene (3.01 drawn); object 3: 0.539 on the screen, 2.518 against the scene (2.51 drawn)
+test_a_faint_object_at_a_low_bit_rate_is_mostly_the_encoders
+  PASS  a 20-level point written the same into both: most of it is left at the video's bit rate, under 0.6 of that at a tenth of it  written 19.8 and 19.8 DN; after the encoder 18.0 and 2.3
+test_one_seed_one_file
+  PASS  two runs with one seed give the same planted video and the same control, byte for byte
+  PASS  and the same truth table
+  PASS  the truth table names the encoder build that wrote the file (one seed, one file holds for one build: two builds of libx264 write different files)  x264 - core 165 r3222 b35605a
+  PASS  a draw with one seed is one video; another seed is another
+  PASS  the draw plants what was asked, in a file named for what it is  drawn_planted_1_72_s1.mp4
+test_nothing_planted_changes_nothing_but_the_encoding
+  PASS  with nothing planted the tool's video is the control, byte for byte
+  PASS  and the control is the drawn video to within what an encoder does  PSNR 48.0 dB, a pixel differs by 0.68 codes on average
+  PASS  encoded as the video is: an I frame wherever the video has one, its B frames, near its bit rate over the stretch  I at [0, 24, 48], 2 B frames, 505 kb/s for 603; 100 % of picture types the same
+test_a_planted_file_says_what_it_is
+  PASS  the planted file's container says what it is and how many objects are in it  {'planted': 6, 'comment': 'mcdonald plant: a test video, not footage. Frames 1-72 of drawn.mp4, encoded again, 6 synthetic objects written in, seed 1. mcdonald 0.5.6.'}
+  PASS  the control says it holds none; any other video says nothing
+  PASS  every envelope and every case made from it carries clip.planted; a video that is not one has no such field
+  PASS  a report made from it says so above its conclusion  rated by mcdonald 0.5.6.  > **This is a test video, not footage.** `mcdonald plant` wrote 6 synthetic objects into it to test the search. Nothing measured here describes a real object unless the truth table beside the video says the track is not one of them.  
+  PASS  and any other report does not
+test_never_where_it_could_pass_for_footage
+  PASS  a planted video is refused beside its video, in the storage folder's videos and in the reference-data folder  ['beside the video it was made from', "in the storage folder's videos", 'in the reference-data folder', None]
+  PASS  and the command stops with the reason
+test_the_lights
+  PASS  a beat is at its frequency and its depth, about a mean of 1  6.20 Hz, depth 0.300
+  PASS  a wandering beat is near its frequency and spread over more of the spectrum than a steady one  peak at 6.60 Hz, 0.38 of the steady beat's height
+  PASS  a twinkle's brightness is always positive, about 1, and spread by about its index (less the frames' own averaging)  mean 1.000, sd over mean 0.291
+  PASS  a strobe is short pulses at its rate over a steady light, never over the steady light plus its depth  on 10 % of frames, most 3.00, strongest line 1.50 Hz
+  PASS  a constant light is constant
+test_a_draw_is_the_same_whatever_follows
+  PASS  the first four objects of a draw of eight are the draw of four: an object does not depend on what follows it
+  PASS  at most two in the frame at once, as asked, and never nearer than the least distance  most at once 2, nearest 198 px
+  PASS  a flock is three or more birds, each with its own beat, that change their places; a formation keeps its places  5 and 5 members; a formation pair's separation moves 0 px, a flock pair's 6.9
+  PASS  objects that go with the scene are drawn by where they start (their paths are made as the frames are read)  [('twinkle', 'scene'), ('scene', 'scene'), ('dot', 'line'), ('still', 'still')]
+  PASS  more objects than the stretch has room for is refused, with how many would fit
+test_the_score_against_the_truth
+  PASS  a row on a planted path is that object, found at its place on the list  {'rank': 2, 'px': 3.61, 'shared': 35}
+  PASS  a row on no planted path is another row, and the objects with no row are not found
+  PASS  an object's place with the other planted objects' rows set aside: third on the list, second among what is not planted
+  PASS  the interval on a share is Wilson's: 0 of 20 is under 16 %, 18 of 20 is 70 to 97 %  0.161; 0.699-0.972
+  PASS  and the cells count what was planted and found  [{'dark': False, 'n': 5, 'found': 1, 'share': 0.2, 'low': 0.03622316096978745, 'high': 0.6244717358814613}, {'dark': True, 'n': 1, 'found': 0, 'share': 0.0, 'low': 0.0, 'high': 0.7934567085261071}]
+test_the_command
+  PASS  `mcdonald plant --draw 3 --json`: the envelope, three objects, the five files it wrote  lant-48s9nm58/cli/drawn_planted_1_72_s5_truth.png: each object as the encoder left it, with the same place in the control under it. Look at it before trusting what a search finds of them.
+  the encoder gave 100 % of the frames the picture type the video gives them, at 0.50 Mb/s for the video's 0.60
+
+  PASS  the envelope has each object's fields (the frame-by-frame table is in the truth file) and says it is a test video
+  PASS  `mcdonald plant --score TRUTH --proposals JSON`: Find's list held against the table  x,   0.5 px a frame: not on the list
+  object 4    dot       bright    80 DN, sigma 1.5 px,   0.9 px a frame: not on the list
+  object 5    dot       bright   400 DN, sigma 2 px,   0.4 px a frame: not on the list
+  object 6    scene     bright    60 DN, sigma 2 px,   2.0 px a frame: not on the list
+
+  PASS  with nothing to plant named, it says what to give and exits 2  mcdonald: say what to plant: --draw K for K drawn objects (0 for none), or --plants FILE
+
+test_find_lists_a_planted_object_and_not_in_the_control
+  PASS  Find lists the planted objects that move against the scene on their paths, among its first rows  object 1: row 3 (weak), 0.52 px; object 2: row 2 (weak), 0.42 px; object 3: row 4 (weak), 0.52 px
+  PASS  and not the one planted with the scene: it does not move against the background  object 6: not on the list
+  PASS  in the control, where they were not planted, none of their paths is on the list  0 of 6 'found' in the control's 0 rows
+
+all passed
