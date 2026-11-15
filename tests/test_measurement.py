@@ -4564,6 +4564,10 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
     props = steps[-1][2]
     check(len(steps) == 3 and [d for d, _, _ in steps] == [8, 16, 20] and seen and seen[-1][1:] == (20, 20),
           "it yields what it has found so far, a block of frames at a time, and says how far it has got", f"{[d for d, _, _ in steps]}")
+    once = propose.find(clip, masks, procs=0, block=8)
+    check(bool(once) and once == props and [p.why for p in once] == [p.why for p in props],
+          "`find`, which makes its list once after the last block, gives the list the last block showed, to the bit",
+          f"{len(once)} rows and {len(props)}")
     ok = check(bool(props), "something is proposed")
     if not ok:
         return

@@ -438,6 +438,16 @@ New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_r
 `winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
 has each rule, its null and what it costs.
 
+**Find on a long video several times sooner, with the same list** (2026-11-14). In the 144-video catalog run Find
+was half of all the time: 0.26 s a frame at 4 CPUs on most videos, but 0.75-0.89 s on the longest, and 14 hours on
+NASA-UAP-D024. The search made its whole list again after every block of 90 frames -- joined, described, folded and
+scored every chain found so far -- in one process while the others waited, so its cost grew faster than the video.
+`propose.find` (what `mcdonald batch`, `look --propose` and the tools call) now makes the list once, after the last
+block; the window's Find still shows the list as it grows. And the fold and the count of each row's company now hold
+a row only against rows seen near it in time, which are the only ones that could ever count. PR051's first 3,000
+frames at 4 CPUs: 3,138 s before, 518 s now (924 s for the window's Find, which still redraws its list). The list is
+the same to the bit: every row, every field and every sentence.
+
 **A run on a computer without a graphics card, about a tenth sooner again, with the same numbers** (2026-11-14).
 Two more steps did part of their work twice. `integrity` reads the background's motion with zero shift left out
 and, where that reads under a third of the frame pairs (a scene held nearly still on screen), with zero shift
