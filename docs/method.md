@@ -6682,6 +6682,27 @@ batch is bound by the memory it moves, about ten passes over a pair's maps in do
 the frames' decoding are still the CPU's, in Python. On the workstation the card does `layers` in a little over half
 the time all 88 threads do; on four cores, in a ninth.
 
+**Several processes on one card (2026-11-14).** `mcdonald batch --pool N` in a job given the card runs N videos,
+each a process that opens the card for itself (`--slurm --card N` submits such a job; an array's tasks given the one
+card would hold it in turn). Measured on eight parts of 1080p PURSUE videos (106-376 frames each) whose objects were
+among the catalog run's slowest in `layers`, every stage, one job of 32 CPUs on the workstation:
+
+| the eight videos | wall | the videos' own times, summed | CPUs busy | the card busy | its memory at most |
+|---|---:|---:|---:|---:|---:|
+| on the card, one after another (32 CPUs each) | 1,297 s | 1,296 s | 6 of 32 | 25 % of the time | 9.6 GB |
+| on the card, 4 at a time (8 CPUs each) | 476 s | 1,470 s | 12 of 32 | 53 % | 10.9 GB |
+| on the card, 8 at a time (4 CPUs each) | 447 s | 1,933 s | | 48 % | 15.5 GB |
+| CPUs alone, 8 at a time (4 CPUs each) | 961 s | 4,535 s | 16 of 32 | | |
+
+Every case of the pools is the same to the bit as the same video measured alone on the card: 10 cases, every field
+and every table beside them. A process's arithmetic does not depend on what else is on the card, only on how it
+batches, and its batches change nothing (`test_the_cards_batches_change_nothing`). With the card a video in its
+measuring keeps two to four CPUs busy whatever it is given, so a card's job wants many videos with few CPUs each, and
+the card's memory becomes the limit: each process planned its batches on half of what was free when it asked, so the
+first to ask took up to 8.3 GB and the eight together 15.5 GB of the 15.9. Since then each plans within its part
+(`gpu.part`: 0.9 of the card less 300 MB a process for what CUDA itself holds, 230-270 MB measured, divided among
+them; 1.5 GB each of eight), told how many share it by `MCDONALD_CARD_SHARED`, which the pool sets. SHARE_RESULT
+
 ## 53. Known answers from three cameras: the Galileo Project's triangulated objects (added 2026-11-13)
 
 **What it is.** The Galileo Project runs three sites of infrared cameras near Las Vegas, 2 and 10 km apart. Its pipeline

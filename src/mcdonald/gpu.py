@@ -133,12 +133,15 @@ def whole(package):
     packages beside it, has no record to look for."""
     from importlib.machinery import EXTENSION_SUFFIXES
     package = Path(package)
-    if not any((package / "_core" / f"core{s}").is_file() for s in EXTENSION_SUFFIXES):
+    try:
+        if not any((package / "_core" / f"core{s}").is_file() for s in EXTENSION_SUFFIXES):
+            return False
+        records = list(package.parent.glob("cupy*.dist-info"))
+        if records:
+            return any((d / "RECORD").is_file() for d in records)
+        return not any(package.parent.glob("*.dist-info"))
+    except OSError:                                   # a folder that cannot be read: not one to compute with
         return False
-    records = list(package.parent.glob("cupy*.dist-info"))
-    if records:
-        return any((d / "RECORD").is_file() for d in records)
-    return not any(package.parent.glob("*.dist-info"))
 
 
 def linux(root="/sys/bus/pci/devices", ids=PCI_IDS, ask=None, cuda=None):

@@ -1133,11 +1133,15 @@ def _computes(state, say):
     its name, and where several processes share it, the part of its memory this one plans within), or None and why
     not. Returns the card."""
     from . import gpu
-    line = gpu.said()
-    c = gpu.card()
+    try:
+        line = gpu.said()
+        c = gpu.card()
+        why = None if c is not None else gpu.why()
+    except Exception as e:                                   # noqa: BLE001 -- the unit is measured all the same, on the CPU
+        line, c, why = f"graphics card: not asked ({type(e).__name__}: {e})", None, f"{type(e).__name__}: {e}"
     state["card"] = f"{c.name} ({c.library})" if c is not None else None
     state["card_shared"] = c.shared if c is not None and c.part else None
-    state["card_why"] = None if c is not None else gpu.why()
+    state["card_why"] = why
     say(f"  {line}")
     return c
 
@@ -1624,9 +1628,9 @@ def card_job(todo, cpus=8, n=4, most=MOST):
     """The one job given the graphics card (`--card N`): {cpus, mem_mb, minutes, n} for a pool of `n` videos side by
     side, each with `cpus` CPUs. Its memory is the `n` largest videos' (`resources`) together, rounded up to MEM_STEP;
     its time twice the work on CPUs alone shared among the `n`, or the longest video's twice, at most the largest
-    class (TIME_CLASSES): on the card the videos measured in 2026-11-14's pool took 4 to 10 times less than that
-    estimate, so it is an upper bound, and a video still running when the job ends is taken up by the next
-    submission."""
+    class (TIME_CLASSES). That is the CPUs' estimate, an upper bound with a card: eight parts of 1080p videos in a pool
+    on the card (2026-11-14) took 1,933 s together where it says 30,451, most of the gap its twelve objects a video
+    (they had none to three). A video still running when the job ends is taken up by the next submission."""
     sized = sorted((resources(u, cpus, most) for u in todo), reverse=True)
     n = max(1, min(int(n), len(todo) or 1))
     mem = int(math.ceil(sum(m for m, _ in sized[:n]) / MEM_STEP) * MEM_STEP)

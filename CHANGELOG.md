@@ -445,6 +445,20 @@ in a billion.
 workstation the gain is small (PR088 object 2 with the card: 289 and 281 s to 282 and 272 s, every number the same);
 on a computer with fewer cores, where the frames' reading is the wait, it is more.
 
+**`mcdonald batch` on the graphics card, several videos at once** (2026-11-14; docs/method.md section 52).
+`mcdonald batch --slurm --card N` submits one job that is given the graphics card, in place of the job arrays, and
+it runs the videos N side by side, each with `--cpus-per-video` CPUs. The tasks of an array given the one card would
+each hold it, so they ran one after another. Each video's process opens the card for itself and plans what it sends
+there within its part of the card's memory, told how many share it (`MCDONALD_CARD_SHARED`; `gpu.part`): before,
+each planned on half of whatever was free when it asked, so the first to ask took the most, and eight 1080p videos
+together filled 15.5 GB of the card's 15.9. A part decides how much is sent at once, never a number. Each video's
+log and `batch_state.json` say what computed it (`card`, and `card_why` where it was the CPU). MEASURED_LINE
+
+**A half-installed add-on is no longer taken for an installed one** (2026-11-14). Preferences said the card was ready
+wherever a folder named `cupy` could be found, also one that pip had begun and not finished (a window closed, a lost
+line, a full disk). Now the add-on counts as installed when its compiled core is there for this Python and pip's
+record of it, the last file it writes, is in place (`gpu.whole`).
+
 ## 0.5.5 (2026-11-14)
 
 **A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone
