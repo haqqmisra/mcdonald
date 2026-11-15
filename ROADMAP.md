@@ -682,6 +682,17 @@ knowing what the search could not have found.
 5. **Anomaly ranking over the pass.** Every object of every video on the same axes; the
    defects and blends come out first, and what is left after them is the residue worth a
    person's time. One of everything, kept as a list.
+
+   *Built 2026-11-15* (`mcdonald rank`, `docs/method.md` §64, `tests/test_rank.py`), as model criticism: rows to objects,
+   the record's defects first by the package's own tests, then each object's full-conformal p-value against each class of
+   the labelled infrared set (put through `mcdonald batch` with the catalog's own code), within two strata of contrast and
+   inside each class's range (E5), with the measure that drove it; a list, never a verdict. *What the first list taught:*
+   on the catalog run, 18 of 305 objects with a class to compare are unlike every class that could tell at 0.05 (12 of 298
+   after a look set aside seven tracks on the overlay or a redaction block), as many as chance gives, and none survives a
+   correction for the number tested; the labelled classes are small, bright objects in short clips, so most PURSUE objects
+   are wider or fainter than any of them, and "unlike every class" is mostly "unlike the labelled birds". *Still to do:*
+   controls at the corpus's own widths and contrasts (airborne infrared of aircraft and balloons), and the defect rules for
+   a track on the overlay that the package's static masks miss.
 6. **Corpus noise models.** The distribution of every background aperture's spectrum over the
    whole corpus, so a beat's strength is a centile of what the sensors do, not a fixed number;
    past the corpus's largest, a tail p-value by extreme value theory (E24).

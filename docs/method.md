@@ -8119,3 +8119,201 @@ control's and the original's Find run once a stretch whatever the number of seed
 object on merlin. So "thousands a video" is about 13 CPU-seconds a planted point on arthur: 2,000 points on each of
 the 144 videos is of the order of 1,000 CPU-hours, a day or two of arthur, and Find on a graphics card (IDEAS.md G2)
 would save at most two fifths of it.
+
+
+## 64. The pass's objects held against known classes: defects first, then a tail probability per class (ROADMAP 0.6, objective 5; IDEAS T12, P9, Av14, D9; added 2026-11-15)
+
+**What it is.** `mcdonald rank BATCH_DIR` (`mcdonald.rank`) reads a finished batch (section 54) and writes a list: every
+object of every video on the same axes, the record's defects taken out first, and each remaining object held against
+each labelled control class as a tail probability -- the share of that class's objects at least as far from the class's
+middle as the object -- within the object's own stratum of quality, with the measurement that set it apart. It is model
+criticism (IDEAS P9), not anomaly detection: no number here is a score for "anomaly", no object is called anomalous,
+and nothing in a report changes. A small p-value says "unlike these labelled tracks, by this measure". A control class's
+population is not the sky's, so it never says "unlike birds".
+
+**Why the order matters (D9).** Unsupervised outlier scores rank bad records first: a track that slid off its spot, an
+object on the display's overlay, a group read as one blend, a spot fixed on the sensor -- each is "unlike" everything,
+for reasons that are the record's. So the defects come out before any ranking, each by a test the package already has,
+and the classes are compared only within strata of quality.
+
+**Rows to objects.** A batch row is a spot that lasted (section 54). A row followed onto another row's track
+(`same_as`, `several.same_things`: within 2 px on 10 frames or more and on half the frames both have) is folded into
+the row it is counted through. A group (`groups` found several points moving together) is one row whose members were
+measured inside its case; it stays one object of the kind "group". The control classes are of single objects, so a
+group has NO POWER against them (E5).
+
+**The defects** (`rank.RULES`; the first that fires is the one listed):
+
+| rule | the test | where its line comes from |
+|---|---|---|
+| not followed | the link found no track from Find's marks (the report: "No conclusion") | the batch's own state |
+| failed | a stage stopped, or the case could not be read | the batch's own state |
+| added | `integrity` FLAGs the object on any test but the overlay's (the report's row "added": Inconsistent) | section 9's verdicts |
+| overlay | `integrity`'s layer-order test on the overlay FLAGs it | section 9 |
+| blend | a group whose brightness `flicker` read in one aperture over its points | the stage's fields |
+| sensor | the object's own track within 1 px of one place on half its frames or more, where the background moved (`forensics.on_the_sensor`'s test, FIXED = 0.5) | that test's own rule; a camera locked on the object to a pixel passes it too |
+| scene | the report's own row: it does not move against the background (its rate there rounds to zero) | the checklist |
+| masked | the track on the package's static masks of its case's own clip (`forensics.static_masks`: graphics, the burned-in symbology; blocks, redaction) on a quarter of its frames or more (`--masks`; 40 frames on an exact step, read in one ffmpeg pass a video through the package's PNG path) | **judgement**: the quarter |
+| lost | the track sheet finds no compact spot under the track (contrast under 25 grey levels, `weak_frames`) on over half its detected frames (`verify`'s `frames` is the case's padded clip, so detected/frames is not this test) | **judgement**: the half |
+| held | `flicker` refused because the pictures are held | the stage's no-power |
+| looked | a look at the track strip (`--looked`: key, reason, who) found a record, not an object | a person's, or an agent's said so |
+
+**The axes** (`rank.AXES`). Every measurement every object has, in fixed units; missing is missing, never zero. Three
+kinds. *Scored* -- scale-free, and measured by the same code on the controls: the strongest line's amplitude in the
+brightness and its frequency (`flicker`'s `beat` field keeps the strongest line whether or not it is called a beat), the
+brightness's robust spread over its median, the brightness's frame-to-frame spread over that of the background
+apertures beside it (both read from the case's `<tag>_flicker.csv`), the size's change along the track (`camera`'s
+size trend, as a log ratio), the rate against the background in the object's own widths a second, and the spread of the
+per-second rate against the background over its median. *Shown* -- in the table, kept out of the score: rates in pixels
+a second (they carry the sensor's angular scale, k, which differs from camera to camera), the path's bend and a
+straight line's miss on the screen (they carry the camera's motion), and the line's height over its slow wander (it
+grows with the track's length, and the controls' tracks are short). *Quality* -- the object's width, its contrast, its
+frames, the frame rate and the share of held pictures: the strata and E5's range.
+
+**The controls on the same axes, by the same procedure.** The labelled infrared set's own table (section 44) is
+`flicker` alone on the label boxes, and the boxes were made differently by class (key frames for birds and airplanes,
+frame by frame for drones and helicopters: the set's README). So the known objects went through `mcdonald batch` itself,
+with the very code that made the catalog: the 365 clips of the labelled set, the five Galileo flyers, and AARO's resolved
+cases in the segments the blind run opened (section 46). Find on every frame, the 40-frame rule, Follow from Find's
+marks, every stage of `run`. Each batch object was then matched to the known object it lies on (`rank.match`:
+`same_things`' rule turned on the labelled box -- within the box plus 2 px on 10 frames or more and on half the frames
+both have; of several pieces on one known object the longest stands for it). A control, like a corpus object, is
+dropped from its class if it has a defect or is a group. So a class is "what Find found and Follow followed of that
+kind of object", which is the population a corpus object was drawn through too. `tools/rank_controls.py` makes the
+table; it says how many of each class were found (completeness on the controls).
+
+**The p-value** (`rank.pvalues`, `against`, `pvalue`). Full conformal, Mondrian over strata. For an object and a class:
+the class's objects in the object's stratum that have every scored axis the object has (where fewer than 19 have them
+all, the axis the fewest have is let go, one at a time); each axis transformed (log where the axis is a ratio or a
+rate); for the bag of those members and the object together, the median and the robust spread (1.4826 times the
+median absolute deviation) of each axis; each one's score the largest |value - median| / spread over the axes;
+p = (members scoring at least the object's + 1) / (n + 1). The strata are two, cut at the scored controls' median contrast
+(157 grey levels): on the controls the brightness axes fall with contrast (Spearman -0.27 to -0.44, the drones' spread
+over the background's) more than with width, as section 63's corpus model finds for a line's amplitude. Because the middle and the spread are taken from the bag
+with the object in it, the score treats the object and the members alike, and for an object drawn like the class the
+p-value is uniform on its steps of 1/(n+1); ties count against the object, so it errs high. The axis that gave the
+object's largest distance is the measure that drove it (Av14), with its direction; the axis alone gives the same tail
+(`axis_p`).
+
+**NO POWER, with its reason** (E5): the object has no contrast (no stratum); fewer than 19 of the class's objects are in
+its stratum (19 is the fewest for which p = 0.05 is possible at all); its width, contrast or frame rate lies outside the
+class's range there, widened by a tenth at each end (**judgement**: so 29.97 frames a second is inside a class filmed at
+30, and 24 is not); no scored measurement is shared; it is a group.
+
+**The list.** Each object's largest p-value over the classes with power is the class it is least unlike; an object is
+"unlike every class that could tell" at level a when that p is at most a. If the object belongs to any one of the
+classes, that class's p-value is valid, so the largest is too (the intersection-union rule): the count at level a is a
+count of objects each of which, were it of one of these classes, would come out so at most a of the time. The list is
+ordered by that p, ties by the score's size. The corpus summary counts them raw, after Benjamini-Hochberg, and after
+Benjamini-Yekutieli (any dependence), gives the share with a 95 % interval from a bootstrap over whole videos (E10: one
+video's objects are not independent), and the counts by stratum, release and grade, where an excess among the faint and
+small would be the record's quality, not the objects (D9).
+
+**Calibration on held-out controls** (`rank.calibrate`). Each control object is held out with every object of its own
+video and held against its own class (and every other class): the held-out p-values against its own class must be
+uniform. The same held-out p-values against the other classes say how well the axes tell the classes apart.
+
+**A check on known objects outside the classes** (`rank.checks`). AARO's resolved objects (balloons, birds, lanterns,
+aircraft, one wind-borne object) and the Galileo flyers (birds on another camera) are not classes -- each kind has far
+fewer than 19 objects -- but known, ordinary objects held against the four classes exactly as a corpus object is. How
+often one comes out unlike every class is the list's false-alarm rate on objects of a kind the classes do not hold.
+
+**Measured on the catalog run** (2026-11-15; the catalog of section 54, made by abdc399; the controls through the same
+snapshot; the rank strand's notes have every job). The labelled set's 365 clips through `mcdonald batch`: 366 objects,
+309 of its 432 labelled objects found and followed -- airplanes 46 of 82 (56 %), birds 83 of 125 (66 %), drones 150 of
+168 (89 %), helicopters 30 of 57 (53 %) -- and 57 batch objects on no labelled object. Of the 309, integrity flags 12
+as "added" (3.9 %, the rule's false alarms on known objects) and the report says one does not move against the
+background; ten are groups; the static masks take none. Usable: drones 144, birds 68, airplanes 45, helicopters 30.
+Their quality is narrow: width median 5 px (helicopters to 15), contrast 80-220 grey levels (drones 151-169), every clip
+30 frames a second and 90-320 frames long; almost none has a rate against the background (sky behind: 15 of 287), so
+those two axes are let go against every class. The flyers: 5 of 5 found, two flagged "added"; at 60 frames a second
+they are outside every class's frame rate, so they check nothing.
+
+*Calibration*: held out with its video, each class's p-values against itself: at or under 0.05 / 0.10 / 0.50 --
+airplanes 6.5 / 9.7 / 48 % of 31, birds 6.4 / 14.9 / 51 % of 47, drones 4.9 / 9.7 / 51 % of 144, helicopters 5.6 /
+11.1 / 44 % of 18 (the largest gap from uniform 0.01-0.10). Against the other classes at 0.05: birds unlike drones
+57 % of 51, unlike helicopters 11 %, unlike airplanes 0 % of 18; drones unlike birds 5 % of 130; airplanes unlike drones
+13 %, unlike birds 10 %; helicopters unlike birds 21 % of 14, drones 20 % of 20, airplanes 12 % of 16. So the axes tell a
+bird from a drone and little else: these classes differ in the brightness of short, small clips by little.
+
+*Rows to objects and defects*: 786 rows, 90 folded by `same_as`, 696 objects (603 single, 93 groups). Defects, the
+first rule each: not followed 88, lost 16, overlay 8, sensor 7 (PR29 #1 and #2, PR092 #10, PR066 #2-#5), added 6,
+masked 4 (PR42 #12 and PR134 #10 the overlay's "N", PR092 #11 onto the reticle's centre, PR059 #3 beside overlay text:
+all four right by the strip) -- 129. The track sheet's weak shares, the "lost" rule's reading: 95 % of tracks under
+0.25, then 13 in 0.25-0.5, 5 in 0.5-0.75, 12 above; a cut at 0.75 would take 5 fewer.
+
+*Strata, compared* (the catalog's 481 single objects without a defect; the decision rests on the controls'
+calibration and on how many objects keep power, and the count at 0.05 moves little):
+
+| scheme | objects with power | unlike every class at 0.05 | held-out at 0.05 (air, bird, drone, heli) |
+|---|---:|---:|---|
+| no strata, range contrast and fps | 437 | 7 | 0.05, 0.07, 0.06, 0.03 |
+| no strata, range contrast, fps and width | 367 | 5 | 0.05, 0.08, 0.06, 0.04 |
+| width in two (at 5 px), range contrast and fps | 177 | 8 | 0.05, 0.08, 0.05, none |
+| **contrast in two (at 157), range width, contrast and fps** | **312** | **5** | **0.06, 0.06, 0.05, 0.05** |
+| contrast in three, range all three | 312 | 5 | 0.07, 0.09, 0.05, none |
+| width in three, range contrast and fps | 170 | 2 | 0.04, 0.06, 0.05, none |
+
+(These counts are from before the two conditional axes; the chosen scheme's own numbers follow.)
+
+*The list* (rank_v3, the package's rules alone): 305 objects have a p-value against at least one class; 90 groups and
+172 single objects have none -- for 159 of those 172, being wider than a class's range at its contrast is one of
+the reasons, and in the faint stratum airplanes (13) and helicopters (8) are too few. Against how many classes an object
+has power: none 172, one 150, two 121, three 23, all four 11. The class least unlike: birds 243, helicopters 31,
+drones 24, airplanes 7. At 0.05, **18 of 305 are unlike every class that could tell (5.9 %; 3.3-8.7 % when whole videos
+are drawn again)**; at 0.10, 26 (8.5 %; 5.2-12.1). **None survives Benjamini-Hochberg or Benjamini-Yekutieli at 0.05 or
+0.10**: with n near 43 in a class's stratum the smallest p-value is about 0.02, under the 0.05/305 the first rank needs.
+The measure that drove the 18: the brightness's spread 6, its frame-to-frame spread over the background's 4, the line's
+amplitude 4, the size's change 4. By stratum, 14 of 258 faint and 4 of 47 bright; by grade 18 of 298 "Low" and 0 of 7
+"Very low"; by release 4 of 47 (01), 10 of 165 (02), 1 of 19 (04), 1 of 15 (05), 2 of 59 (06). The held-out third
+(tools/sweep/holdout.tsv, counted apart): 2 of 87 objects in 25 videos, against 16 of 218 in the other 50. It is not a
+blind test of this section's choices: the strata and the two conditional axes were chosen with the whole catalog in
+view (tools/sweep/looks.tsv has the line).
+
+*A look at the top twenty* (an agent's, from the track strips and the frames with the track drawn). Seven of the
+twenty are records, not objects, which no rule of the package caught: the overlay's "N" of the north pointer (PR061 #9
+and #10), the north pointer's triangle (PR084 #12), a faint spot whose track then slides onto the overlay's corner bracket
+(PR092 #8 and #4), a track that starts on a black redaction block (PR099 #7, PR096 #6). Integrity's overlay test has no
+power where the object is the overlay ("the object never crosses the symbology"), and the static masks miss them too
+(PR092's clip has no graphics mask at all; PR099's block is not dark on 95 % of the sampled frames; the north pointer
+moves). With those seven set aside as looked (`--looked`, rank_v4): **12 of 298 unlike every class that could tell at
+0.05 (4.0 %; 1.9-6.3 %)**, 19 at 0.10, none after either correction. What the rest of the top twenty most likely are:
+steady bright lights on a featureless sky (PR133 #6, #2, #3, probably one light in three stretches), a dark spot over the
+sea's waves (PR148 #10) and over clouds (PR081 #6), a bright point in a picture crossed by bands of analog noise (PR051
+#1, its strong rhythm likely the bands), the bird paper's PR44 bird (#6, #8: its beat is stronger than any labelled
+helicopter's, drone's or airplane's, and the labelled birds of its contrast are too few to compare), a known non-bird
+control of the harness (PR055 #6), a bright ground feature in a redacted ground scene (PR22 #5), a many-lobed bright shape
+crossing the sea fast (PR100 #2: several points the group test did not split, or a resolved body), dark spots in heavy
+compression blocks (PR060 #11 and #5), two points moving side by side read as one spot (PR49 #11), a body that grows and
+changes shape (PR051 #11). None is a class the controls hold that lies outside their range in a way a person would call
+strange; most are known kinds outside the controls (lights, ground features, objects over the sea) or the record's.
+
+*A check on known objects of other kinds* (`rank.checks`): AARO_FILL
+
+**How it fails, and its traps.**
+
+- *It finds the record before the object.* The look found seven defects in twenty that no test caught; the rules are
+  a floor, not a filter. A person's look at the strip comes before any reading of a row, and `--looked` records it.
+- *The controls are narrow.* Small, bright objects in ten-second clips at 30 frames a second, from a ground camera that
+  follows them. Most PURSUE objects are wider or fainter: 172 of 477 single objects have no class with power, and most of
+  the rest only birds. "Unlike every class that could tell" is often "unlike the labelled birds". A wider set of labelled
+  controls (aircraft and balloons in airborne infrared at the corpus's widths) is what would give the list power.
+- *A class's tracks are not the sky's.* The bird paper's PR44 bird beats more strongly than any labelled bird of the
+  short clips, and the labelled birds' strongest line is mostly noise. A small p-value against a class says the object
+  is unlike these labelled tracks by one measure.
+- *Few objects per class make coarse p-values.* About 1/44 in the faint stratum: no correction for 300 objects can keep
+  anything. The summary says so rather than lowering the bar.
+- *The scores track quality* (D9): the counts by stratum, grade and release are printed beside the list; here they show
+  no excess among the faint (14 of 258 against 4 of 47 bright).
+- *Conformal validity is exchangeability.* A corpus object is never exchangeable with the controls in every respect (a
+  different camera, platform and code path to its track); the p-value is valid only for an object drawn as the class's
+  objects were. E5's range and the strata keep the comparison inside the controls' own conditions, not more.
+- *The held-out third was seen.* The choices of this section were made with it in view.
+- *What is judgement* (decisions for the maintainer): the quarter of the masked rule, the half of the lost rule, the
+  tenth of E5's margin, the two strata and their cut at the median, the largest-distance score (one far-out axis) over a
+  sum of squares (several moderately far).
+
+**What it costs.** The catalog's records: 3 s (one CPU). The static masks: one task a video, 2 CPUs, about 2 GB at
+1080p, seconds to a minute a video. The labelled set through `mcdonald batch`: 365 clips at 30-60 s each on 4 CPUs (peak
+0.76 GB), about 25 minutes as 16 at a time. AARO's 17 segments: about ten minutes an object at 1080p, peak about 4 GB.
+The ranking itself: seconds.

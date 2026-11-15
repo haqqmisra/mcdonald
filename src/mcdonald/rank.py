@@ -439,6 +439,7 @@ RULES = {
     "lost": f"the track sheet finds no compact spot under the track on over {WEAK_SHARE:.0%} of its frames "
             "(contrast under 25 grey levels): the track is not held on a spot",
     "held": "the brightness test refused because the pictures are held (too few new pictures to read a beat)",
+    "looked": "someone looked at the track strip and found a record, not an object (--looked: the reason and who looked)",
 }
 
 
@@ -453,12 +454,18 @@ RULE_WORDS = {  # each rule for the page a person reads (sciencespeak); RULES is
     "scene": "it does not move against the background, so it is a feature of the scene",
     "lost": "on over half its frames, no clear spot lies under its track",
     "held": "the video repeats its pictures too often for a rhythm in its brightness to be read",
+    "looked": "someone looked at its track and found a record, not an object, for the reason the table gives",
 }
 
 
 def defects(rec):
-    """[(rule, why)] for one object's record, in RULES' order; empty where the record shows none."""
+    """[(rule, why)] for one object's record, in RULES' order; empty where the record shows none. A look recorded with
+    `--looked` comes last: the package's own tests are said first."""
     row, out = rec["row"], []
+    if rec.get("looked"):
+        lk = rec["looked"]
+        found = defects({k: v for k, v in rec.items() if k != "looked"})
+        return found + [("looked", f"a look by {lk.get('by') or 'someone'}: {lk.get('reason')}")]
     st = row.get("object_state")
     if st not in (None, "", "measured"):
         if st == "not followed":
@@ -521,6 +528,9 @@ AXES = [
     ("rate_screen_w", "shown", "widths a second", "the rate across the picture in object widths a second", "log"),
     ("bend", "shown", "share", "how far the path bends: its sagitta over its length, on the screen", "log"),
     ("misfit", "shown", "share", "a straight line's miss over the track's span, on the screen", "log"),
+    ("breaks", "shown", "0 or 1", "a sudden change of velocity found along the track (kinematics' break test)", "lin"),
+    ("zooms", "shown", "count", "the camera's zoom steps inside the track (camera)", "lin"),
+    ("held_still", "shown", "share", "the share of frame pairs in which the picture behind the object held still (layers)", "lin"),
     ("size_px", "quality", "px", "the object's width (flicker's extent, else the spot size followed)", "log"),
     ("contrast", "quality", "grey levels", "the object's contrast against its surround (verify)", "log"),
     ("frames", "quality", "frames", "frames followed", "log"),
@@ -558,6 +568,9 @@ def axes_of(rec):
         rate_screen=kn.get("v"), rate_screen_w=(kn["v"] / size) if kn.get("v") is not None and size else None,
         bend=(kn["sagitta"] / kn["length"]) if kn.get("sagitta") is not None and kn.get("length") else None,
         misfit=kn.get("resid_frac"),
+        breaks=None if kn.get("breaks") is None else float(bool(kn["breaks"])),
+        zooms=float(g(rec, "camera", "zooms")) if g(rec, "camera", "zooms") is not None else None,
+        held_still=num(g(rec, "layers", "held", "share_of_pairs")),
         size_px=size, contrast=g(rec, "verify", "contrast"),
         frames=num(row.get("followed_frames")) or g(rec, "verify", "frames"),
         fps=g(rec, "clip", "fps") or num(row.get("fps")), held=fl.get("held"),
@@ -827,10 +840,19 @@ def rank(recs, controls, classes=None, edges=None):
     return dict(objects=out, classes=classes, edges=edges)
 
 
-def read_apart(path):
-    """The video files of a list to be reported apart (a TSV with a `file` column, as tools/sweep/holdout.tsv)."""
+def read_looked(path):
+    """{key: dict(reason, by)} from a TSV with columns key, reason, by: what a look at each track strip found."""
     with open(path, newline="", encoding="utf-8") as f:
-        return {r["file"] for r in csv.DictReader((ln for ln in f if not ln.startswith("#")), delimiter="\t") if r.get("file")}
+        return {r["key"]: dict(reason=r.get("reason") or "", by=r.get("by") or "")
+                for r in csv.DictReader((ln for ln in f if not ln.startswith("#")), delimiter="\t") if r.get("key")}
+
+
+def read_apart(path):
+    """The video files of a list to be reported apart: a TSV with a `file` column; where it has a `role` column too (as
+    tools/sweep/holdout.tsv), only the rows whose role is "held out"."""
+    with open(path, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader((ln for ln in f if not ln.startswith("#")), delimiter="\t"))
+    return {r["file"] for r in rows if r.get("file") and ("role" not in r or (r.get("role") or "").strip() == "held out")}
 
 
 def summary(result, levels=(0.05, 0.10), apart=None):
@@ -1151,7 +1173,7 @@ def main(argv=None):
         description="Order the objects of a batch by how unlike they are to tracks of known objects. Rows that are the same "
                     "object are counted once, and objects with a defect of the record are listed first and never ranked. "
                     "Every other object gets a p-value against each known class: the share of that class's tracks, of "
-                    "about its own width, at least as far from the class's middle. The list is for a person to look "
+                    "about its own contrast, at least as far from the class's middle. The list is for a person to look "
                     "through. It changes no report, and it never calls an object unexplained.",
         epilog="examples:\n"
                "  mcdonald rank runs                         the batch in runs/, against the reference controls\n"
@@ -1166,6 +1188,8 @@ def main(argv=None):
     ap.add_argument("--masks", action="store_true",
                     help="also find each track on the display's overlay or a redaction block (reads 40 frames of each case "
                          "from its video: slower, and needs the videos)")
+    ap.add_argument("--looked", metavar="TSV", help="what a look at track strips found: a table of key, reason, by; each "
+                                                    "object named is set aside as a record, not an object, with the reason")
     ap.add_argument("--apart", metavar="TSV", help="videos to count apart in the summary (a list with a `file` column, such as a "
                                                    "held-out set)")
     ap.add_argument("--top", type=int, default=20, metavar="N", help="objects on the page's list (default 20; the table has all)")
@@ -1189,6 +1213,11 @@ def main(argv=None):
             add_masks(recs, td, say=say)
     if args.masks or not args.records:
         write_json(out / "rank_records.json.gz", dict(head=head, records=recs))
+    if args.looked:
+        lk = read_looked(args.looked)
+        for r in recs:
+            if key_of(r) in lk:
+                r["looked"] = lk[key_of(r)]
     ctl_path = Path(args.controls) if args.controls else default_controls()
     controls = read_controls(ctl_path) if ctl_path else []
     if not controls:

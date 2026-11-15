@@ -223,6 +223,9 @@ def test_objects_and_defects():
         rec = drawn_record(rng, **{k: v for k, v in kw.items() if k != "row"}, row=kw.get("row", {}))
         d = [k for k, _ in rank.defects(rec)]
         check(rule in d, f"the rule '{rule}' fires on its own drawn record", ",".join(d))
+    rec = drawn_record(rng, looked=dict(reason="the overlay's N", by="an agent"))
+    d = rank.defects(rec)
+    check([k for k, _ in d] == ["looked"] and "the overlay's N" in d[0][1], "a recorded look sets an object aside with its reason")
     rec = drawn_record(rng, verify=dict(frames=400, detected=150, weak=10, contrast=40.0))
     check("lost" not in [k for k, _ in rank.defects(rec)], "a short track in a padded clip is not called lost: only frames with no spot under it count")
     ctl = drawn_controls(rng, per_class=150)
@@ -320,7 +323,7 @@ def test_the_command(tmp):
     import io
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        (tmp / "apart.tsv").write_text("id\tfile\nX\tvfar.mp4\n")
+        (tmp / "apart.tsv").write_text("id\tfile\trole\nX\tvfar.mp4\theld out\nY\tv1.mp4\topen\n")
         code = rank.main(["--records", str(tmp / "rec.json.gz"), "--controls", str(tmp / "ctl.tsv"), "--out", str(tmp / "out"),
                           "--apart", str(tmp / "apart.tsv"), "--json"])
     env = json.loads(buf.getvalue())
