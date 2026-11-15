@@ -1,4 +1,75 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 on top (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- session 24 on top (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 24, Saturday evening (2026-11-14): Find several times sooner, a batch on the card, `stabilize` measured, the card's reports measured
+
+Jacob: "Let's keep going with the next GPU development. Spawn agents if needed, use /slurm on arthur." Two agents in
+worktrees (`stabilize` on the card; a batch's videos sharing the card) and the coordinator's own strand, which found
+that Find, not the card's work, was half of the catalog run. All on `main` locally (1eca890, 66c98b5, 22cde53, 15c9e90,
+2ac43a2), on top of the development session's c1716d3; nothing versioned or pushed. Everything is indexed in
+`/scratch/mcdonald/s24-gpu-2026-11-14/COORDINATOR.md` (jobs, probes, files); `coord/RULES.md` is the brief the agents
+worked to.
+
+**1. Find on a long video several times sooner, the same list to the bit (1eca890).** The 144-video catalog run's
+states say Find was 51 % of all its time (78 of 152 unit-hours at 4 CPUs), 0.26 s a frame on most videos and
+0.75-0.89 s on the longest. Timed on PR051: 94-98 % of it was the main process making its whole list again after
+every 90-frame block (`score`'s company and `distinct`'s fold, pairwise over every chain so far). `find()` now makes
+the list once at the end (`search(show=False)`; the window's Find still redraws as it goes), and the fold and the
+company are held only against rows near in time. PR051 1-3000 at 4 CPUs: 3,138 s to 518 s (924 s the window's way).
+Held: `find_rank.py --link --keep` identical tables and byte-identical keep folders (jobs 2458, 2505); PR051 1-1500,
+60 rows, every field and sentence the same (2520, 2521); all suites with goldens on Cannon (run
+20261114-194237-s24-find-880c894). What is left of Find is its pool's per-frame search, which the card could take
+(G2, a question below).
+
+**2. A batch's videos on the one card, several at a time (merge 15c9e90, the share agent).** `mcdonald batch --pool N`
+inside a job given the card runs N videos each opening the card; `--slurm --card N` submits one such job in place of
+the arrays. Each process plans within its part of the card's memory (`gpu.part`, MCDONALD_CARD_SHARED; a process
+alone plans as before). Eight slow 1080p videos at 32 CPUs: 447 s on the card in a pool of 8, 961 s on CPUs; every
+case of pools 4 and 8 the same to the bit as the video alone on the card. Also `gpu.installed()` no longer takes a
+half-installed CuPy for a whole one. IDEAS G8. Notes `/scratch/mcdonald/s24-gpu-2026-11-14/share/notes.md`. Shards
+(Slurm's shared-GPU GRES) studied, not configured.
+
+**3. `stabilize` on the card: measured, not built (66c98b5, 22cde53; docs only).** Pass 2 on the card agrees with the
+CPU (2.3e-6 px) but saves 1-7 s of 80-205 s against 32 workers; the serial parts would gain about three times, but
+`Template`'s random draw of 30,000 points turns a 1e-6 difference into 0.5-1.5 px of canvas placement (the hold as
+still). IDEAS G7, method §14's new trap. Notes `.../stab/notes.md`.
+
+**4. What the card changes in a report, measured (2ac43a2; IDEAS G9, method §52).** The share agent found PR49
+2680-2930 object 1 saying "about 15 pixels a second" on the card and "about 22" on CPUs. The fourteen reference cases
+from the same code on CPUs and on the card (`coord/cases/`, `cardcpu.txt`): of 31 objects, 25 have a field more than
+1e-4 apart, 11 print a different number, none differs in a word. The numbers that move are read from threshold
+decisions (held-still pairs, kept templates). §52's "no sentence, count or verdict" corrected; the report's line
+("agrees with the CPU's to about one part in a million") left for Jacob.
+
+**Measured for the questions, nothing built:** a dense shift field on the card (A14): 25-180 ms a 1080p pair at
+stride 16 (32-128 px templates), 25-50 times one core; with small templates a few rows fall the other way of the
+keep rule on the card (`COORDINATOR.md` has the table).
+
+**Found, told, fixed by its owner:** test_reduction failed on a34be97 (the packaged controls_beat.csv not remade
+after the data folder's table swap): the development session's c1716d3.
+
+**Tests on the final tree:** Cannon CPUs with goldens on 15c9e90 (run 20261114-210155-main-15c9e90); arthur with the
+card on 2ac43a2 (job 2549, snapshot `coord/snapFinal`). Their counts are in COORDINATOR.md.
+
+**For Jacob (as choices; the agents' notes have the long forms):**
+1. *G9, the card's numbers in a report:* (a) reword the report's card line to say a number read from many
+   threshold decisions can differ by about its last digit, words in the ledger (recommended); (b) make those
+   decisions robust to a part in a million (moves the CPU's numbers too: a remake); (c) the card off by default;
+   (d) leave it.
+2. *`batch` on the card:* the shape (a) `--slurm --card N`, one card job in place of the arrays (built); (b) arrays
+   plus one card pool over the same plan; (c) card jobs in chunks; (d) a README line only. The name: `--card`,
+   `--gpu-pool`, `--on-card`? CPUs a video with `--card`: keep 8 and say 4 in the README (built), or 4 by default.
+   The share's two numbers (0.9 of the card, 300 MB a process): keep (recommended), measure the context at open, or
+   remove. Shards: no change (recommended), or `shard:8` on arthur.
+3. *`stabilize`:* (a) leave it on the CPU (recommended for now); (b) a stable point draw (every answer's placement
+   moves about 1 px once); (c) (b) and the whole stage on the card, about a third of the time. And two CPU speed-ups
+   that move no number (the median in row blocks on threads, pass 1's structures read ahead): build or not.
+4. *G2, Find's per-frame search on the card:* now that the main process is no longer the wait, a probe of the
+   search on the card (two phase correlations, two warps, the residual's peaks), held by `find_rank` on both; or
+   leave Find on the CPU.
+5. *A14, the dense field:* what it is for first (`comotion`'s annulus from it, `layers`' scene, depth), its stride
+   and template size, and its validity mask (which rows count), before anything is built.
+6. *The window's Find on a long clip:* it still redraws its whole list after every 90 frames (PR051 3,000 frames: 924
+   s against `find`'s 518). Redraw at most every few seconds instead (the same final list), or leave it.
 
 ## Session 22, Saturday afternoon (2026-11-14): 0.5.5 out; CPU runs a tenth sooner again
 
