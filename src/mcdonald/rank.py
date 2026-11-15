@@ -1128,8 +1128,9 @@ def markdown(result, summ, calib, chk, top=20, note=None):
     if chk:
         w = [x for x in chk if x["p_max"] is not None]
         hit = [x for x in w if x["p_max"] <= 0.05]
+        names = {"aaro": "AARO's resolved cases", "galileo": "the Galileo Project's flyers"}
         L += ["", f"Known objects of other kinds were held against the same classes: {len(chk)} objects from "
-              + ", ".join(sorted({x['source'] for x in chk})) + f". {len(w)} had a p-value against at least one class, and "
+              + " and ".join(names.get(x, x) for x in sorted({x['source'] for x in chk})) + f". {len(w)} had a p-value against at least one class, and "
               f"{len(hit)} of them came out unlike every class at 0.05. That is how often an ordinary object of a kind the "
               "classes do not hold reaches the top of the list.", ""]
         for x in hit:

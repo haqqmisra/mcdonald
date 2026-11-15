@@ -8288,7 +8288,16 @@ compression blocks (PR060 #11 and #5), two points moving side by side read as on
 changes shape (PR051 #11). None is a class the controls hold that lies outside their range in a way a person would call
 strange; most are known kinds outside the controls (lights, ground features, objects over the sea) or the record's.
 
-*A check on known objects of other kinds* (`rank.checks`): AARO_FILL
+*A check on known objects of other kinds* (`rank.checks`). AARO's resolved segments through `mcdonald batch` with the
+same code: 53 batch objects, 28 of the blind run's 51 tracks "on the object" matched -- aircraft 5 of 6, balloons 20 of 36
+(the balloons of PR-004, PR-005, PR-006 and PR-010, each in several stretches, of PR-009 and the foil balloon; Al
+Taqaddum's and Mt. Etna's none), birds 1 of 2, the weak cases 2 of 4, the lanterns and the wind-borne object none -- and 25 objects on no
+described object. Five matched are defects (overlay 2, added 2, masked 1). With the flyers, 22 known objects of other
+kinds are usable; 12 of them have no class with power (wider than every class at their contrast, or at 60 frames a
+second), and **none of the 10 that have one -- eight balloon tracks of four balloons and two aircraft tracks (Western
+United States) -- comes out unlike every class at 0.05**: their largest p-values run from 0.23 to 0.89. It is a small
+check (four balloons), and it says the list does not put an ordinary balloon or airliner at its top where the classes
+can speak; where they cannot, it says nothing.
 
 **How it fails, and its traps.**
 
@@ -8315,5 +8324,5 @@ strange; most are known kinds outside the controls (lights, ground features, obj
 
 **What it costs.** The catalog's records: 3 s (one CPU). The static masks: one task a video, 2 CPUs, about 2 GB at
 1080p, seconds to a minute a video. The labelled set through `mcdonald batch`: 365 clips at 30-60 s each on 4 CPUs (peak
-0.76 GB), about 25 minutes as 16 at a time. AARO's 17 segments: about ten minutes an object at 1080p, peak about 4 GB.
+0.76 GB), about 25 minutes as 16 at a time. AARO's 17 segments: about ten minutes an object at 1080p (PR-004's ten objects 71 minutes), peak about 4 GB.
 The ranking itself: seconds.
