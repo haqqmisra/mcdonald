@@ -77,6 +77,25 @@ New suite `tests/test_rank.py` (in `tools/suites.sbatch` and the workflows' list
 docs/agents.md a section each. The controls' table the command reads by default (`controls/rank_controls.tsv` in the
 data folder) is to be placed there; until it is, give `--controls`.
 
+**The window's Find on a long video: its list at most every few seconds, and Stop gives the list of all it looked at**
+(2026-11-15). While it looked, the window's Find made its whole list again after every 90 frames. It joined,
+described, folded and scored every chain found so far. One process did this, the same one that takes each frame's
+results from the others. So on a long video the lists took most of the time, and the bar stood still while each was
+made. On PR051's first 3,000 frames the window took 844 s at 4 CPUs and 547 s at 32. `find`, which makes its list
+once, took 466 s and 102 s. Now the window makes its list at most every 3 seconds. It also waits four times as long
+as the last list took, so the lists take at most a fifth of the time. The last list, made after the last frame, is
+the same as before to the bit: every row, field and sentence. On PR051 the window now takes 433 s at 4 CPUs and
+108 s at 32. While a list is made the step says so, in the window and in a terminal: "Making the list of what was
+found so far". Stop used to keep the list of the last 90-frame block. It now waits for one more list, of every frame
+looked at. Taking a row or closing the panel still ends the search at once.
+
+Making a list is also about three times quicker, with the same rows to the bit. The step that folds the pieces of one
+object into one row now compares each piece only with rows within 60 frames of it. Three of its smaller steps no
+longer repeat work. On PR051's list at frame 540, that step took 1.7 s instead of 6.2 s; at frame 3,000 it took
+6.2 s instead of 17.9 s. `find`, `mcdonald batch` and `look --propose` gain the same: PR051's last list took 13 s instead
+of 19 s at 4 CPUs. `tools/find_rank.py --link --keep` held it: the same tables line for line on its 11 cases, and
+the same keep folders byte for byte.
+
 ## 0.5.6 (2026-11-15)
 
 **The package's own cut of the labelled set's table follows the record made again** (2026-11-14). `controls_beat.csv`,

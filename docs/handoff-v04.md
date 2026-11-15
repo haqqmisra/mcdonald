@@ -1,4 +1,47 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 24 on top (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- session 25 on top (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Session 25, Saturday night (2026-11-14/15): the window's Find on a long video, its list every few seconds
+
+Jacob's pick of session 24's questions (6): the window's Find made its whole list again after every 90 frames. Built
+on branch `s25-redraw` (7023b0e, worktree `/hugespace/models/mcdonald-s25-redraw`) while the Triangulation session
+cut 0.5.6 from main, and merged after it (goes in 0.5.7): merged on 2026-11-15 by the development session (session 23's coordinator), with its record checked, after the GPU session had ended. Files: `/scratch/mcdonald/s25-redraw-2026-11-14` (`probe.py`
+times the window's way with its strips; `fold_eq.py` holds a list's functions old against new on a saved input).
+
+**What was wrong.** The list -- joined, described, folded, scored, each row's points counted -- was made in the one
+process that also takes each frame's peaks from the pool. So the bar stood still while each was made, and on a long
+video the lists were most of the time. PR051 1-3000: the window 844 s at 4 CPUs and 547 s at 32 (the bar stood 21-40 s
+at every block late on), `find` 466 s and 102 s.
+
+**What was built (IDEAS G10).**
+1. `propose.search(show=seconds)`: a list at most every 3 s (find_qt.SHOW_EVERY), and only after four times what the
+   last took (SHOW_SHARE: lists at most a fifth of the time); the last list always, the same to the bit.
+2. Stop (`enough`) gives one more list, of every frame looked at, the part-block's too; taking a row, the ticks'
+   button or closing the panel (`end_now`, `stop`) ends it with none. The one-press run's Stop is the first kind.
+3. While a list is made the step says "Making the list of what was found so far" (propose.LISTING), in the window and
+   in a terminal (it is `find`'s last step too).
+4. The list made cheaper, the same to the bit: the fold's rows filed by block of 64 frames (FOLD_BLOCK) so that a piece
+   is held only against rows within 60 frames, in the rows' order; the fold's one-after-the-other test asks the velocity
+   before the path; `_apart`'s median in plain Python (`_median`); `score`'s company from the first/last arrays and the
+   distance only for rows going the same way. PR051's own fold inputs: 6.2 s to 1.7 s at 540 frames, 17.9 s to 6.2 s at
+   3,000; every field of every row the same; `_median` against `np.median` on 1,000,000 random lists, none differs.
+
+**Measured (PR051 1-3000, rows byte-identical in every run).** The window: 433 s at 4 CPUs, 108 s at 32 (4 lists; the
+bar's longest stand 12 s, 4 s elsewhere). `find`: 92.5 s at 32 (102 before). Stop at frame 1,500 (32 CPUs): its list
+11.6 s after the press. 4-CPU times move about 15 % from run to run on a shared arthur (two jobs on one core); the
+main process's own list time is the steady measure: 682 s (every block), 102 s (every few seconds, the old list),
+82 s (the new).
+
+**What is left (IDEAS G11).** At 32 CPUs Find waits on `chains`, in the one process after each block: 66-73 s of
+PR051's 92-108 s. Measured, not built: a block's chains could be made in the pool beside the search.
+
+**Held.** `tools/find_rank.py --link --keep` on the snapshot (job 2815): the same tables line for line as session 24's
+snapF2 and byte-identical keep folders. All suites with goldens on Cannon (run 20261115-002443-s25-redraw-7023b0e):
+test_measurement 680, test_gui 691 + 4 skips, golden 266, every suite 0 FAIL; test_gui on arthur 793 + 1 skip
+(job 2571, before item 4).
+
+**For 0.5.6, asked by the Triangulation session:** the Windows run on 571c499 failed test_batch's `--card` check: the
+job line ends `...batch.sbatch' --pool 4)` there because `shlex.quote` quotes a path with backslashes. Test only:
+0f3eb10 on `s25-winfix` (from df4db97), reproduced on Linux with a TMPDIR whose name has a space.
 
 ## Session 24, Saturday evening (2026-11-14): Find several times sooner, a batch on the card, `stabilize` measured, the card's reports measured
 
