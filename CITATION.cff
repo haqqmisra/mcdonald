@@ -18,8 +18,8 @@ identifiers:
     value: 10.5281/zenodo.23652954
     description: "Concept DOI: always resolves to the newest version"
   - type: doi
-    value: 10.5281/zenodo.24229312
-    description: "Version DOI for v0.5.5"
+    value: 10.5281/zenodo.24249680
+    description: "Version DOI for v0.5.6"
 repository-code: "https://github.com/haqqmisra/mcdonald"
 url: "https://pypi.org/project/mcdonald/"
 keywords:
