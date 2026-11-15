@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.6 (2026-11-15)
 
 **The package's own cut of the labelled set's table follows the record made again** (2026-11-14). `controls_beat.csv`,
 which the report's evidence weights and screening words read, is made from the data folder's table and had not been made
@@ -493,6 +493,9 @@ CPU does it, to a millionth of a pixel, runs about as fast on 32 worker processe
 times over; but there a millionth of a pixel changes which points of the display's drawing are matched, and the held
 video's frame then sits up to a pixel or two elsewhere, as still as before. Whether to change how those points are
 chosen, so that a card's run and a CPU's agree, is the maintainer's choice.
+
+For whoever runs the tests: `test_cli`'s checks of the update helper wait up to 30 s, not 10 (four of them are fixed
+sleeps; a slow Windows runner ran past 10 s once, and passed on the rerun).
 
 ## 0.5.5 (2026-11-14)
 
