@@ -30,6 +30,7 @@ NEAR = 300                  # frames either side of the one in view, where every
 STRIP_HEIGHT = 120          # px: each row's pictures, small enough that six fit across the panel under the video
 KEEP = 30                   # things kept from a search: the rows shown at first are the best of them, the rest are behind "Show more"
 LONG = 900                  # "long": at 0.2 s a frame, three minutes
+SHOW_EVERY = 3.0            # s: the list made and drawn again at most this often while it looks (`propose.show_now`)
 
 
 def close_button(panel, go=None):
@@ -54,6 +55,7 @@ class FindPanel(QtWidgets.QFrame):
         self._all, self._more, self._strips, self._strips_lock = [], False, {}, threading.Lock()
         self._ticked = set()                              # the rows ticked as "one of several", by `_key`: they outlive a list drawn again
         self._stop, self._thread, self._began, self._step = threading.Event(), None, 0.0, (None, None, None)
+        self._enough = threading.Event()              # Stop: no more looking, and the list of every frame looked at
         self._parts, self._part = [], 0               # the bars of a search, and which is under way: for step 1's jewels
         self.setWindowTitle(f"Find the object — {window.ms.tag}")
         lay = QtWidgets.QVBoxLayout(self)
@@ -185,6 +187,7 @@ class FindPanel(QtWidgets.QFrame):
                              "goes. Use File → Open a video to open a longer part, or click the object on two frames yourself.")
             return
         self._stop.clear()
+        self._enough.clear()
         self._all, self._more, self._strips = [], False, {}
         self._ticked = set()                          # a new search is a new list: its rows are other rows
         self._show([])
@@ -210,7 +213,10 @@ class FindPanel(QtWidgets.QFrame):
         def job():
             try:
                 for done, total, props in propose.search(w.clip, w._static_masks(), a, b, progress=tell(self.step),
-                                                         stop=self._stop.is_set, keep=KEEP):
+                                                         stop=self._stop.is_set, enough=self._enough.is_set, keep=KEEP,
+                                                         show=SHOW_EVERY):
+                    if self._stop.is_set():           # a row was taken, or the panel closed, while it made this list
+                        continue
                     self._cut_strips(props)           # six frames a row from disk: here, not on the window's thread
                     tell(self.found)(done, total, props)
                 tell(self.done)(None)
@@ -223,6 +229,14 @@ class FindPanel(QtWidgets.QFrame):
         w.say_steps()
 
     def stop(self):
+        """Stop (the button, and the one-press run's): no more looking, and the list is made once more, of every frame
+        looked at -- the one showing can be a few seconds old (`SHOW_EVERY`), on a long video some blocks."""
+        self._enough.set()
+        self.halt.setEnabled(False)
+        self._say_time()
+
+    def end_now(self):
+        """No more looking and no more lists: a row has been taken, or the panel closed."""
         self._stop.set()
         self.halt.setEnabled(False)
 
@@ -242,7 +256,10 @@ class FindPanel(QtWidgets.QFrame):
             return
         now = time.monotonic()
         eta = left(done, total, now - self._began) if total else None
-        self.now.setText(text + (f" — {done} of {total}" if total else "") + (f", about {clock(eta)} left" if eta is not None else ""))
+        if self._enough.is_set():
+            self.now.setText("Stopping: making the list of what was found in the frames looked at")
+        else:
+            self.now.setText(text + (f" — {done} of {total}" if total else "") + (f", about {clock(eta)} left" if eta is not None else ""))
         self.elapsed.setText(f"{clock(now - self._began)} elapsed")
         self.window_.say_steps()
 
@@ -320,7 +337,7 @@ class FindPanel(QtWidgets.QFrame):
         turn: what the ticks and the button under the list do, for a caller that chose the rows -- the one-press
         run (auto_qt) takes every row worth following, and says so in `by`."""
         if self.running():
-            self.stop()
+            self.end_now()
         items = []
         for k in rows:
             p = self.proposals[k]
@@ -351,7 +368,7 @@ class FindPanel(QtWidgets.QFrame):
             complain(self, f"Looking for the object stopped because something went wrong: {type(ex).__name__}: {ex}")
             return
         n = len(self.proposals)
-        self.now.setText(("Stopped. " if self._stop.is_set() else "") +
+        self.now.setText(("Stopped. " if self._stop.is_set() or self._enough.is_set() else "") +
                          (f"{n} spot{'s' if n != 1 else ''} found moving against the background." if n else
                           "Nothing here moves against the background in a line for three frames or more. Close this "
                           "window and use “Mark the object by hand” in the main window."))
@@ -434,7 +451,7 @@ class FindPanel(QtWidgets.QFrame):
         and say so; the link then runs from them as it does from clicks. `by` is who said yes,
         for the record: a person, or the window's one-press run (auto_qt)."""
         if self.running():
-            self.stop()
+            self.end_now()
         p, w = self.proposals[k], self.window_
         how = (f"proposed: {k + 1} of {len(self.proposals)} spots found moving against the background in frames "
                f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); {by}")

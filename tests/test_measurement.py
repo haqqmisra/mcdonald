@@ -4569,6 +4569,40 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
     check(bool(once) and once == props and [p.why for p in once] == [p.why for p in props],
           "`find`, which makes its list once after the last block, gives the list the last block showed, to the bit",
           f"{len(once)} rows and {len(props)}")
+    # The window's Find (2026-11-14): its list made at most every few seconds, the last after the last block always.
+    rare = list(propose.search(clip, masks, procs=0, block=8, show=1e9))
+    check([d for d, _, _ in rare] == [20] and [_fields(p) for p in rare[-1][2]] == [_fields(p) for p in props],
+          "with its list at most every so many seconds, the last list is the one made after every block, to the bit",
+          f"{[d for d, _, _ in rare]}")
+    check(not propose.show_now(2.9, 0.1, 3.0) and propose.show_now(3.0, 0.1, 3.0) and not propose.show_now(7.9, 2.0, 3.0)
+          and propose.show_now(8.0, 2.0, 3.0),
+          "a list waits the seconds asked, or four times as long as the last one took, whichever is longer: the lists "
+          "take at most a fifth of the time")
+    from mcdonald.progress import Stopped
+
+    def stopped_at(results, by, **kw):
+        """What a search yields when `by` (its `enough`, its `stop`, or both) says stop as its `results`-th frame
+        comes back, and whether it then ended by raising Stopped."""
+        heard, out = [], []
+        told = lambda: len(heard) > results                # progress is heard once before the first frame
+        try:
+            for x in propose.search(clip, masks, procs=0, block=8, progress=lambda *a: heard.append(a),
+                                    **{b: told for b in by}, **kw):
+                out.append(x)
+        except Stopped:
+            return out, True
+        return out, False
+    out, ended = stopped_at(12, ["enough"], show=1e9)
+    short = list(propose.search(clip, masks, procs=0, block=8, n_hi=clip.n0 + propose.K + 10 + propose.K))
+    check(ended and [d for d, _, _ in out] == [11] and short[-1][0] == 11 and bool(out[-1][2])
+          and [_fields(p) for p in out[-1][2]] == [_fields(p) for p in short[-1][2]],
+          "Stop (`enough`) gives the list of every frame looked at, the part-block's too, before it ends: the list of a "
+          "search that ended there, to the bit", f"{[d for d, _, _ in out]}, {len(out[-1][2]) if out else 0} rows")
+    out, ended = stopped_at(12, ["enough", "stop"], show=1e9)
+    check(ended and out == [], "`stop` ends it with no list, though Stop was pressed too (a row was taken)")
+    out, ended = stopped_at(9, ["enough"], show=True)
+    check(ended and [d for d, _, _ in out] == [8],
+          "and where the last list already had every frame looked at, Stop gives it no other", f"{[d for d, _, _ in out]}")
     ok = check(bool(props), "something is proposed")
     if not ok:
         return

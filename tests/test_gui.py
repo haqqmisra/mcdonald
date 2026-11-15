@@ -1847,6 +1847,39 @@ def drive_finding(new_rig):
     check(len(p.rows) == 6 and not p.more.isVisibleTo(p), "which shows them: in a hard clip the object may be one of those")
     p._more = False
     p._on_found(0, 0, real)
+    # 2026-11-14: while it looks the list is made at most every few seconds, so the one showing can be some blocks old.
+    # Stop asks the search for one more, of every frame looked at; taking a row or closing the panel ends it with none.
+    # A search that waits to be stopped stands in for propose's, so that nothing here is a race.
+    from mcdonald.progress import Stopped
+    asked, search = [], find_qt.propose.search
+
+    def waits(clip_, masks_, a, b, progress=None, stop=None, enough=None, keep=None, show=True):
+        asked.append((show, enough is not None))
+        progress("Motion search", 0, 100)
+        while not (enough() or stop()):
+            time.sleep(0.01)
+        if not stop():
+            yield 40, 100, real[:2]
+        raise Stopped("Motion search")
+    find_qt.propose.search = waits
+    try:
+        p.start()
+        rig.wait_for(lambda: p._step[0] == "Motion search", 20)
+        p.halt.click()
+        stopping = p.now.text()
+        rig.wait_for(lambda: not p.running() and p.go.isEnabled(), 20)
+        check(asked == [(find_qt.SHOW_EVERY, True)] and stopping.startswith("Stopping") and p._all == real[:2]
+              and p.now.text().startswith(f"Stopped. {len(real[:2])} spot"),
+              "Stop while it looks: it says it is making the list, and the list of every frame looked at comes before it ends",
+              f"{asked} {stopping[:40]!r} {len(p._all)} rows {p.now.text()[:40]!r}")
+        p.start()
+        rig.wait_for(lambda: p._step[0] == "Motion search", 20)
+        p.end_now()                                   # what "This is it", the ticks' button and closing the panel do
+        rig.wait_for(lambda: not p.running() and p.go.isEnabled(), 20)
+        check(p._all == [] and not p._enough.is_set(), "a row taken while it looks ends it with no other list")
+    finally:
+        find_qt.propose.search = search
+    p._on_found(0, 0, real)
     whole, p.frames = p.frames, lambda: (clip.n0, clip.n0 + 4)
     p.start()
     check(not p.running() and "too short" in p.now.text() and "at least 7" in p.now.text(),
