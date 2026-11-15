@@ -13,7 +13,11 @@ controls table swapped; the 144-video catalog run nearly done.** **State on 2026
 out in 0.5.6, cut by the Triangulation session (version commit 571c499; its Mac and Windows runs failed three tests,
 fixed on branch `s23-macfix`, see "Found on the way"). Wave 3 (`noise`, `rank`) and the batch strand's follow-up are
 merged on `s23` (032027e) **for 0.5.7, held until the Triangulation session says 0.5.6 is out**; every suite passes
-on it on Cannon. The session ran on Fable until the usage limit stopped every agent twice (16:19
+on it on Cannon. **0.5.6 was released later that morning** (tag v0.5.6 on 48508bf, PyPI, Zenodo 10.5281/zenodo.24249680;
+Mac run 120 and Windows run 121 green with the `s23-macfix` commits). `s23` then took the released main (280a9a5),
+session 25's `s25-redraw` (78f9295, 9a4fea1: the window's Find makes its list every few seconds; its own session had
+ended, and its record says finished and tested) and the macOS guard for a deep TMPDIR (e1cf2b8), and went onto `main`
+locally for 0.5.7 (not versioned, not pushed). The session ran on Fable until the usage limit stopped every agent twice (16:19
 and ~23:45 on 11-13), and on Opus 5.5 from 07:26 on 11-14 at Jacob's word; each agent resumed from its own
 transcript. arthur was shut down for its fans (11-13 20:35, 11-14 ~13:00) and the queue paused twice.
 
@@ -200,7 +204,8 @@ a copy only).
   folder, which put the fork server's socket file at 109 characters, over macOS's 103, so no pool started and Find
   failed in every window; reproduced on arthur (Python 3.12 with a socket file; 3.14 falls back on its own); fixed in
   the test. A person on macOS with Python before 3.14 and a very deep TMPDIR would meet the same; each row would say
-  "Find failed ... AF_UNIX path too long". A guard in `progress.context` is left for 0.5.7.
+  "Find failed ... AF_UNIX path too long". The package's guard is built for 0.5.7 (e1cf2b8: where a fork server
+  could not listen, `progress.context` spawns; with Python 3.12 and a deep TMPDIR 0.5.6 cannot start a pool, this can).
 - **After a reboot Slurm kept the suspended jobs as lost, still marked SUSPENDED**, holding 88 GB in its books until
   Jacob ran `requeue-lost-jobs.sh`; they then ran again from their start.
 
