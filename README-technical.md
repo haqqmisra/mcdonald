@@ -132,6 +132,7 @@ python3 tests/test_tether.py         # tether: a hanging thing's swing, its peri
 python3 tests/test_audio.py          # audio: planted propellers, supplies and codec lines; noise gives nothing
 python3 tests/test_gpu.py            # a graphics card's arithmetic held to the CPU's (runs with or without a card)
 python3 tests/test_plant.py          # planted objects: where the truth table says, the same file twice, marked as a test video
+python3 tests/test_rank.py           # the ranking: p-values uniform on drawn classes, every defect rule, NO POWER's reasons
 ```
 
 Together those are the checks against cases whose answers are known by
@@ -763,6 +764,41 @@ one card, so such tasks run one after another: `--slurm --card N` submits instea
 (`--pool N`). Each video's process opens the card for itself and plans its batches on it within its part of the
 card's memory (`gpu.part`, told how many share it by `MCDONALD_CARD_SHARED`); each video's log and
 `batch_state.json` say what computed it (method §52).
+
+### A batch's objects against known classes (`rank`)
+
+`mcdonald rank` reads a finished batch and writes a list for a person (ROADMAP 0.6 objective 5; method §64): every
+object on the same axes, the record's defects first, then each object held against each labelled control class as a
+tail probability within its stratum of quality, with the measure that drove it. It changes no report and names nothing
+anomalous.
+
+```bash
+mcdonald rank runs                                   # against the data folder's controls/rank_controls.tsv
+mcdonald rank runs --controls ctl.tsv --masks        # also find tracks on the overlay or a redaction block (reads the videos)
+mcdonald rank runs --apart tools/sweep/holdout.tsv   # count a held-out set apart in the summary
+mcdonald rank --records runs/rank/rank_records.json.gz --controls ctl.tsv --out ranked   # again, without reading the batch
+```
+
+In order (`mcdonald.rank`): a row followed onto another's track (`same_as`) is folded into it, and a group stays one
+object of the kind "group"; the defects (`rank.RULES`: not followed, failed, integrity FLAGs, the overlay's
+layer-order FLAG, a track on the static masks of its case's clip for a quarter of its frames or more (`--masks`), a
+group read as one blend, `forensics.on_the_sensor`'s test on the object's own track, the report's "does not move against
+the background", a track with no compact spot under it on most of its frames, a beat refused for held pictures) are
+listed and never ranked; the axes (`rank.AXES`) are "score" (scale-free, measured the same way on the controls: the
+strongest line's amplitude and, where it stands above the continuum, its frequency; the brightness's spread; its
+frame-to-frame spread over the background apertures'; the size's change where the camera did not zoom; the rate
+against the background in widths a second and its spread), "shown" (rates in pixels, the path's shape on the screen,
+the line's standing) or "quality" (width, contrast, frames, fps, held share). Each object gets a full-conformal p-value
+against each class within its contrast stratum (two, at the controls' median), the score being the largest robust
+distance over the axes both have; NO POWER where the class has under 19 objects there, the object lies outside the
+class's width, contrast or fps (widened by a tenth), or is a group. The list is ordered by the largest p over the
+classes with power. Outputs in `--out` (default `BATCH/rank`): `rank.md` (the page), `rank.tsv` (every object, every
+class's p, n, measure and reason, every axis), `rank.json` (the same with the summary, the held-out calibration and
+the checks on known objects of other kinds), `rank_records.json.gz` (what was read, to run again in seconds).
+
+The controls' table is made by `tools/rank_controls.py` from known objects put through `mcdonald batch` with the same
+code as the corpus (the labelled infrared set's 365 clips, the Galileo flyers, AARO's resolved segments), each batch
+object matched to its labelled box.
 
 ### Sharing an analysis (`share`)
 

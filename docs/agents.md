@@ -530,6 +530,40 @@ If the ring is on the object in every one, at most 5 % of the track's weight res
 (95 % confidence). The audit checks the frames of the track. It does not check that the spot is an
 object worth a report: that is still the look at the track sheet, and `report --i-looked`.
 
+### Which objects of a batch are unlike known ones?
+
+`mcdonald rank` orders a batch's objects by how unlike they are to tracks of known objects. It is a
+list for a person to look through. It changes no report, and it never calls an object unexplained.
+
+```bash
+mcdonald rank runs --json                    # against the known classes in the data folder
+mcdonald rank runs --masks --json            # also find tracks on the overlay (reads the videos)
+mcdonald rank runs --apart held_out.tsv      # count a held-out list of videos apart
+```
+
+It works in three steps. First, rows that are one object are counted once, and records with a
+defect are set aside, each with its reason. A defect is a record that would look unlike everything
+for reasons of its own: a track on the overlay (the symbols drawn on the picture), a spot fixed on
+the sensor, a track that lost its spot. (A track is the object's position in each frame, joined
+up.) Second, every other object is held against
+each known class on the same measurements. The classes are birds, drones, airplanes and helicopters
+from a labelled infrared set, put through the same steps as the batch. Third, each object gets a
+p-value against each class. That is a share of the class's tracks of about the object's contrast:
+those at least as far from the class's middle as the object. A class may have too few such tracks,
+or none as wide or at that frame rate. Then the class can't tell, and the row says why.
+
+`rank.md` is the page, `rank.tsv` has every object with every class's p-value and every measurement,
+and `rank.json` has the same with the summary. With `--json`, `results.summary` has the counts:
+`defects` by rule and `ranked`. For each level it has the objects unlike every class (`raw`) and
+what remains after correcting for the number tested (`bh`, `by`). It also has their share, with an
+interval from drawing whole videos again (`share`). `results.calibration` says, class by class, how the known tracks
+themselves fare when each is held out: about 5 % should fall at or under 0.05. `results.top` is the
+head of the list, each with the class it is least unlike, its p-value and the measure that drove it.
+
+A small p-value says that the object is unlike these labelled tracks, by that measure. It does not
+say what the object is. The labelled tracks are of small, bright objects in short videos. Many of a
+batch's objects are wider or fainter than any of them, and the row says so.
+
 ### Is it several points?
 
 A linked track is one position a frame. If what you marked is a group -- a
