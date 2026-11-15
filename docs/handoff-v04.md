@@ -1,4 +1,63 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- session 25 on top (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- the next GPU session's start on top (after 0.5.7, 2026-11-15), then session 25 (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+
+## Start here: the next GPU session (written 2026-11-15, after 0.5.7)
+
+Jacob, 2026-11-15: "0.5.7 is released! I need to do some science work, but we can keep going with GPU development in
+the meantime." So the next session works without him to hand: it builds what needs no decision of his, measures what
+the decisions need, and puts the decisions to him as multiple choices (his request since session 21), each with a
+recommendation, for when he is back.
+
+**Where things stand.** 0.5.7 is out (tag v0.5.7 on 3bb6b3b; `main` 9d742b4 pushed; version DOI
+10.5281/zenodo.24259385); `main` is clean and the only other worktree is the development session's `mcdonald-s23`.
+On the card (CuPy, NVIDIA, arthur's RTX 5070 Ti; method §52): `layers`' three passes, `integrity`'s background passes,
+`flicker`'s camera-shake pass; `mcdonald batch --slurm --card N` puts N videos on the one card. Held to the CPU, which
+stays the reference; a case records `computed_on` and `rerun` follows it. Left on the CPU by decision: `stabilize`
+(G7, Jacob 2026-11-14). Not on the card: Find and Follow (G2). The card moves a printed number on 11 of 31 reference
+objects and no word (G9; the report's line says so since 5ae2079).
+
+**How the last sessions worked (keep to it).** Work in a worktree on a branch; `main` only with a release in view, and
+ask any peer session first (`ListAgents`). Every job through Slurm on arthur, niced (`--nice=100`), card jobs with
+`--gres=gpu:1`; a Python 3.14 probe that starts a pool needs `if __name__ == "__main__":`; one workdir a job
+(`cp -as` of a frame cache). Run probes from a snapshot (`git ls-files | rsync --files-from=- . SNAP/`), never from
+the checkout a job imports. A change to `propose.py` is held by `tools/find_rank.py --link --keep` from a snapshot
+(about 10 minutes at 8 CPUs once the frames are cached; the last tables and keep folders are
+`/scratch/mcdonald/s25-redraw-2026-11-14/rank/keep_snap2` and `new.tbl`). Before a long gate, hold a function old
+against new on a saved real input, field by field (session 25's `fold_eq.py`). All suites with the goldens:
+`~/.claude/skills/harvard/scripts/mcdonald-test --golden` from the worktree (Cannon's test partition, about 40
+minutes; the login is shared, and if it is down, ask Jacob before opening it). With the card: `sbatch --gres=gpu:1
+tools/suites.sbatch golden` on arthur. Before putting work on the card, look for what no worker count shortens: twice
+(session 22's tracks, session 24's Find) the wait was one process in Python, not arithmetic.
+
+**The open GPU work, in the order I would take it.**
+
+1. **G11 first: Find's chaining in the pool** (CPU, no decision needed, the same list to the bit). At 32 CPUs Find
+   waits on `chains`, run in the one process after each block: 66-73 s of PR051's 92-108 s for 3,000 frames, about
+   2.2 s a block against about 2 s for the pool's search of it. A block's chains are made from its own frames and the
+   40 before (`search`'s `chained`, `back = 40`), so they can be made in the pool beside the search. Held by PR051's
+   30 rows byte for byte (`/scratch/mcdonald/s25-redraw-2026-11-14/probe.py`, out_once32.rows) and `find_rank --link
+   --keep`. It also comes before G2: with the chaining in one process, Find on the card would wait on it all the same.
+2. **A14, the dense flow field with a validity mask** (the work the card is for; needs Jacob's design). Measured in
+   session 24: 25-180 ms a 1080p pair on the card at stride 16 (32-128 px templates), 25-50 times one core; with
+   small templates a few rows fall the other way of the keep rule between card and CPU
+   (`/scratch/mcdonald/s24-gpu-2026-11-14/COORDINATOR.md`, "A14 probe"). Build nothing until Jacob chooses; measure
+   what each choice costs and gives on PR135, PR113 and PR051, then ask: (a) what it is for first (`comotion`'s
+   annulus, `layers`' scene, depth from parallax); (b) stride and template size; (c) the validity mask (which rows
+   count: the keep rule's, a texture floor, forward-backward agreement), set against a null as every gate is.
+3. **G2, Follow's spot picking on the card** (needs Jacob's yes: it changes Find's and Follow's lists in their last
+   digits, so the proposer's gate runs on both). Measured in session 22: the response is 3-4 ms a 1080p frame on the
+   card against 35-85 ms a CPU core, but the picking and the centroids, in Python, are 100-260 ms on a frame of sea; to
+   gain, they go on the card as one batch. Find's own search (two phase correlations, two warps, the residual's peaks;
+   about 0.7 CPU-s a 720p frame) after G11.
+4. **The plants at scale** (ROADMAP 0.6 objective 4's "still to do"): the run through `mcdonald batch` (`--only
+   track,report`, `--most 0`, `--keep`) and the completeness table per video. The card helps only through `batch
+   --card`; Find and the one-thread encoder are most of a planted window. Worth doing as the card's customer once
+   1-3 move; check with the development session, which owns `plant` and `batch`.
+5. **Parked or Jacob's:** G9's robust decisions (would move the CPU's numbers: a remake, his call); a Mac's card (G4,
+   parked); `stabilize` (G7, CPU by his choice); Slurm's shared-GPU shards (G8: no change); "error models" (ROADMAP's
+   phrase, not yet defined: ask what he means before anything).
+
+**To put to Jacob when he is back** (as choices, with a recommendation): A14's three design questions above; G2's
+yes or no; and whether G11's change (if built) goes out in the next 0.5.x or waits for the GPU batch.
 
 ## Session 25, Saturday night (2026-11-14/15): the window's Find on a long video, its list every few seconds
 
