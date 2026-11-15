@@ -8147,3 +8147,202 @@ control's and the original's Find run once a stretch whatever the number of seed
 object on merlin. So "thousands a video" is about 13 CPU-seconds a planted point on arthur: 2,000 points on each of
 the 144 videos is of the order of 1,000 CPU-hours, a day or two of arthur, and Find on a graphics card (IDEAS.md G2)
 would save at most two fifths of it.
+
+## 63. What the sensors' own backgrounds do: the corpus noise model, its tail, and a false discovery rate over the pass (ROADMAP 0.6, objective 6; S3, E24, D7; added 2026-11-15)
+
+**What it answers.** The flicker stage holds an object's beat against the four background apertures beside it, each
+read as if it were the object (`flicker.controls_judged`): the beat must stand ABOVE = 3 times their median strongest,
+and its own drift and continuum nulls are drawn curves. Four apertures cannot say how strong a line noise alone makes,
+and a drawn null of 2,000 curves cannot say a p under 1/2,001. `mcdonald noise` (`mcdonald.noisemodel`) reads every
+background aperture of a whole pass instead -- the curves `mcdonald batch` (§54) leaves in each object's
+`<tag>_flicker.csv` -- and gives three readings: a beat's strength as a centile of the backgrounds' at its frequency in
+its stratum; a line's p past the corpus's largest, by a fitted tail; and a false discovery rate over the pass's objects.
+**They are readings and tools: no call of the stage and no sentence of the report reads them.**
+
+**The data, and its trap.** The model of record (`noise/` in the reference-data folder) is made from session 23's
+catalog run of all 144 PURSUE videos (2026-11-13/14), whose flicker fields were made by abdc399 (main 3459561 + the
+batch command): before the clip's own background was made the chance of windows apart (§13, N3's revision of
+2026-11-13) and before §59's readings. The noise model reads only the background apertures' curves and the stage's own
+`peak`, which did not change; the pass's calls (which rows are "Beats like a bird") are abdc399's, and N3's revision
+can move a call that rests on windows apart, not one whose whole track passes. Of 786 objects, 602 have curves (88
+were not followed; 96 stopped in `flicker` before its CSV is written: 54 lost against what is behind them on over a
+tenth of their frames, 39 under 60 frames, 3 not brighter than their ring), in 94 videos; 7,064 background-aperture
+columns, 6,654 of them read by the stage.
+
+**The curves as the stage read them** (`as_judged`). Each curve over the stretch `flicker.judge` judged it on: each
+track's span, the background apertures with their own member (or the member seen longest); where a track was lost, its
+stretch trimmed to the frames either side and the lost frames filled across in its curve and in its apertures', which
+go no further than it does; where the lost frames were the troughs of its own beat, the stretch recorded and nothing
+filled; each background aperture in its object's brightness (`scale`). Which frames were lost is read from the fields,
+not judged again from the CSV's values (rounded to 0.01). On the whole catalog every curve's `flicker.peak` gives back
+the case's own `fields.curves[name]`: the frequency exactly, the amplitude to within 1.2e-5 of itself.
+
+**The readings** (`reading`), with the stage's functions: the strongest line in the band and its amplitude as a share of
+the brightness (`flicker.peak`); its ratio over a power law fitted to its own spectrum and that ratio's drawn null
+(`flicker.continuum`, up to the stage's `top_hz`), and from them the **standing**, the ratio over the drawn null's 99th
+centile (1 is the 1 % line, whatever the curve's length and continuum); the strongest amplitude in each half-hertz bin
+from 1.5 Hz; and the same bins in each 2-s window of `noise_pdf`'s.
+
+**What is dropped, by rule** (`dropped_because`, each from the stage's own numbers, none from a look at a spectrum):
+the four apertures about a group's member seen longest (placed without regard to its fellows: a batch gives the stage
+no tracks to avoid; each member's own four are placed clear of them and kept); an aperture where something reaches
+flicker.DROP of the object's brightness on more than flicker.LOST_MAX of its frames (another object, the object's
+glare, a bright part of the scene passing); and the apertures of a row followed onto another row's track (`same_as`:
+the same apertures again). On the pass: 1,578, 360 and 402 dropped, 4,314 kept, 2,028 of them in the 66 videos with
+objects outside the held-out third (65 with a kept aperture).
+
+**What the corpus's background looks like** (`noise/noise_strength.png`). In the share of the object's brightness the
+backgrounds' strongest line has a median of 2.2 %, and it falls with the object's contrast (its brightness over its
+ring, a pixel): 4.2 % at contrast 3-10, 3.1 % at 10-30, 1.9 % from 30. The share is the scene's grey levels over the
+object's brightness, so the model works in **grey levels a pixel of the aperture** (amplitude times contrast), where the
+object's brightness is taken out. Even there the backgrounds of faint objects are quieter: 0.43 grey levels at the
+median under contrast 20, 0.73 at 20-30, about 1.0 from 45 -- a faint object is found only where the scene is quiet.
+Each video weighs the same (kept apertures a video: median 18, the most 217). Median and 99th centile at 2, 5, 8 and
+11 Hz, at about 30 frames a second, over every length:
+
+| contrast, aperture (videos) | median, grey levels | 99th centile |
+|---|---|---|
+| under 20, 4-px disc (13) | 0.49, 0.18, 0.16, 0.13 | 3.4, 2.4, 3.0, 1.6 |
+| under 20, 6-px capped disc (16) | 0.59, 0.29, 0.24, 0.21 | 2.5, 1.8, 1.9, 1.1 |
+| 20-40, 4-px disc (27) | 0.62, 0.22, 0.20, 0.16 | 2.5, 2.0, 1.6, 1.1 |
+| 20-40, 6-px capped disc (27) | 0.69, 0.34, 0.25, 0.22 | 4.2, 2.3, 3.0, 2.0 |
+| 20-40, wider disc (14) | 0.65, 0.25, 0.17, 0.20 | 14.3, 5.1, 1.6, 0.9 |
+| 40 or more, 4-px disc (25) | 0.67, 0.43, 0.32, 0.28 | 7.2, 2.5, 3.0, 5.3 |
+| 40 or more, 6-px capped disc (32) | 1.00, 0.50, 0.33, 0.28 | 6.0, 2.5, 2.9, 2.5 |
+| 40 or more, wider disc (14) | 0.74, 0.25, 0.17, 0.20 | 17.4, 5.6, 7.5, 5.8 |
+
+The background is red: three to four times as strong at 2 Hz as at 11 at the median. Its 99th centile is five to
+twenty times its median, and the wide discs' at low frequency the most (the scene's own texture passing through a
+large aperture). The pass's named beats lie over the 99th centile in most strata (the figure's red points).
+
+**The strata** (fixed on the 66 videos outside the held-out third before any of its objects was read): the frame rate
+(about 30 a second, 96 % of the objects, or another), the contrast (under 20, 20-40, 40 or more grey levels: the
+controls harness's top edge and a round number below), the aperture (the stage's three kinds: 4-px disc, 6-px capped
+disc, wider) and the length (60-149, 150-299, 300 or more frames: the harness's edges). Their measured effects on the
+median in grey levels: contrast 2.3 times, aperture 1.6, length 1.25. A stratum of fewer than STRATUM_MIN_VIDEOS = 10
+videos (a judgement, as the harness's STRATUM_MIN is) falls back, dropping length, then aperture, never contrast or
+rate; the reading says which it used, and where none has ten, gives no centile and says so (26 of the pass's 1,655
+beats, all in videos at another frame rate).
+
+**A beat's centile** (`Model.centile`, `mcdonald noise --model`): its amplitude at its frequency's bin, in grey levels,
+against the backgrounds' at that bin in its stratum, its own video's backgrounds left out: the mean over the reference
+videos of each one's share under it, with a 95 % interval resampling the videos (E10). A beat the stage read in a 2-s
+window is held against the backgrounds' windows. PR41's bird of the bird paper (its reference case file, 6.43 Hz, 11.6 %
+by the paper's rule) is at the **97.3rd centile (92.0-100)** (`tests/test_noise.py` holds it).
+
+**Its validation.**
+- *Planted beats in real background curves* (`scripts/validate_planted.py` of the strand's folder): six apertures a
+  video of the 61 videos with a reading, at 2.5, 4, 6, 8 and 11 Hz, planted at the stratum's own 50th, 90th and 99th
+  centile (divided by the running mean's gain at that frequency, `flicker._gain`, so that they read at that level with
+  no noise), read as the stage reads a curve, its own video left out: 1,594 plants a level. At the 90th they come back
+  at the **90.9th** at the median (88.3-93.9 between the quartiles; 96 % within ten points); at the 99th, at the
+  **99.3rd** (98.1-100); at the 50th, at the 65.9th (51-82), since a weak line's reading carries the grain under it (the
+  read amplitude over the planted one is 1.37 at the median there, 1.00 at the 99th). The same at every frequency.
+  Leaving the video's own backgrounds in moves a centile by under half a point at the median: the leak is small here,
+  and the rule stands.
+- *The labelled infrared set* (Svanström et al. 2021, 432 tracks from their saved curves and the stage's fields of
+  record; another sensor, none of it in the model): the beats of the stage's own (`strong`) sit at the 99.5th centile
+  at the median on birds, the 84th on airplanes, the 90th on drones and the 98th on helicopters. The centile ranks the
+  birds' beats over most airplanes' and drones', not over helicopters'. The 30 named birds: 49.7 to 100, all but one at
+  the 91.9th or more; the three non-birds named in the fields kept with the curves (HELICOPTER_024, HELICOPTER_043, and
+  DRONE_059, which the stage no longer names since 2026-11-13, §44) at the 99.5th, 99.8th and 100th: what the floor and
+  the stage's other tests decide is not what the centile says.
+- *The reference case files* (31 objects, by the papers' rule): every named bird at the 92nd centile or more (PR079's
+  92.2, the rest 96-100).
+
+**The tail (E24).** The statistic is the standing squared, a line's power over its own continuum in units of the drawn
+null's 1 % line: under Gaussian noise its tail is exponential (a generalised Pareto of shape 0), where the amplitude's
+is lighter. Its rate at the 1 % line is flat across every stratum (1.2-1.5 %; the drawn null passes 1.28 % of the
+backgrounds at 0.01, 5.4 % at 0.05, 10.7 % at 0.10: §39's correction holds on the corpus), so it is pooled. Up to a
+threshold the p is the backgrounds' own share, (k + 1)/(n + 1); past it, the threshold's share times a generalised
+Pareto fitted to the excesses (`tail_fit`, `tail_p`). **The threshold is chosen by a rule** (`threshold`): the lowest
+of eleven candidate quantiles (80th to 99th) whose fitted shape lies inside the 95 % interval, over resampled videos, of
+the shape at every higher candidate, and whose own interval holds every higher candidate's. On the 66 videos: the
+**92.5th centile** (power 0.593, 153 of 2,028 above), shape **+0.107** (-0.049 to +0.278), scale 0.227; the largest
+2.16. A positive shape: the sensors' backgrounds have a heavier tail than Gaussian noise.
+
+The model is built on those 66 videos alone (`--only`). Made first with every video's backgrounds, a third of the
+null was one held-out video (pr063's large groups, 1,410 of 4,314 kept apertures) and the fit's shape was +0.26; so the
+held-out third's 2,286 backgrounds were held back to check the tail instead (decided before any object's p was read).
+Checks (`scripts/validate_tail.py`):
+
+| | p <= 0.10 | 0.05 | 0.01 | 0.001 |
+|---|---|---|---|---|
+| the 66's backgrounds, each video left out and the fit made again | 9.9 % | 5.1 % | 0.79 % (0.41-1.19 by video) | 0.20 % |
+| the held-out third's backgrounds, never in the model (28 videos) | 9.8 % | 5.0 % | 1.31 % (0.84-2.24) | 0.17 % |
+| the same without pr063 | 10.5 % | 6.2 % | 1.48 % (0.65-2.59) | 0.11 % |
+| two halves of the 66, each fitted and the other tested | 8.7, 11.6 % | 4.0, 6.4 % | 0.72, 0.88 % | 0.09, 0.11 % |
+| the labelled set's 1,556 backgrounds (another camera) | 13.7 % | 7.8 % | 1.74 % | 0.39 % |
+
+Leaving one video out moves the shape between +0.049 and +0.122. The model's p carries to videos it never saw from the
+same release; on another camera it runs about 1.5 times high (the labelled set's largest power is 2.51 against the
+pass's 2.16): **the tail is the pass's sensors', and a model of another set is made from that set**.
+
+**How far into the tail it can be trusted.** `p_cautious` takes the shape at the top of its interval, the scale at the
+threshold held: the heaviest tail the backgrounds allow. Power 1.0: p 0.015, cautious 0.026; 2.0: 6.5e-4 and 4.5e-3;
+**2.5, just past the corpus's largest: 1.9e-4 and 2.4e-3, ten times apart**; 5: 2.1e-6 and 2.8e-4; 10: 1e-8 and
+2.9e-5; 20: 2.8e-11 and 2.6e-6. So the p is a measurement down to about one in 2,000 (the corpus's own count); it is
+an extrapolation that holds within ten times to a power of about 2.5 (a line about 1.6 times the drawn null's 1 % line
+in amplitude), and past that only its order is known. Of the held-out third's backgrounds, 4 lie past the model's
+largest (0.17 %), where the point fit expects 0.05 % and the cautious fit 0.4 %: the truth lies between them. A line
+of power 10 -- PR41's, PR099's and PR135's birds -- is past anything the corpus's backgrounds did by a p somewhere
+between 1e-8 and 3e-5.
+
+**The false discovery rate over the pass (D7)** (`pass_pvalues`, `fdr_over`, `bh`, `by`, `per_video`; `mcdonald noise
+--fdr`). The unit is a row of the batch's table; a row's p is its members' smallest times their count (Bonferroni,
+whatever their dependence). Each object's p is its whole stretch's power against the model, its own video's backgrounds
+left out. Not the stage's continuum p, for three reasons: it is over the stretch the beat is reported from, often the
+clearest of a track's 2-s windows, so the look across windows is unpaid; it cannot go under 1/2,001, and
+Benjamini-Yekutieli over 602 rows asks for 0.05 k / (602 x 6.98), 3.6e-4 at k = 30 -- under that floor, so by the
+drawn null alone Benjamini-Yekutieli keeps nothing at q 0.05 over the whole pass; and it assumes Gaussian noise, where
+the corpus's tail is heavier. Both drawn-null p's are computed beside it, and the cautious p too. The held-out third
+was looked at once, apart (`tools/sweep/looks.tsv`). Over the 66 videos (411 rows, 38 of them "Beats like a bird"):
+
+| p | BH q 0.05 (bird rows) | BY q 0.05 | BH q 0.10 | BY q 0.10 | videos, q 0.05 / 0.10 |
+|---|---|---|---|---|---|
+| the model's | 44 (25) | 33 (20) | 54 (28) | 36 (21) | 8 / 9 |
+| the cautious | 27 (18) | 11 (9) | 36 (21) | 15 (12) | 6 / 8 |
+| the drawn null, whole stretch | 51 (28) | 31 (20) | 55 (28) | 31 (20) | 9 / 11 |
+| the stage's own continuum p | 54 (29) | 28 (18) | 66 (32) | 30 (20) | 9 / 11 |
+
+The bird rows Benjamini-Yekutieli keeps at q 0.05 on the model's p (20): PR073 object 3, PR085's 10, PR088's 5, 6, 10,
+PR099's 6, 9, 10, PR135's 1 and 2 (the flock), PR41's 1-7, PR44's 6, 8, 9; Benjamini-Hochberg adds PR077's 2, PR088's 7,
+PR092's 3, PR097's 7 and PR099's 12 (25), and at q 0.10 PR088's 3, PR097's 12 and PR44's 12 (28). On the cautious p,
+Benjamini-Yekutieli keeps 9: PR099's 6 and 9, PR135's 1 and 2, PR41's 1, 2, 4, 5, PR44's 6. **Ten of the 38 bird rows
+survive nothing even at q 0.10**: PR052's 6 (p 0.20), PR077's 6 (0.071), PR088's 4 (0.022) and 11 (0.050), PR097's 9
+(0.064), PR099's 1 (0.083) and 3 (0.025), PR100's 5 (0.24), PR102's 1 (0.019), PR41's 8 (0.031). Each beats in some 2-s
+windows, or passes the stage's whole-track test on its amplitude and drift, without one line over its whole stretch
+that stands past the backgrounds': the stage's call rests on what this p does not see. The held-out third (191 rows of
+28 videos, one bird row, PR152's object 9 at 5.04 Hz and 9.5 %, p 0.27): nothing survives, under any p, at either q,
+per row or per video. Over all 94 videos the model's p keeps 40 rows (22 bird rows) by Benjamini-Hochberg and 31 (19)
+by Benjamini-Yekutieli at q 0.05.
+
+The 19 rows Benjamini-Hochberg keeps at q 0.05 that are not named a bird lie in PR085 (four, 7.1-7.5 Hz beside the
+codec's 7.49-Hz line, not held to be the object's own), PR094 (one, 1.66 Hz), PR097 (three), PR135 (six of the flock's
+other rows, 7.2-7.4 Hz, not held their own) and PR44 (five, 3.0-3.1 Hz, four of them its own and coming back, at
+5.6-7.0 %: under BIRD_FLOOR). **The model's p says a line stands out of the sensors' noise. It does not say whose line
+it is**: the codec's rhythm, a beat the background shares and the floor stay the stage's to judge, and a discovery
+here is a line, not a bird.
+
+**How it fails, and its traps.**
+- *The pass's own calls are abdc399's*, and the model's backgrounds are that run's apertures: a model of another pass
+  (another release, another rule's apertures) is made from it.
+- *A background aperture can hold a real rhythm* the drop rules miss: a member of a group outside its own four, a
+  feature of the scene that beats. Such an aperture fattens the tail; the tail checks bound how much (the held-out
+  third's 1.31 % at 0.01).
+- *One video can be the null.* pr063's large groups gave a third of all kept apertures; a centile weighs videos the
+  same, but the pooled p does not, which is why the model is the 66 videos'. A model of a batch where one video
+  dominates its own videos' apertures needs the same check.
+- *The centile is of a selected line.* An object's beat is its strongest (or its clearest window's); the backgrounds'
+  bin is the strongest in half a hertz: a beat that is the strongest of a wide band reads a few points high against
+  them. The p pays the look across the band (the continuum's own); the centile does not.
+- *A faint plant reads high* (the 50th's 65.9): the centile of a weak beat is an upper bound on its strength's.
+- *The whole-track p misses what comes and goes.* A wingbeat that wanders, or flaps in bouts, has no one line over its
+  stretch; ten of the pass's 38 bird rows are so. A window-level p with the look across windows paid (§13's ONCE_P,
+  CHANCE_P) is the reading for them, and is not built here.
+- *Frame rates other than about 30 a second* have no stratum of ten videos (seven videos of the pass): no centile.
+
+**What it does not do.** It changes no call, no floor and no sentence. Whether a report quotes a beat's centile or its
+p, and whether ABOVE or BIRD_FLOOR is held to the corpus's levels, is the maintainer's: the sentence proposed is in the
+strand's notes. It reads no frame: a model of a pass needs that pass's CSVs, and the planting in real frames (§62) is
+the completeness side of the same question.

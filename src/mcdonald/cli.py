@@ -48,6 +48,8 @@ COMMANDS = {
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),
     "plant": ("write synthetic objects into a stretch of a video, with a table of where each is: a test of what the search can find",
               "mcdonald.plant"),
+    "noise": ("what the background beside every object of a batch does: how often noise alone beats as strongly, and which beats stand",
+              "mcdonald.noisemodel"),
 }
 
 USAGE = f"""mcdonald {__version__} — measurement tools for single-sensor video of unidentified objects
