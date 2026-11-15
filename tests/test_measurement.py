@@ -672,8 +672,9 @@ def test_a_pair_whose_templates_do_not_agree_is_not_held_still():
               "with it: those pairs are not read and not held, every pair read is within 15 px of the sea's 100 (none at zero), and the stage says so",
               f"not read {b.get('not_read_share', 0):.0%}, still {b['still_again_share']:.0%}; {len(db)} pairs read, at {db.min():.1f} to {db.max():.1f} px; "
               + now.result.get("scene moved, not read", "")[:60])
-        kept = np.load(max(src.glob("bg_layers_k5_*.npz"), key=lambda q: q.stat().st_mtime_ns))
-        check(set(kept.files) == {"tpl", "own"} and kept["own"].shape[1] == len(layers.OWN_COLS) and len(layers.lost_pairs(kept["own"])) >= 5,
+        with np.load(max(src.glob("bg_layers_k5_*.npz"), key=lambda q: q.stat().st_mtime_ns)) as kept:   # closed before the folder goes (Windows)
+            names, own = set(kept.files), kept["own"]
+        check(names == {"tpl", "own"} and own.shape[1] == len(layers.OWN_COLS) and len(layers.lost_pairs(own)) >= 5,
               "the held pairs' own fields are kept beside the templates, so the rule is read off the cache, not measured again")
 
 

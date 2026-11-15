@@ -126,8 +126,11 @@ def test_planted_as_the_truth_table_says(tmp, made):
             wid.append(np.sqrt((((xx + xi - cx) ** 2 + (yy + yi - cy) ** 2) * q).sum() / q.sum() / 2))
         worst[i] = (float(np.median(off)), float(np.max(off)), float(np.median(peak)) / (p["contrast"] * k), float(np.median(wid)) / p["sigma"])
     said = "; ".join(f"object {i}: {v[0]:.2f} px (most {v[1]:.2f}), contrast x{v[2]:.2f}, width x{v[3]:.2f}" for i, v in worst.items())
-    check(all(v[0] <= 0.25 and v[1] <= 1.0 for v in worst.values()),
-          "after the encoder each object is where the truth table has it: within 0.25 px at the median, 1 px at the most", said)
+    # the most on any one frame is the encoder's: an object's centroid on a frame of quantised blocks moves by about a pixel
+    # (1.00 px on arthur's libx264, 1.03 on the macOS runner's, 2026-11-14), so 1.5 px holds across encoder builds; the
+    # median, which is what a measurement reads, stays held to a quarter of a pixel
+    check(all(v[0] <= 0.25 and v[1] <= 1.5 for v in worst.values()),
+          "after the encoder each object is where the truth table has it: within 0.25 px at the median, 1.5 px at the most", said)
     check(all(0.75 <= v[2] <= 1.15 for v in worst.values()),
           "its contrast survives the encoder: 0.75 to 1.15 of what was asked, at the median", said)
     check(all(0.75 <= v[3] <= 1.25 for v in worst.values()),

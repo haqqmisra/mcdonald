@@ -526,9 +526,10 @@ def read_scene_under(clip, masks, rows, trk, how, k, reach, size, longer, made_f
     key = repr((made_from, "scene under the pattern", whole.SETTINGS, BLOCK_PAIRS, whole.MASK_K))
     cache = clip.dir / f"bg_scene_k{k}_{clip.n0}_{clip.n1}_{hashlib.sha1(key.encode()).hexdigest()[:10]}.npz"
     if cache.exists() and not fresh:
-        z = np.load(cache)
+        with np.load(cache) as z:              # closed at once: Windows cannot delete a folder holding an open .npz
+            blocks, tpl = json.loads(str(z["blocks"])), z["tpl"]
         say(f"the scene's blocks from {cache} (read earlier; --fresh reads them again)")
-        return json.loads(str(z["blocks"])), z["tpl"]
+        return blocks, tpl
     starts = []
     for s in whole.block_starts(clip.n0, clip.n1):
         held = [a for a in range(s, s + whole.BLOCK) if a in how]
@@ -859,8 +860,8 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     cache = clip.dir / (f"bg_layers_k{k}_s{step}_{clip.n0}_{clip.n1}_"
                         f"{hashlib.sha1(made_from.encode()).hexdigest()[:10]}.npz")
     if cache.exists() and not fresh:
-        kept = np.load(cache)
-        tpl, own = kept["tpl"], kept["own"]
+        with np.load(cache) as kept:           # closed at once: Windows cannot delete a folder holding an open .npz
+            tpl, own = kept["tpl"], kept["own"]
         gpu.took_part(card)
         say(f"templates from {cache} (measured earlier with the same frames, track and masks; --fresh measures again)")
     else:

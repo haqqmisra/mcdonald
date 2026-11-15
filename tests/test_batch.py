@@ -47,9 +47,22 @@ def check(cond, label, detail=""):
     return cond
 
 
+def socket_fits(folder):
+    """Can a pool's fork server start with TMPDIR at `folder`? Where its socket is a file (macOS: Linux's are abstract,
+    Windows spawns), it lies at TMPDIR/pymp-XXXXXXXX/listener-XXXXXXXX, and macOS holds such a path to 103 bytes. On the
+    macOS runner of 0.5.6 this test's folder under /var/folders/... made it 109: no pool could start, every window of
+    Find failed, and no drawn video had an object (2026-11-15)."""
+    import multiprocessing.util as mu
+    if sys.platform == "win32" or getattr(mu, "abstract_sockets_supported", False):
+        return True
+    return len(os.path.join(str(folder), "pymp-12345678", "listener-12345678")) <= 103
+
+
 def env_of(td, **more):
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), MCDONALD_HOME=str(Path(td) / "home"),
-               TMPDIR=str(td), **more)
+               **more)
+    if socket_fits(td):                                     # the run's own temporary files in the test's folder, where they can be
+        env["TMPDIR"] = str(td)                             # (see socket_fits); elsewhere the machine's own temporary folder
     for k in ("MCDONALD_CATALOG", "MCDONALD_CASES", "MCDONALD_DATA", "MCDONALD_CPUS", "SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID",
               gpu.SHARED_VAR):
         env.pop(k, None)
@@ -233,7 +246,9 @@ def test_rules():
         big = sorted((batch.resources(u, 4)[0] for u in units), reverse=True)
         c = rc["classes"][0]
         check(len(card) == 2 and card[0].count("--gres=gpu:1") == 1 and "--array" not in card[0] and " -c 16 " in card[0]
-              and card[0].endswith("batch.sbatch --pool 4)") and "--units" not in card[0] and "--dependency=afterany:$j0" in card[1]
+              # the script's path is quoted where it needs to be (a Windows path, a folder with a space): it ends .sbatch' there
+              and card[0].endswith(" --pool 4)") and "batch.sbatch" in card[0].split(" --pool")[0][-14:]
+              and "--units" not in card[0] and "--dependency=afterany:$j0" in card[1]
               and "--gres" not in card[1] and c["card"] == 4 and c["mem_mb"] >= sum(big) and c["mem_mb"] % batch.MEM_STEP == 0
               and c["minutes"] >= 2 * max(batch.resources(u, 4)[1] for u in units) and not rc["jobs"],
               "--card: one job given the graphics card in place of the arrays, its videos side by side (no more than there are), "
@@ -360,9 +375,11 @@ def test_stop_and_go(td):
     end_tree(proc)
     rc, out, err = mcdonald("--out", a, "--status", "--json", td=td)
     st = {u["name"]: u["state"] for u in json.loads(out)["results"]["units"]}
+    steps = {k: v.get("step") for k, v in seen.items()}          # what each video was doing when the stop came
     check(any(v != "done" for k, v in st.items() if k in ("one", "two")) and "running" not in st.values()
           and set(st.values()) <= {"done", "stopped", "stalled", "waiting", "failed"},
-          "stopped half way: --status says which videos are done, which were stopped and which wait", str(st))
+          "stopped half way: --status says which videos are done, which were stopped and which wait",
+          f"{st}; last steps seen {steps}")
     half = sorted(p.name for p in (a / "two").glob("object-*")) if (a / "two").exists() else []
 
     # started again: it goes on, and ends with every video an answer
@@ -389,8 +406,18 @@ def test_stop_and_go(td):
     check(len(ra) == len(rb) == 6 and not diff, "stopped and started again, the table is the one a run left alone gives: every row, "
           "every label and number", f"{len(ra)} and {len(rb)} rows; {diff[:3]}")
     by = {(r["unit"], r["object"]): r for r in da["rows"]}
+    # where a video gave no object, its own row says why (on the macOS runner of 0.5.6 Find kept nothing in "one" and
+    # "two", 2026-11-14): say it, and the tail of its log, so a failure there can be read from the runner's log alone
+    why = {r["unit"]: (r.get("outcome"), str(r.get("note"))[:160]) for r in da["rows"] if r["object"] is None}
+    ks = {u["name"]: u.get("k", i) for i, u in enumerate(json.loads((a / batch.PLAN).read_text(encoding="utf-8"))["units"])}
+    tails = {u: (a / "logs" / f"unit_{ks[u]}.log").read_text(encoding="utf-8", errors="replace").splitlines()[-6:]
+             for u in ("one", "two") if (u, None) in by and u in ks and (a / "logs" / f"unit_{ks[u]}.log").exists()}
     check(set(by) == {("one", 1), ("two", 1), ("two", 2), ("brief", None), ("still", None), ("gone", None)},
-          "one row an object, and one for each video with none", str(sorted(by, key=str)))
+          "one row an object, and one for each video with none", f"{sorted(by, key=str)}; why none: {why}; logs: {tails}")
+    if ("two", 2) not in by:                                  # the rest of this test reads that row
+        check(False, "an object's row: how Find saw it, how far it was followed, its report's label, how sure, its rate, "
+                     "each test's answer", "no row for the second object of 'two'")
+        return a, b, vids
     r = by[("two", 2)]
     check(r["object_state"] == "measured" and r["label"] and r["grade"] and r["followed_frames"] >= 40 and r["dark"] is True
           and r["found_frames"] >= 40 and r["rate_px_per_s"] and 140 < r["rate_px_per_s"] < 160 and r["checklist"].get("checked") == "Not yet"
