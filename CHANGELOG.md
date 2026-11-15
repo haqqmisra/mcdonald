@@ -463,6 +463,13 @@ in a billion.
 workstation the gain is small (PR088 object 2 with the card: 289 and 281 s to 282 and 272 s, every number the same);
 on a computer with fewer cores, where the frames' reading is the wait, it is more.
 
+Measured and not built: `stabilize` on a graphics card (IDEAS.md G7, 2026-11-14). The pass the card can do as the
+CPU does it, to a millionth of a pixel, runs about as fast on 32 worker processes. Most of a run is in one process
+(the first pass over the frames and the median picture of the display), and the card would shorten that several
+times over; but there a millionth of a pixel changes which points of the display's drawing are matched, and the held
+video's frame then sits up to a pixel or two elsewhere, as still as before. Whether to change how those points are
+chosen, so that a card's run and a CPU's agree, is the maintainer's choice.
+
 ## 0.5.5 (2026-11-14)
 
 **A long track measured sooner again, with the same numbers** (2026-11-13/14). More of what one process did alone

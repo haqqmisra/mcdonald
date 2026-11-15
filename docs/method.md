@@ -1364,6 +1364,13 @@ runs on the clip with a track carried back through the homographies.
 - *Two exports of one recording are not two captures.* PR122 is PR121 from 8.07 s on, exported separately: the hand's
   path agrees to 3-4 px over 460 frames, and the repeated frames fall in different places, so each export's frame times
   are good to about 1/60 s.
+- *Where the canvas sits is not held to the last digit of another arithmetic* (measured 2026-11-14; IDEAS.md G7). The
+  template keeps at most 30,000 points a level by a fixed draw over the count of its strong pixels (`Template`), so
+  one pixel more or less among them redraws every point. On the `--overlay` self-test, pass 1's answers moved by 1e-6
+  px (what another arithmetic's rounding does) moved the final homographies by 0.46 px at the frame's corners (1.5 px
+  at worst), while the frames' agreement through the true homographies stayed 0.03 px rms: the held video is as still,
+  its canvas placed a little differently. Compare two runs by how still each holds the display, not by the last
+  digits of `H`. On one computer a run repeats itself (0 and 8 workers: 1.4e-8 px apart).
 
 ## 15. `mcdonald aspect` -- does it look the same from every side? (added 2026-10-18)
 
@@ -6684,7 +6691,12 @@ threads, as before. For Find and Follow the reason is measured (2026-11-13): the
 of the spots and their centroids (100 to 260 ms for the 500 to 8,800 spots of a frame of sea), which one process
 beside the card would do more slowly than a pool of eight does; and the card's list is not the CPU's list. Of 240
 frame readings on four clips (475,530 spots) 201 gave the same spots, 41 of them in the same order, and 78 spots
-were in one list only, where a response a few 1e-5 of a grey level apart ties two neighbours or parts them. Not every card: NVIDIA's only. Not a
+were in one list only, where a response a few 1e-5 of a grey level apart ties two neighbours or parts them. For
+`stabilize` too (2026-11-14, IDEAS.md G7): its second pass on the card is the CPU's to 2e-6 px at the frame's corners
+and about as fast as a pool of 32 workers (22-28 ms a 1080p frame in batches of 40, against 40 ms a frame for the
+pool); the passes the card would shorten (the first pass and the median template, two thirds of a run, in one
+process) feed the template's draw of its points, which a millionth of a pixel redraws (section 14's last trap), so
+they could be held to the CPU's only to a pixel or two. Not every card: NVIDIA's only. Not a
 different measurement: nothing here adds a number a CPU does not give. And not as fast as it could be: the card's
 batch is bound by the memory it moves, about ten passes over a pair's maps in double, and the peak's reading and
 the frames' decoding are still the CPU's, in Python. On the workstation the card does `layers` in a little over half

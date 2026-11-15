@@ -658,8 +658,10 @@ knowing what the search could not have found.
    `layers` run on it too. *Still to do for "complete":* `stabilize`; Find and Follow, where a card version was
    measured and would be slower than the pool and give another list of spots (IDEAS.md, G2: it needs the picking on
    the card too, and the proposer's gate); and the work the card is for -- the plants, the dense field, the error models (objective 4,
-   A14). *Not owed* (the maintainer, 2026-11-12): other makers' cards. The card is optional, NVIDIA on CuPy is enough
-   for now, and there is no obligation to support every GPU platform; a Mac's card is parked (IDEAS.md, G4).
+   A14). `stabilize` was measured on the card on 2026-11-14 and not built (IDEAS.md, G7): the pass the card can be
+   held on is level with a pool of 32 workers, and the passes it would shorten, most of a run and all in one process,
+   cannot be held to the CPU's while the template's points are drawn by their count. *Not owed* (the maintainer,
+   2026-11-12): other makers' cards. The card is optional, NVIDIA on CuPy is enough for now, and there is no obligation to support every GPU platform; a Mac's card is parked (IDEAS.md, G4).
 4. **Planted objects at scale.** `plant`: synthetic objects and synthetic look-alikes written
    into frames and re-encoded with the clip's own settings, through the whole chain (Find,
    link, flicker, report), thousands per clip -- completeness and reliability per video, the
