@@ -360,9 +360,11 @@ def test_stop_and_go(td):
     end_tree(proc)
     rc, out, err = mcdonald("--out", a, "--status", "--json", td=td)
     st = {u["name"]: u["state"] for u in json.loads(out)["results"]["units"]}
+    steps = {k: v.get("step") for k, v in seen.items()}          # what each video was doing when the stop came
     check(any(v != "done" for k, v in st.items() if k in ("one", "two")) and "running" not in st.values()
           and set(st.values()) <= {"done", "stopped", "stalled", "waiting", "failed"},
-          "stopped half way: --status says which videos are done, which were stopped and which wait", str(st))
+          "stopped half way: --status says which videos are done, which were stopped and which wait",
+          f"{st}; last steps seen {steps}")
     half = sorted(p.name for p in (a / "two").glob("object-*")) if (a / "two").exists() else []
 
     # started again: it goes on, and ends with every video an answer
@@ -389,8 +391,18 @@ def test_stop_and_go(td):
     check(len(ra) == len(rb) == 6 and not diff, "stopped and started again, the table is the one a run left alone gives: every row, "
           "every label and number", f"{len(ra)} and {len(rb)} rows; {diff[:3]}")
     by = {(r["unit"], r["object"]): r for r in da["rows"]}
+    # where a video gave no object, its own row says why (on the macOS runner of 0.5.6 Find kept nothing in "one" and
+    # "two", 2026-11-14): say it, and the tail of its log, so a failure there can be read from the runner's log alone
+    why = {r["unit"]: (r.get("outcome"), str(r.get("note"))[:160]) for r in da["rows"] if r["object"] is None}
+    ks = {u["name"]: u.get("k", i) for i, u in enumerate(json.loads((a / batch.PLAN).read_text(encoding="utf-8"))["units"])}
+    tails = {u: (a / "logs" / f"unit_{ks[u]}.log").read_text(encoding="utf-8", errors="replace").splitlines()[-6:]
+             for u in ("one", "two") if (u, None) in by and u in ks and (a / "logs" / f"unit_{ks[u]}.log").exists()}
     check(set(by) == {("one", 1), ("two", 1), ("two", 2), ("brief", None), ("still", None), ("gone", None)},
-          "one row an object, and one for each video with none", str(sorted(by, key=str)))
+          "one row an object, and one for each video with none", f"{sorted(by, key=str)}; why none: {why}; logs: {tails}")
+    if ("two", 2) not in by:                                  # the rest of this test reads that row
+        check(False, "an object's row: how Find saw it, how far it was followed, its report's label, how sure, its rate, "
+                     "each test's answer", "no row for the second object of 'two'")
+        return a, b, vids
     r = by[("two", 2)]
     check(r["object_state"] == "measured" and r["label"] and r["grade"] and r["followed_frames"] >= 40 and r["dark"] is True
           and r["found_frames"] >= 40 and r["rate_px_per_s"] and 140 < r["rate_px_per_s"] < 160 and r["checklist"].get("checked") == "Not yet"
