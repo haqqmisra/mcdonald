@@ -6633,6 +6633,24 @@ jobs, and an RTX 5070 Ti; CuPy 14.2.0 on CUDA 13).
 On PR135 the rates agree to nine digits (107.81341642 against 107.81341640 px/s). The farthest apart is the median of
 the pairs' own shift errors, 0.00216469 against 0.00216467 px: 1.3 parts in 100,000.
 
+**What that agreement means for a report, measured again on 2026-11-14** (main c1716d3, with every pass the card has by
+then: `layers`' three passes, `integrity`'s, `flicker`'s camera shake, `tether`'s stroke mask). The fourteen reference
+cases, 31 objects, each measured on arthur's CPUs and on its card from the same code (`rerun_cases.py`, the card's run
+with rerun's CPU-for-a-CPU-case rule lifted): 25 objects have a field more than one part in 10,000 apart, and 11 print
+a different number in a sentence or a table. None differs in a word: no verdict, no checklist answer, no count of
+tests. The numbers that move are those read from many pairs' decisions, each made against a threshold -- held still or
+not, a template kept or dropped -- where a pair near the threshold falls one way on the card and the other on the CPU:
+`layers`' shares of held-still pairs (PR41 96 % against 98 %), its speeds against a layer (PR097 object 7 14 against
+13 px/s, PR41 50 against 48, PR099 object 3 41 against 43), the medians of `layer_against_layer`, `flicker`'s
+position-beat fits (a wander of 153.36 against 153.42 px) and the shake test's slopes (-646.25 against -646.23). On a
+nearly still scene the shift is larger: in `mcdonald batch`'s PR49 frames 2680-2930, object 1 (IDEAS.md G9), the
+object against the whole scene is 22 px/s (16-84 %: 11-49) on the CPU and 15 (10-44) on the card, and the
+conclusion's rate 7 against 10 px/s. Each lies inside the other's spread, and each side repeats itself to the bit (the
+card alone or in a pool of eight; the CPU on 4 or 8 workers). So the card's arithmetic agrees with the CPU's to about
+a part in a million; a report built on it agrees in every word and in most numbers, and in a third of the objects a
+number read from threshold decisions moves by about its own last digit, once by a third of itself. Files and
+comparison: `/scratch/mcdonald/s24-gpu-2026-11-14/coord/cases/` (`cardcpu.txt`).
+
 **A case says what computed it** (`report.Case.computed_on`, `gpu.computed_on`). `mcdonald share rerun` holds a case
 file to one part in a billion, which the card's agreement is not. So a case keeps the card that took part in it (None
 where the CPU measured alone), and its report says so in a line under the heading. `rerun` measures a case again by
