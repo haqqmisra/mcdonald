@@ -132,6 +132,7 @@ python3 tests/test_tether.py         # tether: a hanging thing's swing, its peri
 python3 tests/test_audio.py          # audio: planted propellers, supplies and codec lines; noise gives nothing
 python3 tests/test_gpu.py            # a graphics card's arithmetic held to the CPU's (runs with or without a card)
 python3 tests/test_plant.py          # planted objects: where the truth table says, the same file twice, marked as a test video
+python3 tests/test_noise.py          # the noise model: curves read as the stage read them, the centile, the tail, the FDR
 ```
 
 Together those are the checks against cases whose answers are known by
@@ -763,6 +764,33 @@ one card, so such tasks run one after another: `--slurm --card N` submits instea
 (`--pool N`). Each video's process opens the card for itself and plans its batches on it within its part of the
 card's memory (`gpu.part`, told how many share it by `MCDONALD_CARD_SHARED`); each video's log and
 `batch_state.json` say what computed it (method §52).
+
+### The corpus's noise (`noise`)
+
+`mcdonald noise` (`mcdonald.noisemodel`; ROADMAP 0.6 objective 6, IDEAS S3, E24, D7; [docs/method.md](docs/method.md)
+§63) reads every background aperture of a batch as the flicker stage read it and makes a distribution of them, so that a
+beat's strength is a centile of what the sensors do rather than a fixed factor over four apertures:
+
+```bash
+mcdonald noise --read runs --out noise/readings [--unit K]          # each video folder's curves, read (a unit a video)
+mcdonald noise --build noise/readings --batch runs --out noise/model [--only FILE] [--choose-on FILE]
+mcdonald noise --model noise/model --hz 7.1 --share 0.12 --contrast 35 --frames 300 --aperture 6 [--window] [--standing 2.4] [--leave FOLDER]
+mcdonald noise --fdr noise/model --readings noise/readings --out noise/model [--q 0.05,0.10]
+```
+
+`--read` rebuilds each curve exactly as `flicker.judge` judged it (`noisemodel.as_judged`: the span, the object's lost
+frames filled across, each background aperture in its object's brightness; checked against the case's own
+`fields.curves`) and reads it with the stage's functions (`flicker.peak`, `flicker.continuum`, the strongest amplitude in
+each 0.5-Hz bin from 1.5 Hz, and the same in each 2-s window of `noise_pdf`'s). `--build` drops by stated rules (a
+group's shared set, an aperture where something reaches `flicker.DROP` of the object on more than `LOST_MAX` of its
+frames, a row followed onto another's track), stratifies by frame rate, contrast, aperture and length (a cell of under
+10 videos falls back by length, then aperture), and fits a generalised Pareto past a threshold chosen by a stability
+rule to the backgrounds' line power over their own continuum (`standing`², the ratio over the drawn null's 99th
+centile). `--model` gives a beat's centile (each video weighing the same, an interval resampling videos) and a line's p
+(empirical, past the threshold the Pareto; `p_cautious` with the shape at its interval's top). `--fdr` gives every
+object's p (its own video left out) and Benjamini-Hochberg, Benjamini-Yekutieli and one-test-a-video over the batch's
+rows, on four p's (the model's, the cautious one, the drawn continuum null over the whole stretch, the stage's own). The
+PURSUE pass's model is in the reference-data folder's `noise/`. Readings only: no call and no report sentence reads them.
 
 ### Sharing an analysis (`share`)
 

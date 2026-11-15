@@ -686,6 +686,14 @@ knowing what the search could not have found.
    whole corpus, so a beat's strength is a centile of what the sensors do, not a fixed number;
    past the corpus's largest, a tail p-value by extreme value theory (E24).
 
+   *Built 2026-11-15* (`mcdonald noise`, `docs/method.md` §63, `tests/test_noise.py`; the model of record in the
+   reference-data folder's `noise/`): every background aperture of the 144-video pass read as `flicker` read it, a
+   beat's centile of them at its frequency in its stratum (frame rate, contrast, aperture, length; each video
+   weighing the same), a line's p past the corpus's largest by a generalised Pareto, and the false discovery rate over
+   the pass (IDEAS.md D7). Readings only. *Still to do:* whether a report quotes them, and whether ABOVE or BIRD_FLOOR
+   is held to the corpus's levels (the maintainer's); a window-level p with the look across windows paid, for the
+   beats that come and go.
+
 **Hypothesis-driven:** the plants. **Hypothesis-neutral:** the pass, the ranking, the noise.
 
 **Could feed:** the corpus statement (how many beat; what was and was not findable).

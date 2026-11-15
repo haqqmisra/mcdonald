@@ -661,6 +661,36 @@ video's own frames: `frame` 1 is `stretch.n0` of the video it came from.
 the frame is easier to find than a real member of a flock. And the planted video is a second encoding by another
 encoder, so compare with the control before you blame the search.
 
+### How strong is a beat, against what the cameras do? The noise model
+
+The flicker stage holds an object's beat against four background apertures beside it. A background aperture is a
+small circle of sky or scene near the object, measured as if it were the object. Four circles say little about how
+strong a beat noise alone can make. So `mcdonald noise` reads every background aperture of a whole batch. From them it
+builds the corpus noise model.
+
+```bash
+mcdonald noise --read runs --out noise/readings --json                       # every video folder of a batch, read
+mcdonald noise --build noise/readings --batch runs --out noise/model --json  # the model, its tail and a figure
+mcdonald noise --model noise/model --hz 7.1 --share 0.12 --contrast 35 --frames 300 --aperture 6 --standing 2.4 --json
+mcdonald noise --fdr noise/model --readings noise/readings --out noise/model --json   # which beats of the batch stand
+```
+
+The third line places one beat. Give its frequency, its strength as a share of the object's brightness, the object's
+contrast and the frames it was read over. The answer is a centile: the share of background apertures whose strongest
+line at that frequency is weaker. They are taken from one group, with the same frame rate, contrast, aperture size and
+track length as the object. Each video counts once. The interval comes from drawing the videos again at random.
+`--leave FOLDER` leaves out the object's own video. `--standing` gives a p-value for a line. Past the batch's largest,
+a fitted tail gives it.
+
+The fourth line gives a p-value for every object of the batch, and the false discovery rate over all of them. The
+false discovery rate is the share of the beats found that are noise. Two methods compute it: Benjamini-Hochberg, and
+Benjamini-Yekutieli, which holds when the tests depend on each other. `noise_pass.tsv` has every object's numbers.
+
+These are readings. No call of the flicker stage reads them, and no report quotes them. A p-value says a line stands
+out of the noise. It does not say whose line it is: the video's own rhythm and the background's share are the stage's
+to judge. The model in the reference-data folder (`noise/`) is the PURSUE pass's, and method section 63 says how far
+its tail can be trusted.
+
 ## The envelope
 
 Every command takes `--json` and prints one object, alone on stdout;
