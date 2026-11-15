@@ -9,7 +9,8 @@ multiple choice with a recommendation; build none of what they decide until he a
 **Where things stand.** `main` is 0.5.7 (9d742b4, pushed) plus the local handoff commit 6b4fbdb. Session 26's work is
 on branch `g11` (worktree `/hugespace/models/mcdonald-g11`), **not merged**: G11 and G12 (Find sooner, the same list to
 the bit) with their tests, CHANGELOG ("Unreleased") and IDEAS rows (G11, G12 shipped; A14 measured; G2's split). All
-suites with the goldens: RESULTS_CANNON. Merge it when a release is in view (Jacob's question 4 below), telling any
+suites with the goldens pass on Cannon at e9a164b (run 20261115-173127-g11-e9a164b: test_measurement 687,
+test_gui 691 + 4 skips, golden 266, every suite 0 FAIL). Merge it when a release is in view (Jacob's question 4 below), telling any
 peer session first (`ListAgents`).
 
 **How the last sessions worked (keep to it).** As in "The GPU session's start as written after 0.5.7" below, and two more:
@@ -47,8 +48,9 @@ quarter.
    (smoothing, registering, the still pass) and reading the frames the rest. The card is one process. (a) Not now: the
    pool stays, and the CPU's own changes to the bit (G11, G12) go out in the next 0.5.x -- **recommended**: Find on
    PR051 is a third sooner at 32 CPUs and a fifth at 4 with nothing changed, and a card version changes the lists in
-   their last digits; (b) the whole-frame part on the card, the spots' part in a pool beside it -- at most about twice
-   as fast on few CPUs, little at 32; (c) all of it on the card, the spots' windows sent as batches -- the most gain and
+   their last digits; (b) the whole-frame part on the card, the spots' part in a pool beside it -- by the split (an
+   estimate, not measured) at most about twice as fast on 4 CPUs, and nothing at 32, where one process feeding the card
+   would be slower than the pool; (c) all of it on the card, the spots' windows sent as batches -- the most gain and
    the most work, the proposer's gate run on both. And either way: G11 and G12 in the next 0.5.x, or with the GPU batch?
 
 ## Session 26, Sunday evening (2026-11-15): Find's chaining in place (G11), its search of a frame (G12), A14 measured
@@ -72,7 +74,8 @@ at the frames' edges the same.
 **Held, G11 and G12 together** (snap3): PR051's 30 rows byte-identical at 32 and 4 CPUs; `find_rank --link --keep` the
 same tables line for line and the 11 keep files byte for byte (7:32 against 9:26); test_measurement's two new tests
 (`test_zz_propose_chains_...`, `test_zz_propose_spots_...`; old code kept in the test; named to sort last, their own
-RNGs), each made to fail by a small change to the new code; all suites with the goldens RESULTS_CANNON. **Timed back to
+RNGs), each made to fail by a small change to the new code; all suites with the goldens on Cannon, at bf1d832 (G11; run 20261115-164935) and at e9a164b (both; run
+20261115-173127): every suite 0 FAIL, test_measurement 685 and 687, test_gui 691 + 4 skips, golden 266. **Timed back to
 back** (`ab.sbatch`, PR051 1-3000, `find`'s way): at 32 CPUs main 86.6 and 85.3 s, the branch 56.7 and 56.5 s; at 4 CPUs
 main 412.0 s, the branch 337.5 s (one round). Rows the same in every run.
 
