@@ -367,7 +367,9 @@ GOLDEN_KINDS = {
     "test_flyover_cases": ("control", "known aircraft over a camera, and ADS-B for the approaches"),
     "test_pr051_zoom_with_no_blank": ("control", "the data bar's FVW and SLR, read by eye"),
     "test_pr051_scene_path_against_the_data_bar": ("control", "the data bar's target motion"),
-    "test_pr051_released_track_against_the_scene": ("regression", "the released-track null on the tool's own scene path"),
+    "test_pr051_released_track_against_the_scene": ("regression", "the released-track null on the tool's own scene path "
+                                                    "and its words as they stand; the data bar puts the ground past "
+                                                    "`layers`' search in this hold, so nothing here is a finding about it"),
     "test_puerto_rico_k_from_the_data_bar": ("control", "the display's positions and ground point"),
     "test_puerto_rico_lanterns_tau_against_their_range": ("control", "the range from the display"),
     "test_puerto_rico_lanterns_over_the_doubling": ("control", "the range from the display"),

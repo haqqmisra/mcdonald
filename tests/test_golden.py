@@ -1268,14 +1268,23 @@ def test_yemen_line_of_sight_against_the_laser():
 
 
 def test_pr051_released_track_against_the_scene():
-    """PR051's upload (2026-10-28): the released-track null with the scene as the camera's own record (`camera --scene`,
-    docs/method.md §20). The MTS-B held the object in its gate over 70-74 s of the upload (frames 4201-4437) while the
-    ground, in the picture at 4X, held still too: the camera was not turning against the ground to hold it. From the
-    frame the gate starts blinking (4439) the object walks out of it and crosses the ground at 0.0079 deg/s (the 4X
-    field: FVW 58.5 m at 22.5 NM, 0.080 deg across the 4:3 sensor's 1440 square px) for 1.8 s, then becomes a dash
-    475 px to the right. Neither is what a camera that stopped following shows, and the scene's own path says the
-    camera did not move at the dash either. The track is `tests/golden/pr051_release_track.csv` (its header says how
-    it was made); the scene is `layers` on the same frames, every frame doubled, the overlay boxed by hand."""
+    """PR051's upload (2026-10-28; reworded 2026-11-14 at the maintainer's word): the released-track null with
+    `layers`' scene as the camera's record (`camera --scene`, docs/method.md §20), held as a regression of the tool's own
+    numbers and words, not as a finding about the ground. The MTS-B held the object in its gate over 70-74 s of the
+    upload (frames 4201-4437, the 4X hold), and `layers` (`--max-shift 60`) found the picture behind it still within its
+    search. That is not a measurement of the ground: in this hold the data bar's angles put the ground crossing the
+    picture at 100-115 px a file frame (210-230 a picture), past `layers`' search and past `scene`'s, which read nothing
+    in 4X on any copy (NO POWER), and a zero under a streaming scene is the sensor's pattern that stays put; 20 s earlier
+    in the same hold (the ULTN part, 39-58.5 s) `scene` reads the ground streaming behind the object at 0.78-0.97 of
+    the rate the bar gives, on three copies (session 23's drift and scene strands; docs/method.md §34 and §41). From the
+    frame the gate starts blinking (4439) the object walks out of it at 0.0079 deg/s in the picture, against what stays
+    put (the 4X field: FVW 58.5 m at 22.5 NM, 0.080 deg across the 4:3 sensor's 1440 square px), for 1.8 s, then becomes
+    a dash 475 px to the right; against the ground, if the line of sight turned at the bar's 0.26 deg/s, that is 3 % of
+    it. The camera stage still says the camera "was not turning against the ground" here, from `layers`' zero: these
+    checks hold its words as they stand (IDEAS.md GL9: "held still" said where neither search can see the scene), and
+    a true check of the 4X hold needs a reader that searches to 250 px a picture or the bar's digits read to the frame.
+    The track is `tests/golden/pr051_release_track.csv` (its header says how it was made); the scene is `layers` on the
+    same frames, every frame doubled, the overlay boxed by hand."""
     print("\nPR051's upload, 70-76 s -- the released-track null against the scene")
     root = reference_data.root() / "pr051"
     video = root / "yt_nKtJslcHlCQ_1080p60_h264.mp4"
@@ -1301,11 +1310,12 @@ def test_pr051_released_track_against_the_scene():
           "PR051: every tracked frame is on one stretch of the scene's path", f"{sc['frames_on_path']} of {len(track)}")
     b = sc["before"]
     check(b is not None and b["v_px_per_s"] < 3.0 and not b["turned"],
-          "PR051: the ground held still while the gate held the object: the camera was not turning against it",
+          "PR051: while the gate held the object, the picture behind it was still within `layers`' search (the ground's "
+          "own motion, past that search in 4X, is not measured here)",
           f"{b['v_px_per_s']:.1f} +- {b['err_px_per_s']:.1f} square px/s over {b['frames']}" if b else "none")
     l = sc["after"]
     check(l is not None and l["v_px_per_s"] < 3.0,
-          "PR051: and after the release, through the drift and the dash, the camera still did not move against the ground",
+          "PR051: and after the release, through the drift and the dash, the picture behind it stayed still within that search",
           f"{l['v_px_per_s']:.1f} +- {l['err_px_per_s']:.1f} square px/s over {l['frames']}" if l else "none")
     w = r["whole"] if r else None
     check(w is not None and w["frames"] == [4439, 4549] and w["cut_at_jump"] == 4553,
@@ -1313,17 +1323,19 @@ def test_pr051_released_track_against_the_scene():
           f"{w['frames']}, cut at {w['cut_at_jump']}" if w else "none")
     if w:
         check(0.0070 <= w["deg_per_s"] <= 0.0090 and not w["within"] and w["z"] > 10 and 300 <= w["direction_deg"] <= 345,
-              "PR051: it crosses the ground at 0.0079 deg/s, up and to the left, far faster than the camera had been turning",
+              "PR051: it crosses the picture at 0.0079 deg/s, up and to the left, against what stays put (not against the "
+              "ground: the bar's line of sight turned about 30 times faster)",
               f"{w['deg_per_s']:.4f} +- {w['err_deg_per_s']:.4f} deg/s ({w['v_px_per_s']:.0f} square px/s), heading "
               f"{w['direction_deg']:.0f} deg, {w['z']:+.1f} sigma")
-        check(w["direction_off_deg"] is None, "PR051: with the camera not turning, the release sends the object no way")
+        check(w["direction_off_deg"] is None, "PR051: with the scene read as still, the stage gives the release no direction")
     t = r["fastest"] if r else None
     check(t is not None and t["frames"] == [4561, 4567] and 0.07 <= t["deg_per_s"] <= 0.15 and not r["within_camera_rate"],
           "PR051: the fastest stretch is the dash, at a tenth of a degree a second after a jump of hundreds of pixels",
           f"{t['frames']} {t['deg_per_s']:.3f} +- {t['err_deg_per_s']:.3f} deg/s" if t else "none")
     said = " ".join(camera.said(f.fields))
     check("was not turning against the ground" in said and r is not None and "the release alone does not explain" in r["said"],
-          "PR051: it says the camera was not turning, and that the release explains none of it")
+          "PR051: the camera stage's words as they stand: it says the camera was not turning (from `layers`' zero, which "
+          "cannot see the bar's rate: IDEAS.md GL9), and that the release explains none of it")
 
 
 def test_pr051_drift_from_the_aircrafts_own_track():
