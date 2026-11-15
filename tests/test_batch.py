@@ -431,7 +431,7 @@ def test_stop_and_go(td):
     aside = [p for p in a.iterdir() if p.name.startswith("two.before-")]
     two_rows = [r for r in d2["rows"] if r["unit"] == "two"]
     check(len(aside) == 1 and (aside[0] / "object-2" / "two_case.json").exists() and len(two_rows) == 1 and two_rows[0]["found"] == 2
-          and two_rows[0]["measured"] == 1 and d2["tally"]["other_make"] == 3 and "another version of mcdonald or with other options" in
+          and two_rows[0]["measured"] == 1 and d2["tally"]["other_make"] == 1 and "another version of mcdonald, or with other options, than the rest" in
           (a / "batch.md").read_text(encoding="utf-8"),
           "--again does a video again by the new options, its old folder moved aside; two objects found, one measured, one listed; "
           "and the table says which videos are of another make", f"{len(two_rows)} rows, other make {d2['tally']['other_make']}")
@@ -500,6 +500,27 @@ def test_folder(a, b, vids, td):
     row = next(r for r in json.loads((b / "batch.json").read_text(encoding="utf-8"))["rows"] if r["unit"] == "two" and r["object"] == 1)
     check(row["audit_looked"] is True and row["audit_wrong"] == 2 and row["audit_bound"] == again["bound"],
           "--table writes the table again from the folders as they are now: the look is in the object's row")
+
+    print("\na scheduler's pause, taken out of the times")
+    from datetime import datetime, timezone
+    t0, t1 = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc), datetime(2026, 1, 1, 11, 0, tzinfo=timezone.utc)
+    ps = [(datetime(2026, 1, 1, 10, 30, tzinfo=timezone.utc), datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc), "held")]
+    check(batch._overlap(t0, t1, ps) == 1800 and batch._overlap(t0, t0, ps) == 0 and batch._overlap(None, t1, ps) == 0,
+          "the seconds of a unit's run that lie in a pause")
+    (b / batch.PAUSES).write_text("# from\tto\twhat\n2000-01-01T00:00+00:00\t2100-01-01T00:00+00:00\tthe whole test, held\n", encoding="utf-8")
+    rc, out, err = mcdonald("--out", b, "--table", td=td)
+    d = json.loads((b / "batch.json").read_text(encoding="utf-8"))
+    two = next(r for r in d["rows"] if r["unit"] == "two" and r["object"] == 1)
+    check(rc == 0 and two["paused"] == "yes" and two["paused_s"] > 0 and abs(two["running_s"] + two["paused_s"] - two["unit_seconds"]) < 0.2
+          and two["seconds_paused"] == two["seconds"] and d["tally"]["paused"].get("yes", 0) >= 4
+          and "held some jobs stopped" in (b / "batch.md").read_text(encoding="utf-8"),
+          "with batch_pauses.tsv a unit's time in a pause is taken out (`running_s`), an object's is counted, and batch.md says so",
+          f"{two['unit_seconds']} s, of it {two['paused_s']} paused")
+    (b / batch.PAUSES).unlink()
+    rc, out, err = mcdonald("--out", b, "--table", td=td)
+    d = json.loads((b / "batch.json").read_text(encoding="utf-8"))
+    check(all(r.get("paused") is None for r in d["rows"]) and d["tally"]["paused"] == {"not said": 5},
+          "with no pauses given, nothing is taken out and the rows say nothing was said")
 
 
 def test_segment(td):

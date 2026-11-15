@@ -62,7 +62,7 @@ import sys
 import threading
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1319,7 +1319,7 @@ def rows_of(out, u, state=None, rec=None):
                            checklist={c["key"]: c["answer"] for c in case.checklist()},
                            reasons=[x["key"] for x in case.reasons()],
                            no_power_by_stage={n: len(st["no_power"]) for n, st in case.stages.items() if st["no_power"]},
-                           needs=sum(len(st["needs"]) for st in case.stages.values()), computed_on=case.computed_on,
+                           needs=sum(len(st["needs"]) for st in case.stages.values()), computed_on=case.computed_on, case_started=case.started,
                            mcdonald=case.measured_by or row["mcdonald"], sheet_looked=bool(r.get("track_sheet_looked_at")))
                 row["no_power"] = sum(row["no_power_by_stage"].values())
             except Exception as e:                           # noqa: BLE001 -- a report today's words cannot read is said, not fatal
@@ -1339,13 +1339,76 @@ COLUMNS = ["id", "release", "file", "unit", "video_frames", "width", "height", "
            "followed_frames", "followed_first", "followed_last", "size_px", "dark", "same_as", "several", "members", "label", "grade",
            "rate_px_per_s", "rate_is", "beat_hz", "beat_share"]
 COLUMNS_AFTER = ["reasons", "no_power", "needs", "sheet_looked", "audit_frames", "audit_looked", "audit_wrong", "audit_bound",
-                 "computed_on", "seconds", "unit_seconds", "cpus", "peak_rss_mb", "frames_mb", "host", "mcdonald", "make", "disclosure",
+                 "computed_on", "seconds", "seconds_paused", "unit_seconds", "paused", "paused_s", "running_s", "cpus", "peak_rss_mb",
+                 "frames_mb", "host", "mcdonald", "make", "disclosure",
                  "folder", "error"]
 WAITING = ("waiting", "running", "stopped")
 
 
+PAUSES = "batch_pauses.tsv"     # in a batch's folder, written by a person: when the scheduler held its jobs stopped
+
+
+def _when(text):
+    """An ISO time as a datetime with its zone, or None."""
+    try:
+        t = datetime.fromisoformat(str(text).strip())
+    except (TypeError, ValueError):
+        return None
+    return t if t.tzinfo else t.astimezone()
+
+
+def pauses(out):
+    """[(from, to, what)] of `DIR/batch_pauses.tsv`: the times the scheduler held the batch's jobs stopped (a queue
+    paused by suspending its jobs, a machine put to sleep), one a line, `from<TAB>to<TAB>what`, as ISO times with
+    their zone (`2026-11-13T21:57-05:00`); `#` starts a comment. A suspended job's clock runs on, so a unit that ran
+    across one counts the pause as its own time; the table takes it out (`with_pauses`). [] where there is no file."""
+    f = Path(out) / PAUSES
+    if not f.exists():
+        return []
+    got = []
+    for ln in f.read_text(encoding="utf-8").splitlines():
+        cells = ln.split("#", 1)[0].split("\t")
+        a, b = (_when(cells[0]), _when(cells[1])) if len(cells) >= 2 else (None, None)
+        if a and b and b > a:
+            got.append((a, b, cells[2].strip() if len(cells) > 2 else ""))
+    return got
+
+
+def _overlap(a, b, ps):
+    """Seconds of [a, b] that lie in the pauses `ps`."""
+    if a is None or b is None:
+        return 0.0
+    return sum(max(0.0, (min(b, t) - max(a, f)).total_seconds()) for f, t, _ in ps)
+
+
+def with_pauses(out, p, rows):
+    """Each row's times with the pauses taken out, in place: `paused` -- "yes" where the unit's last try ran across a
+    pause and that much is taken out, "perhaps" where an earlier try (one stopped and taken up again) may have, which
+    its record cannot date, "no", or None with no pauses given --, `paused_s`, `running_s` (`unit_seconds` less
+    `paused_s`), and an object's own `seconds_paused` from its case's start and its seconds."""
+    ps = pauses(out)
+    made = _when(p.get("made"))
+    units = {}
+    for u in p["units"]:
+        st = read_state(Path(out) / u["folder"])
+        a, b = _when(st.get("started")), _when(st.get("finished"))
+        wall = float(st.get("wall_s") or 0)
+        lap = _overlap(a, b, ps) if b else 0.0
+        earlier = wall - (b - a).total_seconds() if a and b and (st.get("attempts") or 1) > 1 else 0.0
+        perhaps = earlier > 60 and any(f < a and t > (made or f) for f, t, _ in ps) if a else False
+        units[u["folder"]] = dict(paused=None if not ps else "yes" if lap > 0 else "perhaps" if perhaps else "no",
+                                  paused_s=round(lap, 1) if ps else None, running_s=round(wall - lap, 1) if st.get("wall_s") else None)
+    for r in rows:
+        r.update(units.get(r["folder"], {}))
+        if r.get("object") and ps and r.get("case_started") and r.get("seconds"):
+            a = _when(r["case_started"])
+            r["seconds_paused"] = round(_overlap(a, a + timedelta(seconds=float(r["seconds"])), ps), 1) if a else None
+    return rows
+
+
 def collect(out):
-    """Every unit's rows, read from the folders as they are now, and the plan: (plan, rows)."""
+    """Every unit's rows, read from the folders as they are now, and the plan: (plan, rows). A unit's times are those
+    its record gives, less any pause of the scheduler's that `DIR/batch_pauses.tsv` names (`with_pauses`)."""
     out = Path(out)
     p = read_plan(out)
     rows = []
@@ -1355,7 +1418,7 @@ def collect(out):
         except Exception as e:                               # noqa: BLE001 -- one unit's trouble is a row
             rows.append(dict(_video_row(u, read_state(out / u["folder"]), {}), state="failed",
                              error=f"its rows could not be read: {type(e).__name__}: {e}"))
-    return p, rows
+    return p, with_pauses(out, p, rows)
 
 
 def tally(p, rows):
@@ -1371,7 +1434,13 @@ def tally(p, rows):
     for r in objs:
         for n, c in (r.get("no_power_by_stage") or {}).items():
             stages[n] = stages.get(n, 0) + c
+    # the table's own make: the one most of its done videos have (on a tie, this code's with the plan's options). A
+    # table read by a later version than made it is still of one make; videos of another are the ones counted apart.
+    done_makes = [r["make"] for r in videos.values() if r["state"] == "done" and r["make"]]
     this = make_id(make_of(p["options"]))
+    if done_makes:
+        most = max(done_makes.count(m) for m in set(done_makes))
+        this = this if done_makes.count(this) == most else sorted(m for m in set(done_makes) if done_makes.count(m) == most)[0]
     return dict(videos=len(videos), by_outcome=by(what, list(videos.values())), objects=len(objs),
                 by_object_state=by(lambda r: r["object_state"], objs),
                 by_label=by(lambda r: r["label"] or "no report", objs), by_grade=by(lambda r: r["grade"] or "none", objs),
@@ -1379,7 +1448,9 @@ def tally(p, rows):
                 makes=by(lambda r: f"{r['mcdonald'] or '?'} {r['make'] or '?'}", [r for r in videos.values() if r["state"] == "done"]),
                 this_make=this, other_make=sum(1 for r in videos.values() if r["state"] == "done" and r["make"] != this),
                 sheets_looked=sum(1 for r in objs if r.get("sheet_looked")), audits_looked=sum(1 for r in objs if r.get("audit_looked")),
-                unit_seconds=round(sum(float(r.get("unit_seconds") or 0) for r in videos.values()), 1))
+                unit_seconds=round(sum(float(r.get("unit_seconds") or 0) for r in videos.values()), 1),
+                running_seconds=round(sum(float(r.get("running_s") or r.get("unit_seconds") or 0) for r in videos.values()), 1),
+                paused=by(lambda r: r.get("paused") or "not said", list(videos.values())))
 
 
 def _cell(v):
@@ -1415,8 +1486,14 @@ def markdown(p, rows, t):
         L += [f"About this batch: {opt['note']}", ""]
     if opt.get("skip"):
         L += [f"These steps were left out of every report: {', '.join(opt['skip'])}.", ""]
+    held = t.get("paused") or {}
+    if held.get("yes") or held.get("perhaps"):
+        L += [f"The scheduler held some jobs stopped while they ran ({PAUSES}). A stopped job's clock runs on, so those "
+              f"videos' times would count the pause. In {held.get('yes', 0)} videos the pause is taken out (`running_s`). In "
+              f"{held.get('perhaps', 0)} more an earlier try may have run across one, which the record cannot date: their "
+              "times are marked `perhaps` and are upper limits.", ""]
     if t["other_make"]:
-        L += [f"**{t['other_make']} of the videos were done by another version of mcdonald or with other options.** Their rows "
+        L += [f"**{t['other_make']} of the videos were done by another version of mcdonald, or with other options, than the rest.** Their rows "
               "say which (the columns `mcdonald` and `make`). Do not compare them with the rest without checking.", ""]
     L += ["## What became of each video", "", "| | videos |", "|---|---:|"]
     L += [f"| {words.get(k, k)} | {v} |" for k, v in t["by_outcome"].items()]
