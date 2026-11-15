@@ -5,6 +5,14 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**The package's own cut of the labelled set's table follows the record made again** (2026-11-14). `controls_beat.csv`,
+which the report's evidence weights and screening words read, is made from the data folder's table and had not been made
+again when that table was. Four rows change (IR_BIRD_035, IR_DRONE_059, IR_DRONE_098, IR_BIRD_032). In the reports: the
+weight of a track too noisy to show a bird's beat moves from about 4.5 to 4.7 times as common on birds (five reference
+objects; 4.4 to 4.5 on one); the weight of a named bird that the reference reports quote is unchanged (about 33 times).
+At the stage's rule and an 8 % floor a named bird's ratio goes from 35.6 to 71.2, because one non-bird fewer is named
+(IR_DRONE_059, whose 10-Hz beat was its source's held pictures). Method section 47 has the table again.
+
 **`tether` answers "does something hang under it?"** (IDEAS.md H5, ROADMAP 0.5.x; 2026-11-13; method section 55).
 The stage found what moves with an object and asked whether it swings. Most of what moves with an object does not
 swing in the seconds a clip gives, and the stage then had no more to say: of AARO's known balloon PR-004, of PR105's

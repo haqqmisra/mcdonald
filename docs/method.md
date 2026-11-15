@@ -5891,6 +5891,14 @@ carries no weight.
 | Can't tell, refused | 1.94 (0.81-3.75; 15 v 19) | 2.09 (0.96-3.80) | 1.94 |
 | Can't tell, the shake | 0 v 1: no power | 0 v 1 | 0 v 1 |
 
+*Since the record was made again (2026-11-13/14: N3's revision and the held pictures' cadence read in blocks; method
+sections 13, 35 and 44)* the package's own table gives, at the same seed: a bird named 71.2 (19.3-inf; 29 v **1**) under
+the stage's rule at 8 %, 63.9 under the paper's (unchanged: it had 1 already), 36.8 (13.2-inf; 30 v 2) under the stage's
+at 7 %; too noisy for a bird's beat 4.62 (2.68-8.51; 32 v 17), 4.77, 4.54; a refusal 1.81, 1.96, 1.81. The one non-bird
+named fewer is IR_DRONE_059, whose 10-Hz beat was its source's held pictures. On the fourteen reference case files the
+quoted weight of a named bird is unchanged ("about 33 times", the rule they were measured by), and the noisy track's moves
+from 4.5 to 4.7 times on five objects and 4.4 to 4.5 on one.
+
 **Four fixes to the checklist** (`Case.checklist`, `Case.placed`, `Case.beat_power`; `stages.track_placed`).
 
 1. *The beat row's "No" held two answers.* The flicker stage sets `beats` False whenever nothing passes, whatever the
