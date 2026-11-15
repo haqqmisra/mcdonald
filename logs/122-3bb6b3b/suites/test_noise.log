@@ -1,0 +1,40 @@
+test_the_curves_as_judged
+  PASS  every curve the stage read comes back from its CSV as the stage read it: stretch, lost frames filled, scale  14 of 14 the same (lost frames 6)
+  PASS  each member's own apertures in that member's brightness, over that member's frames  scales 995 and 2505; member 1's from frame 31
+  PASS  the rules that drop an aperture: a group's shared set, something bright in it, another row's track
+test_the_reading
+  PASS  a line planted in grain is the strongest of its half-hertz bin, at its amplitude  bin 7.0 Hz: 0.0538 against 0.05 planted; peak 7.30 Hz
+  PASS  and it stands over its own continuum past the drawn null's 99th centile  standing 10.16
+  PASS  grain alone stands under it nearly always  0% of 60 at 1 or more
+  PASS  a background aperture is read in the object's brightness, as `flicker.peak` reads it  0.0032
+test_the_tail
+  PASS  a generalised Pareto's shape and scale come back from 3,000 draws  shape +0.198 (0.15), scale 0.959 (1)
+  PASS  a draw from the same population has a uniform p, past the threshold too  p <= 0.1: 0.0960, p <= 0.01: 0.0106, p <= 0.001: 0.0009
+  PASS  a value past the sample's largest still has a p, under what the sample alone can show  3.86e-07 against 1/20001
+  PASS  the stability rule picks a threshold where the shape holds (an exponential: 0)  the 95th centile, shape +0.008
+test_the_false_discovery_rate
+  PASS  Benjamini and Hochberg's own example (1995): four discoveries at 0.05; Benjamini-Yekutieli three  4 and 3
+  PASS  with 50 signals among 1,000, the share of false discoveries stays under q (Benjamini-Yekutieli under it)  0.0470 and 0.0069 at q 0.05
+  PASS  one test a video: its smallest p times its count  {'a': (0.03, 3, 0), 'b': (0.008, 2, 3)}
+test_the_centile
+  PASS  a beat at the population's 90th centile: each video weighs the same, and the interval over videos holds 90  85.0 % (77.5-91.2), 12 videos
+  PASS  its own video's backgrounds left out  11 videos
+  PASS  a stratum with no backgrounds (another contrast) gives no centile, and says why  0 videos in its stratum, under the 10 a centile needs
+  PASS  a beat planted in a drawn curve is read as the stage reads it (the running mean's gain in it) and sits at that amplitude's centile  52.9 for the 8.0 % planted, read 8.74 % (8.0 % times the gain 1.093), 1.31 grey levels
+test_the_strata_and_their_fallback
+  PASS  contrast is a stratum, and a stratum of six videos is too few even after the fallback  {'rate': 'about 30 a second', 'contrast': 'contrast 20-40'}, 6 videos: 6 videos in its stratum, under the 10 a centile needs
+  PASS  a cell short of videos falls back by its length first, and says which stratum it used  {'rate': 'about 30 a second', 'contrast': 'contrast 20-40', 'aperture': '4-px disc'}
+  PASS  a window's reading is held against the backgrounds' windows, and with none kept says so  0 videos in its stratum, under the 10 a centile needs
+test_the_cautious_p
+  PASS  the cautious p is the p under the threshold, and at least the p past the corpus's largest  3.10e-12 and 9.44e-04 at three times the largest power
+test_the_reference_model_on_a_reference_case
+  SKIP  the reference model on PR41's case file: /Users/runner/work/mcdonald/data/mcdonald/noise or /Users/runner/work/mcdonald/data/mcdonald/cases/pr41.mcdonald is not here
+test_the_p_values_with_the_video_left_out
+  PASS  each background's p against the others, its own video left out, is uniform  p <= 0.2: 0.201, p <= 0.05: 0.049, p <= 0.01: 0.010
+test_the_command
+  PASS  --read reads every video folder of a batch into its own folder, and says so as JSON  {'videos': 3, 'curves': 42, 'said': ['vid0: 14 curves read', 'vid1: 14 curves read', 'vid2: 14 curves read']}
+  PASS  --build keeps each member's own apertures and drops the group's shared set, and writes the model  kept 24, dropped {"the set about a group's member seen longest": 12}
+  PASS  --model with three videos gives no centile and says why, and a p from the tail  3 videos in its stratum, under the 10 a centile needs; p 0.04
+  PASS  --fdr gives the rate over the batch's rows, three ways  {'corpus': 3, 'drawn': 3, 'stage': 3}
+
+all passed
