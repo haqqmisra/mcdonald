@@ -47,8 +47,12 @@ keep rule on the card (`COORDINATOR.md` has the table).
 **Found, told, fixed by its owner:** test_reduction failed on a34be97 (the packaged controls_beat.csv not remade
 after the data folder's table swap): the development session's c1716d3.
 
-**Tests on the final tree:** Cannon CPUs with goldens on 15c9e90 (run 20261114-210155-main-15c9e90); arthur with the
-card on 2ac43a2 (job 2549, snapshot `coord/snapFinal`). Their counts are in COORDINATOR.md.
+**Tests on the final tree: all suites pass on both.** Cannon, CPUs, with goldens, 15c9e90 (run
+20261114-210155-main-15c9e90): test_measurement 675, test_reduction 732, golden 266, test_gpu 135 with NumPy standing
+in, test_batch 68, test_gui 689 + Cannon's 4 skips. arthur with the card, 2ac43a2 (job 2550, snapshot
+`coord/snapFinal`): test_measurement 677, golden 266, test_gpu 164 on the card, test_gui 791 + 1 skip, test_batch 68,
+test_controls 118, test_drift 200, every suite 0 FAIL. (Job 2549 before it had no MCDONALD_DATA and skipped 84 checks
+of the footage: set it in a snapshot's job, `--export=ALL,MCDONALD_DATA=/models/data/mcdonald`.)
 
 **For Jacob (as choices; the agents' notes have the long forms):**
 1. *G9, the card's numbers in a report:* (a) reword the report's card line to say a number read from many
