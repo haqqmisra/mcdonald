@@ -3,6 +3,19 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+**Find sooner on many CPUs, with the same list to the bit** (2026-11-15; IDEAS.md G11). Find joins the spots it finds
+into chains: spots that line up at a steady speed over three frames or more. One process does the joining, after each
+block of 90 frames, while the other processes search the next block. It began a chain at every pair of spots that could
+be one thing, and followed each pair to its end before it began the next. On many CPUs the searching processes then
+waited for it. On PR051's first 3,000 frames at 32 CPUs, the joining took 71 s of the 87 s. Now every pair is followed
+at once, one frame at a time, with the same arithmetic in the same order. The chains are the same, in the same order,
+on all 68 of PR051's blocks and on 3,000 drawn inputs; a new test holds them to the old way. The joining now takes
+2 s. `find` on PR051's 3,000 frames takes 76 s at 32 CPUs (92 s before) and 420 s at 4 (534 s). The window's Find
+takes 77 s at 32 CPUs (108 s). Every row, field and sentence of the list is as it was, and so is
+`tools/find_rank.py --link --keep`, table and kept files.
+
 ## 0.5.7 (2026-11-15)
 
 **`mcdonald batch`'s table takes the scheduler's pauses out of its times, and counts only the videos of another
