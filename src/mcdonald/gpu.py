@@ -569,18 +569,19 @@ class Card:
 
     def room(self):
         """Bytes a batch may take: SHARE of what is free on the card now, counting what this process holds ready to
-        use again, and less after an out-of-memory (`fewer`). Where several processes share the card, no more than
-        SHARE of what is left of this one's `part`. The stand-in has 1 GB (or its part), so that its batches are split
-        as a card's are."""
+        use again, and less after an out-of-memory (`fewer`). Where several processes share the card, no more than what
+        is left of this one's `part`: the part has the desktop's room taken out already, so it is not halved again
+        (halved, a pool of eight's `layers` took 13 % longer, and 52 % at a part of 0.6 GB). The stand-in has 1 GB (or
+        its part), so that its batches are split as a card's are."""
         if not self.real:
             return int(self.less * min(2 ** 30, self.part or 2 ** 30))
-        return int(self.less * SHARE * self.run(self._left))
+        return int(self.less * self.run(self._room))
 
     def _free(self):
         return self.xp.cuda.Device(self.index).mem_info[0] + self.xp.get_default_memory_pool().free_bytes()
 
-    def _left(self):
-        free = self._free()
+    def _room(self):
+        free = SHARE * self._free()
         return free if self.part is None else max(0, min(free, self.part - self.xp.get_default_memory_pool().used_bytes()))
 
     def batch(self, each, most):

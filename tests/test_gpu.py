@@ -959,7 +959,7 @@ def test_several_processes_share_the_card_each_within_its_part():
         print("  NOTE  no graphics card here: a part on a real card is not checked")
         return
     code = ("from mcdonald import gpu; c = gpu.card(); total = c.run(lambda: c.xp.cuda.Device(c.index).mem_info[1]); "
-            "print(c.shared, c.part, gpu.part(total, c.shared), c.room() <= gpu.SHARE * (c.part or total), gpu.said())")
+            "print(c.shared, c.part, gpu.part(total, c.shared), c.room() <= (c.part or gpu.SHARE * total), gpu.said())")
     out = {}
     for n in ("8", None):
         env = dict(os.environ, PYTHONPATH=str(SRC))
