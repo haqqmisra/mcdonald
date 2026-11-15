@@ -7,6 +7,7 @@ alone). This is that pass as one command, with the whole of `mcdonald run` behin
     mcdonald batch PR113 PR149 --out DIR                  # these videos, one after another, on this computer
     mcdonald batch --list videos.txt --out DIR --pool 4   # a list, four videos side by side
     mcdonald batch --catalog --out DIR --slurm            # every video of the catalog, as a scheduler's job arrays
+    mcdonald batch --catalog --out DIR --slurm --card 8   # ... or as one job given the graphics card, 8 videos at a time
     mcdonald batch --out DIR --status                     # what is done, running, failed and why; nothing is run
     mcdonald batch --out DIR                              # go on with what DIR's plan still has to do
 
@@ -37,7 +38,10 @@ and `--status`, every row of the table and `batch.md` say so. `--again` does uni
 **One command runs a unit whatever starts it**: `mcdonald batch --out DIR --unit K`. A pool here (`--pool N`) starts N
 of those at a time, each with its share of the CPUs (MCDONALD_CPUS), so that the stages' own pools ask for no more.
 `--slurm` writes `DIR/batch.sbatch` and submits it as job arrays, one a size class (`classes`), with no partition or
-account in it: those, and anything else, go through `--sbatch`.
+account in it: those, and anything else, go through `--sbatch`. `--slurm --card N` submits instead one job given the
+graphics card (`--gres=gpu:1`), which runs the videos N side by side (`run_pool`, `card_job`): an array's tasks given
+the one card would each hold it, and run one after another. The N processes share the card, each planning its batches
+on it within its part of the card's memory (`gpu.part`), and each video's state says what computed it.
 
 No interface in it, as `several` has none: `main` is the command line and nothing else.
 """
@@ -1124,6 +1128,24 @@ def case_file(folder, video, u, opt, frames, listed=0):
     return dict(file=out.name, bytes=out.stat().st_size, left_out=left)
 
 
+def _computes(state, say):
+    """What computes this unit, said in its log and kept in its state: the graphics card this process has (`gpu.said`:
+    its name, and where several processes share it, the part of its memory this one plans within), or None and why
+    not. Returns the card."""
+    from . import gpu
+    try:
+        line = gpu.said()
+        c = gpu.card()
+        why = None if c is not None else gpu.why()
+    except Exception as e:                                   # noqa: BLE001 -- the unit is measured all the same, on the CPU
+        line, c, why = f"graphics card: not asked ({type(e).__name__}: {e})", None, f"{type(e).__name__}: {e}"
+    state["card"] = f"{c.name} ({c.library})" if c is not None else None
+    state["card_shared"] = c.shared if c is not None and c.part else None
+    state["card_why"] = why
+    say(f"  {line}")
+    return c
+
+
 def run_unit(out, k, say=print, progress=None, stop=None):
     """Unit `k` of the plan in `out`, done or taken up again; returns its state. A unit that is done, or that another
     process has, is left (`elsewhere` true in what is returned). A unit that fails is a state with its error, and a row."""
@@ -1155,6 +1177,7 @@ def run_unit(out, k, say=print, progress=None, stop=None):
                  attempts=(was.get("attempts", 0) if same else 0) + 1, wall_s=float(was.get("wall_s") or 0) if same else 0.0,
                  peak_rss_mb=was.get("peak_rss_mb") if same else None, frames_mb=was.get("frames_mb") if same else None,
                  cpus=default_workers(), error=None)
+    card = _computes(state, say)
     write_state(folder, state)
     watch = Watch(lock)
     watch.start()
@@ -1175,6 +1198,8 @@ def run_unit(out, k, say=print, progress=None, stop=None):
         peak = max(watch.peak, _tree_rss() or 0) / 2 ** 20
         state.update(finished=_now(), wall_s=round(state["wall_s"] + time.time() - t0, 1), step="" if state["state"] == "done" else state["step"],
                      peak_rss_mb=round(max(peak, state.get("peak_rss_mb") or 0)) or None)
+        if card is not None and card.stopped:                # it stopped part-way: the CPUs did the rest
+            state["card_stopped"] = card.stopped
         try:
             rec = read_json(folder / f"{u['tag']}_batch.json") or dict(format=FORMAT, make=make, unit=u["name"])
             rec["rows"] = rows_of(out, u, state, rec)
@@ -1583,7 +1608,8 @@ def slurm_script(out):
 #SBATCH --job-name=mcdonald_batch
 #SBATCH --ntasks=1
 # One video of a `mcdonald batch` run: an array's task id is the unit's number in batch_plan.json; submitted with no
-# array, it writes the table. Written by mcdonald {__version__} on {_now()}. The CPUs, the memory, the time and the
+# array, it writes the table; submitted with arguments (--pool N: the job given the graphics card), it runs the videos
+# still to do with them. Written by mcdonald {__version__} on {_now()}. The CPUs, the memory, the time and the
 # array are on the sbatch line (batch_submit.sh beside this file has the lines), a size class at a time. A task whose
 # unit is done exits at once.
 set -uo pipefail
@@ -1591,17 +1617,50 @@ export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 {env}if [ -n "${{SLURM_ARRAY_TASK_ID:-}}" ]; then
     exec {run} --unit "$SLURM_ARRAY_TASK_ID"
 fi
+if [ "$#" -gt 0 ]; then
+    exec {run} "$@"
+fi
 exec {run} --table
 """
 
 
-def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_batch"):
+def card_job(todo, cpus=8, n=4, most=MOST):
+    """The one job given the graphics card (`--card N`): {cpus, mem_mb, minutes, n} for a pool of `n` videos side by
+    side, each with `cpus` CPUs. Its memory is the `n` largest videos' (`resources`) together, rounded up to MEM_STEP;
+    its time twice the work on CPUs alone shared among the `n`, or the longest video's twice, at most the largest
+    class (TIME_CLASSES). That is the CPUs' estimate, an upper bound with a card: eight parts of 1080p videos in a pool
+    on the card (2026-11-14) took 1,933 s together where it says 30,451, most of the gap its twelve objects a video
+    (they had none to three). A video still running when the job ends is taken up by the next submission."""
+    sized = sorted((resources(u, cpus, most) for u in todo), reverse=True)
+    n = max(1, min(int(n), len(todo) or 1))
+    mem = int(math.ceil(sum(m for m, _ in sized[:n]) / MEM_STEP) * MEM_STEP)
+    work = sum(t for _, t in sized)
+    minutes = min(TIME_CLASSES[-1], int(math.ceil(max(2 * work / n, 2 * max((t for _, t in sized), default=0)))))
+    return dict(cpus=n * cpus, mem_mb=mem, minutes=max(minutes, 10), n=n)
+
+
+def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_batch", card=None, only=None):
     """The sbatch commands of a batch, as lists of words: an array for each size class of the units still to do, then
     one small job after them all that writes the table. `throttle` is the most tasks at once over all the arrays,
-    shared among them by the work each holds; `extra` is passed to every sbatch as it is."""
+    shared among them by the work each holds; `extra` is passed to every sbatch as it is.
+
+    With `card` (N), one job given the graphics card (`--gres=gpu:1`) in place of the arrays, which runs the units still
+    to do N side by side (`run_pool`): an array's tasks given the card would each hold it, and run one after another.
+    `only` is the units it is to take, by number, where a person chose some (`--units`, `--except`)."""
     out = Path(os.path.abspath(out))
     p = read_plan(out)
     todo = p["units"] if todo is None else todo
+    if card:
+        j = card_job(todo, cpus, card, p["options"].get("most", MOST))
+        line = ["sbatch", "--parsable", "-J", name, "-c", str(j["cpus"]), f"--mem={j['mem_mb']}M",
+                f"--time={j['minutes'] // 60:02d}:{j['minutes'] % 60:02d}:00", "--gres=gpu:1", "-o", str(out / "logs" / "%x_%j.out"),
+                *shlex.split(extra or ""), str(out / "batch.sbatch"), "--pool", str(j["n"])]
+        if only is not None:
+            line += ["--units", ",".join(str(u["k"]) for u in only)]
+        table = ["sbatch", "--parsable", "-J", f"{name}_table", "-c", "1", "--mem=2000M", "--time=00:30:00",
+                 "-o", str(out / "logs" / "%x_%j.out"), *shlex.split(extra or ""), str(out / "batch.sbatch")]
+        return [line], table, [dict(minutes=j["minutes"], mem_mb=j["mem_mb"], units=[u["k"] for u in todo], card=j["n"], cpus=j["cpus"],
+                                    work=sum(resources(u, cpus, p["options"].get("most", MOST))[1] for u in todo))]
     cs = classes(todo, cpus, p["options"].get("most", MOST))
     work = sum(c["work"] for c in cs) or 1.0
     share = [max(1, min(len(c["units"]), int(round((throttle or 0) * c["work"] / work)) or 1)) for c in cs]
@@ -1620,16 +1679,18 @@ def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_
     return lines, table, cs
 
 
-def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcdonald_batch", only=None, leave=None):
-    """Write `batch.sbatch` and `batch_submit.sh` in `out`, and, unless `dry`, submit them: the arrays, then the
-    table's job after them. Returns {script, lines, jobs, classes}. Units that are done are not submitted."""
+def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcdonald_batch", only=None, leave=None, card=None):
+    """Write `batch.sbatch` and `batch_submit.sh` in `out`, and, unless `dry`, submit them: the arrays (or with `card`,
+    the one job given the graphics card: `slurm_lines`), then the table's job after them. Returns {script, lines, jobs,
+    classes}. Units that are done are not submitted."""
     out = Path(os.path.abspath(out))
     p, rows = status(out)
     waiting = {r["k"] for r in rows if r["state"] not in ("done", "running")}
     todo = [u for u in chosen(p["units"], only, leave) if u["k"] in waiting]
+    named = [x for x in (only or []) + (leave or []) if str(x).strip()]
     (out / "logs").mkdir(exist_ok=True)
     write_text(out / "batch.sbatch", slurm_script(out))
-    lines, table, cs = slurm_lines(out, cpus, throttle, extra, todo, name)
+    lines, table, cs = slurm_lines(out, cpus, throttle, extra, todo, name, card=card, only=todo if named else None)
     text = ["#!/bin/bash", "# The sbatch lines of this batch, as `mcdonald batch --slurm` submits them. The last waits for the others.", "set -euo pipefail"]
     text += [f"j{i}=$({' '.join(shlex.quote(w) for w in ln)})" for i, ln in enumerate(lines)]
     dep = ":".join(f"$j{i}" for i in range(len(lines)))
@@ -1643,7 +1704,9 @@ def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcd
         say("every video of the plan is done: nothing to submit")
         return result
     if dry:
-        say(f"{len(todo)} video{'s' if len(todo) != 1 else ''} to do, in {len(lines)} job array{'s' if len(lines) != 1 else ''}. "
+        how = (f"one job given the graphics card, {cs[0]['card']} at a time" if card else
+               f"{len(lines)} job array{'s' if len(lines) != 1 else ''}")
+        say(f"{len(todo)} video{'s' if len(todo) != 1 else ''} to do, in {how}. "
             f"Nothing was submitted. The lines are in {out / 'batch_submit.sh'}:")
         for ln in text[3:]:
             say("  " + ln)
@@ -1654,9 +1717,13 @@ def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcd
     for ln, c in zip(lines, cs):
         r = subprocess.run(ln, capture_output=True, text=True)
         if r.returncode != 0:
-            raise vf.Stop(f"sbatch refused the array: {r.stderr.strip() or r.stdout.strip()}\n  {' '.join(ln)}")
+            raise vf.Stop(f"sbatch refused the {'job' if card else 'array'}: {r.stderr.strip() or r.stdout.strip()}\n  {' '.join(ln)}")
         job = r.stdout.strip().split(";")[0]
         result["jobs"].append(job)
+        if c.get("card"):
+            say(f"submitted job {job}: {len(c['units'])} video{'s' if len(c['units']) != 1 else ''}, {c['card']} at a time on the "
+                f"graphics card with {cpus} CPUs each; {c['cpus']} CPUs and {c['mem_mb']} MB in all, up to {c['minutes']} min")
+            continue
         say(f"submitted job {job}: {len(c['units'])} video{'s' if len(c['units']) != 1 else ''}, {cpus} CPUs and "
             f"{c['mem_mb']} MB each, up to {c['minutes']} min")
     r = subprocess.run(table[:2] + [f"--dependency=afterany:{':'.join(result['jobs'])}"] + table[2:], capture_output=True, text=True)
@@ -1665,7 +1732,7 @@ def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcd
         say(f"submitted job {result['table_job']}: the table, after them")
     hist = read_json(out / "batch_jobs.json") or []
     hist.append(dict(when=_now(), name=result_name, jobs=result["jobs"], table_job=result["table_job"], cpus=cpus, throttle=throttle, extra=extra,
-                     classes=result["classes"]))
+                     classes=result["classes"], card=card))
     write_json(out / "batch_jobs.json", hist)
     return result
 
@@ -1674,7 +1741,13 @@ def submit(out, cpus=8, throttle=None, extra="", dry=False, say=print, name="mcd
 def run_pool(out, n=1, say=print, stop=None, quiet=True, only=None, leave=None):
     """The units still to do, `n` at a time on this computer, each in a process of its own (`mcdonald batch --out DIR
     --unit K`: what a scheduler's task runs), each allowed its share of the CPUs. Returns {unit: exit code}. `stop` is
-    asked while they run: on yes the running units are told to end, and are taken up again by the next run."""
+    asked while they run: on yes the running units are told to end, and are taken up again by the next run.
+
+    Where this process may compute on a graphics card (a job given one: `--gres=gpu:1`), each unit's process opens it
+    for itself, and the `n` share it: each is told how many (`gpu.SHARED_VAR`), and plans its batches on the card
+    within its part of the card's memory (`gpu.part`). Each unit's log says what computes it, and so does the line
+    here when it ends."""
+    from . import gpu
     from .progress import CPUS_VAR, cpus
     out = Path(out)
     p, rows = status(out)
@@ -1683,7 +1756,7 @@ def run_pool(out, n=1, say=print, stop=None, quiet=True, only=None, leave=None):
     n = max(1, min(int(n), len(todo) or 1))
     each = max(1, cpus() // n)
     (out / "logs").mkdir(exist_ok=True)
-    env = dict(os.environ, **{CPUS_VAR: str(each)})
+    env = dict(os.environ, **{CPUS_VAR: str(each), gpu.SHARED_VAR: str(n * gpu.sharers())})
     running, codes = {}, {}
     try:
         while todo or running:
@@ -1702,6 +1775,7 @@ def run_pool(out, n=1, say=print, stop=None, quiet=True, only=None, leave=None):
                     del running[k]
                     st = read_state(out / p["units"][k]["folder"])
                     say(f"{p['units'][k]['name']}: {st.get('state', 'ended')}" + (f" ({st['error']})" if st.get("error") else "")
+                        + (f", on the graphics card{' until it stopped' if st.get('card_stopped') else ''}" if st.get("card") else "")
                         + f"; {len(todo) + len(running)} still to do")
             if stop is not None and stop():
                 raise Killed()
@@ -1765,6 +1839,7 @@ def main(argv=None):
                "  mcdonald batch PR113 PR149 --out runs            these two videos, one after the other\n"
                "  mcdonald batch --list videos.txt --out runs --pool 4\n"
                "  mcdonald batch --catalog --out runs --slurm --sbatch=\"--nice=100\"\n"
+               "  mcdonald batch --catalog --out runs --slurm --card 8 --cpus-per-video 4\n"
                "  mcdonald batch --out runs --status               what is done, running and failed\n"
                "  mcdonald batch --out runs                        go on with what is left\n"
                "  mcdonald batch --audit runs/pr113/object-1 --wrong none --by \"A. Reader\"\n\n"
@@ -1786,6 +1861,9 @@ def main(argv=None):
     how.add_argument("--sbatch", default="", metavar="ARGS", help="more arguments for every sbatch line, such as a partition or --nice=100")
     how.add_argument("--cpus-per-video", type=int, default=8, metavar="C", help="with --slurm: the CPUs one video's job asks for (default 8)")
     how.add_argument("--throttle", type=int, metavar="T", help="with --slurm: about this many videos at once, at most")
+    how.add_argument("--card", type=int, metavar="N",
+                     help="with --slurm: in place of job arrays, one job that is given the graphics card runs the videos, N at a "
+                          "time, each with --cpus-per-video CPUs (the tasks of an array given the card would wait for each other)")
     how.add_argument("--job-name", default="mcdonald_batch", metavar="NAME", help="with --slurm: what the jobs are called in the queue")
     how.add_argument("--unit", type=int, metavar="K", help="run unit K of the plan and nothing else (what a job array's task runs)")
     how.add_argument("--units", metavar="NAMES", help="only these videos of the batch (comma-separated names, as --status lists them)")
@@ -1823,6 +1901,8 @@ def main(argv=None):
 
     if args.audit:
         return _audit(args, say, inputs)
+    if args.card is not None and (args.card < 1 or not (args.slurm or args.slurm_print) or args.throttle):
+        ap.error("--card N goes with --slurm (or --slurm-print), N 1 or more, and without --throttle: its one job runs N videos at a time")
     if not args.out:
         ap.error("--out DIR is needed: the folder the batch keeps its plan, its videos' folders and its table in")
     out = Path(args.out)
@@ -1893,7 +1973,7 @@ def main(argv=None):
         return 0 if st.get("state") in ("done", "running") or st.get("elsewhere") else 1
     if args.slurm or args.slurm_print:
         r = submit(out, args.cpus_per_video, args.throttle, args.sbatch, dry=not args.slurm, say=say, name=args.job_name,
-                   only=only, leave=leave)
+                   only=only, leave=leave, card=args.card)
         if args.json:
             emit(envelope("batch", inputs, None, [r["script"], r["submit"]], dict(out=str(out), **r)))
         return 0

@@ -18,14 +18,17 @@ own error and of a pixel, and the agreed shift of a pair within a thousandth of 
 """
 import contextlib
 import importlib
+import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from importlib.machinery import EXTENSION_SUFFIXES
 from pathlib import Path
 
 import numpy as np
@@ -455,8 +458,9 @@ def test_the_add_on_is_used_without_starting_again():
         sys.path.append(td)
         try:
             gpu.installed()                           # Python has looked in the folder, and found it empty
-            (Path(td) / "cupy").mkdir()
+            (Path(td) / "cupy" / "_core").mkdir(parents=True)
             (Path(td) / "cupy" / "__init__.py").write_text("", encoding="utf-8")
+            (Path(td) / "cupy" / "_core" / f"core{EXTENSION_SUFFIXES[0]}").write_bytes(b"")     # whole (`gpu.whole`)
             card, why, again = addon.use_now()
             check(gpu.installed() and not again, "a package pip has just put in place is found by the process that was "
                   "already running" + (" (CuPy was here before: the folder made for this adds nothing)" if had else ""))
@@ -478,6 +482,48 @@ def test_the_add_on_is_used_without_starting_again():
         gpu.installed = keep
         gpu.forget()
 
+
+
+def test_a_half_installed_cupy_is_not_taken_for_a_whole_one():
+    """`gpu.installed` (what Preferences says beside the card's choice, and what `card` asks first) takes a CuPy that
+    pip left half way for none: a folder named cupy is not enough (until 2026-11-14 it was). Whole is the compiled
+    core there for this Python and, among installed packages, pip's record of it (`gpu.whole`)."""
+    print("\na CuPy that pip left half way is not taken for a whole one")
+    with tempfile.TemporaryDirectory() as td:
+        site = Path(td) / "site-packages"
+
+        def lay(core=True, info=True, record=True, others=True):
+            shutil.rmtree(site, ignore_errors=True)
+            (site / "cupy" / "_core").mkdir(parents=True)
+            (site / "cupy" / "__init__.py").write_text("", encoding="utf-8")
+            if core:
+                (site / "cupy" / "_core" / f"core{EXTENSION_SUFFIXES[0]}").write_bytes(b"")
+            if info:
+                d = site / "cupy_cuda13x-14.2.0.dist-info"
+                d.mkdir()
+                (d / "METADATA").write_text("Name: cupy-cuda13x\nVersion: 14.2.0\n", encoding="utf-8")
+                if record:
+                    (d / "RECORD").write_text("cupy/__init__.py,,\n", encoding="utf-8")
+            if others:
+                (site / "numpy-2.3.4.dist-info").mkdir()
+            return site / "cupy"
+
+        check(gpu.whole(lay()), "a CuPy that pip put in place to the end (its record written) is whole")
+        check(not gpu.whole(lay(record=False)), "one whose record pip has not written is not")
+        check(not gpu.whole(lay(info=False)), "nor one among installed packages with no record of its own at all "
+              "(pip stopped before the end of the wheel, where the record is)")
+        check(not gpu.whole(lay(core=False)), "nor one without its compiled core for this Python")
+        check(gpu.whole(lay(info=False, others=False)), "a CuPy built in a folder of its own, with no installed packages "
+              "beside it, is whole by its compiled core")
+        said = {}
+        for name, how in (("half", dict(record=False)), ("whole", {})):
+            lay(**how)
+            r = subprocess.run([sys.executable, "-c", "import sys; sys.path[:0] = sys.argv[1:3]; from mcdonald import gpu; "
+                                "print(gpu.installed())", str(site), str(SRC)], capture_output=True, text=True, timeout=60)
+            said[name] = r.stdout.strip() or r.stderr.strip()[-200:]
+        check(said == dict(half="False", whole="True"), "and `installed` asks it of the CuPy Python would import", str(said))
+    here = importlib.util.find_spec("cupy") is not None
+    check(not here or gpu.installed(), "the CuPy installed here, if there is one, is whole", f"found: {here}")
 
 def test_setup_installs_the_add_on_from_the_command_line():
     """`mcdonald setup --install-gpu`, the same install for an agent or a person at a terminal (the two audiences), and
@@ -873,6 +919,60 @@ def test_the_cards_batches_change_nothing():
     check(still_on and small.less < 1.0 and max(Small.sent) > Small.most and Small.sent[-1] <= Small.most,
           "out of memory halves what is sent at once, and the card is kept", f"room now {small.less:g} of what it was")
 
+
+
+def test_several_processes_share_the_card_each_within_its_part():
+    """Where several processes compute on one card (`mcdonald batch --pool N` in a job given it), each is told how many
+    (MCDONALD_CARD_SHARED) and plans its batches within its part of the card's memory (`gpu.part`), not on half of
+    whatever is free when it asks: in a pool of 8 videos on a 16 GB card the first to ask took 8.3 GB, and the eight
+    together 15.5 GB of the 15.9 (job 2456). A part changes how much is sent at once, never a number."""
+    print("\nseveral processes on one card, each within its part")
+    gb = 2 ** 30
+    total = 16303 * 2 ** 20                                   # an RTX 5070 Ti
+    p8, p4 = gpu.part(total, 8), gpu.part(total, 4)
+    check(gpu.part(total, 1) is None and abs(p8 / gb - 1.50) < 0.01 and abs(p4 / gb - 3.29) < 0.01
+          and 8 * (p8 + gpu.CONTEXT) <= gpu.SHARED_ROOM * total + 8 and gpu.part(2 * gb, 16) == gpu.PART_LEAST,
+          "a part is the card's room, less each process's own, divided among them; one alone plans as ever",
+          f"8: {p8 / gb:.2f} GB, 4: {p4 / gb:.2f} GB")
+    with environment(MCDONALD_CARD_SHARED=None):
+        alone = gpu.sharers()
+    with environment(MCDONALD_CARD_SHARED="8"):
+        eight = gpu.sharers()
+    with environment(MCDONALD_CARD_SHARED="eight"):
+        said = gpu.sharers()
+    check((alone, eight, said) == (1, 8, 1), "how many share it is read from the environment; nothing or nonsense is one",
+          str((alone, eight, said)))
+    scene = isotropic(520, 760)
+    ga, gb_ = scene[40:460, 40:680].copy(), scene[33:453, 52:692].copy()
+    none = np.zeros(ga.shape, bool)
+    with on(gpu.stand_in()):
+        ref = vf.shift_field(ga, gb_, none, none, reach=60, zeros=(4, -1))
+    small = gpu.stand_in()
+    small.part, small.shared = int(40e6), 8
+    with on(small):
+        got = vf.shift_field(ga, gb_, none, none, reach=60, zeros=(4, -1))
+    check(small.room() == int(40e6) and small.batch(10e6, 50) == 4
+          and all(np.array_equal(r, g) for r, g in zip(ref, got)) and len(ref[0]) >= 12,
+          "a process plans within its part, and its batches give each template the numbers one batch does, to the bit")
+    real = [c for c in the_cards() if c.real]
+    if not real:
+        print("  NOTE  no graphics card here: a part on a real card is not checked")
+        return
+    code = ("from mcdonald import gpu; c = gpu.card(); total = c.run(lambda: c.xp.cuda.Device(c.index).mem_info[1]); "
+            "print(c.shared, c.part, gpu.part(total, c.shared), c.room() <= (c.part or gpu.SHARE * total), gpu.said())")
+    out = {}
+    for n in ("8", None):
+        env = dict(os.environ, PYTHONPATH=str(SRC))
+        env.pop("MCDONALD_CARD_SHARED", None)
+        if n:
+            env["MCDONALD_CARD_SHARED"] = n
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=120)
+        out[n] = (r.stdout.strip() or r.stderr.strip()[-300:]).split(" ", 4)
+    e, a = out["8"], out[None]
+    check(len(e) == 5 and e[0] == "8" and e[1] == e[2] and e[3] == "True" and "shared by 8" in e[4]
+          and len(a) == 5 and a[0] == "1" and a[1] == a[2] == "None" and "shared" not in a[4],
+          "on the card: a process told it is one of 8 plans within its part and says so; one alone has the card",
+          f"{' '.join(e[:4])} / {' '.join(a[:4])}")
 
 def test_a_card_that_stops_hands_over_to_the_cpu():
     """Never required, and never a crash: when the card refuses, it is said once, the CPU computes what was asked, and

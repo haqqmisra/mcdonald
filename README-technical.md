@@ -725,6 +725,7 @@ are not touched: an object in the list is a folder.
 mcdonald batch PR113 PR149:1-158 --out runs                # these, one after the other, with every CPU
 mcdonald batch --list videos.txt --out runs --pool 4       # four videos side by side, each with a quarter of the CPUs
 mcdonald batch --catalog --out runs --slurm --sbatch="--nice=100 -p some_partition"   # job arrays, a size class each
+mcdonald batch --catalog --out runs --slurm --card 8 --cpus-per-video 4   # one job given the graphics card, 8 videos at a time
 mcdonald batch --out runs --status                         # done, running, stalled, stopped, failed and why; nothing is run
 mcdonald batch --out runs                                  # go on: what is done is not done twice
 mcdonald batch --out runs --table                          # the table again, from the folders as they are
@@ -756,7 +757,12 @@ half way goes on from the windows and objects it finished, and a unit done by an
 size class (`batch.classes`: time and memory from the video's frames and size, fitted to a pilot on the 2025
 workstation), then the table's job after them; `--slurm-print` writes the lines and submits nothing. `--units` and
 `--except` take part of a plan (a long video on more CPUs than the rest); `--note` is a line kept with the batch and
-printed at the head of its table.
+printed at the head of its table. An array's task given the graphics card (`--sbatch=--gres=gpu:1`) would hold the
+one card, so such tasks run one after another: `--slurm --card N` submits instead one job given the card (N x
+`--cpus-per-video` CPUs, the memory of the N largest videos, `batch.card_job`) that runs the videos N side by side
+(`--pool N`). Each video's process opens the card for itself and plans its batches on it within its part of the
+card's memory (`gpu.part`, told how many share it by `MCDONALD_CARD_SHARED`); each video's log and
+`batch_state.json` say what computed it (method §52).
 
 ### Sharing an analysis (`share`)
 
