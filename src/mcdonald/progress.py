@@ -215,14 +215,31 @@ WORKER_MODULES = ["mcdonald.forensics", "mcdonald.layers", "mcdonald.propose", "
 _context = None
 
 
+SOCKET_MOST = 103        # bytes: the longest path a Unix socket may have on macOS (104 with its end)
+
+
+def server_can_listen(version=None):
+    """Can a fork server start here? It listens on a Unix socket. On Linux that socket is abstract and has no path;
+    elsewhere (macOS) it is a file, at TMPDIR/pymp-XXXXXXXX/listener-XXXXXXXX, and Python before 3.14 does not move
+    it when TMPDIR is so deep that the path passes SOCKET_MOST: the server cannot start, so no pool can, and every
+    pooled step fails ("AF_UNIX path too long"). 0.5.6's macOS test run met it with a test's own TMPDIR (109
+    characters); a person with a deep TMPDIR would too. Python 3.14 moves the socket itself. `version` is for a test."""
+    import multiprocessing.util as mu
+    import tempfile
+    if tuple(version or sys.version_info)[:2] >= (3, 14) or getattr(mu, "abstract_sockets_supported", False):
+        return True
+    return len(os.path.join(tempfile.gettempdir(), "pymp-12345678", "listener-12345678")) <= SOCKET_MOST
+
+
 def context():
     """The multiprocessing context every pool of the package is made from. Never fork: the caller may be
     a window with threads running, and a forked child inherits their locks as they were. A fork server
     where there is one (Linux, macOS), told to import the worker modules once before it forks anything
-    (0.05 s a pool after the first, against 2.9); spawn on Windows, which has no fork server."""
+    (0.05 s a pool after the first, against 2.9); spawn on Windows, which has no fork server, and where a
+    fork server could not start (`server_can_listen`), slower to start but the same work."""
     global _context
     if _context is None:
-        if sys.platform == "win32":
+        if sys.platform == "win32" or not server_can_listen():
             _context = multiprocessing.get_context("spawn")
         else:
             _context = multiprocessing.get_context("forkserver")
@@ -258,12 +275,12 @@ _server_told = False
 
 def new_pool(n, init=None, initargs=()):
     """A pool of `n` worker processes from `context()`, each with one thread for numpy's and scipy's own.
-    The libraries read that from the environment as they load: on Windows as each worker starts, and
-    elsewhere once, in the fork server every worker is forked from, as it starts with the first pool. So
-    the environment is changed for that moment only -- once a process outside Windows, since changing it
-    while the window's other threads read theirs is a risk worth taking once, not at every pool."""
+    The libraries read that from the environment as they load: where workers are spawned (Windows) as each
+    worker starts, and elsewhere once, in the fork server every worker is forked from, as it starts with the
+    first pool. So the environment is changed for that moment only -- once a process with a fork server, since
+    changing it while the window's other threads read theirs is a risk worth taking once, not at every pool."""
     global _server_told
-    if sys.platform != "win32" and _server_told:
+    if context().get_start_method() != "spawn" and _server_told:
         return context().Pool(max(1, int(n)), init, initargs)
     with _one_thread_each():
         pool = context().Pool(max(1, int(n)), init, initargs)

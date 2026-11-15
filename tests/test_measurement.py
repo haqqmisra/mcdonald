@@ -6069,6 +6069,45 @@ def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
               "does not say the pictures were held", line)
 
 
+def test_zz_pool_where_a_fork_server_cannot_listen_is_spawned():
+    """0.5.6's macOS run (2026-11-15): on macOS a fork server listens on a socket file under TMPDIR, and Python before
+    3.14 cannot start it when TMPDIR is so deep that the path passes macOS's 103 bytes; no pool started, and Find failed
+    in every window of a batch. `progress.server_can_listen` says when, and `progress.context` spawns there instead.
+    The name sorts last on purpose (see the shake test's note); it draws no random numbers."""
+    print("\na pool where a fork server could not listen")
+    import multiprocessing.util as mu
+    from mcdonald import progress
+    saved = (progress._context, progress._server_told, mu.abstract_sockets_supported, tempfile.tempdir)
+    with tempfile.TemporaryDirectory() as td:
+        deep = Path(td) / ("d" * max(8, 110 - len(td)))
+        deep.mkdir()
+        try:
+            mu.abstract_sockets_supported = False             # as on macOS: the socket a file under TMPDIR
+            tempfile.tempdir = str(deep)
+            check(not progress.server_can_listen(version=(3, 12)) and progress.server_can_listen(version=(3, 14)),
+                  "under a TMPDIR that deep a fork server cannot listen before Python 3.14, and can from 3.14",
+                  f"TMPDIR of {len(str(deep))} characters")
+            tempfile.tempdir = td
+            check(progress.server_can_listen(version=(3, 12)) == (len(os.path.join(td, "pymp-12345678", "listener-12345678"))
+                                                                  <= progress.SOCKET_MOST),
+                  "under the machine's own temporary folder it can, where the path fits", f"{td}")
+            mu.abstract_sockets_supported, tempfile.tempdir = saved[2], saved[3]
+            progress._context, progress._server_told = None, False
+            real = progress.server_can_listen
+            progress.server_can_listen = lambda version=None: False
+            try:
+                ctx = progress.context()
+                with progress.new_pool(2) as pool:
+                    got = pool.map(_square, range(5))
+            finally:
+                progress.server_can_listen = real
+            check(ctx.get_start_method() == "spawn" and got == [0, 1, 4, 9, 16],
+                  "where it cannot, the package's pools are spawned, and they do the same work",
+                  f"{ctx.get_start_method()}: {got}")
+        finally:
+            progress._context, progress._server_told, mu.abstract_sockets_supported, tempfile.tempdir = saved
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for

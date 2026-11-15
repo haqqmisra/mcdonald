@@ -96,6 +96,15 @@ longer repeat work. On PR051's list at frame 540, that step took 1.7 s instead o
 of 19 s at 4 CPUs. `tools/find_rank.py --link --keep` held it: the same tables line for line on its 11 cases, and
 the same keep folders byte for byte.
 
+**A pool starts on macOS under a deep temporary folder** (2026-11-15). On macOS the package's pools start their
+workers from a fork server, which listens on a socket file inside the temporary folder (TMPDIR). macOS allows such a
+path 103 characters, and Python before 3.14 does not move it when TMPDIR is deeper than that: no pool could start, and
+every step that uses one failed (in a batch, "Find failed on every window (AF_UNIX path too long)"). 0.5.6's own test
+run on a Mac met it, through a test's temporary folder. Now `progress.server_can_listen` checks the path first, and
+where the fork server could not listen the package spawns its workers instead: slower to start, the same work. Linux,
+Windows and Python 3.14 are unchanged. Measured with Python 3.12 and a deep TMPDIR: 0.5.6 cannot start a pool, and
+this version can.
+
 ## 0.5.6 (2026-11-15)
 
 **The package's own cut of the labelled set's table follows the record made again** (2026-11-14). `controls_beat.csv`,
