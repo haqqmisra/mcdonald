@@ -521,42 +521,114 @@ def off_path(dx, dy, v, steps=1.0, tol=6.0, slack=0.0):
 def chains(found, vmax=VMAX, tol=6.0, max_skip=2):
     """[(frames, peaks)]: same-polarity peaks at constant screen velocity, three or more,
     of steady size and amplitude unless there are six. The gate about the prediction widens
-    with speed: PR113's object steps 92, 111 and 104 px in its three intervals."""
+    with speed: PR113's object steps 92, 111 and 104 px in its three intervals.
+
+    Every pair of peaks of one polarity within `vmax` a frame of each other, in a frame and one
+    of the 1 + `max_skip` after it, begins a chain. Each is carried on frame by frame: the peak
+    of its polarity nearest where it is heading (`off_path`) joins it if it is on its path, and
+    the velocity is refitted from its two ends; more than `max_skip` frames in a row with none
+    end it. A chain is the pair and what joined it.
+
+    The pairs are carried on together, all of them a frame at a time (`_off_paths`), and not
+    one after another to its end: each pair's arithmetic is `off_path`'s, in the same order, and
+    the chains are the same, in the same order, each point the input's own peak -- on all 68 of
+    PR051's calls in a Find of 3,000 frames and on drawn inputs (test_measurement). One after
+    another (until 2026-11-15) this was the one process's wait in Find at many CPUs: 71 s of
+    PR051's 87 s at 32 CPUs, a Python loop over a few numbers at a time; now 2 s (IDEAS G11)."""
     ns = sorted(found)
-    at = {n: i for i, n in enumerate(ns)}
-    arr = {n: np.array([(p[0], p[1], p[4]) for p in found[n]], float).reshape(-1, 3) for n in ns}
-    out = []
-    for i, n in enumerate(ns):
-        for m in ns[i + 1:i + 2 + max_skip]:
-            A, B, dt = arr[n], arr[m], m - n
-            if not len(A) or not len(B):
+    arr = [np.array([(p[0], p[1], p[4]) for p in found[n]], float).reshape(-1, 3) for n in ns]
+    # The pairs, in the order a chain is listed: by the first frame, then the second, then each peak's place in them.
+    first, second, ai, bi = [], [], [], []
+    for i, A in enumerate(arr):
+        if not len(A):
+            continue
+        for j in range(i + 1, min(i + 2 + max_skip, len(ns))):
+            B = arr[j]
+            if not len(B):
                 continue
             d = np.hypot(B[None, :, 0] - A[:, None, 0], B[None, :, 1] - A[:, None, 1])
-            for ai, bi in zip(*np.nonzero((d <= vmax * dt) & (A[:, None, 2] == B[None, :, 2]))):
-                a, b = found[n][ai], found[m][bi]
-                v = ((b[0] - a[0]) / dt, (b[1] - a[1]) / dt)
-                fr, pts, last_n, last, miss = [n, m], [a, b], m, b, 0
-                for q in ns[at[m] + 1:]:
-                    C = arr[q]
-                    if len(C):
-                        px, py = last[0] + v[0] * (q - last_n), last[1] + v[1] * (q - last_n)
-                        slack = 8.0 * (q - last_n) / (last_n - n)           # the velocity is as good as its baseline is long
-                        dd = np.where(C[:, 2] == a[4], off_path(C[:, 0] - px, C[:, 1] - py, v, q - last_n, tol, slack), np.inf)
-                        j = int(np.argmin(dd))
-                        if dd[j] <= 1.0:
-                            c = found[q][j]
-                            fr.append(q)
-                            pts.append(c)
-                            v = ((c[0] - a[0]) / (q - n), (c[1] - a[1]) / (q - n))      # refit from the ends
-                            last_n, last, miss = q, c, 0
-                            continue
-                    miss += 1
-                    if miss > max_skip:
-                        break
-                if len(fr) >= 3:
-                    amp, size = np.array([p[2] for p in pts]), np.array([p[3] for p in pts])
-                    if len(fr) >= 6 or (amp.max() <= 2.0 * amp.min() and size.max() <= 1.6 * size.min()):
-                        out.append((fr, pts))
+            a, b = np.nonzero((d <= vmax * (ns[j] - ns[i])) & (A[:, None, 2] == B[None, :, 2]))
+            first.append(np.full(len(a), i))
+            second.append(np.full(len(a), j))
+            ai.append(a)
+            bi.append(b)
+    if not first:
+        return []
+    first, second, ai, bi = (np.concatenate(x) for x in (first, second, ai, bi))
+    frame = np.array(ns, np.int64)
+    n0 = frame[first]                                           # each chain's first frame
+    every = np.concatenate(arr)
+    at = np.concatenate([[0], np.cumsum([len(A) for A in arr])])     # where each frame's peaks begin in `every`
+    a, b = every[at[first] + ai], every[at[second] + bi]
+    ax, ay, pol = a[:, 0], a[:, 1], a[:, 2]
+    dt = frame[second] - n0
+    vx, vy = (b[:, 0] - ax) / dt, (b[:, 1] - ay) / dt
+    last_n, lastx, lasty = frame[second], b[:, 0].copy(), b[:, 1].copy()
+    miss = np.zeros(len(first), np.int64)
+    order = np.argsort(second, kind="stable")                   # each is carried on from the frame after its second
+    begins = np.searchsorted(second[order] + 1, np.arange(len(ns) + 1))
+    on = np.empty(0, np.int64)                                  # the chains still going
+    joined = []                                                 # (chain, frame's place, peak) for every peak that joined one
+    for p, C in enumerate(arr):
+        on = np.concatenate([on, order[begins[p]:begins[p + 1]]])
+        if not len(on):
+            continue
+        if len(C):
+            q = frame[p]
+            gap = q - last_n[on]
+            px, py = lastx[on] + vx[on] * gap, lasty[on] + vy[on] * gap
+            slack = 8.0 * gap / (last_n[on] - n0[on])            # the velocity is as good as its baseline is long
+            dd = np.where(C[None, :, 2] == pol[on, None],
+                          _off_paths(C[None, :, 0] - px[:, None], C[None, :, 1] - py[:, None], vx[on], vy[on], gap,
+                                     tol, slack), np.inf)
+            j = np.argmin(dd, axis=1)
+            hit = dd[np.arange(len(on)), j] <= 1.0
+            h, c = on[hit], C[j[hit]]
+            joined.append(np.stack([h, np.full(len(h), p), j[hit]], axis=1))
+            vx[h], vy[h] = (c[:, 0] - ax[h]) / (q - n0[h]), (c[:, 1] - ay[h]) / (q - n0[h])      # refit from the ends
+            last_n[h], lastx[h], lasty[h], miss[h] = q, c[:, 0], c[:, 1], 0
+            missed = on[~hit]
+        else:
+            missed = on
+        miss[missed] += 1
+        on = on[miss[on] <= max_skip]
+    joined = np.concatenate(joined) if joined else np.empty((0, 3), np.int64)
+    if not len(joined):
+        return []
+    joined = joined[np.argsort(joined[:, 0], kind="stable")]    # by chain, each chain's in frame order
+    # The chains that something joined, in the pairs' order: each is its pair and then those, as places in `every`.
+    got, length = np.unique(joined[:, 0], return_counts=True)
+    length += 2
+    begin = np.concatenate([[0], np.cumsum(length)[:-1]])
+    seq = np.empty(int(length.sum()), np.int64)
+    seq[begin], seq[begin + 1] = at[first[got]] + ai[got], at[second[got]] + bi[got]
+    rest = np.ones(len(seq), bool)
+    rest[begin] = rest[begin + 1] = False
+    seq[rest] = at[joined[:, 1]] + joined[:, 2]
+    amp = np.array([p[2] for n in ns for p in found[n]], float)[seq]
+    size = np.array([p[3] for n in ns for p in found[n]], float)[seq]
+    keep = (length >= 6) | ((np.maximum.reduceat(amp, begin) <= 2.0 * np.minimum.reduceat(amp, begin))
+                            & (np.maximum.reduceat(size, begin) <= 1.6 * np.minimum.reduceat(size, begin)))
+    peak = [p for n in ns for p in found[n]]
+    of = [n for n in ns for _ in found[n]]
+    seq = seq.tolist()
+    return [([of[g] for g in seq[s:s + L]], [peak[g] for g in seq[s:s + L]])
+            for s, L in zip(begin[keep].tolist(), length[keep].tolist())]
+
+
+def _off_paths(dx, dy, vx, vy, steps, tol, slack):
+    """`off_path` for many velocities at once: row r is `off_path(dx[r], dy[r], (vx[r], vy[r]), steps[r], tol,
+    slack[r])`, every number the same to the bit."""
+    tol = tol + slack
+    speed = np.hypot(vx, vy)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ux, uy = (vx / speed)[:, None], (vy / speed)[:, None]
+    along, across = dx * ux + dy * uy, -dx * uy + dy * ux
+    out = np.maximum(np.abs(along) / (tol + 0.15 * speed * steps)[:, None],
+                     np.abs(across) / (tol + 0.03 * speed * steps)[:, None])
+    held = speed < 1e-6
+    if held.any():
+        out[held] = np.hypot(dx[held], dy[held]) / tol[held, None]
     return out
 
 

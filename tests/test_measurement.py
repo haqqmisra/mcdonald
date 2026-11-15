@@ -6108,6 +6108,109 @@ def test_zz_pool_where_a_fork_server_cannot_listen_is_spawned():
             progress._context, progress._server_told, mu.abstract_sockets_supported, tempfile.tempdir = saved
 
 
+# ---- Find's chains, carried on together (2026-11-15, IDEAS.md G11) ----------------------------------------------------
+# Named to sort after every other test of this suite, so that adding it moves no other test to another `--part`; it
+# draws from a generator of its own.
+def _chains_one_pair_at_a_time(found, vmax, tol=6.0, max_skip=2):
+    """`propose.chains` as it was until 2026-11-15: each pair carried on to its end before the next is begun."""
+    from mcdonald import propose
+    ns = sorted(found)
+    at = {n: i for i, n in enumerate(ns)}
+    arr = {n: np.array([(p[0], p[1], p[4]) for p in found[n]], float).reshape(-1, 3) for n in ns}
+    out = []
+    for i, n in enumerate(ns):
+        for m in ns[i + 1:i + 2 + max_skip]:
+            A, B, dt = arr[n], arr[m], m - n
+            if not len(A) or not len(B):
+                continue
+            d = np.hypot(B[None, :, 0] - A[:, None, 0], B[None, :, 1] - A[:, None, 1])
+            for ai, bi in zip(*np.nonzero((d <= vmax * dt) & (A[:, None, 2] == B[None, :, 2]))):
+                a, b = found[n][ai], found[m][bi]
+                v = ((b[0] - a[0]) / dt, (b[1] - a[1]) / dt)
+                fr, pts, last_n, last, miss = [n, m], [a, b], m, b, 0
+                for q in ns[at[m] + 1:]:
+                    C = arr[q]
+                    if len(C):
+                        px, py = last[0] + v[0] * (q - last_n), last[1] + v[1] * (q - last_n)
+                        slack = 8.0 * (q - last_n) / (last_n - n)
+                        dd = np.where(C[:, 2] == a[4], propose.off_path(C[:, 0] - px, C[:, 1] - py, v, q - last_n, tol, slack),
+                                      np.inf)
+                        j = int(np.argmin(dd))
+                        if dd[j] <= 1.0:
+                            c = found[q][j]
+                            fr.append(q)
+                            pts.append(c)
+                            v = ((c[0] - a[0]) / (q - n), (c[1] - a[1]) / (q - n))
+                            last_n, last, miss = q, c, 0
+                            continue
+                    miss += 1
+                    if miss > max_skip:
+                        break
+                if len(fr) >= 3:
+                    amp, size = np.array([p[2] for p in pts]), np.array([p[3] for p in pts])
+                    if len(fr) >= 6 or (amp.max() <= 2.0 * amp.min() and size.max() <= 1.6 * size.min()):
+                        out.append((fr, pts))
+    return out
+
+
+def test_zz_propose_chains_carried_on_together_are_the_chains_made_one_pair_at_a_time():
+    """Find's chains (`propose.chains`) are made with every pair of peaks carried on together, a frame at a time, since
+    2026-11-15; before, each pair was carried on to its end before the next began, a Python loop over a few numbers at
+    a time that was the one process's wait in Find at many CPUs (71 s of PR051's 87 s for 3,000 frames at 32). The
+    chains must be the same, in the same order, to the bit: drawn frames of peaks -- frames missing and frames with
+    none, peaks held still (a velocity of none), on whole pixels and between them, both polarities, things moving
+    steadily among them -- are chained both ways, and every frame number and every point must be the same, each point
+    the very peak it was in the input."""
+    print("\npropose: chains carried on together are the chains made one pair at a time")
+    from mcdonald import propose
+    rng = np.random.default_rng(20261115)              # its own generator: nothing here moves another test's draws
+
+    def drawn():
+        ns, n = [], int(rng.integers(0, 500))
+        for _ in range(int(rng.integers(1, 40))):
+            ns.append(n)
+            n += int(rng.choice([1, 1, 1, 1, 2, 3, 5]))
+        W, H = [(64, 48), (640, 480), (1920, 1080)][int(rng.integers(3))]
+        movers = [(rng.uniform(0, W), rng.uniform(0, H), float(rng.choice([0.0, rng.uniform(-30, 30)])),
+                   float(rng.choice([0.0, rng.uniform(-30, 30)])), int(rng.choice([1, -1])))
+                  for _ in range(int(rng.integers(0, 5)))]
+        found = {}
+        for n in ns:
+            pk = []
+            if rng.random() > 0.15:
+                for _ in range(int(rng.integers(0, 13))):
+                    x = rng.uniform(0, W)
+                    pk.append((float(round(x) if rng.random() < 0.5 else x), float(rng.uniform(0, H)),
+                               float(rng.uniform(1, 100)), float(rng.uniform(1, 30)), int(rng.choice([1, -1]))))
+                for x, y, vx, vy, pol in movers:
+                    if rng.random() < 0.8:
+                        pk.append((x + vx * (n - ns[0]) + float(rng.choice([0.0, rng.normal(0, 2)])), y + vy * (n - ns[0]),
+                                   float(rng.uniform(20, 40)), float(rng.uniform(5, 8)), pol))
+            found[n] = [(*pk[k], 0.0) for k in rng.permutation(len(pk))]
+        return found
+
+    differ, made, kinds = 0, 0, set()
+    for k in range(240):
+        found = drawn()
+        vmax, tol, skip = [(propose.VMAX, 6.0, 2), (50.0, 6.0, 2), (propose.VMAX, 20.0, 1), (1000.0, 1.0, 4),
+                           (5.0, 6.0, 0)][k % 5]
+        old, new = _chains_one_pair_at_a_time(found, vmax, tol, skip), propose.chains(found, vmax, tol, skip)
+        made += len(old)
+        kinds |= {len(f) >= 6 for f, _ in old}
+        if len(old) != len(new) or any(f0 != f1 or len(p0) != len(p1) or any(a is not b for a, b in zip(p0, p1))
+                                       or any(type(n) is not int for n in f1) for (f0, p0), (f1, p1) in zip(old, new)):
+            differ += 1
+    check(differ == 0 and made > 5000 and kinds == {True, False},
+          "on 240 drawn inputs the chains are the same, in the same order, each point the input's own peak",
+          f"{made} chains, {differ} inputs differ")
+    steady = [n for n in range(10, 30) if n != 17]
+    found = {n: [(100.0 + 7.5 * n, 200.0 - 2.0 * n, 30.0, 6.0, 1, 0.0)] for n in steady}
+    got = propose.chains(found)
+    check(bool(got) and got[0][0] == steady and all(p is found[n][0] for n, p in zip(steady, got[0][1])),
+          "one thing moving steadily, a frame missing, is one chain from its first frame to its last",
+          f"{len(got)} chains, the first {got[0][0][:3] if got else None}...")
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for
