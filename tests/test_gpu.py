@@ -1451,8 +1451,10 @@ def test_a_case_says_what_computed_it_and_is_measured_again_that_way():
     check(plain["computed_on"] is None and back.computed_on == case.computed_on,
           "a case keeps the card that took part in it, and None where the CPU measured alone; it is read back with the case")
     line = case.computed_on_said()
-    check("graphics card" in line and "RTX 5070 Ti" in line and "--gpu none" in line and "part in a million" in line,
-          "its report says so under the heading: which card, how far a card agrees with the CPU, and how to measure on the CPU",
+    check("graphics card" in line and "RTX 5070 Ti" in line and "--gpu none" in line and "part in a million" in line
+          and "last digit" in line and "verdict" in line,
+          "its report says so under the heading: which card, how far a card agrees with the CPU, that a number built from "
+          "threshold decisions can still differ in its last digit (method section 52), and how to measure on the CPU",
           line[:120])
     check("computed_on" in rerun.VOLATILE, "what computed a case is the case's own, not a measurement to compare")
     gpu.begin()

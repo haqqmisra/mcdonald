@@ -351,8 +351,9 @@ def envelope(command, inputs, clip=None, files=(), results=None, no_power=(), ne
 
 
 # The note an envelope carries where a graphics card took part in the command (`gpu.computed_on`)
-COMPUTED_ON = ("computed on a graphics card, {card}: its numbers agree with the CPU's to about one part in a million, "
-               "not to the last digit (--gpu none measures on the CPU)")
+COMPUTED_ON = ("computed on a graphics card, {card}: its arithmetic agrees with the CPU's to about one part in a million; "
+               "a number built from many threshold decisions can still differ, usually in its last digit "
+               "(--gpu none measures on the CPU)")
 
 
 def emit(env):
@@ -1322,9 +1323,16 @@ class Case:
         return self.measured_by if self.measured_by and self.measured_by != __version__ else None
 
     def computed_on_said(self):
-        """The line under the report's heading where a graphics card took part in the measuring."""
+        """The line under the report's heading where a graphics card took part in the measuring. Its arithmetic agrees
+        with the CPU's to a part in a million, but a number read from many pairs' threshold decisions can differ: on the
+        fourteen reference cases 11 of 31 objects printed a different number and none a different word (2026-11-14,
+        method section 52, IDEAS.md G9; Jacob chose to say so)."""
         return (f"The steps that compare one frame with another were computed on a graphics card, {self.computed_on}. "
-                "A card's arithmetic agrees with the CPU's to about one part in a million, not to the last digit: "
+                "Its arithmetic agrees with the CPU's to about one part in a million. "
+                "A number built from many yes-or-no decisions, such as the share of frame pairs in which the scene held "
+                "still, can still differ. A decision close to its threshold can fall one way on the card and the other "
+                "way on the CPU. Such a number usually differs in its last digit. In tests on 31 objects, 11 showed a "
+                "difference like this, and none differed in a word or a verdict. "
                 "`mcdonald --gpu none run ...` measures on the CPU.")
 
     def older_said(self):
