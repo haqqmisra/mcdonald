@@ -455,6 +455,13 @@ New fields in the `--json` output: `ground_path.errors_from`, `sigma_deg`, `az_r
 `winds_igra/` in the data folder, with `tools/shear_igra.py` and `tests/golden/shear_soundings.csv`. Method section 34
 has each rule, its null and what it costs.
 
+**A report measured on a graphics card says how far its numbers can differ from the CPU's** (2026-11-14). The line
+under the heading said only that the card's arithmetic agrees with the CPU's to about one part in a million. Measured on
+the fourteen reference cases, from the same code on the CPUs and on the card: 11 of 31 objects printed a different
+number and none a different word or verdict. The numbers that differ are built from many yes-or-no decisions, such as
+the share of frame pairs in which the scene held still, where a pair near its threshold falls one way on the card and
+the other on the CPU. The line now says so, and the `--json` note with it. Method section 52 has the numbers.
+
 **Find on a long video several times sooner, with the same list** (2026-11-14). In the 144-video catalog run Find
 was half of all the time: 0.26 s a frame at 4 CPUs on most videos, but 0.75-0.89 s on the longest, and 14 hours on
 NASA-UAP-D024. The search made its whole list again after every block of 90 frames -- joined, described, folded and

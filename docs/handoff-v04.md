@@ -54,7 +54,15 @@ in, test_batch 68, test_gui 689 + Cannon's 4 skips. arthur with the card, 2ac43a
 test_controls 118, test_drift 200, every suite 0 FAIL. (Job 2549 before it had no MCDONALD_DATA and skipped 84 checks
 of the footage: set it in a snapshot's job, `--export=ALL,MCDONALD_DATA=/models/data/mcdonald`.)
 
-**For Jacob (as choices; the agents' notes have the long forms):**
+**Jacob's answers (2026-11-14, ~22:50, asked as choices):** (1) G9: **"Reword the line"** -- done, 5ae2079: the
+report's card line and the `--json` note now say a number built from many threshold decisions can differ, usually in
+its last digit, and that on 31 objects 11 did and none in a word (sciencespeak PASS); IDEAS G9 stays open for the
+robust-decision option. (2) **"Keep --card N"** as built, with the share's numbers and no Slurm shards. (3) `stabilize`:
+**"Leave it on the CPU"**. (4) The next GPU session: **the window's Find redraw** (redraw its list at most every few
+seconds on a long clip, the same final list); G2, A14 and a catalog rerun with `--card` were not chosen. 0.5.6 is cut
+from this main by the Triangulation session (Jacob's decision, relayed by it), Mac and Windows first.
+
+**For Jacob (as put to him; answered above):**
 1. *G9, the card's numbers in a report:* (a) reword the report's card line to say a number read from many
    threshold decisions can differ by about its last digit, words in the ledger (recommended); (b) make those
    decisions robust to a part in a million (moves the CPU's numbers too: a remake); (c) the card off by default;
