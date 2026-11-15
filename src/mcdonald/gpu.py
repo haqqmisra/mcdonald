@@ -36,11 +36,12 @@ llvmpipe, which is the CPU. No toolkit is imported to find the cards.
   of the driver's state on the card, a few hundred MB, and they would take turns. A stage with a card version runs
   in this process, the frames read ahead by threads (`progress.Ahead`), and the card does the arithmetic.
 - *Processes that share it, each within its part.* `mcdonald batch --pool N` in a job given the card runs N videos,
-  each a process of its own (not a pool's worker) that opens the card for itself: a video's arithmetic on the card
-  is a few per cent of its time, so N of them take turns well. Each is told how many share it (`SHARED_VAR`) and
-  plans its batches within its part of the card's memory (`part`), not on half of whatever is free when it asks,
-  which let the first to ask take half the card (a pool of eight 1080p videos, 2026-11-14: one process 8.3 GB, the
-  eight together 15.5 GB of 15.9). A part decides how much is sent at once, never a number.
+  each a process of its own (not a pool's worker) that opens the card for itself. One video alone keeps the card
+  busy a quarter of the time, so N of them take turns well (eight: half the time), and each one's numbers are what
+  it gives alone, to the bit. Each is told how many share it (`SHARED_VAR`) and plans its batches within its part of
+  the card's memory (`part`). Planning on half of whatever is free, as one process does, never failed a pool
+  (2026-11-14), but eight 1080p videos filled 15.5 GB of the card's 15.9 (one process 8.3 GB), and the card also
+  draws the desktop: the reason SHARE is half. A part decides how much is sent at once, never a number.
 - *A stage says so.* A routine with a card version (`forensics.bandpass`, `shift_field`, `spot_response`) runs on the
   card only inside `with gpu.on(card):`, which a stage enters for the whole of a pass (`forensics.pooled_or_on_card`).
   Anywhere else it is the CPU's arithmetic, card or no card. So a stage's numbers never depend on whether a caller
