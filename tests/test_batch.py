@@ -47,9 +47,22 @@ def check(cond, label, detail=""):
     return cond
 
 
+def socket_fits(folder):
+    """Can a pool's fork server start with TMPDIR at `folder`? Where its socket is a file (macOS: Linux's are abstract,
+    Windows spawns), it lies at TMPDIR/pymp-XXXXXXXX/listener-XXXXXXXX, and macOS holds such a path to 103 bytes. On the
+    macOS runner of 0.5.6 this test's folder under /var/folders/... made it 109: no pool could start, every window of
+    Find failed, and no drawn video had an object (2026-11-15)."""
+    import multiprocessing.util as mu
+    if sys.platform == "win32" or getattr(mu, "abstract_sockets_supported", False):
+        return True
+    return len(os.path.join(str(folder), "pymp-12345678", "listener-12345678")) <= 103
+
+
 def env_of(td, **more):
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), MCDONALD_HOME=str(Path(td) / "home"),
-               TMPDIR=str(td), **more)
+               **more)
+    if socket_fits(td):                                     # the run's own temporary files in the test's folder, where they can be
+        env["TMPDIR"] = str(td)                             # (see socket_fits); elsewhere the machine's own temporary folder
     for k in ("MCDONALD_CATALOG", "MCDONALD_CASES", "MCDONALD_DATA", "MCDONALD_CPUS", "SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID",
               gpu.SHARED_VAR):
         env.pop(k, None)
