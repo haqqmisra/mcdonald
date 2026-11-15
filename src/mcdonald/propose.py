@@ -124,6 +124,7 @@ import itertools
 import shlex
 import time
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 import numpy as np
 from scipy import ndimage
@@ -323,16 +324,43 @@ def all_round(g, x, y, pol, width):
     H, W = g.shape
     xi, yi = int(round(x)), int(round(y))
     win = g[np.ix_(np.clip(np.arange(yi - R, yi + R + 1), 0, H - 1), np.clip(np.arange(xi - R, xi + R + 1), 0, W - 1))]
-    near = (pol * ndimage.gaussian_filter(win, max(0.5 * r, 1.0)))[R - reach:R + reach + 1, R - reach:R + reach + 1]
+    near = pol * _smoothed_middle(win, reach, max(0.5 * r, 1.0))
     cy, cx = np.unravel_index(np.argmax(near), near.shape)
-    yy, xx = np.mgrid[-R:R + 1, -R:R + 1]
-    yy, xx = yy - (cy - reach), xx - (cx - reach)
-    rr = np.hypot(xx, yy)
-    core = float(win[rr <= 0.8 * r].mean())
-    ring = (rr > 1.8 * r) & (rr <= 2.8 * r)
-    sector = np.floor((np.arctan2(yy, xx) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS
-    contrast = np.array([pol * (core - float(win[ring & (sector == s)].mean())) for s in range(SECTORS)])
+    core, ring, starts = (_ring_round if R <= RING_KEPT else _ring_round.__wrapped__)(R, r, int(cy) - reach, int(cx) - reach)
+    w = win.ravel()
+    core = float(w[core].mean())
+    contrast = np.array([pol * (core - float(w[ring[starts[s]:starts[s + 1]]].mean())) for s in range(SECTORS)])
     return float(np.clip(contrast.min() / contrast.max(), 0.0, 1.0)) if contrast.max() > 0 else 0.0
+
+
+def _smoothed_middle(win, reach, sigma):
+    """`ndimage.gaussian_filter(win, sigma)` within `reach` of the middle of a square window, to the bit, smoothing only
+    that and the kernel's own radius beyond it (scipy's, truncate 4): no pixel kept is near enough to the cut for it to
+    count. `all_round` looks for the core no further out, and its window is wider than that and the radius."""
+    R = win.shape[0] // 2
+    e = reach + int(4.0 * sigma + 0.5)
+    if e < R:
+        win, R = win[R - e:R + e + 1, R - e:R + e + 1], e
+    return ndimage.gaussian_filter(win, sigma)[R - reach:R + reach + 1, R - reach:R + reach + 1]
+
+
+RING_KEPT = 48      # px: `all_round`'s windows up to this half-size keep their core and ring (`_ring_round`), 20 kB at most
+
+
+@lru_cache(maxsize=512)
+def _ring_round(R, r, oy, ox):
+    """`all_round`'s core and ring in a window of 2R + 1 a side, about (oy, ox) from its centre: the core's pixels, the
+    ring's sorted by sector (row by row within one, as a mask takes them), and where each sector begins among them.
+    Kept for each (R, r, oy, ox) a process meets, up to RING_KEPT: until 2026-11-15 each peak made them afresh, and
+    took each sector's pixels with a mask of the whole window: with the whole window smoothed, 226 ms of Find's
+    752 a frame on PR113."""
+    yy, xx = np.mgrid[-R:R + 1, -R:R + 1]
+    yy, xx = yy - oy, xx - ox
+    rr = np.hypot(xx, yy)
+    sector = (np.floor((np.arctan2(yy, xx) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS).ravel()
+    ring = np.flatnonzero((rr > 1.8 * r) & (rr <= 2.8 * r))
+    ring = ring[np.argsort(sector[ring], kind="stable")]
+    return np.flatnonzero(rr <= 0.8 * r), ring, np.searchsorted(sector[ring], np.arange(SECTORS + 1))
 
 
 def thing_at(g, x, y, pol):
@@ -352,20 +380,29 @@ def thing_at(g, x, y, pol):
     H, W = g.shape
     xi, yi = int(round(x)), int(round(y))
     best = None
-    for s in LADDER:
-        f = 1 if s < 6 else 2 if s < 13 else 4
-        reach = 1.5 * s + 3.0                                 # a rim is one radius, about 1.4 s, from the centre
-        half = int(np.ceil((reach + 5.0 * s) / f)) * f
+    for s, f, half, yy, xx, inside in _LADDER_GRIDS:
         win = g[np.ix_(np.clip(np.arange(yi - half, yi + half + 1, f), 0, H - 1), np.clip(np.arange(xi - half, xi + half + 1, f), 0, W - 1))]
         dog = pol * (ndimage.gaussian_filter(win, s / f) - ndimage.gaussian_filter(win, 1.6 * s / f))
-        c = half // f
-        yy, xx = np.mgrid[-c:c + 1, -c:c + 1] * f
-        dog = np.where(np.hypot(xx, yy) <= reach, dog, -np.inf)
+        dog = np.where(inside, dog, -np.inf)
         j = np.unravel_index(np.argmax(dog), dog.shape)
         if best is None or dog[j] > best[0]:
             best = (float(dog[j]), s, xi + float(xx[j]), yi + float(yy[j]))
     v, s, cx, cy = best
     return cx, cy, 3.7 * s, v                             # drawn discs 6 to 72 px across win at a sigma of their width / 3.4 to 4.0
+
+
+def _ladder_grid(s):
+    """`thing_at`'s window at the scale s: (s, its step f, its half-size, the offsets from the peak, where a rim
+    could be -- within reach of the peak). The same for every peak, so made once."""
+    f = 1 if s < 6 else 2 if s < 13 else 4
+    reach = 1.5 * s + 3.0                                 # a rim is one radius, about 1.4 s, from the centre
+    half = int(np.ceil((reach + 5.0 * s) / f)) * f
+    c = half // f
+    yy, xx = np.mgrid[-c:c + 1, -c:c + 1] * f
+    return s, f, half, yy, xx, np.hypot(xx, yy) <= reach
+
+
+_LADDER_GRIDS = [_ladder_grid(s) for s in LADDER]
 
 
 def half_second(clip, k):

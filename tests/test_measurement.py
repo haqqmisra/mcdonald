@@ -6211,6 +6211,79 @@ def test_zz_propose_chains_carried_on_together_are_the_chains_made_one_pair_at_a
           f"{len(got)} chains, the first {got[0][0][:3] if got else None}...")
 
 
+def _all_round_whole_window(g, x, y, pol, width):
+    """`propose.all_round` as it was until 2026-11-15: the whole window smoothed, and a mask of it for each sector."""
+    from scipy import ndimage
+    from mcdonald import propose
+    r = max(0.5 * width, 3.0)
+    reach = int(round(max(2.0, 0.5 * r)))
+    R = int(np.ceil(2.8 * r)) + reach + 1
+    H, W = g.shape
+    xi, yi = int(round(x)), int(round(y))
+    win = g[np.ix_(np.clip(np.arange(yi - R, yi + R + 1), 0, H - 1), np.clip(np.arange(xi - R, xi + R + 1), 0, W - 1))]
+    near = (pol * ndimage.gaussian_filter(win, max(0.5 * r, 1.0)))[R - reach:R + reach + 1, R - reach:R + reach + 1]
+    cy, cx = np.unravel_index(np.argmax(near), near.shape)
+    yy, xx = np.mgrid[-R:R + 1, -R:R + 1]
+    yy, xx = yy - (cy - reach), xx - (cx - reach)
+    rr = np.hypot(xx, yy)
+    core = float(win[rr <= 0.8 * r].mean())
+    ring = (rr > 1.8 * r) & (rr <= 2.8 * r)
+    sector = np.floor((np.arctan2(yy, xx) + np.pi) / (2 * np.pi) * propose.SECTORS).astype(int) % propose.SECTORS
+    contrast = np.array([pol * (core - float(win[ring & (sector == s)].mean())) for s in range(propose.SECTORS)])
+    return float(np.clip(contrast.min() / contrast.max(), 0.0, 1.0)) if contrast.max() > 0 else 0.0
+
+
+def test_zz_propose_spots_seen_all_round_are_read_as_before():
+    """Find asks of each spot how much of the way round it the background is seen (`propose.all_round`). Since
+    2026-11-15 it smooths only the part of the window its search for the core reaches, with the kernel's radius
+    beyond, and takes each sector's pixels from one sort, made once for each window's geometry; before, it smoothed
+    the whole window and made a mask of it for each of the sixteen sectors -- the largest part of Find's time a frame
+    on 1080p clips with many spots (226 of PR113's 752 ms). Every reading must be the same to the bit: at drawn
+    places on a drawn sky with discs, bars and edges in it -- the frame's edges and corners included, where the
+    window is cut -- at every width a spot or a thing is given, both polarities, and the same place twice (the kept
+    geometry)."""
+    print("\npropose: spots seen all round are read as before, to the bit")
+    from scipy import ndimage
+    from mcdonald import propose
+    rng = np.random.default_rng(20261116)              # its own generator: nothing here moves another test's draws
+    H, W = 300, 420
+    g = ndimage.gaussian_filter(rng.normal(0, 1, (H, W)), 2.0) * 30 + 100
+    yy, xx = np.mgrid[0:H, 0:W]
+    for _ in range(25):
+        cx, cy, rad, amp = rng.uniform(0, W), rng.uniform(0, H), rng.uniform(2, 40), rng.uniform(-80, 80)
+        g += amp * np.exp(-((xx - cx) ** 2 + (yy - cy) ** 2) / (2 * rad ** 2))
+    g[120:140, 50:330] += 60                                       # a bar, and a block's edge
+    g[:, 380:] -= 50
+    g = g.astype(np.float32)
+    differ, n = 0, 0
+    for k in range(700):
+        x = float(rng.choice([rng.uniform(-5, W + 5), rng.uniform(0, 30), rng.uniform(W - 30, W)]))
+        y = float(rng.choice([rng.uniform(-5, H + 5), rng.uniform(0, 30), rng.uniform(H - 30, H)]))
+        width = float(rng.choice([rng.uniform(1, 12), rng.uniform(12, 110), 3.7 * float(rng.choice(propose.LADDER)),
+                                  float(np.sqrt(rng.integers(1, 200)))]))
+        pol = int(rng.choice([1, -1]))
+        for _ in range(2 if k % 7 == 0 else 1):
+            n += 1
+            differ += repr(propose.all_round(g, x, y, pol, width)) != repr(_all_round_whole_window(g, x, y, pol, width))
+    check(differ == 0, f"on {n} drawn readings, edges and corners and the same place twice among them, every one the same",
+          f"{differ} differ")
+    # And the smoothing itself, pixel for pixel: a reading moves only where the brightest pixel does, and a pixel cut a
+    # kernel's tap too close (3e-4 of its weight) moves a few in the last bits and no reading here.
+    unlike, sizes = 0, 0
+    for width in sorted({float(np.sqrt(a)) for a in range(1, 400)} | {3.7 * s for s in propose.LADDER}):
+        r = max(0.5 * width, 3.0)
+        reach = int(round(max(2.0, 0.5 * r)))
+        R = int(np.ceil(2.8 * r)) + reach + 1
+        y0, x0 = int(rng.integers(0, max(1, H - 2 * R - 1))), int(rng.integers(0, max(1, W - 2 * R - 1)))
+        win = np.pad(g, 2 * R, mode="reflect")[y0:y0 + 2 * R + 1, x0:x0 + 2 * R + 1]
+        sigma = max(0.5 * r, 1.0)
+        sizes += 1
+        unlike += not np.array_equal(propose._smoothed_middle(win, reach, sigma),
+                                     ndimage.gaussian_filter(win, sigma)[R - reach:R + reach + 1, R - reach:R + reach + 1])
+    check(unlike == 0, f"the middle of the window smoothed alone is the whole window's, pixel for pixel, at all {sizes} sizes",
+          f"{unlike} differ")
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for

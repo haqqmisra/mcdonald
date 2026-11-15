@@ -5,16 +5,26 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
-**Find sooner on many CPUs, with the same list to the bit** (2026-11-15; IDEAS.md G11). Find joins the spots it finds
-into chains: spots that line up at a steady speed over three frames or more. One process does the joining, after each
-block of 90 frames, while the other processes search the next block. It began a chain at every pair of spots that could
-be one thing, and followed each pair to its end before it began the next. On many CPUs the searching processes then
-waited for it. On PR051's first 3,000 frames at 32 CPUs, the joining took 71 s of the 87 s. Now every pair is followed
-at once, one frame at a time, with the same arithmetic in the same order. The chains are the same, in the same order,
-on all 68 of PR051's blocks and on 3,000 drawn inputs; a new test holds them to the old way. The joining now takes
-2 s. `find` on PR051's 3,000 frames takes 76 s at 32 CPUs (92 s before) and 420 s at 4 (534 s). The window's Find
-takes 77 s at 32 CPUs (108 s). Every row, field and sentence of the list is as it was, and so is
-`tools/find_rank.py --link --keep`, table and kept files.
+**Find sooner, with the same list to the bit** (2026-11-15; IDEAS.md G11 and G12). Two changes, and nothing Find
+gives is changed by either: every row, field and sentence of its list is as it was, and so are
+`tools/find_rank.py --link --keep`'s table and kept files.
+
+- *Joining the spots into chains.* Find joins the spots it finds into chains: spots that line up at a steady speed over
+  three frames or more. One process does the joining, after each block of 90 frames, while the other processes search
+  the next block. It began a chain at every pair of spots that could be one thing, and followed each pair to its end
+  before it began the next. On many CPUs the searching processes then waited for it: on PR051's first 3,000 frames at
+  32 CPUs, the joining took 71 s of the 87 s. Now every pair is followed at once, one frame at a time, with the same
+  arithmetic in the same order. The joining takes 2 s. The chains are the same, in the same order, on all 68 of
+  PR051's blocks and on 3,000 drawn inputs, and a new test holds them to the old way.
+- *Looking round each spot.* For each spot, Find asks how much of the way round it the background can be seen. It
+  smoothed a whole window about the spot and made a mask of the window for each of 16 sectors. Now it smooths only the
+  middle, where it looks for the spot's core, and takes the sectors from one sort, made once for each shape of window.
+  On PR113, a 1080p clip with many spots, this was 226 ms of the 752 ms a frame took. A frame's search is now about a
+  tenth sooner. Every spot of 280 frames on seven clips is the same, and a new test holds the smoothing to the old way
+  pixel for pixel.
+
+On PR051's first 3,000 frames, `find` now takes 57 s at 32 CPUs and 338 s at 4, where the code before took 86 s
+and 412 s (the two run one after the other on the same machine).
 
 ## 0.5.7 (2026-11-15)
 

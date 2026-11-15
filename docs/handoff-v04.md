@@ -1,13 +1,96 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- the next GPU session's start on top (after 0.5.7, 2026-11-15), then session 25 (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- the next GPU session's start on top (after session 26, 2026-11-15 evening: Find's chaining and its search of a frame sooner to the bit on branch g11, A14 measured, four questions for Jacob), then session 26, then the start as written after 0.5.7, then session 25 (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
 
-## Start here: the next GPU session (written 2026-11-15, after 0.5.7)
+## Start here: the next GPU session (written 2026-11-15 evening, after session 26)
+
+Jacob is still on science work (his word of 2026-11-15, "we can keep going with GPU development in the meantime"; in
+session 26, "Feel free to spawn agents if needed, use /slurm on arthur"). Four questions wait for him (below), each a
+multiple choice with a recommendation; build none of what they decide until he answers.
+
+**Where things stand.** `main` is 0.5.7 (9d742b4, pushed) plus the local handoff commit 6b4fbdb. Session 26's work is
+on branch `g11` (worktree `/hugespace/models/mcdonald-g11`), **not merged**: G11 and G12 (Find sooner, the same list to
+the bit) with their tests, CHANGELOG ("Unreleased") and IDEAS rows (G11, G12 shipped; A14 measured; G2's split). All
+suites with the goldens: RESULTS_CANNON. Merge it when a release is in view (Jacob's question 4 below), telling any
+peer session first (`ListAgents`).
+
+**How the last sessions worked (keep to it).** As in "The GPU session's start as written after 0.5.7" below, and two more:
+jobs that read `/scratch` go with `--constraint=avx2` (an unpinned 2-CPU job landed on merlin, whose `/scratch` is
+another disk); and time a function with plain clocks round it, not cProfile, which put `all_round` at a third of a
+frame where it is 10-30 %. Hold a change to the bit on captured real inputs first (session 26's `capture.py`,
+`chains_eq.py`, `frame_eq.py` in `/scratch/mcdonald/g11-2026-11-15`), then the long gates; time main and the branch
+back to back in one job, alternating (`ab.sbatch`): two jobs side by side on arthur move each other's times by a
+quarter.
+
+**The open GPU work, in order.**
+1. **Jacob's answers**, then what they choose: A14 built as he picks (the measurements are in
+   `/scratch/mcdonald/a14-2026-11-15/NOTES.md`, with the probes `dense2-5.py`); G2 if he says yes.
+2. **The plants at scale** (ROADMAP 0.6 objective 4, "still to do"), as before: the development session owns `plant`
+   and `batch`; ask it first.
+3. **Parked or Jacob's**, as before: G9's robust decisions, a Mac's card (G4), `stabilize` (G7), Slurm's shards (G8),
+   "error models" (ask what he means).
+
+**To put to Jacob** (in plain words; the numbers behind each are in IDEAS and session 26 below):
+1. *What should a dense field of the scene's motion be for, first?* (a) A map of the background's layers, and depth
+   from the parallax between and within them -- **recommended**: on PR144 about 35 times today's readings, none on an
+   empty pair, the second layer mapped in its own part of the picture, a depth gradient within the first at 5-20 sigma;
+   (b) the flow in a ring about the object -- nothing usable on PR135's birds; (c) the scene behind a sensor's fixed
+   pattern -- no setting beat chance on PR135; (d) a depth map of the whole scene on its own -- better as (a)'s second step.
+2. *How large should its templates be, and how far apart?* (a) 128 px every 16 px -- **recommended**: today's keep rule
+   stays honest, 0.03-0.35 s a pair on the card (about 45 cores), card and CPU keep the same templates; (b) 64 px every
+   16 or 8 -- 1-22 % of an empty pair's templates pass; (c) 32 px every 8 -- a fifth to a half pass; (d) 128 px every 8 --
+   four times the cost for templates that overlap seven-eighths.
+3. *Which matches should count?* (a) Today's rule, each clip held against two empty pairs (frame b turned half a turn; a
+   frame of another clip) and the peak floor raised where they keep more than 1 % -- **recommended**: at an equal false
+   rate it keeps the most real matches; (b) plus forward-backward agreement -- loses half the real rows at 128 px;
+   (c) plus a texture floor -- keeps the fewest; (d) today's rule alone -- holds only for 128-px templates.
+4. *Find's own search on the card (G2's second half): build it?* Where a 1080p frame's time goes (PR113, 752 ms on one
+   core): the work about each spot, in windows a few dozen pixels across, about half; the whole-frame arithmetic
+   (smoothing, registering, the still pass) and reading the frames the rest. The card is one process. (a) Not now: the
+   pool stays, and the CPU's own changes to the bit (G11, G12) go out in the next 0.5.x -- **recommended**: Find on
+   PR051 is a third sooner at 32 CPUs and a fifth at 4 with nothing changed, and a card version changes the lists in
+   their last digits; (b) the whole-frame part on the card, the spots' part in a pool beside it -- at most about twice
+   as fast on few CPUs, little at 32; (c) all of it on the card, the spots' windows sent as batches -- the most gain and
+   the most work, the proposer's gate run on both. And either way: G11 and G12 in the next 0.5.x, or with the GPU batch?
+
+## Session 26, Sunday evening (2026-11-15): Find's chaining in place (G11), its search of a frame (G12), A14 measured
+
+The next GPU session, from the section below. Branch `g11` (worktree `/hugespace/models/mcdonald-g11`); files in
+`/scratch/mcdonald/g11-2026-11-15`; A14's in `/scratch/mcdonald/a14-2026-11-15` (a forked agent, probes only).
+
+**G11, not as planned: no pool, `chains` made faster in place.** It began a chain at every pair of same-polarity peaks
+that could be one thing and carried each to its end before the next, a Python loop over a few numbers at a time. Now
+every pair is carried on together, a frame at a time (`_off_paths`: `off_path` for many velocities, in its own
+order), and the chains are held to their steady size and amplitude array-wise. Captured from main on PR051 1-3000 (68
+calls): the same chains, same order, each point the input's own tuple (`is`); 70.9 s to 2.06 s. 3,000 random inputs
+(184,559 chains) the same. With the chaining at 2 s a pool for it would gain nothing.
+
+**G12: the search of a frame a tenth sooner, to the bit** (found while measuring G2). `all_round` smoothed a whole
+window about each spot and made a mask of it for each of 16 sectors; it now smooths only the middle it searches and the
+kernel's radius beyond (`_smoothed_middle`) and takes the sectors from one sort, kept for each window's geometry
+(`_ring_round`); `thing_at`'s grids are made once. Every peak of 280 frames on seven clips (7,044) and 4,200 drawn calls
+at the frames' edges the same.
+
+**Held, G11 and G12 together** (snap3): PR051's 30 rows byte-identical at 32 and 4 CPUs; `find_rank --link --keep` the
+same tables line for line and the 11 keep files byte for byte (7:32 against 9:26); test_measurement's two new tests
+(`test_zz_propose_chains_...`, `test_zz_propose_spots_...`; old code kept in the test; named to sort last, their own
+RNGs), each made to fail by a small change to the new code; all suites with the goldens RESULTS_CANNON. **Timed back to
+back** (`ab.sbatch`, PR051 1-3000, `find`'s way): at 32 CPUs main 86.6 and 85.3 s, the branch 56.7 and 56.5 s; at 4 CPUs
+main 412.0 s, the branch 337.5 s (one round). Rows the same in every run.
+
+**G2's split** (main, plain clocks, one process, a 1080p frame of PR113, 752 ms): `all_round` 226 ms, `peaks` 170 (the
+still pass's among them), `thing_at` 120, `onto` 98, `still_peaks` 96, `still_again` 80, reading the frames 77.
+
+**A14** (the forked agent's notes): see IDEAS A14 and question 1-3 above. PR051 and PR113 had no scene motion a dense
+field could read (PR051 holds still on screen at all eight pairs tried; PR113's pan is seen at no setting), so PR144
+was added for the layers. Caveat: 4-5 pairs a clip, rates of a few per cent good to about a factor of two.
+
+## The GPU session's start as written after 0.5.7 (2026-11-15), kept as the record
 
 Jacob, 2026-11-15: "0.5.7 is released! I need to do some science work, but we can keep going with GPU development in
 the meantime." So the next session works without him to hand: it builds what needs no decision of his, measures what
 the decisions need, and puts the decisions to him as multiple choices (his request since session 21), each with a
 recommendation, for when he is back.
 
-**Where things stand.** 0.5.7 is out (tag v0.5.7 on 3bb6b3b; `main` 9d742b4 pushed; version DOI
+**Where things stand (then).** 0.5.7 is out (tag v0.5.7 on 3bb6b3b; `main` 9d742b4 pushed; version DOI
 10.5281/zenodo.24259385); `main` is clean and the only other worktree is the development session's `mcdonald-s23`.
 On the card (CuPy, NVIDIA, arthur's RTX 5070 Ti; method §52): `layers`' three passes, `integrity`'s background passes,
 `flicker`'s camera-shake pass; `mcdonald batch --slurm --card N` puts N videos on the one card. Held to the CPU, which
