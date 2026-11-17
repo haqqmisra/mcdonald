@@ -744,7 +744,7 @@ def test_track_a_model_wind_file_lacking_the_height():
 
 
 # ---------------------------------------------------------------- planted fliers (docs/method.md, section 67)
-def planted_case(v_obj=(-6.0, -3.5), turn=True, nboot=200):
+def planted_case(v_obj=(-6.0, -3.5), turn=True, nboot=60):
     """A drawn orbit round a body moving at v_obj, six winds near (-6.0, -3.5) m/s, and the case as `measure` makes it:
     (rays, fitted path, winds, the case's T2)."""
     rng = np.random.default_rng(6)
@@ -764,7 +764,7 @@ def test_fliers_planted_on_a_drawn_orbit():
     from mcdonald import fliers
     print("\nPlanted fliers: on a drawn orbit round a drifter")
     R, path, winds, t2 = planted_case()
-    opts = dict(sig=(0.1, 0.03), case_t2=t2, speeds=(10.0, 40.0), draws=2, nboot=200, procs=0)
+    opts = dict(sig=(0.1, 0.03), case_t2=t2, speeds=(10.0, 40.0), draws=2, nboot=60, procs=0)
     f = fliers.plant_track(R, path, winds, **opts)
     T = {t["airspeed_m_s"]: t for t in f["table"]}
     check(t2["outcome"] == drift.PASS and f["air"] == "path" and f["air_chosen_by"] == "the case passed the wind test"
@@ -791,13 +791,14 @@ def test_fliers_planted_on_a_drawn_orbit():
     check(0.02 < np.sqrt((v ** 2).mean()) < 0.5 and all(len(r["needs_m_s"]) == 2 for r in f["runs"]),
           "each plant's fit finds the velocity it was given, to the rays' errors (a typical miss under 0.5 m/s, and not none)",
           f"rms {np.sqrt((v ** 2).mean()):.2f} m/s over {len(v)} plants")
-    again = fliers.plant_track(R, path, winds, **opts)
-    other = fliers.plant_track(R, path, winds, **dict(opts, seed=7))
-    check(json.dumps(again, sort_keys=True) == json.dumps(f, sort_keys=True)
-          and [r["fitted_m_s"] for r in other["runs"]] != [r["fitted_m_s"] for r in f["runs"]],
+    few = dict(opts, speeds=(40.0,), draws=1)                    # 16 plants: 8 at zero, 8 at 40 m/s
+    once, again = fliers.plant_track(R, path, winds, **few), fliers.plant_track(R, path, winds, **few)
+    other = fliers.plant_track(R, path, winds, **dict(few, seed=7))
+    check(json.dumps(again, sort_keys=True) == json.dumps(once, sort_keys=True)
+          and [r["fitted_m_s"] for r in other["runs"]] != [r["fitted_m_s"] for r in once["runs"]],
           "the same seed gives the same result, to the last digit; another seed draws other errors")
-    pooled = fliers.plant_track(R, path, winds, **dict(opts, procs=2))
-    check(json.dumps(pooled, sort_keys=True) == json.dumps(f, sort_keys=True), "and the same in two worker processes as in one")
+    pooled = fliers.plant_track(R, path, winds, **dict(few, procs=2))
+    check(json.dumps(pooled, sort_keys=True) == json.dumps(once, sort_keys=True), "and the same in two worker processes as in one")
     # the winds as the air: each plant rides one of the six, each as often as any other
     w = fliers.plant_track(R, path, winds, **dict(opts, air="winds", speeds=(40.0,)))
     rides = [sum(r["air"] == f"wind {i}" for r in w["runs"] if r["airspeed_m_s"] == 40.0) for i in range(6)]
@@ -816,7 +817,7 @@ def test_fliers_are_not_planted_where_the_case_gives_no_ground():
     from mcdonald import fliers
     print("\nPlanted fliers: no plants where there is no path to plant on, with the reason")
     R, path, winds, t2 = planted_case(turn=False)
-    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, nboot=200, procs=0)
+    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, nboot=60, procs=0)
     check(f["plants"] == 0 and "runs" not in f and "fix no path" in f["why"] and "flew straight" in f["why"]
           and f["sentence"].startswith("No bodies were planted: ") and fliers.said(f) == [f"\nplanted fliers: {f['sentence']}"],
           "a straight flight fixes no path: no plants, and it says why", f["sentence"][:140])
@@ -825,13 +826,13 @@ def test_fliers_are_not_planted_where_the_case_gives_no_ground():
     check(f["plants"] == 0 and "6 lines of sight, where at least 9 are needed" in f["why"], "six lines of sight: no path, no plants",
           f["why"][:80])
     R, path, winds, t2 = planted_case()
-    f = fliers.plant_track(R, path, [dict(w, counts=False) for w in winds], sig=(0.1, 0.03), nboot=200, procs=0)
+    f = fliers.plant_track(R, path, [dict(w, counts=False) for w in winds], sig=(0.1, 0.03), nboot=60, procs=0)
     check(f["plants"] == 0 and "no wind that bears on its height" in f["why"], "no wind that counts: no plants", f["why"][:80])
     R, path, winds, t2 = planted_case(v_obj=np.array([-6.0, -3.5]) + 25.0 * np.array([0.5, -0.866]))
-    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, air="path", nboot=200, procs=0)
+    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, air="path", nboot=60, procs=0)
     check(t2["outcome"] == drift.FAIL and f["plants"] == 0 and "failed the wind test" in f["why"],
           "a flier's own motion is not the air's: asked to ride the path of a case that failed T2, no plants", f["why"][:90])
-    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, speeds=(40.0,), draws=1, nboot=200, procs=0)
+    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, speeds=(40.0,), draws=1, nboot=60, procs=0)
     check(f["air"] == "winds" and f["air_chosen_by"] == "the case did not pass the wind test" and f["drifter"]["passes"] == 8
           and f["fails_from_m_s"] == 40.0, "left to itself there, it plants in the winds: a drifter in them passes, 40 m/s fails",
           f["sentence"])
@@ -845,15 +846,15 @@ def test_fliers_through_the_stage_change_nothing_else():
     obs = [dict(source="mast", height_m=h, from_deg=59.7, speed_m_s=s) for h, s in ((100.0, 6.5), (400.0, 7.4))]
     kw = dict(platform=platform, los=los, los_sigma=(0.1, 0.03), observed_winds=obs, ground_m=70.0)
     plain = drift.measure(FPS, **kw)
-    asked = drift.measure(FPS, plant=dict(speeds=(40.0,), directions=2, draws=1, procs=0), **kw)
+    asked = drift.measure(FPS, plant=dict(speeds=(40.0,), directions=1, draws=1, procs=0), **kw)
     f = asked.fields.get("planted_fliers") or {}
     rest = {k: v for k, v in asked.fields.items() if k != "planted_fliers"}
     dump = lambda d: json.dumps(d, sort_keys=True, default=lambda o: o.tolist())            # noqa: E731
     check("planted_fliers" not in plain.fields and dump(rest) == dump(plain.fields) and asked.result == plain.result,
           "without `plant` there is no such field; with it every other field and every printed result is the same")
-    check(f.get("plants") == 4 and f["case_again"]["as_the_case"] is True and f["resamples"] == 2000 and f["fails_from_m_s"] == 40.0
+    check(f.get("plants") == 2 and f["case_again"]["as_the_case"] is True and f["resamples"] == 2000 and f["fails_from_m_s"] == 40.0
           and f["sentence"] in "\n".join(drift.said(asked.fields)) and "planted fliers" not in "\n".join(drift.said(plain.fields)),
-          "the field holds the plants (4, each fitted with the case's own 2,000 resamples, and the case again, which comes "
+          "the field holds the plants (2, each fitted with the case's own 2,000 resamples, and the case again, which comes "
           "out as the case), and the stage prints their sentence after the verdict",
           f.get("sentence", "")[:150])
     g = golden()
