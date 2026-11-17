@@ -1304,7 +1304,8 @@ def test_wind_track(path, winds, readings=None):
     # The velocity's gate: two errors over VELOCITY_FIX, and T2 cannot tell a drifter from a slow flier. Its answer is
     # made here, in the words and with the fields it always had, and given below only where the body is not a flier's
     # margin beyond the whole tolerance: the fail rule is asked first (2026-11-17), since the tolerance holds those
-    # two errors already. An error that is not finite, or no wind that counts, leaves nothing to ask it with.
+    # two errors already. No wind that counts leaves nothing to ask it with; an error that is not finite makes the
+    # tolerance so, and the gate answers.
     open_v = None
     if (not math.isfinite(ev) or 2 * ev > VELOCITY_FIX) and path.get("cameras"):
         from . import sightlines
@@ -1320,7 +1321,7 @@ def test_wind_track(path, winds, readings=None):
             open_v = dict(out, outcome=CANNOT, reading=(
                 f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): the "
                 f"line of sight turned {path['los_turn_deg']:.0f} deg; a straight-flying aircraft cannot range what it sees"))
-    if open_v is not None and (not math.isfinite(ev) or not any(w["counts"] for w in winds)):
+    if open_v is not None and not any(w["counts"] for w in winds):
         return open_v
     rows = []
     for w in winds:
