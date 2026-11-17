@@ -801,7 +801,7 @@ def test_fliers_planted_on_a_drawn_orbit():
     w = fliers.plant_track(R, path, winds, **dict(opts, air="winds", speeds=(40.0,)))
     rides = [sum(r["air"] == f"wind {i}" for r in w["runs"] if r["airspeed_m_s"] == 40.0) for i in range(6)]
     check(w["air"] == "winds" and len(w["airs"]) == 6 and sorted(rides) == [2, 2, 3, 3, 3, 3] and w["drifter"]["passes"] >= 15
-          and w["fails_from_m_s"] == 40.0 and "as one of the winds says" in w["sentence"],
+          and w["fails_from_m_s"] == 40.0 and "as one of the winds given says" in w["sentence"],
           "asked to ride the winds, the 16 plants at each speed take the six winds in turn (2 or 3 each); a drifter in "
           "any of them passes, 40 m/s fails", f"rides {rides}; {w['sentence']}")
     lines = "\n".join(fliers.said(f))

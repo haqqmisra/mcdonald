@@ -1714,16 +1714,18 @@ def main():
                                       "comma-separated, from cameras watching it at the same time")
     ap.add_argument("--plant", action="store_true",
                     help="plant fliers on this case's own geometry and winds, to see how slow a flier the wind test "
-                         "(T2 from the aircraft's own track) would have caught: bodies at the fitted place and height, "
-                         "moving with the air plus an airspeed in eight directions, each through the same fit and the "
-                         "same test. Minutes of work; the result is the field planted_fliers")
-    ap.add_argument("--plant-speeds", metavar="M/S", help="the airspeeds planted, m/s, comma-separated (default "
-                                                          "0,5,10,15,20,25,30,40,50; zero, a drifter, is always among them)")
+                         "(T2 from the aircraft's own track) would have caught. Each planted body sits at the fitted "
+                         "place and height and moves with the air plus a speed through it, in eight directions. Each "
+                         "goes through the same fit and the same test. It takes minutes; the result is the field "
+                         "planted_fliers")
+    ap.add_argument("--plant-speeds", metavar="M/S", help="the speeds through the air to plant, m/s, comma-separated "
+                                                          "(default 0,5,10,15,20,25,30,40,50; zero, a drifter, is "
+                                                          "always among them)")
     ap.add_argument("--plant-air", choices=["winds", "path"],
-                    help="the air a planted body rides: path, the object's own fitted velocity, which is the air's "
-                         "where the object drifts; or winds, each wind the test counted in turn. By default path where "
+                    help="the air a planted body rides. path: the object's own fitted velocity, which is the air's "
+                         "where the object drifts. winds: each wind the test counted, in turn. By default path where "
                          "the object passed the wind test, and winds where it did not")
-    ap.add_argument("--plant-draws", type=int, metavar="N", help="draws of the lines of sight's errors for each airspeed "
+    ap.add_argument("--plant-draws", type=int, metavar="N", help="draws of the lines of sight's errors for each speed "
                                                                  "and direction (default 4)")
     ap.add_argument("--procs", type=int, help="for --plant: " + PROCS_HELP)
     ap.add_argument("--fps", type=float, help="frames per second (default: the video's)")

@@ -182,8 +182,8 @@ def plant_track(R, path, winds, sig=(0.3, 0.1), ground_m=None, az_ref_err=None, 
         chosen = "the case passed the wind test" if passed else "the case did not pass the wind test"
     if air == "path":
         if case_t2 is not None and case_t2["outcome"] == FAIL:
-            return none("the object itself failed the wind test, so its own motion is not the air's; the plants can ride "
-                        "the winds given instead (--plant-air winds)")
+            return none("the object itself failed the wind test, so its own motion is not the air's. Plant them in the "
+                        "winds given instead (--plant-air winds)")
         airs = [dict(label="the path's own", w=[float(x) for x in path["v_m_s"]])]
     else:
         airs = [dict(label=w["label"], w=[float(x) for x in w["w"]]) for w in counted]
@@ -239,24 +239,23 @@ def summary(rows, air="path", airs=1):
 
 
 def sentence(s, air="path", airs=1):
-    """The summary in words a reader outside the field follows: what would have failed, what is not told from a
-    drifter, and how often a drifter passes here."""
+    """The summary in words a reader outside the field follows: which air the bodies were planted in, what would have
+    failed, what is not told from a drifter, and how often a drifter passes here."""
     fly = [t for t in s["table"] if t["airspeed_m_s"] > 0]
     if air == "path":
-        where, drifter = "On this geometry and these winds, with the air moving as the object did,", "that air"
+        out = ["Bodies were planted in air that moved as the object did."]
     elif airs > 1:
-        where, drifter = "On this geometry and these winds, with the air moving as one of the winds says,", "one of the winds"
+        out = ["Bodies were planted in air that moved as one of the winds given says."]
     else:
-        where, drifter = "On this geometry and this wind, with the air moving as the wind says,", "the wind"
-    out = []
+        out = ["Bodies were planted in air that moved as the wind given says."]
     if not fly:
-        out.append(f"{where} no body flying through the air was planted.")
+        out.append("None of them flew through the air.")
     elif s["fails_from_m_s"] is not None:
-        out.append(f"{where} a body flying {s['fails_from_m_s']:g} m/s or more through the air would have failed the wind "
-                   "test whichever way it flew.")
+        out.append(f"On this geometry and these winds, a body flying {s['fails_from_m_s']:g} m/s or more through the air "
+                   "would have failed the wind test whichever way it flew.")
     else:
-        out.append(f"{where} no airspeed tried, up to {fly[-1]['airspeed_m_s']:g} m/s, failed the wind test whichever way "
-                   "the body flew.")
+        out.append(f"On this geometry and these winds, no planted speed, up to {fly[-1]['airspeed_m_s']:g} m/s through the "
+                   "air, failed the wind test whichever way the body flew.")
     z = s["drifter"]
     if fly and s["passes_up_to_m_s"] is not None:
         out.append(f"At {s['passes_up_to_m_s']:g} m/s or less it is not told from a drifter: at least one body planted that "
@@ -264,10 +263,10 @@ def sentence(s, air="path", airs=1):
     elif fly and z and z["passes"]:
         out.append(f"No planted flier passed as a drifter, down to the slowest tried, {fly[0]['airspeed_m_s']:g} m/s.")
     if z and z["passes"]:
-        out.append(f"A body drifting with {drifter} passed {z['passes']} times in {z['plants']}.")
+        out.append(f"A planted body that drifted with the air passed {z['passes']} times in {z['plants']}.")
     elif z:
         top = max(z["cannot_say_because"], key=z["cannot_say_because"].get) if z["cannot_say_because"] else None
-        out.append(f"No planted body passed, not even one drifting with {drifter} ({z['plants']} tried)"
+        out.append(f"No planted body passed, not even one that drifted with the air ({z['plants']} tried)"
                    + (f": {WHY[top]}." if top else "."))
     return " ".join(out)
 
@@ -282,10 +281,10 @@ def said(f):
         rides = f"with one of the {len(f['airs'])} winds counted, taken in turn"
     else:
         rides = "with the one wind counted"
-    L = [f"\nplanted fliers: {f['plants']} bodies at the fitted place and height. Each moved {rides}, plus an airspeed in "
-         f"{len(f['directions_deg'])} directions ({f['draws']} draws each), and was seen along the real lines of sight with the "
-         f"real fit's errors, their signs drawn afresh. Each went through the same fit ({f['resamples']:,} resamples) and "
-         "the same T2.",
+    L = [f"\nplanted fliers: {f['plants']} bodies at the fitted place and height. Each moved {rides}, plus a speed through "
+         f"the air in {len(f['directions_deg'])} directions ({f['draws']} draws each). Each was seen along the real lines of "
+         f"sight with the real fit's errors, their signs drawn afresh, and went through the same fit ({f['resamples']:,} "
+         "resamples) and the same T2.",
          "", "| airspeed, m/s | planted | passes | cannot say | fails |", "|---|---|---|---|---|"]
     for t in f["table"]:
         L.append(f"| {t['airspeed_m_s']:g} | {t['plants']} | {t['passes']} | {t['cannot_say']} | {t['fails']} |")
