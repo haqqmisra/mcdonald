@@ -8818,3 +8818,38 @@ blows (4.5 m/s). So with today's rules the paper's sentences become: every flier
 cannot be said, and none passes. The heading offset moved nothing here (the lanterns' turn asks for none). With the
 plants riding the 14 winds in turn the row at zero says what judgement call 1 says: 2 of 32 pass, 30 "holding still
 fits as well".
+
+**What it costs.** One plant is one fit: 0.15-0.3 s without the bootstrap and 6.0-6.3 s with its 2,000 resamples, on
+39 rays as on 200 (one thread of arthur with its core to itself; 11-15 s where two workers share a core). The default
+is 289 fits (9 airspeeds x 32, and the case again): 3 min 30 s for the lanterns on 16 CPUs, 7-9 min for a cloud of
+200 rays on 6-8, with 120 MB in the main process and about 50 MB a worker. The plants go to worker processes (`--procs`); the
+same seed gives the same result however many there are (each plant's draws are seeded by the stage's seed and the
+plant's number).
+
+**Held to.**
+- *Nothing else moves.* The stage's own files for the four known answers of test_drift (the Yemen clip, the lanterns
+  and the Santa Barbara helicopter, each from its readings and by the command line, and PR051's second leg) are the same
+  to the byte before this branch and after it, without `--plant`; with `--plant`, every field but `planted_fliers` is the
+  same (the lanterns; and each of the 40 clouds below against its run at v0.5.7).
+- *The port.* The 49 plants of the script this replaces, under 0.4.3's rules, as above.
+- *tests/test_drift.py*, on drawn data: a drawn orbit round a drifter (plants at zero pass 16 times in 16, plants at 40
+  m/s fail 16 in 16, plants at 10 m/s cannot be judged; the case planted again comes out as the case; the same seed
+  gives the same result to the last digit, in one process or two, and another seed other draws; the winds ridden in
+  turn, each as often as any other); no plants and the reason where the rays fix no path (a straight flight, six
+  readings), where no wind counts, and where the path is asked for as the air of a case that failed; through the stage
+  with nothing else moved; and by the command line on the lanterns. Each check was made to fail once by a small
+  deliberate break of the code (18 breaks; the list is in the branch's notes).
+
+**What it does not do.**
+- It does not plant on the route from the ranges (`fit_line`, `test_wind`; the Yemen clip): asked there, it says so.
+  The table and the sentence are made from rows of one form (`fliers.summary`: an airspeed, an outcome and why), so a
+  planting function for that route needs only to return such rows.
+- It says what T2 would have made of a flier, not what the verdict would have been: T1 and T3 are not run on a plant.
+  A plant that T2 cannot judge would leave the verdict at "cannot say", not at "consistent with drift".
+- It takes the winds as given. Plants in the object's own air carry the winds' real miss of that air only if the
+  object drifts; plants in the winds carry none. Neither draws a wind's error afresh.
+- It carries no error the rays share (the azimuth reference: the fit's own allowance for it is in each plant's
+  tolerance, but no plant's rays are turned), and none that runs on from reading to reading (judgement call 2).
+- A plant flies straight and level at a steady airspeed for the whole stretch, in a wind that is the same along its
+  path. A bird that circles, or a body that changes its speed, is another question (the fit's model gate, section 34).
+- The airspeeds are a grid: "25 m/s or more" means 25 was the slowest tried at which all failed, and 20 was not.
