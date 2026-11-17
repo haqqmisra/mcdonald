@@ -338,10 +338,12 @@ def test_t2_from_the_ranges_against_soundings():
               f"at 5 m/s {int(ok[at(5, 90)].sum())} and {int(ok[at(5, 270)].sum())} of {tool.HEADINGS}")
         along, back = at(50, 0), at(50, 180)
         fast = C[back, c["tas_kn"]] > 150.0
-        check(np.array_equal(ok[along], ok[drifter]) and fast.sum() > 0 and not ok[back][fast].any() and not bad[back].any(),
+        check(np.array_equal(ok[along], ok[drifter]) and fast.sum() > 0 and not ok[back][fast].any() and not bad[back].any()
+              and not was[back][fast].any() and was[along].sum() >= tool.HEADINGS - 2,
               "a body flying 50 m/s along the heading passes wherever the drifter does (nothing of it shows across the "
               "heading, and 0-240 kn takes it in); flying the other way from an aircraft over 150 kn it cannot be said, "
-              "the airspeed it implies being out of the range, and it does not fail")
+              "the airspeed it implies being out of the range, and it does not fail; nor did it pass by the rule before, "
+              "whose answer the tool keeps with the airspeed's range in it")
         st = drawn_station(td, off_400=(4.0, 0.0))
         res = tool.station((str(td), 0, "XXM00000001", st, None))
         pair = [r for r in res["dif"] if r[5] == "L700-400" and r[6] == "all" and r[4] == 0]
