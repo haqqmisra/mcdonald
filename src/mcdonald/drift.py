@@ -1265,7 +1265,14 @@ def test_wind_track(path, winds, readings=None):
     even the smallest is FLIER_MIN or more beyond it; cannot say when the rays fix no path (`unfixed`: too few
     readings, a straight-flying aircraft, a range the bound leaves open), when they do not fix the velocity (two
     errors over VELOCITY_FIX) or between. So with a model's winds a body flying a few metres a second through the air
-    is not told from a drifter: the model's error is that large. Since 2026-11-13 (IDEAS.md DR2, DR4) the tolerance
+    is not told from a drifter: the model's error is that large. The fail rule is asked before the velocity's gate
+    (since 2026-11-17, the maintainer's decision; IDEAS.md C1): the tolerance already holds two errors of the fitted
+    velocity, so a body FLIER_MIN or more beyond the whole of it fails however large that error is, where the error
+    is finite and a wind counts; only short of that does a velocity the rays do not fix (two errors over
+    VELOCITY_FIX) leave T2 unable to say, in the words it had. Until then the gate spoke first, and an aircraft at
+    120 m/s whose velocity was known to 10 m/s could not be called a flier: with each camera's own pointing carried
+    (method section 66), T2 failed 30 of the 80 Galileo aircraft at the default pointing error and 2 at 0.7 and 0.4
+    deg, where it had failed 54 with one shared reference; asked in this order it fails all 80 at either. Since 2026-11-13 (IDEAS.md DR2, DR4) the tolerance
     takes the largest of the counted winds' own errors, a model's MODEL_WIND_ERR or two errors of the aircraft's own
     wind (`err_m_s`), and the wind's own change with height (`wind_change`) over the smallest distance in height
     between the object and a level a counted wind was read at (`level_gap_m`; none where a wind was interpolated to
@@ -1285,19 +1292,27 @@ def test_wind_track(path, winds, readings=None):
     ev = path["velocity_err_m_s"]
     out.update(speed_m_s=round(path["speed_m_s"], 2), toward_deg=round(path["toward_deg"], 1),
                velocity_err_m_s=round(ev, 2))
+    # The velocity's gate: two errors over VELOCITY_FIX, and T2 cannot tell a drifter from a slow flier. Its answer is
+    # made here, in the words and with the fields it always had, and given below only where the body is not a flier's
+    # margin beyond the whole tolerance: the fail rule is asked first (2026-11-17), since the tolerance holds those
+    # two errors already. An error that is not finite, or no wind that counts, leaves nothing to ask it with.
+    open_v = None
     if (not math.isfinite(ev) or 2 * ev > VELOCITY_FIX) and path.get("cameras"):
         from . import sightlines
-        return dict(out, outcome=CANNOT, reading=sightlines.open_velocity(path, VELOCITY_FIX))
-    if not math.isfinite(ev) or 2 * ev > VELOCITY_FIX:
+        open_v = dict(out, outcome=CANNOT, reading=sightlines.open_velocity(path, VELOCITY_FIX))
+    elif not math.isfinite(ev) or 2 * ev > VELOCITY_FIX:
         ref, rays = path.get("velocity_err_reference_m_s"), path.get("velocity_err_rays_m_s")
         if ref is not None and rays is not None and math.isfinite(ev) and 2 * rays <= VELOCITY_FIX:
-            return dict(out, outcome=CANNOT, reading=(      # the rays' scatter alone would fix it: the reference does not
+            open_v = dict(out, outcome=CANNOT, reading=(    # the rays' scatter alone would fix it: the reference does not
                 f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): they "
                 f"leave the display's azimuth reference open to {path.get('az_reference_used_deg', path['az_reference_err_deg']):.1f} deg, and a constant "
                 f"error of one degree in every azimuth moves the velocity by {path['az_reference_pull_m_s']:.1f} m/s"))
-        return dict(out, outcome=CANNOT, reading=(
-            f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): the "
-            f"line of sight turned {path['los_turn_deg']:.0f} deg; a straight-flying aircraft cannot range what it sees"))
+        else:
+            open_v = dict(out, outcome=CANNOT, reading=(
+                f"the lines of sight do not fix its velocity ({path['speed_m_s']:.1f} m/s, two errors {2 * ev:.1f}): the "
+                f"line of sight turned {path['los_turn_deg']:.0f} deg; a straight-flying aircraft cannot range what it sees"))
+    if open_v is not None and (not math.isfinite(ev) or not any(w["counts"] for w in winds)):
+        return open_v
     rows = []
     for w in winds:
         need = V - w["w"]
@@ -1327,6 +1342,8 @@ def test_wind_track(path, winds, readings=None):
     gap = min((w.get("level_gap_m") or 0.0) for w in winds if w["counts"])
     shear = wind_change(gap)
     tol = spread + 2 * ev + wind_err + shear
+    if open_v is not None and min(need) - tol < FLIER_MIN:      # not a flier's margin beyond it all: the gate's answer
+        return open_v
     out.update(needs_m_s=[round(min(need), 2), round(max(need), 2)], winds_spread_m_s=round(spread, 2),
                winds_counted=len(need), model_wind_err_m_s=err, winds_own_err_m_s=round(wind_err, 2),
                winds_level_gap_m=round(gap, 0), wind_change_m_s=round(shear, 2), tolerance_m_s=round(tol, 2))

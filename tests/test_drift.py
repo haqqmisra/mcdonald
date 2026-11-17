@@ -610,6 +610,74 @@ def test_track_t2_a_models_own_error():
           str([w["source"] for w in tw]))
 
 
+def test_track_t2_a_flier_fails_whatever_its_velocitys_error():
+    """Since 2026-11-17 the fail rule is asked before the velocity's gate (the maintainer's decision; IDEAS.md C1). T2's
+    tolerance already holds two errors of the fitted velocity, so a body a flier's 10 m/s or more beyond the whole of it
+    fails however large that error is. Until then two errors over 5 m/s (`VELOCITY_FIX`) made T2 say "cannot say" before
+    any wind was read: once each camera's own pointing was carried (method section 66), an aircraft at 120 m/s known to
+    10 m/s could not be called a flier, and 24 to 52 of the 54 Galileo aircraft T2 had failed read "cannot say". Short of
+    a flier's margin the gate speaks as before, in the words and with the fields it had: T2 never passes, and never
+    says "between", on a velocity the rays do not fix."""
+    print("\nT2 from the lines of sight: a flier fails whatever its velocity's error (2026-11-17)")
+    w0 = np.array([8.0, 3.0])
+    wind = dict(label="sounding", w=w0, counts=True, note="observed", source="observed")
+
+    def path(through_air, ev, **more):
+        v = w0 + through_air * np.array([0.6, 0.8])
+        return dict(dict(v_m_s=v.tolist(), speed_m_s=float(np.hypot(*v)), toward_deg=float(np.degrees(np.arctan2(*v)) % 360),
+                         velocity_err_m_s=ev, los_turn_deg=90.0, height_m=3000.0, path_off_line_m=500.0, path_gate=True,
+                         range_bound=0.1, model_p=0.5, boots=2000, boots_of=2000, readings=30), **more)
+
+    gate = "the lines of sight do not fix its velocity ("
+    fast = drift.test_wind_track(path(110.0, 6.0), [wind])                 # two errors 12 m/s: over VELOCITY_FIX
+    check(fast["outcome"] == drift.FAIL and "it flies" in fast["reading"] and "two errors of the fit (12.0)" in fast["reading"]
+          and fast["tolerance_m_s"] == 12.25 and abs(fast["needs_m_s"][0] - 110.0) < 0.01 and fast["velocity_err_m_s"] == 6.0,
+          "a body 110 m/s through the air whose velocity is known to 6 m/s: it fails (cannot say until 2026-11-17), and "
+          "the reading gives the two errors it was allowed", fast["reading"][:150])
+    slow = drift.test_wind_track(path(20.0, 6.0), [wind])                  # 20 - 12.25 = 7.75 beyond: under a flier's 10
+    check(slow["outcome"] == drift.CANNOT and slow["reading"].startswith(gate) and "two errors 12.0" in slow["reading"]
+          and "needs_m_s" not in slow and "winds" not in slow and "tolerance_m_s" not in slow,
+          "the same error on a body 20 m/s through the air, 7.8 beyond the tolerance: not a flier's margin, so the "
+          "velocity's gate answers as it always did, with its own words and fields", slow["reading"][:110])
+    still = drift.test_wind_track(path(0.0, 6.0), [wind])
+    check(still["outcome"] == drift.CANNOT and still["reading"].startswith(gate),
+          "and on a drifter: T2 does not pass a body whose velocity the rays do not fix")
+    edge = [drift.test_wind_track(path(22.25 + d, 6.0), [wind])["outcome"] for d in (-0.05, 0.05)]
+    check(edge == [drift.CANNOT, drift.FAIL], "the edge is the fail rule's own: the whole tolerance (the winds' spread 0.25 "
+          "and two errors 12) plus a flier's 10 m/s", f"22.2 m/s {edge[0]}, 22.3 m/s {edge[1]}")
+    model = dict(wind, source="model", note="model")
+    edge = [drift.test_wind_track(path(22.25 + drift.MODEL_WIND_ERR + d, 6.0), [model])["outcome"] for d in (-0.05, 0.05)]
+    check(edge == [drift.CANNOT, drift.FAIL] and drift.test_wind_track(path(22.3, 6.0), [model])["outcome"] == drift.CANNOT,
+          "against a model's wind the tolerance holds the model's own error too, and the edge moves out by it")
+    none = drift.test_wind_track(path(110.0, float("inf")), [wind])
+    far = drift.test_wind_track(path(110.0, 6.0), [dict(wind, counts=False)])
+    bare = drift.test_wind_track(path(110.0, 6.0), [])
+    check(all(t["outcome"] == drift.CANNOT and t["reading"].startswith(gate) for t in (none, far, bare)),
+          "an error that is not finite, or no wind that counts, leaves the fail rule nothing to ask with: the gate "
+          "answers, as before", none["reading"][:80])
+    fixed = drift.test_wind_track(path(110.0, 2.0), [wind])
+    check(fixed["outcome"] == drift.FAIL and {k: v for k, v in fast.items() if k not in ("reading", "velocity_err_m_s", "tolerance_m_s")}
+          == {k: v for k, v in fixed.items() if k not in ("reading", "velocity_err_m_s", "tolerance_m_s")},
+          "a fail on a velocity that is not fixed carries the fields of any other fail: the winds, the airspeeds needed, "
+          "the tolerance")
+    # the same from cameras whose pointing is known only to three degrees: the cameras' words where it cannot say
+    from mcdonald import sightlines
+    opt = dict(sig=(0.3, 0.1), ground_m=600.0, pointing_err=(3.0, 3.0), nboot=60)
+    out = {}
+    for name, through in (("an aircraft", 110.0), ("a slow flier", 15.0)):
+        rd, _ = cameras_scene(v=tuple(w0 + through * np.array([0.6, 0.8])), seconds=30.0, every=1.0, h=3000.0)
+        p = drift.fit_track(sightlines.rays(rd), rng=np.random.default_rng(1), **opt)
+        out[name] = (p, drift.test_wind_track(p, [wind]))
+    (pa, ta), (ps, ts) = out["an aircraft"], out["a slow flier"]
+    check(2 * pa["velocity_err_m_s"] > drift.VELOCITY_FIX and ta["outcome"] == drift.FAIL and "it flies" in ta["reading"],
+          "three cameras whose pointing is known to three degrees see an aircraft at 110 m/s through the air: two errors of its "
+          "velocity are over 5 m/s, and it fails", f"two errors {2 * pa['velocity_err_m_s']:.1f} m/s; {ta['reading'][:90]}")
+    check(2 * ps["velocity_err_m_s"] > drift.VELOCITY_FIX and ts["outcome"] == drift.CANNOT and ts["reading"].startswith(gate)
+          and "Each camera's pointing is taken as known to 3 deg" in ts["reading"],
+          "and a body at 15 m/s through the air: cannot say, in the cameras' own words for a velocity left open",
+          f"two errors {2 * ps['velocity_err_m_s']:.1f} m/s; {ts['reading'][:120]}")
+
+
 def test_track_t2_holding_still_against_drifting():
     print("\nT2 from the aircraft's own track: drifting must fit better than holding still (2026-11-13)")
     # A body holding still over the ground needs the wind's own speed through the air. In a light wind that is within

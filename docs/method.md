@@ -3960,6 +3960,22 @@ depression below the horizontal.
   fails when even the smallest is 10 m/s or more beyond that (it flies); and cannot say between, when two errors of
   the velocity exceed 5 m/s (T2 cannot then tell a drifter from a slow flier), or when no wind was read near enough
   to its height.
+- *The fail rule before the velocity's gate* (2026-11-17, the maintainer's decision; IDEAS.md C1). The order in which
+  T2 asks is: do the rays fix a path at all (the next point but two); is the body a flier's 10 m/s or more beyond
+  the whole tolerance, in which case it fails; do the rays fix the velocity (two errors within 5 m/s,
+  `VELOCITY_FIX`), without which it cannot say; and then the rules above. Until that day the velocity's gate was
+  asked before any wind was read. But the tolerance already holds two errors of the fitted velocity, so a body 10
+  m/s beyond the whole of it is a flier however large they are, and the gate could only hide that. It did once each
+  camera's own pointing was carried (section 66): of the 80 Galileo aircraft (section 53) T2 had failed 54 with one
+  shared reference, and failed 30 with each camera's pointing known to the default 0.3 and 0.1 deg and 2 at 0.7 and
+  0.4 deg, the others reading "cannot say" at two errors of up to 75 m/s. Asked in this order it fails 80 of 80 in
+  all three, none by less than 40 m/s beyond its tolerance (each run's own fitted path and winds put through
+  `track_winds` and `test_wind_track` again, which under the old order give back every field of all 239 recorded
+  outcomes). The cost: of the 119 clouds, three (one at the wider pointing error) also go from "cannot say" to a
+  fail, bodies moving at 19 to 122 m/s over the ground and 20 to 121 m/s through the air, which no cloud does. Short
+  of a flier's margin nothing moves: the gate answers in the words and with the fields it had, an error that is not
+  finite or no wind that counts leaves the fail rule nothing to ask with, and T2 still never passes a body whose
+  velocity the rays do not fix. The four known answers' files are the same to the byte.
 - *A model's own error* (`MODEL_WIND_ERR`, 3 m/s; 2026-11-13). The spread of a model's hours says how much its wind
   changes from hour to hour, not how far it misses the air's own motion. The Galileo Project's three camera sites near
   Las Vegas triangulate clouds 2-5 km up, so their motion over the ground is known (the uap repository's
