@@ -135,8 +135,9 @@ check meant for it (one did not at first, and a check was added for it).
   says so above its table. To be made again through `--rays` (10-12 min a cloud on 6 CPUs).
 - **`dp-jitter`** (section 69) and the **cadence** study (section 70, if any) are other strands; `flicker.py` is
   theirs this week. When `dp-jitter` merges, the IDEAS row N8 and the CHANGELOG want its line.
-- **Section 53**: its sentence on held pictures waits for the cadence study (IDEAS N10). Its counts of T3 are the
-  0.5.2 envelopes'; with `flicker` 0.5.7 T3 fails on 5 of 119 clouds and no aircraft (the flicker agent's README).
+- **Section 53**: its sentence on held pictures is corrected (the "band" strand's section below; IDEAS N10). Its
+  counts of T3 are the 0.5.2 envelopes'; with `flicker` 0.5.7 T3 fails on 5 of 119 clouds and no aircraft (the
+  flicker agent's README).
 - **Open, for Jacob** (IDEAS.md): FL1 (hold-still against the winds' middle, after 0.5.8), DR10 (a sourced airspeed
   band for the Yemen aircraft), DR12 (`tools/shear_igra.py`'s sort and its dropped levels: the shear law's constants
   may move), DR13 (`WIND_DIFF_ERR` by separation), N12, N13, N14 (T3's quoted window; cameras that overlap in part; a
@@ -146,3 +147,53 @@ check meant for it (one did not at first, and a check was added for it).
   session's; manuscripts are Jacob's. What moves for it: the Yemen clip's T2 is no longer a strong test and its
   verdict rests on the shed pieces; the lanterns' tolerance is 9.5 m/s; the planted-flier figure's numbers are in
   section 67.
+
+## 2026-11-17, later: the cadence study's two answers, and the band said in words (agent "band", branch `dp-band`)
+
+**The cadence study** (agent "cadence", scratch only: `/scratch/mcdonald/drift-paper-2026-11-17/cadence/README.md`). The
+12-13 pictures a second `flicker.pictures` reads on 98 of the 494 Galileo clips with power is the encoder's group of
+pictures: every file stores one frame in five whole and copies what has hardly changed into the four between. The
+stage then listens to about 5 Hz of the 24 the frame rate carries. A fast object's own picture is new on every frame
+all the same (the 34 aircraft clips); a slow cloud's is not (the 64 cloud clips). Beats planted at 6-23 Hz are found
+0 times of 576 with the band as set. On the clips as they are no call moves. Jacob's two answers (the common brief's
+decisions 10 and 11): **for 0.5.8, say the band in words**; **after 0.5.8, measured first, `pictures` asks the
+object's own frames before it lowers the band** (IDEAS N16).
+
+**What `dp-band` built** (from `drift-paper` a50bdc3; words only):
+
+- `flicker`: every "no beat" finding ends with the band it covers, and where the frames were read as a cadence, that
+  the band stops short, what was measured that cut it, and the two things that make such frames (a source that
+  delivers pictures at that rate; compression that copies a still scene, where the object's own picture may still be
+  new), which the stage cannot tell apart. The stage's own line for a cadence no longer says the video "holds
+  pictures". New functions `listened_in`, `listened_why`, `listened_said`, `with_band` and the constant `MAKERS`;
+  `said_pictures` reworded; in `_judge` one line before the fields are written (`with_band`) and the sentence of the
+  branch for a peak above the top. Nothing that decides. The jitter strand's hunks in `_judge` are 8 and 16 lines from
+  these, and its new "no beat" gets its band from that one line.
+- `drift`: T3 names its band on every pass (`beat_band`, `_beat`, `test_beat`). With several cameras
+  (`cameras_bands`, `test_beat_cameras`) the reading names its first passing camera's band, as it names that camera's
+  floor, then each camera's where they differ with what that camera's own test said, and why for one cut short.
+- `report`: the checklist's beat row (kinds none and deaf) and the measurements' row say the band
+  (`Case.beat_band`). The window's card reads the same row.
+- An envelope or a case that does not record its band (`top_hz`, and `pictures` with `cadence`) reads as it did.
+- Method sections 34 (T3), 35 (a closing paragraph) and 53 (the *Pictures* item, corrected from the study's aggregate
+  numbers); IDEAS N10 replaced, N16-N20 added; CHANGELOG "Unreleased".
+
+**Held.** `drift`'s four known answers: the Yemen clip's, the lanterns' and the Santa Barbara helicopter's JSON are
+byte-identical (their golden envelopes are cut down and record no band); PR051's second leg differs in one field, T3's
+reading, which now says "between 1.5 and 12.0 Hz" and why (a 29.97-a-second source doubled onto 59.94 frames). T3 of
+the 239 Galileo objects from the flicker agent's 0.5.7 envelopes: no field but a reading differs; 193 passes gain
+their band; 184 objects have a camera heard to 24 Hz; 14 (10 clouds, 4 aircraft) say that a faster beat may have gone
+unheard; on 36 the reading leads with a camera cut short while another passing camera listened to 24 Hz, which the
+list of bands now shows. The fourteen reference case files measured again with the code before and after (31
+objects): every number, answer, conclusion, bottom line, reason and grade the same; the seven objects with no beat
+gain the band in two sentences each (all seven 1.5 to 12.0 Hz). Nineteen deliberate breaks, each caught by the check
+meant for it. The sentences that changed, old and new, are listed for Jacob in the strand's scratch folder
+(`band/words-for-jacob.md`).
+
+**For the table of the paper.** T3's reading now carries each camera's band. The table can count the 14 objects no
+camera heard above about 5 Hz from the readings ("may have gone unheard"), or from each envelope's `top_hz`.
+
+**Open, for Jacob** (IDEAS.md): N16 (the object's own frames, after 0.5.8); N20 (a camera counts as able to see a
+beat above its own band: on none of the 239 objects); which camera a several-camera reading leads with (the first that
+passes, as before, or the one that listened furthest: that would move `smallest_beat_seen` in T3's JSON); and whether
+the checklist's "No" should stand where the band stops under most of a wingbeat's range (2 to 25 times a second).

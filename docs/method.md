@@ -4188,10 +4188,14 @@ depression below the horizontal.
   clip's, the lanterns' and the Santa Barbara helicopter's envelopes are cut down and say what they said, and PR051's
   second leg, a source of 29.97 pictures a second doubled onto 59.94 frames, now says it was heard between 1.5 and
   12.0 Hz of the 24.0 its frame rate carries. With several cameras the reading names its first passing camera's band,
-  as it names that camera's floor, and then each camera's where they differ, with what cut short any that stops under
-  its frame rate's; where no camera that could say listened to the frame rate's top it adds the two makers and that a
-  beat faster than the highest top may have gone unheard (`drift.cameras_bands`). On the Galileo objects (§53) 184 of
-  198 have a camera heard to 24 Hz, and 14 (10 clouds, 4 aircraft) were heard to about 5 Hz from every camera. Words
+  as it names that camera's floor, and then each camera's where they differ, with what that camera's own test said
+  ("it passes too: only a beat over 10% would have shown", "it could not say", "its beat is its own view") and what
+  cut short any that stops under its frame rate's; where no camera that could say listened to the frame rate's top it
+  adds the two makers and that a beat faster than the highest top may have gone unheard (`drift.cameras_bands`). On
+  the Galileo objects (§53) 184 of 198 have a camera heard to 24 Hz, and 14 (10 clouds, 4 aircraft) were heard to
+  about 5 Hz from every camera; on 36 of the 193 that pass, the reading leads with a camera cut short while another
+  that passes listened to 24 Hz, which the list now shows (the lead is the first passing camera's, as before: the
+  camera that listened furthest would move `smallest_beat_seen` in the test's record). Words
   only: no outcome, no number and no verdict reads the band. One thing the words now show and the rule does not ask
   (IDEAS.md N20): a camera counts as one that could have seen another's beat by its floor alone, also where the beat's
   rate is above the band that camera listened in. The reading says so where it happens ("but that rate is above the
