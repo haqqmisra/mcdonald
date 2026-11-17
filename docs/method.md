@@ -8778,6 +8778,18 @@ the route from the ranges, for which planting is not built.
 6. *The summary's two numbers* are read over the airspeeds tried, so they are as fine as that grid: `fails_from_m_s`
    asks every plant at that airspeed and at every faster one to fail; `passes_up_to_m_s` asks one plant to pass.
 7. *The plants' climb and place* are the fitted path's. T1 is not run on them.
+8. *Rays from cameras of their own* (section 66, `--rays`, built beside this on another branch; this one keeps to
+   its keys and was not run on it). A plant's rays are the case's rays with the two angles alone replaced, so each
+   keeps its camera; and each plant's fit is handed the options the case's fit was called with, whatever they are
+   (`plant_track`'s `fit`), the cameras' pointing error among them. A plant is then fitted camera by camera as the
+   case was: each camera's own scatter, its share of every resample, its pointing carried in the errors. What a
+   plant's rays draw is what they draw from an aircraft: each ray's own miss about the six-parameter path, at its
+   own reading and so at its own camera, its sign afresh, enlarged by sqrt(2n / (2n - 6)), which is each camera's own
+   factor too under section 66's rule (a camera's share of the six parameters is its share of the readings). A
+   poorer camera stays the poorer. What a camera's pointing offset left in its rays' misses, the part the path could
+   not take up, is drawn as scatter of that size and not as a constant. No plant's rays are turned by a drawn
+   pointing error, as none are turned by a drawn azimuth reference: those errors are in each plant's tolerance,
+   through its fit's errors, as they were in the case's, and not in where its rays point.
 
 **On AARO's Puerto Rico lanterns** (the known drifter of section 34; `tests/golden/puerto_rico_drift/`; 39 lines of
 sight, 14 winds counted, tolerance 10.5 m/s). The lanterns pass T2, so the plants ride their own path: 7.37 m/s toward
@@ -8848,8 +8860,10 @@ plant's number).
   A plant that T2 cannot judge would leave the verdict at "cannot say", not at "consistent with drift".
 - It takes the winds as given. Plants in the object's own air carry the winds' real miss of that air only if the
   object drifts; plants in the winds carry none. Neither draws a wind's error afresh.
-- It carries no error the rays share (the azimuth reference: the fit's own allowance for it is in each plant's
-  tolerance, but no plant's rays are turned), and none that runs on from reading to reading (judgement call 2).
+- It carries no error the rays share (the azimuth reference, or each camera's pointing: the fit's own allowance for
+  it is in each plant's tolerance, but no plant's rays are turned), and none that runs on from reading to reading
+  (judgement calls 2 and 8). So a plant's fitted velocity scatters by the rays' part of the fit's error, not by all
+  of it.
 - A plant flies straight and level at a steady airspeed for the whole stretch, in a wind that is the same along its
   path. A bird that circles, or a body that changes its speed, is another question (the fit's model gate, section 34).
 - The airspeeds are a grid: "25 m/s or more" means 25 was the slowest tried at which all failed, and 20 was not.
