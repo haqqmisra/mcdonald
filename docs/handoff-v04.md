@@ -50,9 +50,12 @@ session 26's two additions, and three of session 27's:
    20261117-092800-plants-merge-413ea81); CHANGELOG and IDEAS (PL5-PL9, G2's note) from the agent's drafts.
 3. **0.5.8:** Jacob, 2026-11-17 (to the wind-drift finalization session): "Once the current GPU session finishes, then
    that is enough for the release." That session cuts it, with the drift paper's items; this session's work is on main.
-4. **Why planted beats of 9-12 Hz are found less** (42 % against 62-66 % below 9 Hz): Jacob, 2026-11-17, "measure why"
-   -- a reading on the 80 planted videos' cases (the frames per cycle; `flicker`'s ceiling of 0.8 of the frame rate's
-   highest frequency), nothing changed. Files: /scratch/mcdonald/plants-2026-11-16/out/batch-beats.
+4. **Why planted beats of 9-12 Hz are found less**: **read** (Jacob's "measure why", 2026-11-17; method section 62.2's
+   last paragraph; /scratch/mcdonald/plants-2026-11-16/highbeats/NOTES-highbeats.md). No single limit: about a quarter
+   is `flicker`'s top on PR44's held pictures (5.7 Hz there), about half the draw's mix (fast beats mostly shallow
+   flock members), the rest flock members near another planted point, whose background beats too. Not the encoder
+   (0.80-0.94 of the amplitude reaches the curve up to 14 Hz), not aliasing, not shorter tracks. Two things for `plant`
+   before the 144-video run: a light written on held frames (IDEAS PL10) and the same draws in every video (PL11).
 5. **Parked or his:** G2 (Find's search on the card: "not now", 2026-11-16), the plants into all 144 videos (answer 5),
    G9's robust decisions, a Mac's card (G4), `stabilize` (G7, CPU by his choice), Slurm's shared-GPU shards (G8: no change).
 

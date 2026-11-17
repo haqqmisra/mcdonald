@@ -8326,6 +8326,22 @@ the others): on the card that part would take about a third as long, which is ab
 median by video, 2.9 GB at most), one hour of wall time on 36-44 of arthur's CPUs; the controls and stretches 2.3. Find
 was not run again: in 62.1 it was 19.8 CPU-hours of these videos.
 
+**Why the beats at 9-12 Hz are found less** (a reading of the saved cases, 2026-11-17; nothing changed). Planted
+beats at 9-12.5 Hz are recovered at their frequency on 42 of 96 (44 %), against 101 of 157 (64 %) under 9 Hz, and no
+single limit explains it. About a quarter is `flicker`'s top: it hears a beat up to 0.8 of the Nyquist frequency, 12 Hz
+at 30 frames a second, but of the picture rate where it reads a cadence of held pictures, and on 9 objects of PR44 it
+reads 14.2 pictures a second and stops at 5.7 Hz; 5 of the misses are refused for that alone. The draw gives a beat up
+to 12 Hz and writes it on every frame, held or not, so on PR44 such a beat is one no real object there could show,
+and the refusal is right. About half is the draw's mix: the beats drawn at 9-12.5 Hz are mostly members of flocks and
+seldom deep (2 of 34 flocks at a depth of 0.6), and the rates under 9 Hz by depth and kind predict 54 % there,
+against 45 % found inside the top. What remains is in flock members near another planted point (within 20 px: 3 of 21
+at 9-12.5 Hz, 11 of 16 under 9 Hz), whose background apertures beat too, so that the floor they are held to is higher
+(0.063 of their brightness against 0.038). The second encode does not take a fast beat away: read from the saved
+curves, 0.8-0.94 of the planted amplitude reaches the curve at every frequency up to 14 Hz. No miss is a beat called at
+an alias or a harmonic, and the misses are no shorter than the hits. The same draws recur across the eight videos
+(an object's light is seeded by the seed and its number), so the 1,482 beating objects hold 780 distinct draws of
+frequency and depth, and a cell is smaller than its count.
+
 ## 63. What the sensors' own backgrounds do: the corpus noise model, its tail, and a false discovery rate over the pass (ROADMAP 0.6, objective 6; S3, E24, D7; added 2026-11-15)
 
 **What it answers.** The flicker stage holds an object's beat against the four background apertures beside it, each
