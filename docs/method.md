@@ -8776,3 +8776,42 @@ the route from the ranges, for which planting is not built.
 6. *The summary's two numbers* are read over the airspeeds tried, so they are as fine as that grid: `fails_from_m_s`
    asks every plant at that airspeed and at every faster one to fail; `passes_up_to_m_s` asks one plant to pass.
 7. *The plants' climb and place* are the fitted path's. T1 is not run on them.
+
+**On AARO's Puerto Rico lanterns** (the known drifter of section 34; `tests/golden/puerto_rico_drift/`; 39 lines of
+sight, 14 winds counted, tolerance 10.5 m/s). The lanterns pass T2, so the plants ride their own path: 7.37 m/s toward
+240 deg. Passes / cannot say / fails, of 32 plants at each airspeed (8 of the old script's, which had 35 m/s where
+this has 30, 40 and 50):
+
+| airspeed, m/s | 0.4.3 (the drift paper's Fig. 3d) | now, the lanterns' own air | now, the 14 winds in turn |
+|---|---|---|---|
+| 0 | 1 / 0 / 0 | 32 / 0 / 0 | 2 / 30 / 0 |
+| 5 | 2 / 6 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 10 | 0 / 8 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 15 | 0 / 8 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 20 | 0 / 3 / 5 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 25 | 0 / 0 / 8 | 0 / 0 / 32 | 0 / 7 / 25 |
+| 30 | (35: 0 / 0 / 8) | 0 / 0 / 32 | 0 / 0 / 32 |
+| 40, 50 | | 0 / 0 / 32 | 0 / 0 / 32 |
+
+In the lanterns' own air a body flying 25 m/s or more through it fails whichever way it flies; from 5 to 20 m/s T2
+cannot say; no flier passes as a drifter, down to 5 m/s; and a drifter passes 32 times in 32 (64 in 64 with 8 draws;
+every draw of an airspeed and direction came out alike, so on this case the outcome is the geometry's and the winds',
+not the errors'). What moved since 0.4.3, and why, rule by rule: the old script's 49 plants were put through today's
+`drift` with 0.4.3's rules put back (no model error, the azimuth reference taken as exact, no wind's own error, no
+hold-still rule), and came out as the paper's file has them, 49 of 49, the airspeeds needed to 0.01 m/s. Then the
+rules were put on one at a time:
+
+| airspeed, m/s | 0.4.3's rules | + the azimuth reference at 0.3 deg | + a model's own error, 3 m/s | + the hold-still rule (today) |
+|---|---|---|---|---|
+| 5 | 2 / 6 / 0 | 4 / 4 / 0 | 8 / 0 / 0 | 0 / 8 / 0 |
+| 20 | 0 / 3 / 5 | 0 / 4 / 4 | 0 / 8 / 0 | 0 / 8 / 0 |
+
+(0, 10, 15, 25 and 35 m/s did not move; the aircraft's own wind's error, 2 x 0.55 m/s, is under the model's 3 and adds
+nothing.) The tolerance went from 7.2 m/s to 10.5: the fails at 20 m/s need 10 m/s beyond it and are gone, and 25 m/s
+is now the slowest that fails in every direction, by under 1 m/s (it needs 21.4 at the least, against 10.0-11.0 + 10).
+At 5 m/s the wider tolerance alone would pass all eight directions as drifters; the hold-still rule takes every one
+back, since a body flying 5 m/s through the lanterns' air needs more against the farthest wind than the weakest wind
+blows (4.5 m/s). So with today's rules the paper's sentences become: every flier at 25 m/s or more fails, 5 to 20 m/s
+cannot be said, and none passes. The heading offset moved nothing here (the lanterns' turn asks for none). With the
+plants riding the 14 winds in turn the row at zero says what judgement call 1 says: 2 of 32 pass, 30 "holding still
+fits as well".
