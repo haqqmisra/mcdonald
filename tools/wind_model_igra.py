@@ -10,11 +10,11 @@ public API, no key, a generic client name).
     python tools/wind_model_igra.py $MCDONALD_DATA/winds_igra OUT_DIR [--workers N] [--fetch]
 
 It imports the package (`drift.hourly_levels`, `drift._at`, `drift.wind_samples`, `drift.test_wind`), so it is a batch
-job: about 25 minutes on 18 CPUs, 2 GB each. It prints, and writes to OUT_DIR:
+job: 10 minutes on 9 CPUs of a 2023 workstation, the largest process 5 GB. It prints, and writes to OUT_DIR:
 - A. the model's vector wind error against the soundings by height above the station, place class, station and
-  half-year, at the sounding's hour and the hour before (`wind_error.csv`);
+  half-year, at the sounding's hour and the hour before (every row in `err.npy`);
 - B1. the error of the model's wind DIFFERENCE between two heights, by their separation, as a vector and across a
-  heading (`difference_error.csv`; the two tables together are the package's tests/golden/wind_model_soundings.csv);
+  heading (with A, `wind_model_table.csv`: the package's tests/golden/wind_model_soundings.csv);
 - B2. what T2 "from the ranges" (`drift.test_wind`) says of drawn cases whose truth is a sounding: a body drifting
   with the sounding's wind at the object's height, and bodies flying 5, 10, 25 and 50 m/s through that air in eight
   directions, seen from an aircraft at the aircraft's height flying a heading at an MQ-9's airspeed, with the model's
@@ -451,6 +451,8 @@ def main(sample, outdir, workers=18, src=None):
                     print(f"   {what}: n {m.sum():5d}, stations {len(set(dk[m]))} | {q[0]:.2f} / {q[1]:.2f} / {q[2]:.2f} ({b90[0]:.2f}-{b90[1]:.2f}) / {q[3]:.2f} | "
                           f"across: sd {np.std(ac):.2f}, {np.percentile(np.abs(ac), 90):.2f}, {np.percentile(np.abs(ac), 95):.2f} | true {np.median(dtrue[m]):.1f}")
                     lo, hi = (f"{dz:g}", f"{dz:g}") if geom == "H" else tuple(geom[1:].split("-"))
+                    if ls == "full" or (ls == "yemen" and not (geom == "L700-400" or (geom == "H" and abs(dz - (AIR_M - OBJ_M)) < 1.0))):
+                        continue                    # the table keeps the Yemen files' levels only for the clip's own pair of heights
                     lines.append(f"{'difference' if geom == 'H' else 'difference_levels'},{lg},{ls},{lo},{hi},{m.sum()},{q[0]:.2f},{q[1]:.2f},"
                                  f"{q[2]:.2f},{q[3]:.2f},{np.sqrt(np.mean(dsize[m] ** 2)):.2f},{np.mean(dsize[m] <= 3):.3f},{np.std(ac):.2f},"
                                  f"{np.percentile(np.abs(ac), 90):.2f},{np.percentile(np.abs(ac), 95):.2f}")

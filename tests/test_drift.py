@@ -271,6 +271,40 @@ def test_t2_from_the_ranges_against_soundings():
         check(len(pair) == 1 and abs(pair[0][8] - 4.0) < 0.4 and abs(pair[0][9]) < 0.4 and len(top) == 1 and 3.0 < top[0][6] < 4.2,
               "the model's 400-hPa wind 4 m/s off to the east: the 700-400 hPa difference errs by 4 m/s east, the wind at "
               "7.5 km by nearly as much", f"{pair[0][8]:.2f} and {top[0][6]:.2f} m/s" if pair and top else "")
+    # the table the tool made on the real soundings (7,688 of 17 stations, 2026), held to what the method note quotes
+    rows = drift.read_rows(reference_data.GOLDEN / "wind_model_soundings.csv")
+
+    def row(kind, lag, levels, low, high=None):
+        r = [x for x in rows if (x["kind"], x["lag_h"], x["levels"], x["low_m"], x["high_m"]) == (kind, str(lag), levels, str(low), str(high or low))]
+        return {k: float(v) for k, v in r[0].items() if k not in ("kind", "levels") and v != ""} if len(r) == 1 else None
+
+    bands = [row("wind", -1, "all", 1000, 3000), row("wind", -1, "all", 3000, 6000)]
+    check(all(b and 1.9 < b["p50"] < 2.4 and 4.0 < b["p90"] < 4.9 and 0.65 < b["under_3"] < 0.78
+              and b["p50"] < drift.MODEL_WIND_ERR < b["p90"] for b in bands),
+          "a model's wind against a balloon, 1-6 km above the station at the hour before the sounding: about 2.1 m/s off "
+          "(median), 4.3-4.6 at the 90th percentile; MODEL_WIND_ERR, 3 m/s, covers about seven in ten as a vector",
+          ", ".join(f"{b['p50']} / {b['p90']} / {b['under_3']}" for b in bands if b))
+    clip = row("difference", -1, "yemen", 3793)
+    least, largest = 5.2 * drift.KN, 18.4 * drift.KN                 # the Yemen clip's T2: its shortfall across the heading
+    check(clip and 2.7 < clip["across_sd"] < 3.3 and 4.5 < clip["across_p90"] < 5.1 and least < clip["across_sd"]
+          and largest > clip["across_p95"],
+          "the model's wind DIFFERENCE between the Yemen clip's two heights, across a heading: one standard deviation 3.0 "
+          "m/s, 4.8 nine times in ten; the clip's least shortfall (2.7 m/s) is inside one, its largest (9.5) beyond 95 in 100",
+          f"sd {clip['across_sd']}, 90th {clip['across_p90']}, 95th {clip['across_p95']} m/s" if clip else "")
+    grow = [row("difference", -1, "all", dz) for dz in (1000, 2000, 3000, 3793, 5000, 6000)]
+    one = bands[1]["p50"] if bands[1] else float("nan")
+    check(all(grow) and max(g["p50"] for g in grow) / min(g["p50"] for g in grow) < 1.25
+          and all(1.25 < g["p50"] / one < 1.65 for g in grow) and row("difference", -1, "all", 500)["p50"] < grow[0]["p50"],
+          "that error stops growing past 1 km of separation, at about the square root of two times one wind's error: the "
+          "model's errors at two heights a kilometre or more apart are nearly independent",
+          ", ".join(f"{g['p50'] / one:.2f}" for g in grow if g))
+    pairs = [(row(k, 0, lv, lo, hi), row(k, -1, lv, lo, hi)) for k, lv, lo, hi in
+             (("wind", "all", 3000, 6000), ("difference", "yemen", 3793, None), ("difference_levels", "all", 700, 400))]
+    out = (row("wind_left_out", -1, "all", 0, 10000), row("wind", -1, "all", 0, 10000))
+    check(all(a and b and a["p50"] < b["p50"] and a["p90"] < b["p90"] for a, b in pairs) and out[0]["p95"] > 2.5 * out[1]["p95"],
+          "at the sounding's own hour the model is nearer the balloon than an hour before (it has just been given the "
+          "sounding); the station left out of the pooled rows has a tail the others do not",
+          f"{pairs[1][0]['p50']} against {pairs[1][1]['p50']} m/s; 95th pct {out[0]['p95']} against {out[1]['p95']}")
 
 
 # ---------------------------------------------------------------- T1/T2 from the aircraft's own track
