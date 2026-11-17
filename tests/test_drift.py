@@ -764,7 +764,7 @@ def test_fliers_planted_on_a_drawn_orbit():
     from mcdonald import fliers
     print("\nPlanted fliers: on a drawn orbit round a drifter")
     R, path, winds, t2 = planted_case()
-    opts = dict(sig=(0.1, 0.03), case_t2=t2, speeds=(10.0, 40.0), draws=2, nboot=60, procs=0)
+    opts = dict(fit=dict(sig=(0.1, 0.03)), case_t2=t2, speeds=(10.0, 40.0), draws=2, nboot=60, procs=0)
     f = fliers.plant_track(R, path, winds, **opts)
     T = {t["airspeed_m_s"]: t for t in f["table"]}
     check(t2["outcome"] == drift.PASS and f["air"] == "path" and f["air_chosen_by"] == "the case passed the wind test"
@@ -806,6 +806,20 @@ def test_fliers_planted_on_a_drawn_orbit():
           and w["fails_from_m_s"] == 40.0 and "as one of the winds given says" in w["sentence"],
           "asked to ride the winds, the 16 plants at each speed take the six winds in turn (2 or 3 each); a drifter in "
           "any of them passes, 40 m/s fails", f"rides {rides}; {w['sentence']}")
+    # what the module does not know of goes through it untouched: the rays' other keys, the fit's other options
+    Rx = dict(R, camera=np.arange(len(R["t"])) % 2, cameras=("a", "b"))
+    P = fliers.planted_rays(Rx, path, np.array(path["v_m_s"]), fliers.misses(R, path))
+    check(set(P) == set(Rx) and all(P[k] is Rx[k] for k in Rx if k not in ("az", "dep")) and np.allclose(P["az"], R["az"], atol=1e-9)
+          and np.allclose(P["dep"], R["dep"], atol=1e-9),
+          "a plant's rays are the case's with the two angles alone replaced, so a camera named for each ray goes with them; "
+          "and the case planted as it is gives the case's own rays back")
+    one = dict(opts, speeds=(), directions=1, draws=1)
+    wide = fliers.plant_track(R, path, winds, **dict(one, fit=dict(sig=(0.1, 0.03), az_ref_err=5.0)))
+    usual = fliers.plant_track(R, path, winds, **one)
+    check(wide["runs"][0]["velocity_err_m_s"] > 3 * usual["runs"][0]["velocity_err_m_s"] and wide["runs"][0]["fitted_m_s"] == usual["runs"][0]["fitted_m_s"],
+          "the fit's options are handed to each plant's fit as given: an azimuth reference known to 5 deg widens a plant's "
+          "velocity error and moves no fitted number",
+          f"{usual['runs'][0]['velocity_err_m_s']} -> {wide['runs'][0]['velocity_err_m_s']} m/s")
     lines = "\n".join(fliers.said(f))
     check("| 40 | 16 | 0 | 0 | 16 |" in lines and f["sentence"] in lines and "WARNING" not in lines,
           "the printed lines: the table by airspeed, then the sentence")
@@ -817,7 +831,7 @@ def test_fliers_are_not_planted_where_the_case_gives_no_ground():
     from mcdonald import fliers
     print("\nPlanted fliers: no plants where there is no path to plant on, with the reason")
     R, path, winds, t2 = planted_case(turn=False)
-    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, nboot=60, procs=0)
+    f = fliers.plant_track(R, path, winds, fit=dict(sig=(0.1, 0.03)), case_t2=t2, nboot=60, procs=0)
     check(f["plants"] == 0 and "runs" not in f and "fix no path" in f.get("why", "") and "flew straight" in f.get("why", "")
           and f["sentence"].startswith("No bodies were planted: ") and fliers.said(f) == [f"\nplanted fliers: {f['sentence']}"],
           "a straight flight fixes no path: no plants, and it says why", f["sentence"][:140])
@@ -826,13 +840,13 @@ def test_fliers_are_not_planted_where_the_case_gives_no_ground():
     check(f["plants"] == 0 and "6 lines of sight, where at least 9 are needed" in f.get("why", ""), "six lines of sight: no path, no plants",
           f.get("why", "")[:80])
     R, path, winds, t2 = planted_case()
-    f = fliers.plant_track(R, path, [dict(w, counts=False) for w in winds], sig=(0.1, 0.03), nboot=60, procs=0)
+    f = fliers.plant_track(R, path, [dict(w, counts=False) for w in winds], fit=dict(sig=(0.1, 0.03)), nboot=60, procs=0)
     check(f["plants"] == 0 and "no wind that bears on its height" in f.get("why", ""), "no wind that counts: no plants", f.get("why", "")[:80])
     R, path, winds, t2 = planted_case(v_obj=np.array([-6.0, -3.5]) + 25.0 * np.array([0.5, -0.866]))
-    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, air="path", nboot=60, procs=0)
+    f = fliers.plant_track(R, path, winds, fit=dict(sig=(0.1, 0.03)), case_t2=t2, air="path", nboot=60, procs=0)
     check(t2["outcome"] == drift.FAIL and f["plants"] == 0 and "failed the wind test" in f.get("why", ""),
           "a flier's own motion is not the air's: asked to ride the path of a case that failed T2, no plants", f.get("why", "")[:90])
-    f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, speeds=(40.0,), draws=1, nboot=60, procs=0)
+    f = fliers.plant_track(R, path, winds, fit=dict(sig=(0.1, 0.03)), case_t2=t2, speeds=(40.0,), draws=1, nboot=60, procs=0)
     check(f["air"] == "winds" and f["air_chosen_by"] == "the case did not pass the wind test" and f["drifter"]["passes"] == 8
           and f["fails_from_m_s"] == 40.0, "left to itself there, it plants in the winds: a drifter in them passes, 40 m/s fails",
           f["sentence"])

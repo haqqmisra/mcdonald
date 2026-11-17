@@ -28,7 +28,8 @@ The judgement calls (docs/method.md, section 67, argues each):
     the draws   DRAWS sign draws for each airspeed and direction, and as many plants at zero airspeed as at any
                 other, so each rate is over DIRECTIONS x DRAWS plants (32: a rate is known to 9 in 100 at the worst).
     the fit     each plant's fit resamples its readings as often as the case's did (`boots_of`), since the number of
-                resamples is itself one of the fit's gates (`drift.BOOT_MIN`); about 6 s a plant at 2,000.
+                resamples is itself one of the fit's gates (`drift.BOOT_MIN`); 6 to 15 s a plant at 2,000. Measured on
+                the lanterns and on a cloud at T2's edge: with 400 or 200 no plant of 864 came out differently.
     the check   the case's own rays, planted again as they are, must come out as the case did (`case_again`).
 
 The table and the sentence are made from rows of one form (`summary`), so the route from the ranges (`drift.fit_line`,
@@ -91,9 +92,9 @@ def because(t2):
         return None
     if "needs_m_s" not in t2:
         return NO_WIND if "winds" in t2 else OPEN if "speed_m_s" in t2 else UNFIXED
-    if t2["wind_change_m_s"] > drift.VELOCITY_FIX:
+    if t2.get("wind_change_m_s", 0.0) > drift.VELOCITY_FIX:
         return FAR
-    if t2["needs_m_s"][1] <= t2["tolerance_m_s"] and not t2["drift_beats_hold"]:
+    if t2["needs_m_s"][1] <= t2.get("tolerance_m_s", math.inf) and not t2.get("drift_beats_hold", True):
         return HOLD
     return BETWEEN
 
@@ -119,16 +120,16 @@ def _one(job):
         miss = (S["miss"][0] * sign * grow, S["miss"][1] * sign * grow)
         th = math.radians(job["toward"] or 0.0)
         v = np.asarray(S["airs"][job["air"]]["w"], float) + job["airspeed"] * np.array([math.sin(th), math.cos(th)])
-    fit = drift.fit_track(planted_rays(R, path, v, miss), S["sig"], S["ground_m"], rng, nboot=S["nboot"],
-                          az_ref_err=S["az_ref_err"])
+    fit = drift.fit_track(planted_rays(R, path, v, miss), rng=rng, nboot=S["nboot"], **S["fit"])
     t2 = drift.test_wind_track(fit, winds_at(S["winds"], fit["height_m"]) if fit else [], readings=n)
     row = dict(airspeed_m_s=job.get("airspeed"), toward_deg=job.get("toward"),
                air=None if job.get("as_it_is") else S["airs"][job["air"]]["label"], draw=job.get("draw"),
                outcome=t2["outcome"], because=because(t2), needs_m_s=t2.get("needs_m_s"),
                tolerance_m_s=t2.get("tolerance_m_s"), ground_m_s=[round(float(v[0]), 2), round(float(v[1]), 2)])
     if fit:
+        ev = fit.get("velocity_err_m_s")
         row.update(fitted_m_s=[round(fit["v_m_s"][0], 2), round(fit["v_m_s"][1], 2)],
-                   velocity_err_m_s=round(fit["velocity_err_m_s"], 2) if math.isfinite(fit["velocity_err_m_s"]) else None,
+                   velocity_err_m_s=round(ev, 2) if ev is not None and math.isfinite(ev) else None,
                    height_m=round(fit["height_m"], 0))
     return row
 
@@ -149,20 +150,66 @@ def plan(speeds, directions, draws, airs, seed):
     return jobs
 
 
+NO_RANGES = ("fliers are planted only where the wind test runs from lines of sight, and this case's runs from the "
+             "ranges, where planting is not built yet")
+
+
+def options(ap):
+    """`--plant` and its options, for `mcdonald drift`'s command line."""
+    from .progress import PROCS_HELP
+    ap.add_argument("--plant", action="store_true",
+                    help="plant fliers on this case's own geometry and winds, to see how slow a flier the wind test "
+                         "(T2 from the lines of sight) would have caught. Each planted body sits at the fitted "
+                         "place and height and moves with the air plus a speed through it, in eight directions. Each "
+                         "goes through the same fit and the same test. It takes minutes; the result is the field "
+                         "planted_fliers")
+    ap.add_argument("--plant-speeds", metavar="M/S",
+                    help="the speeds through the air to plant, m/s, comma-separated (default 0,5,10,15,20,25,30,40,50; "
+                         "zero, a drifter, is always among them)")
+    ap.add_argument("--plant-air", choices=list(AIRS),
+                    help="the air a planted body rides. path: the object's own fitted velocity, which is the air's "
+                         "where the object drifts. winds: each wind the test counted, in turn. By default path where "
+                         "the object passed the wind test, and winds where it did not")
+    ap.add_argument("--plant-draws", type=int, metavar="N",
+                    help="draws of the lines of sight's errors for each speed and direction (default 4)")
+    ap.add_argument("--procs", type=int, help="for --plant: " + PROCS_HELP)
+
+
+def asked(args):
+    """The command line's `--plant` and its options as `drift.measure`'s `plant`: None unless asked for."""
+    from .progress import to_stderr
+    if not args.plant:
+        if args.plant_speeds or args.plant_air or args.plant_draws:
+            raise SystemExit("--plant-speeds, --plant-air and --plant-draws go with --plant")
+        return None
+    opts = dict(procs=args.procs, progress=to_stderr())
+    if args.plant_speeds:
+        opts["speeds"] = tuple(float(x) for x in args.plant_speeds.split(","))
+    if args.plant_air:
+        opts["air"] = args.plant_air
+    if args.plant_draws:
+        opts["draws"] = args.plant_draws
+    return opts
+
+
 def none(why, route="lines of sight"):
     """The result where nothing could be planted, with the reason."""
     return dict(route=route, plants=0, why=why, sentence=f"No bodies were planted: {why}.")
 
 
-def plant_track(R, path, winds, sig=(0.3, 0.1), ground_m=None, az_ref_err=None, case_t2=None, speeds=SPEEDS,
-                directions=DIRECTIONS, draws=DRAWS, air=None, seed=20261021, nboot=None, procs=None, progress=None):
-    """Planted fliers on the route from the lines of sight. `R` the case's rays (`drift.rays`), `path` its fitted path
-    (`drift.fit_track`), `winds` its winds (`winds_at`), `sig`, `ground_m`, `az_ref_err` as the case's fit had them,
-    `case_t2` the case's own T2 where it is known. `speeds` m/s through the air (zero is added: the drifter itself),
+def plant_track(R, path, winds, fit=None, case_t2=None, speeds=SPEEDS, directions=DIRECTIONS, draws=DRAWS, air=None,
+                seed=20261021, nboot=None, procs=None, progress=None):
+    """Planted fliers on the route from the lines of sight. `R` the case's rays (`drift.rays`, or any dict with its
+    keys: a plant's rays are a copy of it with `az` and `dep` alone replaced, so whatever else it carries -- a camera
+    for each ray, say -- goes with them), `path` its fitted path (`drift.fit_track`), `winds` its winds (`winds_at`),
+    `fit` the keyword arguments the case's own `fit_track` was called with but for `rng` and `nboot` (sig, ground_m,
+    az_ref_err and any other: each plant's fit is handed the same, unread here), `case_t2` the case's own T2 where it
+    is known. `speeds` m/s through the air (zero is added: the drifter itself),
     `directions` and `draws` as in the module's notes, `air` "path" or "winds" (None: the path's where `case_t2`
-    passed, else the winds'), `nboot` the resamples of each plant's
-    fit (None: as many as the case's). `procs` worker processes (0: in this process). The same seed gives the same
-    result, however many processes. Returns the dict that goes into the drift JSON as `planted_fliers`."""
+    passed, else the winds'), `nboot` the resamples of each plant's fit (None: as many as the case's), `seed` the
+    stage's own (the case planted again is then fitted as the stage fitted the case). `procs` worker processes (0: in
+    this process). The same seed gives the same result, however many processes. Returns the dict that goes into the
+    drift JSON as `planted_fliers`."""
     from .progress import pooled
     if air not in AIRS + (None,):
         raise ValueError(f"air is one of {AIRS}, not {air!r}")
@@ -189,8 +236,8 @@ def plant_track(R, path, winds, sig=(0.3, 0.1), ground_m=None, az_ref_err=None, 
         airs = [dict(label=w["label"], w=[float(x) for x in w["w"]]) for w in counted]
     speeds = sorted({0.0} | {abs(float(s)) for s in speeds})
     nboot = int(path["boots_of"] if nboot is None else nboot)
-    shared = dict(R=R, path=path, miss=misses(R, path), winds=winds, sig=tuple(sig), ground_m=ground_m,
-                  az_ref_err=az_ref_err, nboot=nboot, seed=seed, airs=airs)
+    shared = dict(R=R, path=path, miss=misses(R, path), winds=winds, fit=dict(fit or {}), nboot=nboot, seed=seed,
+                  airs=airs)
     jobs = [dict(as_it_is=True)] + plan(speeds, directions, draws, len(airs), seed)
     rows = pooled(procs, _one, jobs, init=_start, initargs=(shared,), progress=progress,
                   what=f"planting {len(jobs) - 1} bodies, each through the fit and the wind test", pixels=1)
@@ -198,8 +245,8 @@ def plant_track(R, path, winds, sig=(0.3, 0.1), ground_m=None, az_ref_err=None, 
     again = dict(outcome=again["outcome"], needs_m_s=again["needs_m_s"], tolerance_m_s=again["tolerance_m_s"],
                  as_the_case=None if case_t2 is None else bool(again["outcome"] == case_t2["outcome"]
                                                               and again["needs_m_s"] == case_t2.get("needs_m_s")))
-    out = dict(route="lines of sight", air=air, air_chosen_by=chosen, airs=[dict(a, w=[round(x, 2) for x in a["w"]]) for a in airs],
-               speeds_m_s=speeds, directions_deg=[360.0 * i / directions for i in range(directions)], draws=draws,
+    out = dict(route="lines of sight", air=air, air_chosen_by=chosen,
+               airs=[dict(a, w=[round(x, 2) for x in a["w"]]) for a in airs], speeds_m_s=speeds, directions_deg=[360.0 * i / directions for i in range(directions)], draws=draws,
                plants=len(rows), plants_each_speed=directions * draws, resamples=nboot, seed=seed, case_again=again)
     out.update(summary(rows, air=air, airs=len(airs)))
     out["runs"] = rows

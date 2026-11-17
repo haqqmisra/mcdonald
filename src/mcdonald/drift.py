@@ -71,7 +71,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .progress import PROCS_HELP, to_stderr
+from .progress import to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 G = 9.81
@@ -1588,16 +1588,12 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
         fields["relative_line"] = {k: line[k] for k in ("speed_m_s", "speed_err_m_s", "toward_deg", "toward_err_deg",
                                                        "v_m_s", "v_err_m_s", "r0_m", "t0_frame", "chi2_dof",
                                                        "range_rms_m")}
-    if plant is not None:                                           # planted fliers: what T2 could have caught here
+    if plant is not None:                           # planted fliers (method section 67): what T2 could have caught here
         from . import fliers
-        if platform is not None and los is not None:
-            fields["planted_fliers"] = fliers.plant_track(
-                R, track, dict(ground_m=ground_m, model=winds, when=when, observed=observed_winds, own=own_w),
-                los_sigma, ground_m, az_ref_err, case_t2=tw, **dict(dict(seed=seed), **plant))
-        else:
-            fields["planted_fliers"] = fliers.none(
-                "fliers are planted only where the wind test runs from the aircraft's own track (--platform, --los); "
-                "from the ranges they are not built yet", route="ranges")
+        fields["planted_fliers"] = fliers.plant_track(
+            R, track, dict(ground_m=ground_m, model=winds, when=when, observed=observed_winds, own=own_w),
+            dict(sig=los_sigma, ground_m=ground_m, az_ref_err=az_ref_err), case_t2=tw, **dict(dict(seed=seed), **plant)
+        ) if platform is not None and los is not None else fliers.none(fliers.NO_RANGES, route="ranges")
     files = []
     if out:
         p = Path(f"{out}_drift.json")
@@ -1712,22 +1708,8 @@ def main():
     ap.add_argument("--when", help="the time of the clip (ISO, UTC): the model winds' hours within one of it")
     ap.add_argument("--flicker", help="T3: the --json envelope of `mcdonald flicker` on the object; several, "
                                       "comma-separated, from cameras watching it at the same time")
-    ap.add_argument("--plant", action="store_true",
-                    help="plant fliers on this case's own geometry and winds, to see how slow a flier the wind test "
-                         "(T2 from the aircraft's own track) would have caught. Each planted body sits at the fitted "
-                         "place and height and moves with the air plus a speed through it, in eight directions. Each "
-                         "goes through the same fit and the same test. It takes minutes; the result is the field "
-                         "planted_fliers")
-    ap.add_argument("--plant-speeds", metavar="M/S", help="the speeds through the air to plant, m/s, comma-separated "
-                                                          "(default 0,5,10,15,20,25,30,40,50; zero, a drifter, is "
-                                                          "always among them)")
-    ap.add_argument("--plant-air", choices=["winds", "path"],
-                    help="the air a planted body rides. path: the object's own fitted velocity, which is the air's "
-                         "where the object drifts. winds: each wind the test counted, in turn. By default path where "
-                         "the object passed the wind test, and winds where it did not")
-    ap.add_argument("--plant-draws", type=int, metavar="N", help="draws of the lines of sight's errors for each speed "
-                                                                 "and direction (default 4)")
-    ap.add_argument("--procs", type=int, help="for --plant: " + PROCS_HELP)
+    from . import fliers
+    fliers.options(ap)                              # --plant and its options (method section 67)
     ap.add_argument("--fps", type=float, help="frames per second (default: the video's)")
     ap.add_argument("--out", metavar="PREFIX", help="write <PREFIX>_drift.json")
     ap.add_argument("--json", action="store_true", help="print the envelope as JSON on stdout")
@@ -1743,23 +1725,8 @@ def _series(path, value=("value_m", "value", "m")):
     return read_series(path, value) if path else None
 
 
-def _plant(args):
-    """`--plant` and its options as `measure`'s `plant`: None unless asked for."""
-    if not args.plant:
-        if args.plant_speeds or args.plant_air or args.plant_draws:
-            raise SystemExit("--plant-speeds, --plant-air and --plant-draws go with --plant")
-        return None
-    opts = dict(procs=args.procs, progress=to_stderr())
-    if args.plant_speeds:
-        opts["speeds"] = tuple(float(x) for x in args.plant_speeds.split(","))
-    if args.plant_air:
-        opts["air"] = args.plant_air
-    if args.plant_draws:
-        opts["draws"] = args.plant_draws
-    return opts
-
-
 def _main(args):
+    from . import fliers
     from .forensics import resolve
     video, tag, _ = resolve(args.video)
     args.video = str(video)
@@ -1793,7 +1760,7 @@ def _main(args):
                     platform=read_platform(args.platform) if args.platform else None,
                     los=read_los(args.los) if args.los else None,
                     los_sigma=tuple(float(x) for x in args.los_sigma.split(",")), observed_winds=observed,
-                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err, plant=_plant(args))
+                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err, plant=fliers.asked(args))
     print("\n".join(said(found.fields)))
     return found
 
