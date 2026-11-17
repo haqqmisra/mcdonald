@@ -270,6 +270,23 @@ def test_rules():
             r = subprocess.run(["bash", str(Path(td) / "batch.sbatch"), "--status"], capture_output=True, text=True, env=env_of(td))
             check(r.returncode == 0 and "4 waiting" in r.stdout + r.stderr, "and does so: the script given --status says how the videos stand",
                   (r.stdout + r.stderr).strip()[-80:])
+    planted = dict(k=0, frames=1000, width=1920, height=1080, n0=None, n1=None)
+    tr, quick = batch.stage_share(only=["track", "report"]), batch.stage_share(skip=list(batch.QUICK))
+    S = batch.STAGE_SHARE
+    check(batch.stage_share() == 1.0 and 0.15 < quick < 0.25 and abs(tr - (S["track"] + S["report"] + S["ingest"]) / sum(S.values())) < 1e-12
+          and batch.classes([planted], 4, 40)[0]["minutes"] == 720 and batch.classes([planted], 4, 40, tr)[0]["minutes"] == 60
+          and batch.resources(planted, 4, 40, tr)[0] == batch.resources(planted, 4, 40)[0],
+          "a video measured in fewer stages is sized by their share of an object's time (ingest is always run): a planted stretch of 1000 frames with "
+          "40 objects followed and reported (--only track,report) is an hour's class, not twelve hours'; its memory is the same",
+          f"{tr:.3f}, {quick:.3f}")
+    with tempfile.TemporaryDirectory(prefix="mcdonald-batch-test-") as td:
+        batch.write_json(Path(td) / batch.PLAN, dict(format=batch.FORMAT, options=dict(base, most=40, only=["report", "track"]),
+                                                     units=[dict(planted, name="v0", folder="v0", tag="v0", id="V0", file="v0.mp4")]))
+        r = batch.submit(td, cpus=4, dry=True, say=lambda *a: None)
+        rc = batch.submit(td, cpus=4, dry=True, say=lambda *a: None, card=2)
+        check([c["minutes"] for c in r["classes"]] == [60] and rc["classes"][0]["minutes"] < 60,
+              "and the lines written for a batch take the stages from its plan, for arrays and for the card's job alike",
+              str([c["minutes"] for c in r["classes"]] + [rc["classes"][0]["minutes"]]))
 
 
 def test_the_pool_tells_each_video_how_many_share_the_card():
