@@ -356,21 +356,21 @@ def one_place(path):
     n = len(path["cameras"])
     if path.get("places") == 1:
         who = "one camera standing still" if n == 1 else f"{n} cameras standing at one place"
-        return (f"all {path['readings']} lines of sight start from one place, and {who} cannot range what "
+        return (f"all {path['readings']} lines of sight start from one place. {who.capitalize()} cannot range what "
                 f"{'it sees' if n == 1 else 'they see'} (the line of sight turned {path['los_turn_deg']:.0f} deg)")
-    return (f"the lines of sight start from places that leave one straight path at a steady speed by "
-            f"{path['path_off_line_m']:.0f} m, within their own error ({PATH_GATE:g} x {POSITION_ERR:.0f} m), and "
-            f"lines of sight from so nearly one place cannot range what they see")
+    return (f"the lines of sight start from places within {path['path_off_line_m']:.0f} m of one straight path at a "
+            f"steady speed. That is within their own error ({PATH_GATE:g} x {POSITION_ERR:.0f} m), and lines of sight "
+            f"from so nearly one place cannot range what they see")
 
 
 def open_range(path):
     """The range gate's words where the rays came from cameras."""
     b = path["range_bound"]
-    tail = f"; {_known(path)}" if path.get("reference") == "camera" else ""
+    tail = f". {_known(path).capitalize()}" if path.get("reference") == "camera" else ""
     return (f"the lines of sight do not fix its range: it is known to no better than a factor of "
-            f"{math.exp(min(b, 20.0)):.1f} (the bound on its logarithm at the fit, {min(b, 1e6):.2f}; the cameras stand "
+            f"{math.exp(min(b, 20.0)):.1f} (the bound on its logarithm at the fit, {min(b, 1e6):.2f}). The cameras stand "
             f"{path['baseline_m']:.0f} m apart at most, and their lines of sight cross at {path['los_cross_deg']:.1f} deg"
-            f"{tail})")
+            f"{tail}")
 
 
 def open_velocity(path, velocity_fix):
@@ -381,9 +381,9 @@ def open_velocity(path, velocity_fix):
     if path.get("reference") == "camera" and ref is not None and alone is not None and math.isfinite(ev) \
             and 2 * alone <= velocity_fix:
         c = max(path["cameras"], key=lambda c: max(c.get("pull_m_s") or [0.0, 0.0]))
-        return (f"{head}: {_known(path)}, and an error of one degree at {c['name']} alone moves the velocity by "
-                f"{max(c['pull_m_s']):.1f} m/s. The cameras' lines of sight cross at {path['los_cross_deg']:.1f} deg")
-    return (f"{head}: the cameras stand {path['baseline_m']:.0f} m apart at most, and their lines of sight cross at "
+        return (f"{head}. {_known(path).capitalize()}. An error of one degree at {c['name']} alone moves the velocity "
+                f"by {max(c['pull_m_s']):.1f} m/s. The cameras' lines of sight cross at {path['los_cross_deg']:.1f} deg")
+    return (f"{head}. The cameras stand {path['baseline_m']:.0f} m apart at most, and their lines of sight cross at "
             f"{path['los_cross_deg']:.1f} deg")
 
 
@@ -419,14 +419,14 @@ def said(g):
     if tight:
         L.append(f"\n{'every camera' if len(tight) == len(cams) else ', '.join(c['name'] for c in tight)}'s lines of sight fit "
                  f"better than the errors given for them allow (1 fit in "
-                 f"{_one_in(max(c['chi2_p_low'] or 0.0 for c in tight))} would, by chance), so their errors come from their own "
+                 f"{_one_in(max(c['chi2_p_low'] or 0.0 for c in tight))} would, by chance). So their errors come from their own "
                  "scatter about the path")
     if g.get("velocity_err_pointing_m_s") is None:
-        L.append(f"\n{_known(g)} beforehand, and the lines of sight cannot read it themselves, so the velocity and "
-                 "the climb are open")
+        L.append(f"\n{_known(g).capitalize()} beforehand. The lines of sight cannot read it themselves, so the velocity "
+                 "and the climb are open")
         return L
-    L.append(f"\n{_known(g)} beforehand: a constant error of its own in each angle, which all of its lines of sight "
-             f"share. The errors above carry it: from the lines of sight's scatter alone, two errors of the velocity are "
+    L.append(f"\n{_known(g).capitalize()} beforehand. That is a constant error of its own in each angle, which all of "
+             f"its lines of sight share. The errors above carry it. From the lines of sight's scatter alone, two errors of the velocity are "
              f"{2 * g['velocity_err_rays_m_s']:.2f} m/s and the climb's error is {g['climb_err_rays_m_s']:.2f} m/s")
     if cams[0].get("pointing_fitted_deg") is not None:
         L.append("the lines of sight themselves, held to that, read each camera's pointing as: " + "; ".join(

@@ -846,7 +846,7 @@ def test_cameras_one_camera_cannot_range_what_it_sees():
     T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
     p = found.fields["ground_path"]
     check(T["T1"]["outcome"] == drift.CANNOT and T["T2"]["outcome"] == drift.CANNOT and found.fields["verdict"] == "cannot say"
-          and "one camera standing still cannot range what it sees" in T["T2"]["reading"] and "all 121 lines of sight start from one place" in T["T1"]["reading"]
+          and "One camera standing still cannot range what it sees" in T["T2"]["reading"] and "all 121 lines of sight start from one place" in T["T1"]["reading"]
           and p["places"] == 1 and p["path_off_line_m"] < 1e-6 and not p["path_gate"],
           "one camera standing still: T1 and T2 cannot say, and say why", T["T2"]["reading"])
     text = "\n".join(drift.said(found.fields))
@@ -863,8 +863,8 @@ def test_cameras_one_camera_cannot_range_what_it_sees():
     p = drift.fit_track(pair, nboot=100)
     t2 = drift.test_wind_track(p, [dict(label="w", w=truth["v"], counts=True, note="")])
     check(p["path_gate"] and p["range_bound_rays"] < 0.3 and p["range_bound"] > drift.RANGE_FIX and t2["outcome"] == drift.CANNOT
-          and "do not fix its range" in t2["reading"] and "the cameras stand 45 m apart" in t2["reading"]
-          and "each camera's pointing is taken as known to 0.3 deg" in t2["reading"],
+          and "do not fix its range" in t2["reading"] and "The cameras stand 45 m apart" in t2["reading"]
+          and "Each camera's pointing is taken as known to 0.3 deg" in t2["reading"],
           "two cameras 45 m apart: their rays' scatter alone would give a range, each camera's own pointing does not; the "
           "range's bound counts it, and T2 cannot say", f"bound {p['range_bound']:.2f} (the rays alone {p['range_bound_rays']:.3f}); "
           + t2["reading"][:100])
@@ -900,7 +900,7 @@ def test_cameras_each_cameras_own_pointing_is_carried():
         off = [(0.0, 0.0), (add, 0.0) if j == 0 else (0.0, add)]
         q = drift.fit_track(sightlines.rays(cameras_scene(sites=two, offsets=off)[0]), nboot=0)
         moved = float(np.hypot(*(np.array(q["v_m_s"]) - np.array(p["v_m_s"])))) / add
-        check(abs(moved / B["pull_m_s"][j] - 1) < 0.15 and B["pull_m_s"][j] > 0.3,
+        check(B["pull_m_s"][j] > 0.3 and abs(moved / B["pull_m_s"][j] - 1) < 0.15,
               f"camera B's {angle}s {add} deg off: the velocity moves by the pull the fit reports for a degree of it",
               f"{moved:.2f} m/s a degree against {B['pull_m_s'][j]:.2f}")
     off = [(0.25, -0.08), (-0.2, 0.09)]                        # within what is taken as known, and against each other
@@ -947,8 +947,8 @@ def test_cameras_each_cameras_own_pointing_is_carried():
     own = drift.fit_track(sightlines.rays(rdo), nboot=100)
     t2 = drift.test_wind_track(dict(own, velocity_err_m_s=3.0, velocity_err_rays_m_s=1.0, velocity_err_pointing_m_s=2.83),
                                [dict(label="w", w=truth["v"], counts=True, note="")])
-    check(t2["outcome"] == drift.CANNOT and "each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation" in t2["reading"]
-          and "an error of one degree at camera" in t2["reading"] and "display" not in t2["reading"],
+    check(t2["outcome"] == drift.CANNOT and "Each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation" in t2["reading"]
+          and "An error of one degree at camera" in t2["reading"] and "display" not in t2["reading"],
           "a velocity the rays' scatter would fix and the pointing leaves open: cannot say, naming the camera it hangs on",
           t2["reading"][:170])
     free = drift.fit_track(R, nboot=0, pointing_err=(float("inf"), float("inf")))
@@ -956,7 +956,7 @@ def test_cameras_each_cameras_own_pointing_is_carried():
           "nothing taken as known of two cameras' pointing: their rays cannot read it themselves, and the velocity is open",
           f"two errors {2 * free['velocity_err_m_s']:.1f} m/s")
     text = "\n".join(drift.said(dict(tests=[], verdict="", why="", ground_path=dict(own, above_ground_m=None))))
-    check("each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation beforehand" in text
+    check("Each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation beforehand" in text
           and "read each camera's pointing as" in text and "one degree of its azimuth" in text,
           "and the command's own words give what is taken as known, each camera's pull and what the rays alone would give")
 
@@ -1146,9 +1146,9 @@ def test_cameras_the_aircrafts_route_is_untouched():
     old = drift.fit_track(drift.rays(plat, lo2, 6.0), nboot=100, rng=np.random.default_rng(5))
     new = drift.fit_track(sightlines.rays(shifted, reference="shared"), nboot=100, rng=np.random.default_rng(5))
     keys = [k for k in old if k != "frames"]
-    check(all(old[k] == new[k] for k in keys) and new["reference"] == "shared" and len(keys) > 40,
+    check(all(old[k] == new.get(k) for k in keys) and new["reference"] == "shared" and len(keys) > 40,
           "cameras written as one jumping aircraft, and the same rays by --rays with one shared reference: every number "
-          "of the path the same", f"{sum(old[k] == new[k] for k in keys)} of {len(keys)} fields")
+          "of the path the same", f"{sum(old[k] == new.get(k) for k in keys)} of {len(keys)} fields")
     true = drift.fit_track(sightlines.rays(rd, reference="shared"), nboot=100, rng=np.random.default_rng(5))
     dv = float(np.hypot(*(np.array(true["v_m_s"]) - np.array(old["v_m_s"]))))
     check(0 < dv < 0.01, "with each reading at its own time, not a third or two of a step late: the path moves, by under "
