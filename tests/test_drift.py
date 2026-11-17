@@ -818,20 +818,20 @@ def test_fliers_are_not_planted_where_the_case_gives_no_ground():
     print("\nPlanted fliers: no plants where there is no path to plant on, with the reason")
     R, path, winds, t2 = planted_case(turn=False)
     f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, nboot=60, procs=0)
-    check(f["plants"] == 0 and "runs" not in f and "fix no path" in f["why"] and "flew straight" in f["why"]
+    check(f["plants"] == 0 and "runs" not in f and "fix no path" in f.get("why", "") and "flew straight" in f.get("why", "")
           and f["sentence"].startswith("No bodies were planted: ") and fliers.said(f) == [f"\nplanted fliers: {f['sentence']}"],
           "a straight flight fixes no path: no plants, and it says why", f["sentence"][:140])
     few = {k: (v[:6] if isinstance(v, np.ndarray) and len(v) == len(R["t"]) else v) for k, v in R.items()}
     f = fliers.plant_track(few, None, winds, procs=0)
-    check(f["plants"] == 0 and "6 lines of sight, where at least 9 are needed" in f["why"], "six lines of sight: no path, no plants",
-          f["why"][:80])
+    check(f["plants"] == 0 and "6 lines of sight, where at least 9 are needed" in f.get("why", ""), "six lines of sight: no path, no plants",
+          f.get("why", "")[:80])
     R, path, winds, t2 = planted_case()
     f = fliers.plant_track(R, path, [dict(w, counts=False) for w in winds], sig=(0.1, 0.03), nboot=60, procs=0)
-    check(f["plants"] == 0 and "no wind that bears on its height" in f["why"], "no wind that counts: no plants", f["why"][:80])
+    check(f["plants"] == 0 and "no wind that bears on its height" in f.get("why", ""), "no wind that counts: no plants", f.get("why", "")[:80])
     R, path, winds, t2 = planted_case(v_obj=np.array([-6.0, -3.5]) + 25.0 * np.array([0.5, -0.866]))
     f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, air="path", nboot=60, procs=0)
-    check(t2["outcome"] == drift.FAIL and f["plants"] == 0 and "failed the wind test" in f["why"],
-          "a flier's own motion is not the air's: asked to ride the path of a case that failed T2, no plants", f["why"][:90])
+    check(t2["outcome"] == drift.FAIL and f["plants"] == 0 and "failed the wind test" in f.get("why", ""),
+          "a flier's own motion is not the air's: asked to ride the path of a case that failed T2, no plants", f.get("why", "")[:90])
     f = fliers.plant_track(R, path, winds, sig=(0.1, 0.03), case_t2=t2, speeds=(40.0,), draws=1, nboot=60, procs=0)
     check(f["air"] == "winds" and f["air_chosen_by"] == "the case did not pass the wind test" and f["drifter"]["passes"] == 8
           and f["fails_from_m_s"] == 40.0, "left to itself there, it plants in the winds: a drifter in them passes, 40 m/s fails",
@@ -861,7 +861,7 @@ def test_fliers_through_the_stage_change_nothing_else():
     ranges = drift.measure(FPS, slant=g["slant"], horiz=g["horiz"], own=g["own"], bearings=g["bearings"], heading_deg=144.9,
                            winds=g["winds"], air_min_kn=0.0, air_max_kn=240.0, plant={})
     f = ranges.fields["planted_fliers"]
-    check(f["plants"] == 0 and f["route"] == "ranges" and "not built yet" in f["why"],
+    check(f["plants"] == 0 and f["route"] == "ranges" and "not built yet" in f.get("why", ""),
           "from the ranges (the Yemen clip's route) no fliers are planted yet, and it says so", f["sentence"][:120])
 
 
