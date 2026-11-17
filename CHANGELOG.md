@@ -22,7 +22,9 @@ Across the larger layer it reads how the motion spreads, turns and stretches. A 
 the picture stretches it; so can a roll of the camera, and nothing here tells them apart. On 14 reference videos it
 found a second layer only on PR144, the one video with two. There the sea and the cloud tops moved 94 pixels a second
 apart. It found none on the others. Nothing else `layers` gives changes, and no report reads it. On the card and on the CPU it keeps the same matches: 1 of 104,812
-moved by more than 0.01 pixel on PR144.
+moved by more than 0.01 pixel on PR144. In the window it is an option under Advanced: on the Measure step, below the
+layers check, "Also map where each layer of the background is", off until ticked (the maintainer's choice). On the
+command line, `mcdonald run --dense` asks the same of the layers step.
 
 **Find sooner, with the same list to the bit** (2026-11-15; IDEAS.md G11 and G12). Two changes, and nothing Find
 gives is changed by either: every row, field and sentence of its list is as it was, and so are
