@@ -8926,9 +8926,9 @@ they were tried:
 
 1. **The brightness read again on a smoothed track** (the diagnostic that cleared the clouds), each second reading put
    through the whole judging. Held beats of known birds that stay held at the same frequency, with the track smoothed over
-   0.33 / 0.67 / 1 / 2 s: reference birds 18 / 15 / 7 / 4 of 19 (NO POWER on 0 / 1 / 8 / 12: the disc is off the bird);
-   labelled birds on label tracks 35 / 32 / 29 / 26 of 38; PR135's six 6 / 6 / 6 / 0; flyer 4 lost at 0.67 s under the
-   stage's rule. A track holds the camera's own shake and the object's real path as well as a detector's noise (PR135's
+   0.33 / 0.67 / 1 / 2 s: reference birds 20 / 17 / 8 / 5 of 21 (NO POWER on 0 / 1 / 9 / 13: the disc is off the bird);
+   labelled birds 35 / 32 / 29 / 26 of 38 on label tracks and 24 / 24 / 21 / 17 of 26 on mcDonald's own; the flyers on the
+   paper's tracks 5 / 3 / 3 / 1 of 5; PR135's six 6 / 6 / 6 / 0. A track holds the camera's own shake and the object's real path as well as a detector's noise (PR135's
    object 3 leaves a 0.67-s smoothing by 2.3 px, rms; flyer 4 by 0.9), and a smoothed track leaves the object. It works on
    the Galileo cameras because they do not move and a cloud is slow. A second pass through every test is also fragile of
    itself: flyer 4, with a second curve that kept 101 % of its beat, still lost "comes back" (its whole-track test is
@@ -8950,8 +8950,9 @@ they were tried:
 Also measured and not built: the jitter taken against a smoothing of 0.67, 1 or 2 s in place of the running mean the
 brightness itself is taken against (the clouds keep more: to 0.45, 0.55, 0.67 with the beat left in); what is left held to
 the stage's own line, `ABOVE` times the background, with no new constant (clouds 0.17-0.43 of the line, but flyer 1 0.99 and
-0.72: a known bird lost); the object's own centroid in the disc as the regressor (clouds keep 0.33-0.89). The box's size
-moved with five of the seven clouds' brightness, but a track given to `flicker` is positions only.
+0.72: a known bird lost); the object's own centroid in the disc as the regressor (clouds keep 0.33-0.89). A box's size
+breathes too (on one of the seven its width moved with the brightness, r = -0.66), but a track given to `flicker` is
+positions only.
 
 **The reading** (`track_jitter`, `unjittered`, `jitter_reading`; each beat's `jitter`). The jitter is the aperture's path
 (`smoothed`: the track as given, its gaps filled, its 5-frame mean) against its own running mean over `DETREND_S`, in x and
@@ -8959,7 +8960,7 @@ y: exactly what `deviation` does to the brightness, so the two are in one band a
 the beat is reported from (its clearest window, or the whole track), the deviation is fitted on (jx, jy) by least squares
 in blocks of `WINDOW_S`, half overlapping and Hann-weighted (one block for a window): how the brightness answers a hop
 changes as the disc crosses the texture, and one fit over a long track sees little (0.07 of the variance on the cloud whose
-whole track beat, where its windows give 0.8-0.95). In each block the beat's frequency is taken out of both sides before
+whole track beat, where the other six clouds' windows give 0.78-0.95). In each block the beat's frequency is taken out of both sides before
 the coefficients are fitted. `kept` is the residual's amplitude at the beat's strongest frequency over the curve's own;
 `share` the share of the curve's variance the fit took; `px` the jitter's size. A beat with `kept` under `JITTER_KEEP` is
 the track's: the object is taken out of `strong` and named in `fields["jittered"]`, as a beat in one stretch is in
@@ -8992,20 +8993,20 @@ are counted (IDEAS). It is not: that changes how many windows every bird's findi
 **What it changed, and how that is held.** XXHOLDXX
 
 **Every track, or only one read from a file?** Every track whose aperture rides it. On mcDonald's own tracker's tracks of
-known objects (the labelled set's 299, the flyers') no beat moves: 31 held bird beats keep 0.79 at least, and the nine held
-on non-birds 0.52 at least. The cause is not a file's: a 4-px disc on anything wider, under any tracker that hops. And the
+known objects (the labelled set's 299, the flyers') no beat moves: 30 held bird beats keep 0.79 at least, and the nine held
+on non-birds 0.87 at least (AARO's 13 resolved objects have no window that passes). The cause is not a file's: a 4-px disc on anything wider, under any tracker that hops. And the
 reading costs nothing to make.
 
 **What it does not do, and its traps.**
 - It does not look for a beat under the one it gives to the track. A cloud drawn with a 12 % beat of its own at 4.3 Hz under
   a hop that makes 36 % at 2.6 Hz has "no beat of its own": the stage reports its strongest, and the strongest was the
-  track's. The note says what would show one: a steadier track, or a disc as wide as the object (`--aperture`).
+  track's. The note says what would show one: a smoother track, or a disc as wide as the object (`--aperture`).
 - A hop with one pure frequency and nothing else would be taken out with the beat and teach the fit nothing. A detector's
   jitter is broad (the seven clouds' boxes have no line of their own), and the drawn hop of `tests/test_beat.py` wanders.
 - The jitter is taken against a running mean whose ends are one-sided, as the brightness's is: on the first and last
   quarter second of a fast track it holds a ramp, which the fit can use there.
 - It says a beat follows where the disc was put, not why the track moved: a camera's shake that the track follows moves
-  the disc with the object, changes no brightness and is not this (section 39's shake reading is for that).
+  the disc with the object, changes no brightness and is not this (`scene_shift`, the stage's item 17, is for that).
 - A second cause the same clouds showed is untouched: a spot of two or three pixels crossing the encoder's 4-pixel
   blocks beats at its speed over 4 px (a Boeing 737 at 9 km: 11.58 px/s, 2.91 Hz, 43 % in its clearest window). Its
   brightness does not follow its track's jitter (kept 1.00), and only a second camera took it back.

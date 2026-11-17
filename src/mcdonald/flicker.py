@@ -4902,8 +4902,8 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
                      f"{j['px']:.2f} pixels here. The brightness is read in a small disc that rides the track. Over an object "
                      "wider than the disc, each small jump of the track puts the disc on a brighter or a darker part of it. The "
                      "brightness then rises and falls with the track, not with the object. Here the brightness followed the "
-                     f"jitter at rates away from the beat's own, and that link accounts for all but {j['kept']:.0%} of the beat. A "
-                     f"beat of the object's own keeps {JITTER_KEEP:.0%} or more. A steadier track, or a disc as wide as the "
+                     f"jitter at rates away from the beat's own. That accounts for all but {j['kept']:.0%} of the beat. A "
+                     f"beat of the object's own keeps {JITTER_KEEP:.0%} or more. A smoother track, or a disc as wide as the "
                      "object (--aperture), would show whether the object itself beats.")
     if beats is True:                                      # where the astronomer's tests disagree with the stage, the notes say so
         off = disagreements(strong, astro, far)
