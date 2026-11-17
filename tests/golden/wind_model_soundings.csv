@@ -5,6 +5,8 @@
 # kind 'wind': low_m-high_m the height above the station. kind 'difference': the wind at 3,695 m above the sea against the wind
 # low_m (= high_m) above it; 'difference_levels': the sounding's own pressure levels, low_m-high_m in hPa. levels: the model
 # levels read. p50-p95: percentiles of the vector error; across_sd, across_p90, across_p95: its part across one heading.
+# kind 'difference_set' and 'difference_held': the Yemen clip's own pair of heights on the even-numbered stations (of the sorted
+# ids; mcdonald's drift.WIND_DIFF_ERR is their across_p90) and on the odd-numbered, which T2 from the ranges is scored on.
 kind,lag_h,levels,low_m,high_m,soundings,p50,p68,p90,p95,rms,under_3,across_sd,across_p90,across_p95
 wind,0,all,0,1000,7627,1.74,2.38,4.00,4.86,2.52,0.794,1.81,2.95,3.81
 wind,0,all,1000,3000,7619,1.67,2.25,3.63,4.39,2.32,0.825,1.64,2.69,3.37
@@ -48,3 +50,5 @@ difference_levels,0,all,850,700,7007,2.17,2.90,4.60,5.47,2.96,0.699,2.09,3.37,4.
 difference_levels,0,all,850,400,6977,2.24,2.99,4.66,5.57,3.07,0.682,2.17,3.49,4.31
 difference,0,yemen,3793,3793,7372,2.59,3.38,5.35,6.51,3.50,0.601,2.47,3.96,4.99
 difference_levels,0,yemen,700,400,7569,2.25,3.01,4.83,5.81,3.15,0.678,2.23,3.52,4.44
+difference_set,-1,yemen,3793,3793,3341,3.21,4.17,6.48,7.73,4.24,0.457,2.99,4.84,6.01
+difference_held,-1,yemen,3793,3793,4017,3.13,4.16,6.47,7.79,4.19,0.472,2.96,4.77,5.94

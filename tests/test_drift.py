@@ -145,21 +145,63 @@ def line_of(v):
 
 
 def test_t2_a_drifting_body_fits_the_winds_and_a_crossing_drone_does_not():
+    """T2 from the ranges, the rule since 2026-11-17 (the maintainer's choice of the rule drafted and scored in method
+    section 68). It passes where the nearest sample's shortfall across the heading is within two errors of the fit plus
+    `WIND_DIFF_ERR` (4.8 m/s: what a model's error on the difference of the winds at two heights stays under nine times
+    in ten), fails where even the nearest leaves the body a flier's 10 m/s beyond that, and cannot say between. Until
+    then it read a side and no size: it passed where every sample lay on the measured motion's side of the heading,
+    could not say otherwise, and never failed. So the drone crossing at 25 m/s, which could not be said, now fails;
+    a body crossing at 4 m/s passes as a drifter does, which is why this route's pass is no strong test; and winds
+    that straddle the heading no longer stop a pass."""
     print("\nT2: the winds")
     air, w_air, w_obj = 90.0, np.array([10.0, 0.0]), np.array([0.0, 8.0])      # heading east; the object drifts north
     ground = air * np.array([1.0, 0.0]) + w_air
     out = drift.test_wind(line_of(w_obj - ground), 90.0, winds_of(w_obj, w_air), air_min_kn=0, air_max_kn=240)
-    check(out["outcome"] == drift.PASS and abs(np.mean(out["airspeed_kn"]) - air / drift.KN) < 10,
-          "a body drifting with the winds: the airspeed it needs is the aircraft's, passes",
-          f"{out['airspeed_kn']} kn of {air / drift.KN:.0f}")
+    check(out["outcome"] == drift.PASS and abs(np.mean(out["airspeed_kn"]) - air / drift.KN) < 10 and out["source"] == "ranges"
+          and out["tolerance_m_s"] == drift.WIND_DIFF_ERR == 4.8 and out["shortfall_m_s"][0] < 2.0 and "not a strong test" in out["reading"],
+          "a body drifting with the winds: the airspeed it needs is the aircraft's and the nearest sample is within a "
+          "model's own error of its sideways motion, passes; the reading says the pass is not a strong one",
+          f"{out['airspeed_kn']} kn of {air / drift.KN:.0f}; {out['shortfall_m_s'][0]} m/s short of {out['tolerance_m_s']}")
     drone = w_obj + 25.0 * np.array([0.0, -1.0])                                  # flying south across the heading
     out = drift.test_wind(line_of(drone - ground), 90.0, winds_of(w_obj, w_air), air_min_kn=0, air_max_kn=240)
-    check(out["outcome"] == drift.CANNOT and not out["same_side"],
-          "a drone crossing the heading against the winds' difference: cannot say (the test never fails)",
-          out["reading"][:70])
+    check(out["outcome"] == drift.FAIL and not out["same_side"] and 22 < out["shortfall_m_s"][0] < 28 and "it flies" in out["reading"],
+          "a drone crossing the heading at 25 m/s: even the nearest sample leaves it over 10 m/s beyond the tolerance, "
+          "fails (cannot say until 2026-11-17, when the test never failed)", out["reading"][:150])
     check(out["drones"]["25 m/s"]["flying_its_way_kn"] is not None, "and the airspeeds a 25-m/s drone would need are given")
+    exact = [dict(w_obj=w_obj, w_air=w_air, file="cell", time="2024-10-30T05:00")]       # one sample: the edges to the digit
+
+    def crossing(u, **kw):                                         # a body flying u m/s to the left of the heading (north)
+        return drift.test_wind(dict(line_of(w_obj + u * np.array([0.0, 1.0]) - ground), **kw), 90.0, exact, air_min_kn=0, air_max_kn=240)
+    edges = [crossing(u)["outcome"] for u in (4.79, 4.81, 14.79, 14.81)]
+    check(edges == [drift.PASS, drift.CANNOT, drift.CANNOT, drift.FAIL],
+          "the edges, with one sample and a fit taken as exact: 4.8 m/s across the heading passes, 14.8 fails, between "
+          "the two it cannot say", ", ".join(edges))
+    slow, mid = crossing(4.0), crossing(10.0)
+    check(slow["outcome"] == drift.PASS and mid["outcome"] == drift.CANNOT and "not beyond them by a flier's 10 m/s" in mid["reading"]
+          and slow["nearest_sample"] == dict(file="cell", time="2024-10-30T05:00") and slow["samples"] == 1
+          and "the winds' difference is 16 kn to the left" in mid["reading"] and "The one hour and place given leaves it" in mid["reading"],
+          "a body flying 4 m/s across the heading passes as a drifter does (the route's pass is not a strong test); at "
+          "10 m/s it cannot say, and says by how much", mid["reading"][:160])
+    wide = crossing(10.0, v_err_m_s=[1.0, 3.0, 0.0])            # heading east: the error across it is the north one's
+    check(wide["outcome"] == drift.PASS and wide["fit_err_across_m_s"] == 3.0 and wide["tolerance_m_s"] == 10.8,
+          "the fit's own error across the heading is in the tolerance, twice over: 3 m/s of it, and 10 m/s across passes",
+          f"tolerance {wide['tolerance_m_s']} m/s")
+    both = [dict(w_obj=np.array([0.0, d]), w_air=np.zeros(2)) for d in (3.0, -3.0)]      # 3 m/s to the left, and to the right
+    lone = drift.test_wind(line_of(np.array([0.0, 1.0]) - air * np.array([1.0, 0.0])), 90.0, both, air_min_kn=0, air_max_kn=240)
+    check(lone["outcome"] == drift.PASS and not lone["same_side"] and lone["wind_difference_right_kn"][0] < 0 < lone["wind_difference_right_kn"][1]
+          and lone["shortfall_m_s"] == [2.0, 4.0] and "between 6 kn to the left and 6 kn to the right" in lone["reading"],
+          "samples whose difference straddles the heading no longer stop a pass (they did until 2026-11-17): the nearest "
+          "one is asked, and `same_side` is still recorded", f"{lone['wind_difference_right_kn']} kn, same_side {lone['same_side']}")
     out = drift.test_wind(line_of(w_obj - ground), 90.0, winds_of(w_obj, w_air), air_min_kn=0, air_max_kn=120)
-    check(out["outcome"] == drift.CANNOT, "an airspeed beyond the aircraft's range: cannot say")
+    check(out["outcome"] == drift.CANNOT and "outside the aircraft's range" in out["reading"] and out["airspeed_in_range"] is False,
+          "an airspeed beyond the aircraft's range: cannot say, though the sideways motion fits")
+    V = drift.verdict
+    t2 = drift.test_wind(line_of(w_obj - ground), 90.0, winds_of(w_obj, w_air), air_min_kn=0, air_max_kn=240)
+    v, why = V([t2])
+    check(v == "cannot say" and "no strong test (T2 from lines of sight, or T4a" in why and "T2 passed from the ranges" in why
+          and not drift.strong(t2) and drift.strong(dict(t2, source="lines of sight")),
+          "a pass of T2 from the ranges does not carry the verdict (it did until 2026-11-17): cannot say, and the reason "
+          "says that it passed and why that is not enough", why)
 
 
 def test_t2_winds_from_an_archive_file():
@@ -221,15 +263,19 @@ def drawn_station(folder, sid="XXM00000001", off_400=(0.0, 0.0)):
 
 
 def test_t2_from_the_ranges_against_soundings():
-    """Method section 68 (2026-11-17). T2 "from the ranges" passes when the model winds' difference between the object's
-    height and the aircraft's lies across the heading the way the measured sideways motion does. What that is worth was
-    measured with radiosondes as the truth and the model as the test's input (tools/wind_model_igra.py). Here the tool
-    itself is held on a drawn station whose answer is known, and the table it made on the real soundings is held to
-    the numbers the method note quotes."""
+    """Method section 68 (2026-11-17). T2 "from the ranges" compares the measured sideways motion with the model winds'
+    difference between the object's height and the aircraft's. What that is worth was measured with radiosondes as the
+    truth and the model as the test's input (tools/wind_model_igra.py): the rule it had then, which read a side and no
+    size, passed a true drifter 27 times in 100 and a body flying 50 m/s 12. The maintainer chose the rule the note
+    drafted (the nearest sample's shortfall against two errors of the fit and a model's own error on the difference,
+    `WIND_DIFF_ERR`), and that it is no strong test. Here the tool is held on a drawn station whose answer is known,
+    under the rule as built and, from the fields the test still records, under the rule before; the table it made on
+    the real soundings is held to the numbers the method note quotes; and the built rule's scores on the stations its
+    allowance was not set on are held to the draft's (tests/golden/wind_model_t2_ranges.csv)."""
     print("\nT2 from the ranges against soundings: the tool on a drawn station, and its table")
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
     import wind_model_igra as tool
-    c = {n: i for i, n in enumerate("k j month week geom design levelset heading tas_kn speed dir passes same_side".split())}
+    c = {n: i for i, n in enumerate(tool.COLUMNS.split())}
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
         st = drawn_station(td)
@@ -253,20 +299,35 @@ def test_t2_from_the_ranges_against_soundings():
         C = res["cases"]
         main = (C[:, c["geom"]] == 0) & (C[:, c["design"]] == 0) & (C[:, c["levelset"]] == 0)
         drifter, mirror = main & (C[:, c["dir"]] == -1), main & (C[:, c["dir"]] == -2)
-        right, left, along, back = (main & (C[:, c["speed"]] == 50) & (C[:, c["dir"]] == a) for a in (90, 270, 0, 180))
-        check(res["checked"] == 1 and drifter.sum() == tool.HEADINGS and C[drifter, c["passes"]].sum() >= tool.HEADINGS - 2
-              and C[mirror, c["passes"]].sum() <= 2,
+        ok, bad, was = C[:, c["passes"]], C[:, c["fails"]], C[:, c["passes_before"]]
+        true_ms = np.abs(C[:, c["true_right"]]) * drift.KN            # the winds' true difference across the heading
+        at = lambda speed, a: main & (C[:, c["speed"]] == speed) & (C[:, c["dir"]] == a)     # noqa: E731
+        check(res["checked"] == 1 and drifter.sum() == tool.HEADINGS and ok[drifter].sum() == tool.HEADINGS and bad[drifter].sum() == 0,
               "drawn cases through drift.test_wind, three cells and 24 hours as the Yemen run had (the samples the same as "
-              "drift.wind_samples'): a drifter passes on nearly every heading, its mirror on nearly none",
-              f"{int(C[drifter, c['passes']].sum())} and {int(C[mirror, c['passes']].sum())} of {tool.HEADINGS}")
-        check(right.sum() == tool.HEADINGS and np.all(C[right, c["passes"]] + C[left, c["passes"]] == 1),
-              "a body crossing the heading at 50 m/s passes one way and not the other, on every heading: the rule reads a "
-              "side, not a size")
+              "drift.wind_samples'): where the model holds the true winds a drifter passes on every heading",
+              f"{int(ok[drifter].sum())} of {tool.HEADINGS}")
+        near, far = mirror & (2 * true_ms < 3.0), mirror & (2 * true_ms > 8.5)
+        check(near.sum() >= 1 and far.sum() >= 3 and ok[near].all() and not ok[far].any() and was[mirror].sum() <= 2,
+              "the same case with its sideways motion's sign turned is twice the winds' difference off: it passes where "
+              "that is under 3 m/s and not where it is over 8.5 (the rule reads a size; the rule before, which read "
+              "the side, passed it on nearly no heading)",
+              f"passes {int(ok[mirror].sum())} of {tool.HEADINGS}, {int(ok[near].sum())} of the {int(near.sum())} near and "
+              f"{int(ok[far].sum())} of the {int(far.sum())} far; the rule before {int(was[mirror].sum())}")
+        check(all(bad[at(v, a)].sum() == tool.HEADINGS for v in (25, 50) for a in (90, 270))
+              and np.all(was[at(50, 90)] + was[at(50, 270)] == 1),
+              "a body crossing the heading at 25 or 50 m/s fails either way, on every heading; by the rule before it "
+              "passed one way and not the other (a side, not a size), and the tool still gives that rule's answer")
+        check(all(ok[at(10, a)].sum() == 0 and bad[at(10, a)].sum() == 0 for a in (90, 270))
+              and all(ok[at(5, a)].sum() >= tool.HEADINGS - 3 for a in (90, 270)),
+              "crossing at 10 m/s it cannot be said, on every heading; crossing at 5 m/s it passes as a drifter does, on "
+              "nearly every one: the pass is not a strong test",
+              f"at 5 m/s {int(ok[at(5, 90)].sum())} and {int(ok[at(5, 270)].sum())} of {tool.HEADINGS}")
+        along, back = at(50, 0), at(50, 180)
         fast = C[back, c["tas_kn"]] > 150.0
-        check(np.array_equal(C[along, c["passes"]], C[drifter, c["passes"]]) and fast.sum() > 0
-              and not C[back, c["passes"]][fast].any(),
+        check(np.array_equal(ok[along], ok[drifter]) and fast.sum() > 0 and not ok[back][fast].any() and not bad[back].any(),
               "a body flying 50 m/s along the heading passes wherever the drifter does (nothing of it shows across the "
-              "heading, and 0-240 kn takes it in); flying the other way from an aircraft over 150 kn, it does not")
+              "heading, and 0-240 kn takes it in); flying the other way from an aircraft over 150 kn it cannot be said, "
+              "the airspeed it implies being out of the range, and it does not fail")
         st = drawn_station(td, off_400=(4.0, 0.0))
         res = tool.station((str(td), 0, "XXM00000001", st, None))
         pair = [r for r in res["dif"] if r[5] == "L700-400" and r[6] == "all" and r[4] == 0]
@@ -295,6 +356,42 @@ def test_t2_from_the_ranges_against_soundings():
           "the model's wind DIFFERENCE between the Yemen clip's two heights, across a heading: one standard deviation 3.0 "
           "m/s, 4.8 nine times in ten; the clip's least shortfall (2.7 m/s) is inside one, its largest (9.5) beyond 95 in 100",
           f"sd {clip['across_sd']}, 90th {clip['across_p90']}, 95th {clip['across_p95']} m/s" if clip else "")
+    was_set, held = row("difference_set", -1, "yemen", 3793), row("difference_held", -1, "yemen", 3793)
+    check(was_set and held and abs(was_set["across_p90"] - drift.WIND_DIFF_ERR) < 0.06 and abs(held["across_p90"] - drift.WIND_DIFF_ERR) < 0.15
+          and was_set["soundings"] > 3000 and held["soundings"] > 3000 and held["across_p95"] > drift.WIND_DIFF_ERR + 0.8,
+          "WIND_DIFF_ERR (4.8 m/s) is the size that error stays under nine times in ten on the even-numbered stations "
+          "(4.84), and on the odd-numbered, which it was not set on, the 90th percentile is 4.77",
+          f"{was_set['across_p90']} on {was_set['soundings']:.0f} soundings, {held['across_p90']} on {held['soundings']:.0f}" if was_set and held else "")
+    # the rule as built, scored by the tool on the stations its allowance was not set on (the odd-numbered)
+    scored = drift.read_rows(reference_data.GOLDEN / "wind_model_t2_ranges.csv")
+
+    def rate(winds, body, stations="odd", geometry="clip"):
+        r = [x for x in scored if (x["stations"], x["geometry"], x["winds"], x["body"]) == (stations, geometry, winds, str(body))]
+        return {k: float(v) for k, v in r[0].items() if k in ("cases", "passes", "cannot_say", "fails", "tolerance")} if len(r) == 1 else None
+
+    y = {b: rate("Y3", b) for b in (0, "mirror", 5, 10, 25, 50)}
+    check(all(y.values()) and y[0]["cases"] > 40000 and 96.0 <= y[0]["passes"] <= 97.6 and y[0]["fails"] <= 0.02
+          and 5.4 < y[0]["tolerance"] < 6.7,
+          "three cells and 24 hours, as the Yemen run had: a true drifter passes 96.8 times in 100 (the draft's score: "
+          "96.9) and fails under 2 in 10,000", f"{y[0]['passes']} % of {y[0]['cases']:.0f}, fails {y[0]['fails']} %" if y[0] else "")
+    check(all(y.values()) and 93.5 <= y[5]["passes"] <= 96 and 81 <= y[10]["passes"] <= 85.5 and 28 <= y[25]["passes"] <= 32
+          and 12.5 <= y[50]["passes"] <= 15 and y[5]["fails"] < 0.1 and y[10]["fails"] < 0.2 and 20 <= y[25]["fails"] <= 25
+          and 70 <= y[50]["fails"] <= 74,
+          "bodies flying 5, 10, 25 and 50 m/s through the air pass 95, 83, 30 and 14 times in 100 and fail 0, 0, 23 and "
+          "72 (the draft's: 95, 84, 30, 14; 22, 72): no strong test, since a slow flier passes nearly as often as a drifter",
+          "; ".join(f"{b}: {y[b]['passes']} / {y[b]['fails']}" for b in (5, 10, 25, 50)) if all(y.values()) else "")
+    t = {b: rate("T3", b) for b in (0, 5, 10, 25, 50)}
+    check(all(t.values()) and 97.8 <= t[0]["passes"] <= 99.3 and t[0]["fails"] <= 0.02 and 88 <= t[5]["passes"] <= 92
+          and 48 <= t[10]["passes"] <= 54 and 20 <= t[25]["passes"] <= 22 and 52 <= t[25]["fails"] <= 58 and 73 <= t[50]["fails"] <= 77,
+          "with one cell and three hours a drifter passes 98.5 (the draft's: 98.8), 10 m/s passes half the time, and 25 "
+          "and 50 m/s fail 56 and 75 times in 100", "; ".join(f"{b}: {t[b]['passes']} / {t[b]['fails']}" for b in t) if all(t.values()) else "")
+    same = [abs(rate(w, b, "even")["passes"] - rate(w, b)["passes"]) for w in ("Y3", "T3") for b in (0, 5, 10, 25, 50)]
+    other = [abs(rate(w, b, geometry="levels")["passes"] - rate(w, b)["passes"]) for w in ("Y3", "T3") for b in (0, 5, 10, 25, 50)]
+    check(max(same) < 0.5 and max(other) < 2.5 and y["mirror"]["passes"] < y[0]["passes"] - 25 and y["mirror"]["fails"] > 5,
+          "the stations the allowance was set on score the same within half a point (nothing was fitted to them but one "
+          "percentile), and the soundings' own 700- and 400-hPa levels within 2.5; the same cases with the sideways "
+          "motion's sign turned pass far less often and fail one time in nine",
+          f"largest difference {max(same):.1f} and {max(other):.1f} points; the mirror {y['mirror']['passes']} / {y['mirror']['fails']}")
     grow = [row("difference", -1, "all", dz) for dz in (1000, 2000, 3000, 3793, 5000, 6000)]
     one = bands[1]["p50"] if bands[1] else float("nan")
     check(all(grow) and max(g["p50"] for g in grow) / min(g["p50"] for g in grow) < 1.25
@@ -567,8 +664,9 @@ def test_track_t2_a_drifter_fits_the_winds_and_a_flier_does_not():
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     out = drift.test_wind_track(p, winds)
     check(out["outcome"] == drift.FAIL, "a flier at 25 m/s through the air: fails", out["reading"][:100])
-    check(drift.verdict([dict(test="T2", outcome=drift.PASS, reading="")])[0].startswith("consistent"),
-          "a passing T2 from the track is a strong test")
+    check(drift.verdict([dict(test="T2", outcome=drift.PASS, reading="", source="lines of sight")])[0].startswith("consistent")
+          and drift.verdict([out])[0] == "not drifting" and out["source"] == "lines of sight",
+          "a passing T2 from the track is a strong test (it says where it came from: lines of sight)")
     near = wind + 5.0 * np.array([0.5, -0.866])
     platform, los, _ = orbit(v_obj=tuple(near))
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
@@ -1942,10 +2040,26 @@ def test_the_verdicts_rule():
     v = drift.verdict([C("T1"), C("T2"), P("T3"), other(P("T4a", tracer_depth="same"), C("T4b"))])[0]
     check(v.startswith("consistent with wind-borne drift"),
           "a strong test (a tracer at its own depth) passed and none failed: tentative drift")
-    check(drift.verdict([P("T1"), P("T2"), F("T3"), other(P("T4a", tracer_depth="same"))])[0] == "not drifting",
+    los = dict(source="lines of sight")
+    check(drift.verdict([P("T1"), P("T2", **los), F("T3"), other(P("T4a", tracer_depth="same"))])[0] == "not drifting",
           "any test failed (a beat held across the video, a hovering rotor's): not drifting, whatever passed")
-    check(drift.verdict([P("T2"), C("T3")])[0].startswith("consistent with wind-borne drift"),
-          "T3 without power (cannot say) leaves a strong pass (T2) standing")
+    check(drift.verdict([P("T2", **los), C("T3")])[0].startswith("consistent with wind-borne drift"),
+          "T3 without power (cannot say) leaves a strong pass (T2 from lines of sight) standing")
+    # T2 is a strong test only where it came from lines of sight (2026-11-17, the maintainer's decision on method
+    # section 68: from the ranges a body flying 5-10 m/s passes nearly as often as a drifter)
+    v, why = drift.verdict([P("T1"), P("T2", source="ranges"), P("T3"), other(C("T4a"), C("T4b"))])
+    check(v == "cannot say" and why == ("no strong test (T2 from lines of sight, or T4a with a tracer at the object's depth) "
+                                        "passed. T2 passed from the ranges, where it cannot tell a drifter from a slow flier"),
+          "T2 passing from the ranges alone: cannot say (tentative drift until 2026-11-17), and the reason says both", why)
+    v, why = drift.verdict([P("T1"), P("T2", source="ranges"), P("T3"), other(P("T4a", tracer_depth="same"), P("T4b"))])
+    check(v.startswith("consistent") and why == "passed T4a and failed none; it names no object",
+          "with a tracer at its depth beside it, the verdict rests on the tracer alone: \"passed T4a and failed none\"", why)
+    v, why = drift.verdict([P("T2", **los), other(P("T4a", tracer_depth="same"))])
+    check(why == "passed T2, T4a and failed none; it names no object", "from lines of sight T2 is named with it", why)
+    check(drift.verdict([F("T2") | dict(source="ranges")])[0] == "not drifting",
+          "a fail of T2 from the ranges still decides: any failure is not drifting")
+    check(drift.verdict([C("T1"), C("T2"), P("T3")])[1] == "no strong test (T2 from lines of sight, or T4a with a tracer at "
+          "the object's depth) passed", "and where T2 did not pass the reason does not speak of it")
     check(drift.verdict([P("T1"), P("T3"), other(P("T4b"))])[0] == "cannot say",
           "no strong test passed (T1, T3 and T4b only): cannot say")
     check(drift.verdict([C("T1"), C("T2"), C("T3"), other(C("T4a"), C("T4b"))])[0] == "cannot say",
@@ -1981,9 +2095,18 @@ def test_hellfire_yemen_from_its_readings():
     check(abs(found.fields["depression_deg"] - 40.55) < 0.05, "and the depression from the ranges",
           f"{found.fields['depression_deg']:.2f} deg")
     check(t2["outcome"] == drift.PASS and abs(t2["airspeed_kn"][0] - 179.1) < 1 and abs(t2["airspeed_kn"][1] - 190.5) < 1
-          and abs(t2["sideways_right_kn"] - 23.2) < 0.5,
+          and abs(t2["sideways_right_kn"] - 23.2) < 0.5 and t2["same_side"],
           "T2: the winds need 179-191 kn of the aircraft, and lie the way its motion does",
           f"{t2['airspeed_kn']} kn, {t2['sideways_right_kn']} kn to the right")
+    check(t2["source"] == "ranges" and abs(t2["shortfall_m_s"][0] - 2.7) < 0.1 and abs(t2["shortfall_m_s"][1] - 9.5) < 0.1
+          and abs(t2["fit_err_across_m_s"] - 0.76) < 0.03 and abs(t2["tolerance_m_s"] - 6.3) < 0.1 and t2["samples"] == 72
+          and "5 kn (2.7 m/s) short" in t2["reading"] and "not a strong test" in t2["reading"],
+          "T2 by the rule of 2026-11-17: the nearest of its 72 hours and places is 2.7 m/s short of the measured sideways "
+          "motion, within two errors of the fit (1.5) and a model's own error on such a difference (4.8); it passes, and "
+          "says the pass is not a strong one", t2["reading"])
+    check(found.fields["why"] == "passed T4a and failed none; it names no object",
+          "the verdict rests on the tracer alone since then (\"passed T2, T4a\" before): T2 from the ranges is no strong "
+          "test", found.fields["why"])
     left = [n[1] for n in t2["needs_kn"]]
     check(len(left) == t2["samples"] and 4 <= min(left) and max(left) <= 19,
           "and what the winds leave the aircraft to fly sideways is to its left, 5-18 kn (their shortfall)",

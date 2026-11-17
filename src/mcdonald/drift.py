@@ -16,13 +16,17 @@ of sight) and the object's brightness, so they can run on any video whose displa
                  heading, so for a body drifting with the wind the relative motion's part across that heading is the
                  difference between the winds at the two heights, whatever the airspeed; its part along the heading
                  then gives the airspeed the aircraft would need. Needs the ranges, the north pointer's bearings, the
-                 aircraft's heading and archived model winds. A drone adds its own airspeed, and the airspeeds that
-                 would need are reported for each speed asked.
+                 aircraft's heading and archived model winds. Passes where the nearest hour and place given leaves
+                 the sideways motion within the fit's errors and a model's own error on such a difference, fails
+                 where even that one leaves it a flier's 10 m/s beyond. A drone adds its own airspeed, and the
+                 airspeeds that would need are reported for each speed asked. From the ranges it is not a strong
+                 test (a slow flier passes nearly as often as a drifter); from lines of sight it is.
     T3 beat      Is its brightness free of a beat at a wingbeat's or a rotor's rate? Read from `mcdonald flicker`: a
                  beat of its own that holds across the video (the whole track beats, or it comes back in stretches
                  apart, flicker's headline rule) fails; a beat in one stretch of many is not counted, since a flame or
                  chance can make one, and the test passes on the whole stretch; no beat passes, with the smallest beat
-                 the clip could have shown. A pass here is never a strong test (the verdict needs T2 or T4a).
+                 the clip could have shown. A pass here is never a strong test (the verdict needs T2 from lines of
+                 sight, or T4a).
 
 Where the display shows the aircraft's own position and its line of sight's ground point rather than ranges to the
 object, T1 and T2 run from the aircraft's own track instead (`--platform`, `--los`).
@@ -55,8 +59,9 @@ Until 2026-10-28 the tracer and the remains were T1 and T2, and the height, the 
 were put last because few videos show a strike or anything shed, while the other three run on any intact display
 (Jacob).
 
-The verdict is `consistent with wind-borne drift (tentative)` when a strong test (T2, or T4a with a tracer at the
-object's own depth) passes and none fails; `not drifting` when any test fails; otherwise `cannot say`. A beat decides
+The verdict is `consistent with wind-borne drift (tentative)` when a strong test (T2 from lines of sight, or T4a with
+a tracer at the object's own depth) passes and none fails; `not drifting` when any test fails; otherwise `cannot say`.
+T2 from the ranges is no strong test since 2026-11-17: its pass is said and does not carry the verdict. A beat decides
 only when it holds across the video: a rotorcraft hovering in calm air has no airspeed, so only its rotor's steady beat
 tells it from a drifter, while a lantern's flame, or chance over many windows, can make one stretch beat. Each test runs
 only on the inputs it needs and says what it lacks otherwise.
@@ -91,7 +96,9 @@ WRECK_FAIL_M = 20.0     # T4b fails when the remains accelerate down at half of 
 T_LAYER = 280.0         # K: the mean temperature of a missing pressure level's layer, for its height
 BLOCK, NBOOT = 15, 2000
 PASS, FAIL, CANNOT = "passes", "fails", "cannot say"
-STRONG = ("T2", "T4a")  # the tests that bear on the airspeed itself (T4a only with a tracer at its depth)
+STRONG = ("T2", "T4a")  # the tests that bear on the airspeed itself: T2 only where it came from lines of sight (`source`;
+#                         from the ranges it passes a body flying 5-10 m/s nearly as often as a drifter: method section
+#                         68, 2026-11-17), T4a only with a tracer at its depth (`strong`)
 
 
 # ---- reading ---------------------------------------------------------------------------
@@ -491,11 +498,68 @@ def wind_samples(paths, obj_m, air_m):
     return out
 
 
+WIND_DIFF_ERR = 4.8     # m/s: what T2 from the ranges allows a model for missing the DIFFERENCE between the winds at two
+#                         heights, across a heading: the size its error stays under nine times in ten. Measured on
+#                         radiosondes (method section 68; `tools/wind_model_igra.py`; the rows `difference_set` and
+#                         `difference_held` of tests/golden/wind_model_soundings.csv): the Yemen clip's heights (3,695
+#                         and 7,488 m above the sea), the model read with the Yemen files' levels at the hour before the
+#                         sounding; 4.84 m/s on the even-numbered stations (3,341 soundings), and on the odd-numbered
+#                         90.2 % of errors lie under 4.8. One constant at every separation and for every set of levels,
+#                         a judgement: with every level read the 90th percentile runs 4.4-5.5 m/s from 1 to 6 km of
+#                         separation (6.0 at 2 km with the Yemen files' three levels), and under a kilometre it is
+#                         smaller (3.4 at 0.5 km), so for an object near the aircraft's own height the allowance is
+#                         wider than measured: that can pass more and fail fewer, and never fails a drifter
+
+
+def _side(kn):
+    return f"{abs(kn):.0f} kn to the {'right' if kn >= 0 else 'left'}"
+
+
+def _sides(lo, hi):
+    """A range of sideways speeds (kn, to the right of the heading) in words."""
+    if lo >= 0 or hi <= 0:
+        a, b = sorted((abs(lo), abs(hi)))
+        span = f"{a:.0f}" if f"{a:.0f}" == f"{b:.0f}" else f"{a:.0f}-{b:.0f}"
+        return f"{span} kn to the {'right' if lo >= 0 else 'left'}"
+    return f"between {_side(lo)} and {_side(hi)}"
+
+
 def test_wind(line, heading_deg, winds, speeds=(10.0, 25.0, 50.0), air_min_kn=None, air_max_kn=None):
-    """T2. `line` from fit_line; `winds` from wind_samples."""
+    """T2 from the ranges. `line` from fit_line; `winds` from wind_samples, one for each hour of each model file given
+    (the winds at the object's height and at the aircraft's).
+
+    An aircraft flies through the air along its heading. So for a body drifting with the wind, the part of the measured
+    relative motion that lies across the heading, s, is the difference d between the winds at the two heights, whatever
+    the airspeed; s - d is what the body would have to fly across the heading itself (its shortfall); and the part
+    along the heading gives the airspeed the aircraft would need. The rule (since 2026-11-17: the maintainer's choice
+    of the rule drafted and scored in method section 68):
+    - passes where the nearest sample's shortfall, the least |s - d_i| over the hours and cells given, is within two
+      errors of the fit across the heading plus WIND_DIFF_ERR, and the airspeed a drifter needs of the aircraft lies
+      in the range given (`air_min_kn`, `air_max_kn`) at every sample;
+    - fails where even the nearest sample leaves it FLIER_MIN (10 m/s) or more beyond that;
+    - cannot say between, and where the shortfall is within the tolerance but the airspeed is not in the range.
+    The fit's error across the heading is its east and north errors (`v_err_m_s`) projected on that direction and
+    added in quadrature (their correlation is not kept by `fit_line`); a line without them is taken as exact.
+
+    Until then the rule read a side and no size: it passed where every sample's difference lay on the measured
+    motion's side of the heading with the airspeed in range, had no term for the model's error, and never failed.
+    Given three cells and 24 hours, as the Yemen run was, it passed a true drifter 27 times in 100 and a body flying
+    50 m/s through the air 12 (15.1 million drawn cases with radiosondes as the truth). `same_side` is still recorded.
+
+    What the rule as built does, scored on stations WIND_DIFF_ERR was not set on (the odd-numbered;
+    tests/golden/wind_model_t2_ranges.csv, held by test_drift): with three cells and 24 hours a drifter passes 96.8
+    times in 100 and fails 3 times in 48,288 (it cannot say for the rest, nearly all for the airspeed's range); bodies
+    flying 5, 10, 25 and 50 m/s through the air in eight directions pass 94.8, 82.9, 29.8 and 13.8 times in 100 and fail
+    0.0, 0.0, 22.7 and 72.2. With one cell and three hours: 98.5; 89.4, 50.6, 21.0 and 14.9; 0.0, 0.2, 56.2 and 75.0.
+    (The draft's own scores were 96.9; 95, 84, 30, 14; 22, 72: it took the fit's error across the Yemen clip's heading,
+    0.76 m/s, for every case, where the rule takes each case's own, 0.33-0.90 m/s.)
+    So it is NOT a strong test, and the verdict does not count its pass (`verdict`): a body flying 5 or 10 m/s passes
+    nearly as often as a drifter, and one flying along the heading shows nothing across it at any speed. What it adds
+    is a stated rate for a drifter and a fail for a fast body crossing the heading."""
     out = dict(test="T2", question="does its motion relative to the aircraft fit the winds?")
     if line is None:
         return dict(out, outcome=CANNOT, reading="no ranges and bearings to fit the relative motion")
+    out["source"] = "ranges"                                    # the route: T2 is a strong test only from lines of sight
     hd = math.radians(heading_deg)
     h_hat = np.array([math.sin(hd), math.cos(hd)])
     p_hat = np.array([-math.cos(hd), math.sin(hd)])           # left of the heading
@@ -529,18 +593,36 @@ def test_wind(line, heading_deg, winds, speeds=(10.0, 25.0, 50.0), air_min_kn=No
                                     flying_toward_it_kn=[round(min(lo), 1), round(max(lo), 1)] if lo else None)
     out["drones"] = drones
     same_side = bool(np.all(np.sign(dw_left) == np.sign(v_left))) and abs(v_left) > 0
-    in_range = (air_max_kn is None or air.max() <= air_max_kn) and (air_min_kn is None or air.min() >= air_min_kn)
-    out.update(same_side=same_side)
-    if same_side and in_range:
+    in_range = bool((air_max_kn is None or air.max() <= air_max_kn) and (air_min_kn is None or air.min() >= air_min_kn))
+    ve = line.get("v_err_m_s") or (0.0, 0.0)
+    sig = float(math.hypot(ve[0] * p_hat[0], ve[1] * p_hat[1]))          # the fit's error across the heading
+    short = np.abs(A @ p_hat)                                         # each sample's shortfall across the heading, m/s
+    k = int(np.argmin(short))
+    least, tol = float(short[k]), 2 * sig + WIND_DIFF_ERR
+    near = {q: winds[k][q] for q in ("file", "time") if q in winds[k]}
+    out.update(same_side=same_side, airspeed_in_range=in_range, shortfall_m_s=[round(least, 2), round(float(short.max()), 2)],
+               fit_err_across_m_s=round(sig, 2), wind_difference_err_m_s=WIND_DIFF_ERR, tolerance_m_s=round(tol, 2),
+               nearest_sample=near or None)
+    allows = f"two errors of the fit ({2 * sig:.1f} m/s) and a model's own error on such a difference ({WIND_DIFF_ERR:g})"
+    n, s_kn = len(winds), -v_left / KN
+    of = f"the nearest of the {n} hours and places given" if n > 1 else "the one hour and place given"
+    across = (f"Across its heading the winds' difference is {_sides(-dw_left.max() / KN, -dw_left.min() / KN)}, and the "
+              f"measured motion {_side(s_kn)}")
+    if least <= tol and in_range:
         return dict(out, outcome=PASS, reading=(
-            f"a body drifting with the winds needs the aircraft at {air.min():.0f}-{air.max():.0f} kn through the air, and "
-            f"the winds' difference across its heading ({-dw_left.max() / KN:.0f}-{-dw_left.min() / KN:.0f} kn) lies the same "
-            f"way as the measured {-v_left / KN:.0f} kn, {np.abs(slip).min():.0f}-{np.abs(slip).max():.0f} kn short"))
-    if not same_side:
-        return dict(out, outcome=CANNOT, reading="the winds' difference across the heading does not lie the way the motion "
-                                                 "does")
-    return dict(out, outcome=CANNOT, reading=f"a drifting body needs an airspeed of {air.min():.0f}-{air.max():.0f} kn, "
-                                             "outside the aircraft's range")
+            f"a body drifting with the winds needs the aircraft at {air.min():.0f}-{air.max():.0f} kn through the air. "
+            f"{across}. {of[0].upper() + of[1:]} leaves it {least / KN:.0f} kn ({least:.1f} m/s) short. That is within "
+            f"{allows}. A body flying a few metres a second would pass as well, so this pass is not a strong test"))
+    if least - tol >= FLIER_MIN:
+        return dict(out, outcome=FAIL, reading=(
+            f"{across}. Even {of} leaves it {least:.0f} m/s through the air across the heading. That is {least - tol:.0f} "
+            f"beyond {allows}: it flies"))
+    if least <= tol:
+        return dict(out, outcome=CANNOT, reading=f"a drifting body needs an airspeed of {air.min():.0f}-{air.max():.0f} kn, "
+                                                 "outside the aircraft's range")
+    return dict(out, outcome=CANNOT, reading=(
+        f"{across}. {of[0].upper() + of[1:]} leaves it {least:.1f} m/s through the air across the heading. That is beyond "
+        f"{allows}, {tol:.1f} m/s in all. It is not beyond them by a flier's {FLIER_MIN:g} m/s"))
 
 
 # ---- T1 and T2 from the aircraft's own track: the lines of sight ----------------------------
@@ -1555,19 +1637,33 @@ def flat(tests):
         yield from t.get("parts", ())
 
 
+def strong(t):
+    """Whether a test's pass can carry the verdict: T2 where it came from lines of sight (an aircraft's own track, or
+    cameras'; its `source`), T4a where its tracer is at the object's own depth. T2 from the ranges is not (since
+    2026-11-17): it passes a slow flier nearly as often as a drifter."""
+    if t["test"] not in STRONG or t["outcome"] != PASS:
+        return False
+    if t["test"] == "T2":
+        return t.get("source") == "lines of sight"
+    return t.get("tracer_depth", "same") == "same"
+
+
 def verdict(tests):
     """A strong test passing and none failing: tentative drift. Any failure: not drifting. (T3 fails only on a beat
     that holds across the video, `test_beat`.) A test with parts (T4) is judged by them: a failing part is named, and
-    a passing tracer part (T4a) is the strong test."""
+    a passing tracer part (T4a) is the strong test. T2 is strong only from lines of sight (`strong`); where it passed
+    from the ranges and no strong test did, the reason says so."""
     fails = [t for t in flat(tests) if t["outcome"] == FAIL and not t.get("parts")]
     if fails:
         return "not drifting", "; ".join(f"{t['test']}: {t['reading']}" for t in fails)
-    strong = [t for t in flat(tests) if t["test"] in STRONG and t["outcome"] == PASS
-              and t.get("tracer_depth", "same") == "same"]
-    if strong:
+    held = [t for t in flat(tests) if strong(t)]
+    if held:
         return ("consistent with wind-borne drift (tentative)",
-                "passed " + ", ".join(t["test"] for t in strong) + " and failed none; it names no object")
-    return "cannot say", "no strong test (T2, or T4a with a tracer at the object's depth) passed"
+                "passed " + ", ".join(t["test"] for t in held) + " and failed none; it names no object")
+    why = "no strong test (T2 from lines of sight, or T4a with a tracer at the object's depth) passed"
+    if any(t["test"] == "T2" and t["outcome"] == PASS for t in flat(tests)):
+        why += ". T2 passed from the ranges, where it cannot tell a drifter from a slow flier"
+    return "cannot say", why
 
 
 def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None, tracer_depth="same",
@@ -1643,7 +1739,8 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
             tw = test_wind(line, heading_deg, wind_samples(winds, obj_m, air_m), speeds, air_min_kn, air_max_kn)
             tw.update(object_height_m=round(obj_m, 0), aircraft_height_m=round(air_m, 0))
         elif line is not None:
-            tw = dict(test="T2", question="does its motion relative to the aircraft fit the winds?", outcome=CANNOT,
+            tw = dict(test="T2", question="does its motion relative to the aircraft fit the winds?", source="ranges",
+                      outcome=CANNOT,
                       reading="it needs the aircraft's heading, its height (sea readings) and archived winds as well")
         else:
             tw = test_wind(None, 0.0, [])

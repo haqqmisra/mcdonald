@@ -1,0 +1,56 @@
+# T2 'from the ranges' (mcdonald's drift.test_wind as built since 2026-11-17) on drawn cases whose truth is a radiosonde's
+# wind and whose input is a model's (tools/wind_model_igra.py; docs/method.md section 68). Per cent of cases.
+# stations: odd = the odd-numbered of the sorted station ids, which the rule's allowance was NOT set on; even = those it was set on.
+# geometry: clip = the Yemen clip's heights (3,695 and 7,488 m above the sea); levels = the sounding's own 700- and 400-hPa levels.
+# winds: Y3 = three cells x 24 hours (the Yemen run's shape); T3 = the station's cell at three hours.
+# body: 0 = a true drifter; mirror = the same with its sideways motion's sign turned; else m/s through the air, eight directions.
+# passes_lo, passes_hi: the 16th-84th percentiles of a bootstrap over station-weeks. tolerance: its median, m/s.
+stations,geometry,winds,body,cases,passes,passes_lo,passes_hi,cannot_say,fails,tolerance
+odd,clip,Y3,0,48288,96.8,96.6,97.1,3.2,0.01,6.16
+odd,clip,Y3,mirror,48288,63.7,62.6,64.9,24.7,11.60,6.16
+odd,clip,Y3,5,386304,94.8,94.5,95.0,5.2,0.01,6.16
+odd,clip,Y3,10,386304,82.9,82.7,83.1,17.1,0.04,6.16
+odd,clip,Y3,25,386304,29.8,29.4,30.2,47.5,22.66,6.16
+odd,clip,Y3,50,386304,13.8,13.8,13.9,14.0,72.19,6.16
+even,clip,Y3,0,40176,96.8,96.6,97.0,3.2,0.00,6.16
+even,clip,Y3,mirror,40176,65.0,63.7,66.2,25.1,9.93,6.16
+even,clip,Y3,5,321408,94.8,94.6,95.0,5.2,0.01,6.16
+even,clip,Y3,10,321408,82.7,82.5,82.9,17.2,0.03,6.16
+even,clip,Y3,25,321408,29.8,29.4,30.2,47.4,22.73,6.16
+even,clip,Y3,50,321408,13.8,13.7,13.8,14.0,72.18,6.16
+odd,clip,T3,0,48204,98.5,98.3,98.6,1.5,0.01,6.16
+odd,clip,T3,mirror,48204,35.0,34.1,36.0,36.1,28.87,6.16
+odd,clip,T3,5,385632,89.4,89.2,89.6,10.6,0.02,6.16
+odd,clip,T3,10,385632,50.6,50.4,50.8,49.1,0.24,6.16
+odd,clip,T3,25,385632,21.0,21.0,21.0,22.8,56.16,6.16
+odd,clip,T3,50,385632,14.9,14.9,14.9,10.1,75.00,6.16
+even,clip,T3,0,40092,98.6,98.5,98.8,1.4,0.00,6.16
+even,clip,T3,mirror,40092,35.3,34.2,36.1,37.4,27.29,6.16
+even,clip,T3,5,320736,89.5,89.3,89.7,10.5,0.01,6.16
+even,clip,T3,10,320736,50.9,50.7,51.0,48.9,0.20,6.16
+even,clip,T3,25,320736,21.0,21.0,21.1,23.0,55.95,6.16
+even,clip,T3,50,320736,14.9,14.9,15.0,10.1,75.00,6.16
+odd,levels,Y3,0,49188,96.2,96.0,96.4,3.8,0.00,6.16
+odd,levels,Y3,mirror,49188,60.3,58.8,61.4,24.7,15.00,6.16
+odd,levels,Y3,5,393504,94.6,94.4,94.8,5.4,0.01,6.16
+odd,levels,Y3,10,393504,84.2,84.0,84.4,15.8,0.03,6.16
+odd,levels,Y3,25,393504,31.5,31.1,31.9,48.5,20.05,6.16
+odd,levels,Y3,50,393504,13.7,13.7,13.8,14.7,71.57,6.16
+even,levels,Y3,0,41640,96.2,96.0,96.5,3.8,0.00,6.16
+even,levels,Y3,mirror,41640,62.1,60.8,63.3,24.8,13.05,6.16
+even,levels,Y3,5,333120,94.7,94.4,94.9,5.3,0.00,6.16
+even,levels,Y3,10,333120,84.0,83.8,84.1,16.0,0.02,6.16
+even,levels,Y3,25,333120,31.6,31.2,32.1,48.1,20.29,6.16
+even,levels,Y3,50,333120,13.7,13.6,13.7,14.8,71.54,6.16
+odd,levels,T3,0,49104,99.2,99.1,99.3,0.8,0.01,6.16
+odd,levels,T3,mirror,49104,31.9,31.1,32.6,34.0,34.20,6.16
+odd,levels,T3,5,392832,91.4,91.2,91.6,8.6,0.02,6.16
+odd,levels,T3,10,392832,51.0,50.8,51.1,48.9,0.14,6.16
+odd,levels,T3,25,392832,21.1,21.1,21.2,22.7,56.18,6.16
+odd,levels,T3,50,392832,15.0,15.0,15.0,10.0,74.99,6.16
+even,levels,T3,0,41544,98.9,98.8,99.1,1.1,0.00,6.16
+even,levels,T3,mirror,41544,32.2,31.3,33.2,35.8,31.99,6.16
+even,levels,T3,5,332352,91.2,90.9,91.4,8.8,0.02,6.16
+even,levels,T3,10,332352,51.3,51.1,51.4,48.6,0.18,6.16
+even,levels,T3,25,332352,21.1,21.0,21.1,23.0,55.91,6.16
+even,levels,T3,50,332352,15.0,14.9,15.0,10.0,75.00,6.16

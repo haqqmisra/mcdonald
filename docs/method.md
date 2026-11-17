@@ -3929,11 +3929,28 @@ depression below the horizontal.
   give a straight line in space (east, north, up; least squares on all three kinds of reading, the bootstrap over
   them). An aircraft flies through the air along its heading, so for a body drifting with the wind the motion's part
   across the heading is the difference between the winds at the object's height and at the aircraft's, whatever the
-  airspeed; its part along the heading then gives the airspeed the aircraft would need. With archived model winds
-  (Open-Meteo hourly pressure levels; a level with no height placed by the hypsometric equation at 280 K): passes when
-  the winds' difference lies the way the motion does and the airspeed it needs is the aircraft's (`--airspeed-kn`).
-  A drone adds its own airspeed; the aircraft airspeeds each drone speed (`--speeds`, m/s) would need are listed. It
-  never fails: a mismatch can be the winds' error as well as an airspeed.
+  airspeed; its part along the heading then gives the airspeed the aircraft would need. The winds are archived model
+  winds (Open-Meteo hourly pressure levels; a level with no height placed by the hypsometric equation at 280 K), a
+  sample for each hour of each file given. The rule (`drift.test_wind`; since 2026-11-17, the maintainer's choice of
+  the rule drafted and scored in section 68): with s the measured sideways motion, d_i the samples' differences
+  across the heading and sigma_s the fit's error across it, T2 **passes** where the nearest sample's shortfall, the
+  least |s - d_i|, is within 2 sigma_s plus 4.8 m/s (`WIND_DIFF_ERR`: what a model's error on the difference of the
+  winds at two heights, across a heading, stays under nine times in ten) and the airspeed a drifter needs of the
+  aircraft is in the range given (`--airspeed-kn`) at every sample; it **fails** where even the nearest sample
+  leaves the object 10 m/s or more beyond that; and it cannot say between, or where the sideways motion fits and the
+  airspeed does not. A drone adds its own airspeed; the aircraft airspeeds each drone speed (`--speeds`, m/s) would
+  need are listed. **From the ranges T2 is not a strong test**, and the verdict does not count its pass: scored on
+  radiosonde stations its allowance was not set on, with three cells and 24 hours given, a true drifter passes 96.8
+  times in 100, and bodies flying 5 and 10 m/s through the air pass 94.8 and 82.9 (section 68). What the rule gives
+  is a stated rate for a drifter and a fail for a fast body crossing the heading (22.7 in 100 at 25 m/s, 72.2 at 50).
+  Until that day the rule read a side and no size: it passed where every sample's difference lay the way the motion
+  does and the airspeed was the aircraft's, had no term for the model's error, never failed, and counted as a
+  strong test; with three cells and 24 hours it passed a true drifter 27 times in 100 and a body at 50 m/s 12 (section
+  68). Which side every sample lies on is still recorded (`same_side`).
+- *Where the rest of T2 is.* Lines of sight from cameras on the ground, each with its own clock and pointing
+  (`--rays`), are section 66; bodies planted on a case's own geometry and winds to say how slow a flier T2 would have
+  caught (`--plant`), section 67; a model's wind against weather balloons, what `MODEL_WIND_ERR` and `WIND_DIFF_ERR`
+  are worth out of sample, and the maintainer's choices on them, section 68.
 - *T1 and T2 from the aircraft's own track* (`--platform`, `--los`; added 2026-10-21). Many displays (a WESCAM-style
   ACFT block) show the aircraft's own position, altitude and heading, and range only the ground: the line of sight's
   ground point and the terrain's height there, the laser off. Each reading is then a ray from the aircraft through
@@ -4184,9 +4201,12 @@ depression below the horizontal.
     own bands as well (`pieces_band_L_per_s`), beside the lines'; T4a's rule and bound stay on the lines' (on Yemen
     the two agree within 5-9 %).
 
-**The verdict.** `consistent with wind-borne drift (tentative)` when a strong test -- T2, or T4a with a tracer at the
-object's own depth -- passes and none fails; `not drifting` when any test fails; otherwise `cannot say`. A beat counts
-as a failure only where it holds across the video (T3, above). The two controls of 2026-10-21 set that rule:
+**The verdict.** `consistent with wind-borne drift (tentative)` when a strong test -- T2 from lines of sight (an
+aircraft's own track, or cameras'), or T4a with a tracer at the object's own depth -- passes and none fails; `not
+drifting` when any test fails; otherwise `cannot say`. T2 from the ranges is not a strong test since 2026-11-17
+(`drift.strong`; each T2 says where it came from, `source`): its pass is said, and where no strong test passed the
+reason adds "T2 passed from the ranges, where it cannot tell a drifter from a slow flier"; its fail decides as any
+fail does. A beat counts as a failure only where it holds across the video (T3, above). The two controls of 2026-10-21 set that rule:
 - On AARO's Puerto Rico lanterns, a known drifter, `flicker` found 3.0 Hz in one 2-s window of 109, while the
   background's own windows beat in 2 of 436. Counted, it would have called them "not drifting".
 - A rotorcraft hovering in calm air (the Santa Barbara hoist) has no airspeed. Kinematically it is a drifter, and only
@@ -4209,7 +4229,11 @@ T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap
   its readings in `tests/golden/hellfire_drift/`): every test passes. T1: it holds its height (-0.9 +- 1.1 m/s) 3,793 m
   below the aircraft, at δ = 40.55 deg. T2: a 100.5 +- 0.6 m/s motion relative to the aircraft, 23 kn of it to the right
   of the heading; the winds' difference lies the same way (5-18 kn) and needs the aircraft at 179-191 kn through the
-  air. T3: no beat over 41 % of its brightness. T4, since it was struck: T4a, two pieces leave the remains at 0.68-0.82
+  air; the nearest of the 72 hours and places given (the southern Red Sea cell at 20:00 UTC) is 5 kn (2.67 m/s) short
+  of the measured motion, within two errors of the fit (1.5 m/s) and a model's own error on such a difference (4.8):
+  6.31 m/s in all, and the farthest sample is 9.48 short. It passes by the rule of 2026-11-17 as it did by the rule
+  before, and is no longer a strong test: the verdict rests on T4a ("passed T4a and failed none"; "passed T2, T4a"
+  until then). T3: no beat over 41 % of its brightness. T4, since it was struck: T4a, two pieces leave the remains at 0.68-0.82
   L/s (at most 1.26 in its smallest length), which bounds its airspeed under 1.93 of its lengths a second (the
   difference tracks' own bands: 0.79 and 0.62 L/s against the lines' 0.82 and 0.68); T4b, the remains sink at a
   steady rate: -0.08 +- 0.06 L/s^2 by the quadratic in time, and -0.17 +- 0.14 with the track's own wander fitted (a
@@ -9351,7 +9375,7 @@ plant's number).
   path. A bird that circles, or a body that changes its speed, is another question (the fit's model gate, section 34).
 - The airspeeds are a grid: "25 m/s or more" means 25 was the slowest tried at which all failed, and 20 was not.
 
-## 68. A model's wind against the air's own motion: what `MODEL_WIND_ERR` is worth out of sample, and what T2 "from the ranges" is worth (measured 2026-11-17; no rule changed)
+## 68. A model's wind against the air's own motion: what `MODEL_WIND_ERR` is worth out of sample, and what T2 "from the ranges" is worth (measured 2026-11-17; the rules decided on it that evening are at its end)
 
 **What was asked.** Two parts of `drift`'s T2 (section 34) lean on a weather model's wind and had never been held
 against a known answer they were not set on. T2 from the lines of sight adds `MODEL_WIND_ERR`, 3 m/s, to its tolerance;
@@ -9359,7 +9383,9 @@ the 3 was chosen after seeing the same 119 clouds it was scored on. T2 "from the
 clip's route) passes when the model winds' difference between the object's height and the aircraft's lies across the
 aircraft's heading the way the measured sideways motion does, at every hour and cell given, and the airspeed a
 drifter needs of the aircraft is in the range given. It has no term for the model's error and no stated rate. Both are
-measured here. Nothing in `drift.py` changes: the choices are the maintainer's, and are listed at the end.
+measured here. Nothing in `drift.py` was changed by the measurement: the choices were put to the maintainer, who made
+them that evening ("Decided 2026-11-17", at the end). Everything before that heading is as measured, with the rules
+as they stood: 3 m/s, and T2 from the ranges reading a side.
 
 **The truth and the test's input** (`tools/wind_model_igra.py`; its table is `tests/golden/wind_model_soundings.csv`,
 and `test_drift` holds the tool on a drawn station and the table to the numbers below). The truth is a radiosonde, a
@@ -9561,3 +9587,59 @@ a body flying 5 m/s passes one time in three), or move it and take the table's c
 keep the rule and state these rates; add the model's error to it (the draft); stop counting it among the strong
 tests of the verdict (`STRONG`), which leaves the Yemen clip's verdict on T4a, where it also passes; or give it the
 aircraft's real range of airspeeds, where its power lies.
+
+**Decided 2026-11-17** (the maintainer's answers that evening to the choices above, and what was built on them).
+- *`MODEL_WIND_ERR`: moved, to 2 m/s* (the table's column "2 m/s"; not the recommendation, which was to keep 3). What
+  it covers is now section 34's paragraph "A model's own error": 91 in 100 of a balloon's need, a drifter passing
+  80.4 %, a body flying 5 m/s 20.0 %. On the Galileo sample, each run's own fitted path and winds put through
+  `track_winds` and `test_wind_track` again (which at 3 m/s give back every recorded field of T2 on 239 of 239): T2
+  passes 52 of the 119 clouds where it passed 64 with one shared reference (v0.5.7's numbers; the count foretold
+  above), 55 where it passed 68 with each site a camera of its own at the default pointing error, and 45 where it
+  passed 53 with the pointing known to 0.7 and 0.4 deg; of the 40 mismatched pairs it passes 13, 11 and 11 where it
+  passed 21, 20 and 20. Those that leave go to "cannot say". Of the four known answers only the Puerto Rico
+  lanterns' file moves, in four fields of T2: the allowance 3.0 to 2.0 (twice), the tolerance 10.5 to 9.5 m/s, and
+  the reading's "(3)" to "(2)"; they need 1.4-3.6 m/s and pass as before.
+- *T2 from the ranges: the draft rule built, and no longer a strong test* (both). `drift.test_wind` is the rule of
+  "A rule with the error in it" above, draft A (the nearest sample), with E_d = 4.8 m/s as `WIND_DIFF_ERR`; a fail
+  for a body 10 m/s or more beyond; `same_side` still recorded; the condition on the airspeed kept. `drift.strong`
+  counts T2 only from lines of sight. What becomes of the old conditions: "every sample on one side" is no longer
+  asked (it shut 72 in 100 of true drifters out with three cells and a day), and "the airspeed in the range given"
+  is, at every sample, as the draft scored it. The rule as built was then scored by the tool itself, every case
+  through `drift.test_wind` (15.1 million calls; `tests/golden/wind_model_t2_ranges.csv`, held by `test_drift`), on
+  the odd-numbered stations, which the allowance was not set on; per cent passing; failing:
+
+  | | drifters | 5 m/s | 10 m/s | 25 m/s | 50 m/s |
+  |---|---|---|---|---|---|
+  | three cells, 24 hours, as built | 96.8; 0.01 | 94.8; 0.01 | 82.9; 0.04 | 29.8; 22.7 | 13.8; 72.2 |
+  | the draft's score | 96.9 | 95 | 84 | 30; 22 | 14; 72 |
+  | one cell, three hours, as built | 98.5; 0.01 | 89.4; 0.02 | 50.6; 0.24 | 21.0; 56.2 | 14.9; 75.0 |
+  | the draft's score | 98.8 | 91 | 53 | 21; 54 | 15; 75 |
+
+  The built rule is up to a point (three cells) and up to 2.7 points (one cell, 10 m/s) from the draft's score, and
+  why is known: the draft took the fit's error across the Yemen clip's own heading, 0.76 m/s, for every drawn case;
+  the rule takes each case's own, the east and north errors (0.90 and 0.33 m/s) projected on its heading, 0.33-0.90
+  m/s, so its tolerance is 5.5-6.6 m/s (median 6.16) where the draft's was 6.36. Put back, the draft's arithmetic
+  on the same cases gives the draft's scores to the digit (96.9; 95.1, 83.9, 30.3, 13.8; fails 21.7 and 72.1); the
+  allowance's rounding from 4.84 to 4.8 is worth 0.5 points at the most. Three drifters of 48,288 fail (three cells;
+  four of 48,204 with one), none on the stations the allowance was set on. The stations it was set on score within
+  0.3 points of the others, and the soundings' own 700- and 400-hPa levels within 2.0. The same cases with the
+  sideways motion's sign turned pass 63.7 times in 100 and fail 11.6: the rule reads a size, and the size is often
+  small.
+- *The allowance at other separations and levels* (a judgement, named). `WIND_DIFF_ERR` is one constant, set at the
+  clip's own pair of heights (3.8 km apart) with the Yemen files' three levels: 4.84 m/s on the even-numbered
+  stations, and on the odd-numbered 90.2 % of errors lie under 4.8 (their own 90th percentile is 4.77). With every
+  level read, the 90th percentile across a heading is 4.4-5.5 m/s from 1 to 6 km of separation; with the Yemen
+  files' levels it is 6.0 at 2 km, where their missing 500-hPa level costs most (4.8 then covers 82 in 100). Under a
+  kilometre the error is smaller (3.4 m/s at 0.5 km: 4.8 covers 97 in 100), so for an object near the aircraft's own
+  height the allowance is wider than measured. That can pass more and fail fewer, and cannot fail a drifter; since
+  the pass carries no verdict, the cost is a fail that comes later than it could. A table of the allowance by
+  separation would be the next step, and was not built.
+- *What the Yemen clip's T2 says now.* Passes: the nearest of its 72 samples is 2.67 m/s short of the measured
+  sideways motion, against 6.31 (two errors of the fit, 1.5, and 4.8). The verdict is unchanged, consistent with
+  wind-borne drift (tentative), and rests on T4a alone. In its file T2's reading and the verdict's reason change,
+  and T2 gains seven fields (`source`, `airspeed_in_range`, `shortfall_m_s`, `fit_err_across_m_s`,
+  `wind_difference_err_m_s`, `tolerance_m_s`, `nearest_sample`); every field it had keeps its value.
+- *The aircraft's real range of airspeeds* (the fourth choice above) is not built: `--airspeed-kn` takes what it is
+  given, and a sourced cruise band of the aircraft is the user's to give (IDEAS.md DR10).
+- *T2 from the lines of sight asks its fail rule before the velocity's gate* (decided the same evening on section
+  66's aircraft): section 34.

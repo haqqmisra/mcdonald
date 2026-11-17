@@ -19,7 +19,14 @@ job: 10 minutes on 9 CPUs of a 2023 workstation, the largest process 5 GB. It pr
   with the sounding's wind at the object's height, and bodies flying 5, 10, 25 and 50 m/s through that air in eight
   directions, seen from an aircraft at the aircraft's height flying a heading at an MQ-9's airspeed, with the model's
   winds as the test's input (`cases.npz`, one row a call of `drift.test_wind`).
-The design (heights, cells, hours, the split of the stations) is in the method section; nothing here sets a rule."""
+- B3. the rule as built since 2026-11-17 (the nearest sample's shortfall against two errors of the fit and
+  `drift.WIND_DIFF_ERR`): the allowance measured again on the even-numbered stations (the table's rows
+  `difference_set` and `difference_held`), and the rule's rates on the odd-numbered, which it was not set on
+  (`t2_ranges_table.csv`: the package's tests/golden/wind_model_t2_ranges.csv). The rule until then (every sample on
+  the measured motion's side) is kept beside it, from the fields the test still records (`same_side`,
+  `airspeed_in_range`), so the method section's first table can be made again.
+The design (heights, cells, hours, the split of the stations) is in the method section. This tool measured the rule's
+allowance and scores the rule; the rule itself is `drift.test_wind`'s."""
 import json
 import math
 import sys
@@ -56,6 +63,8 @@ MONTHS = [("2026-01-01", "2026-01-31"), ("2026-02-01", "2026-02-28"), ("2026-03-
           ("2026-07-01", "2026-07-31"), ("2026-08-01", "2026-08-31"), ("2026-09-01", "2026-09-30"),
           ("2026-10-01", "2026-10-31"), ("2026-11-01", "2026-11-07")]
 URL = "https://historical-forecast-api.open-meteo.com/v1/forecast?"
+COLUMNS = ("k j month week geom design levelset heading tas_kn speed dir passes same_side air_min air_max slip_min slip_max "
+           "dwr_min dwr_max side_right true_right samples fails passes_before shortfall tolerance")     # of cases.npz
 
 
 # ---- the model files ---------------------------------------------------------------------------------------------------
@@ -287,12 +296,15 @@ def station(args):
                             if dr == -2:                                     # the mirror: the sideways motion's sign turned
                                 v = v - 2.0 * (v @ p_hat) * p_hat
                             v = v + noise[hi]
-                            line = dict(v_m_s=[float(v[0]), float(v[1]), 0.0], speed_m_s=float(np.hypot(*v)),
-                                        toward_deg=math.degrees(math.atan2(v[0], v[1])) % 360, range_rms_m=0.0)
+                            line = dict(v_m_s=[float(v[0]), float(v[1]), 0.0], v_err_m_s=[V_ERR[0], V_ERR[1], 0.0],
+                                        speed_m_s=float(np.hypot(*v)), toward_deg=math.degrees(math.atan2(v[0], v[1])) % 360,
+                                        range_rms_m=0.0)
                             out = drift.test_wind(line, hd, winds, speeds=(), air_min_kn=AIR_RANGE_KN[0], air_max_kn=AIR_RANGE_KN[1])
                             cases.append((*tag, g, di, li, hd, tas[hi], sp, dr, out["outcome"] == drift.PASS, out["same_side"],
                                           *out["airspeed_kn"], *out["shortfall_kn"], *out["wind_difference_right_kn"],
-                                          out["sideways_right_kn"], float(-((wo - wa) @ p_hat) / KN), len(winds)))
+                                          out["sideways_right_kn"], float(-((wo - wa) @ p_hat) / KN), len(winds),
+                                          out["outcome"] == drift.FAIL, out["same_side"] and out["airspeed_in_range"],
+                                          out["shortfall_m_s"][0], out["tolerance_m_s"]))
     return dict(sid=sid, k=k, n=n, err=err, dif=dif, cases=np.array(cases, np.float32), file=mcdonald.__file__, checked=checked)
 
 
@@ -349,8 +361,7 @@ def main(sample, outdir, workers=18, src=None):
     DIF = [r for x in res for r in x["dif"]]
     C = np.concatenate([x["cases"] for x in res if len(x["cases"])])
     np.savez_compressed(outdir / "cases.npz", cases=C, stations=np.array(names), classes=cls,
-                        columns=np.array("k j month week geom design levelset heading tas_kn speed dir passes same_side air_min air_max "
-                                         "slip_min slip_max dwr_min dwr_max side_right true_right samples".split()))
+                        columns=np.array(COLUMNS.split()))
     np.save(outdir / "err.npy", ERR)
     with open(outdir / "dif.json", "w") as f:
         json.dump(DIF, f)
@@ -370,6 +381,8 @@ def main(sample, outdir, workers=18, src=None):
              "# kind 'wind': low_m-high_m the height above the station. kind 'difference': the wind at 3,695 m above the sea against the wind",
              "# low_m (= high_m) above it; 'difference_levels': the sounding's own pressure levels, low_m-high_m in hPa. levels: the model",
              "# levels read. p50-p95: percentiles of the vector error; across_sd, across_p90, across_p95: its part across one heading.",
+             "# kind 'difference_set' and 'difference_held': the Yemen clip's own pair of heights on the even-numbered stations (of the sorted",
+             "# ids; mcdonald's drift.WIND_DIFF_ERR is their across_p90) and on the odd-numbered, which T2 from the ranges is scored on.",
              "kind,lag_h,levels,low_m,high_m,soundings,p50,p68,p90,p95,rms,under_3,across_sd,across_p90,across_p95"]
     print("\n== A. the model's vector wind error against the soundings (m/s): median / 68th / 90th / 95th percentile, rms, share under 3 m/s")
     for lg, lab in ((0, "at the sounding's hour"), (-1, "the hour before")):
@@ -456,6 +469,20 @@ def main(sample, outdir, workers=18, src=None):
                     lines.append(f"{'difference' if geom == 'H' else 'difference_levels'},{lg},{ls},{lo},{hi},{m.sum()},{q[0]:.2f},{q[1]:.2f},"
                                  f"{q[2]:.2f},{q[3]:.2f},{np.sqrt(np.mean(dsize[m] ** 2)):.2f},{np.mean(dsize[m] <= 3):.3f},{np.std(ac):.2f},"
                                  f"{np.percentile(np.abs(ac), 90):.2f},{np.percentile(np.abs(ac), 95):.2f}")
+    # B3: the allowance of T2 from the ranges as built (drift.WIND_DIFF_ERR): the size the model's error on the clip's
+    # own difference, across a heading, stays under nine times in ten on the even-numbered stations (of the sorted ids,
+    # the one left out apart), and the same on the odd-numbered, which the rule's rates are scored on
+    print("\n== B3. the allowance of T2 from the ranges (drift.WIND_DIFF_ERR): the clip's heights, the Yemen files' levels, the hour before")
+    m0 = duse & (dlag == -1) & (dls == "yemen") & (dgeom == "H") & (np.abs(ddz - (AIR_M - OBJ_M)) < 1.0)
+    for kind, mm, lab in (("difference_set", m0 & (dk % 2 == 0), "even-numbered stations (set on)"),
+                          ("difference_held", m0 & (dk % 2 == 1), "odd-numbered stations (held on)")):
+        q = pct(dsize[mm])
+        ac = np.r_[dE[mm], dN[mm]]
+        print(f"   {lab}: n {mm.sum()} soundings at {len(set(dk[mm]))} stations | across a heading: 80th {np.percentile(np.abs(ac), 80):.2f}, "
+              f"90th {np.percentile(np.abs(ac), 90):.2f}, 95th {np.percentile(np.abs(ac), 95):.2f} m/s")
+        lines.append(f"{kind},-1,yemen,{AIR_M - OBJ_M:g},{AIR_M - OBJ_M:g},{mm.sum()},{q[0]:.2f},{q[1]:.2f},{q[2]:.2f},{q[3]:.2f},"
+                     f"{np.sqrt(np.mean(dsize[mm] ** 2)):.2f},{np.mean(dsize[mm] <= 3):.3f},{np.std(ac):.2f},"
+                     f"{np.percentile(np.abs(ac), 90):.2f},{np.percentile(np.abs(ac), 95):.2f}")
     (outdir / "wind_model_table.csv").write_text("\n".join(lines) + "\n")
     print("  the 700-400 hPa pair by station, the hour before, every model level: vector median / 90th; across sd; true difference's median")
     for kk, sid in enumerate(names):
@@ -463,19 +490,20 @@ def main(sample, outdir, workers=18, src=None):
         if m.sum() >= 20:
             print(f"   {sid} {cls[kk]:14s}: n {m.sum():4d} | {np.median(dsize[m]):.2f} / {np.percentile(dsize[m], 90):.2f} | {np.std(np.r_[dE[m], dN[m]]):.2f} | {np.median(dtrue[m]):.1f}")
 
-    # ---- B2
-    rates(C, names, cls, pooled, rng)
+    # ---- B2, B3
+    rates(C, names, cls, pooled, rng, outdir)
 
 
-def rates(C, names, cls, pooled, rng):
-    """T2 "from the ranges" on the drawn cases: what share passes, by body."""
-    col = {n: i for i, n in enumerate("k j month week geom design levelset heading tas_kn speed dir passes same_side air_min air_max "
-                                      "slip_min slip_max dwr_min dwr_max side_right true_right samples".split())}
+def rates(C, names, cls, pooled, rng, outdir=None):
+    """T2 "from the ranges" on the drawn cases: what share passes, by body, under the rule until 2026-11-17 (every
+    sample on the measured motion's side: `passes_before`) for the tables below, then under the rule as built."""
+    col = {n: i for i, n in enumerate(COLUMNS.split())}
     k = C[:, col["k"]].astype(int)
     use = pooled[k]
     grp = k * 100 + C[:, col["week"]].astype(int)
     g, de, ls, sp, dr = (C[:, col[n]].astype(int) for n in ("geom", "design", "levelset", "speed", "dir"))
-    ok = C[:, col["passes"]] > 0
+    built, failed = C[:, col["passes"]] > 0, C[:, col["fails"]] > 0          # the rule as built
+    ok = C[:, col["passes_before"]] > 0                                     # the rule until 2026-11-17
     side = C[:, col["same_side"]] > 0
     one_sign = np.sign(C[:, col["dwr_min"]]) == np.sign(C[:, col["dwr_max"]])
     inr = (C[:, col["air_min"]] >= AIR_RANGE_KN[0]) & (C[:, col["air_max"]] <= AIR_RANGE_KN[1])
@@ -486,7 +514,8 @@ def rates(C, names, cls, pooled, rng):
         b = boot(grp[m], lambda i, s=x[m]: np.mean(s[i]), rng, n)
         return f"{100 * x[m].mean():5.1f} ({100 * b[0]:.1f}-{100 * b[1]:.1f})"
 
-    print("\n== B2. T2 'from the ranges' (drift.test_wind) on drawn cases; per cent passing, with the 16th-84th percentile of a bootstrap over station-weeks")
+    print("\n== B2. T2 'from the ranges' on drawn cases, BY THE RULE UNTIL 2026-11-17 (every sample on the measured motion's side, the airspeed in range); "
+          "per cent passing, with the 16th-84th percentile of a bootstrap over station-weeks")
     for gi, gl in ((0, f"the clip's heights ({OBJ_M:g} and {AIR_M:g} m above the sea)"), (1, "the sounding's own 700- and 400-hPa levels")):
         print(f"\n  geometry: {gl}")
         base = use & (g == gi)
@@ -521,6 +550,40 @@ def rates(C, names, cls, pooled, rng):
                 print(f"     {sid} {cls[kk]:14s}: {100 * ok[mc & (dr == -1)].mean():5.1f} / {100 * ok[mc & (dr == -2)].mean():5.1f} / "
                       f"{100 * ok[mc & (sp == 10) & (dr >= 0)].mean():5.1f}   ({len(np.unique(C[mc, col['j']]))})")
 
+
+    # ---- B3: the rule as built (drift.test_wind since 2026-11-17), every row its own outcome
+    print("\n== B3. T2 'from the ranges' AS BUILT (the nearest sample's shortfall within two errors of the fit + drift.WIND_DIFF_ERR passes, "
+          "10 m/s or more beyond fails); per cent passing / failing, stations it was set on (even) and not set on (odd)")
+    even = k % 2 == 0
+    lines = ["# T2 'from the ranges' (mcdonald's drift.test_wind as built since 2026-11-17) on drawn cases whose truth is a radiosonde's",
+             "# wind and whose input is a model's (tools/wind_model_igra.py; docs/method.md section 68). Per cent of cases.",
+             "# stations: odd = the odd-numbered of the sorted station ids, which the rule's allowance was NOT set on; even = those it was set on.",
+             "# geometry: clip = the Yemen clip's heights (3,695 and 7,488 m above the sea); levels = the sounding's own 700- and 400-hPa levels.",
+             "# winds: Y3 = three cells x 24 hours (the Yemen run's shape); T3 = the station's cell at three hours.",
+             "# body: 0 = a true drifter; mirror = the same with its sideways motion's sign turned; else m/s through the air, eight directions.",
+             "# passes_lo, passes_hi: the 16th-84th percentiles of a bootstrap over station-weeks. tolerance: its median, m/s.",
+             "stations,geometry,winds,body,cases,passes,passes_lo,passes_hi,cannot_say,fails,tolerance"]
+    tol = C[:, col["tolerance"]]
+    for gi, gl in ((0, "clip"), (1, "levels")):
+        for di, dl in ((0, "Y3"), (2, "T3")):
+            for sl, sm in (("odd", ~even), ("even", even)):
+                base = use & sm & (g == gi) & (de == di) & (ls == 0)
+                if base.sum() == 0:
+                    continue
+                row = []
+                for lab, m in [("0", base & (dr == -1)), ("mirror", base & (dr == -2))] + [(f"{int(s)}", base & (sp == int(s)) & (dr >= 0)) for s in SPEEDS]:
+                    b = boot(grp[m], lambda i, x=built[m]: np.mean(x[i]), rng, 200)
+                    lines.append(f"{sl},{gl},{dl},{lab},{m.sum()},{100 * built[m].mean():.1f},{100 * b[0]:.1f},{100 * b[1]:.1f},"
+                                 f"{100 * (~built[m] & ~failed[m]).mean():.1f},{100 * failed[m].mean():.2f},{np.median(tol[m]):.2f}")
+                    row.append(f"{lab} {100 * built[m].mean():.1f} / {100 * failed[m].mean():.2f}")
+                print(f"   {gl:6s} {dl} {sl:4s} stations: " + "; ".join(row))
+            m0 = use & ~even & (g == gi) & (de == di) & (ls == 0)
+            if m0.sum():
+                print(f"   {gl:6s} {dl} odd stations, by direction from the heading (0 along, 90 right): per cent passing/failing")
+                for s in SPEEDS:
+                    print(f"       {s:4g} m/s: " + "  ".join(f"{100 * built[m0 & (sp == int(s)) & (dr == d)].mean():3.0f}/{100 * failed[m0 & (sp == int(s)) & (dr == d)].mean():3.0f}" for d in DIRECTIONS))
+    if outdir is not None:
+        (Path(outdir) / "t2_ranges_table.csv").write_text("\n".join(lines) + "\n")
 
 if __name__ == "__main__":
     a = [x for x in sys.argv[1:] if not x.startswith("--")]
