@@ -6284,6 +6284,138 @@ def test_zz_propose_spots_seen_all_round_are_read_as_before():
           f"{unlike} differ")
 
 
+
+def _drawn_clip(td, name, vx_of, size=704, frames=24, seed=20261116):
+    """A drawn clip `size` px square whose row y moves vx_of(y) px a frame across the picture, from its own RNG: the
+    texture is smoothed noise, sampled at each row's place frame by frame, with a little new noise in every frame."""
+    import subprocess
+    from PIL import Image
+    from scipy import ndimage
+    rng = np.random.default_rng(seed)
+    big = ndimage.gaussian_filter(rng.normal(0, 1, (size + 80, size + 500)), 3.0)
+    big = 30.0 * big / big.std()
+    src = Path(td) / f"src-{name}"
+    src.mkdir()
+    yy, xx = np.mgrid[0:size, 0:size].astype(float)
+    v = vx_of(yy)
+    for n in range(1, frames + 1):
+        g = ndimage.map_coordinates(big, [yy + 40, xx + 250 - v * n], order=1, mode="wrap")
+        Image.fromarray(np.clip(120 + g + rng.normal(0, 1.0, g.shape), 0, 255).astype(np.uint8)).save(src / f"f{n:05d}.png")
+    video = Path(td) / f"{name}.mkv"
+    subprocess.run(["ffmpeg", "-v", "error", "-framerate", "30", "-i", str(src / "f%05d.png"), "-c:v", "ffv1", "-pix_fmt", "gray",
+                    str(video)], check=True)
+    return clipmod.Clip(video, Path(td) / f"frames-{name}")
+
+
+def test_zz_scene_dense_field_maps_two_layers_and_the_change_across_one():
+    """`layers --dense` (IDEAS.md A14, method section 65): 128-px templates every 16 px on a drawn clip of two layers. The
+    upper 400 px move 3 px a frame at the top, 0.5 px a frame faster every 100 px down (a shear: what a surface whose range
+    changes down the picture gives); the lower 304 px move -2 px a frame. The dense field must find both layers, put the
+    second where it is, keep its neighbours together, and read the first layer's change across the picture -- and change
+    nothing else `layers` gives."""
+    print("\nlayers' dense field: two layers, and the change across one")
+    import shutil
+    from mcdonald import dense, layers
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    vx = lambda y: np.where(y < 400, 3.0 + 0.5 * y / 100.0, -2.0)
+    with tempfile.TemporaryDirectory() as td:
+        clip = _drawn_clip(td, "two", vx)
+        none = np.zeros((clip.H, clip.W), bool)
+        masks = dict(blocks=none, graphics=none, colour=True, tinted=False)
+        quiet = lambda *a: None
+        plain = layers.measure(clip, masks, k=5, out=str(Path(td) / "plain"), procs=2, say=quiet)
+        said = []
+        found = layers.measure(clip, masks, k=5, out=str(Path(td) / "dense"), procs=2, say=said.append, dense=4)
+        d = found.fields["dense"]
+        rest = {key: v for key, v in found.fields.items() if key != "dense"}
+        same_csv = Path(td, "plain_layers.csv").read_bytes() == Path(td, "dense_layers.csv").read_bytes()
+        check(rest == plain.fields and same_csv and {key: v for key, v in found.result.items() if key != "dense field"} == plain.result,
+              "asked for, the dense field changes nothing else layers gives: the same fields, result and <tag>_layers.csv")
+        e = d.get("empty_pairs", {})
+        check(d.get("floor") == 0.5 and max(e.get("half_turn", 1), e.get("other_clip", 1)) <= dense.NULL_SHARE,
+              "on drawn texture the empty pairs keep under 1 % at today's floor, so the rule is today's",
+              f"floor {d.get('floor')}, empty pairs keep {e.get('half_turn')} and {e.get('other_clip')}")
+        s = d.get("two_layers") or {}
+        r = d.get("rows_kept", {})
+        check(d.get("pairs_read") == 4 and s.get("pairs") == 4 and (r.get("median") or 0) > 20 * (r.get("today_median") or 1e9),
+              "both layers read in every pair, with over 20 times the matches of 128-px templates every 96 px",
+              f"{s.get('pairs')} of {d.get('pairs_read')} pairs; {r.get('median')} matches a pair against {r.get('today_median')}")
+        # the second layer's own rows centre near y = 520: the first's motion there, 3 + 0.5 * 5.2 = 5.6 px a frame, against -2
+        apart = s.get("apart_px_per_s") or 0.0
+        fast, slow = s.get("faster_y_share") or [1, 1, 1], s.get("slower_y_share") or [0, 0, 0]
+        check(abs(apart - 7.6 * 30) < 0.02 * 7.6 * 30 and fast[2] < 0.55 and slow[0] > 0.6 and 0.68 < slow[1] < 0.8,
+              "the second layer 7.6 px a frame from the first where it is; the faster above, the slower in the lower part",
+              f"{apart:.0f} px/s against {7.6 * 30:.0f}; the faster centred {fast[1]:.0%} of the way down ({fast[0]:.0%}-"
+              f"{fast[2]:.0%}), the slower {slow[1]:.0%} ({slow[0]:.0%}-{slow[2]:.0%})")
+        check((s.get("neighbours_same") or 0) > 0.97 and (s.get("neighbours_by_chance") or 1) < 0.65,
+              "neighbouring matches lie in the same layer, far more often than by chance: a map of where each layer is",
+              f"{s.get('neighbours_same')} against {s.get('neighbours_by_chance')}")
+        c = d.get("change_across") or {}
+        got = {p: (c.get(p) or {}).get("median", np.nan) for p in ("spread", "turn", "stretch")}
+        err = {p: (c.get(p) or {}).get("error") or np.inf for p in ("spread", "turn", "stretch")}
+        check(abs(got["spread"]) < 0.5 and abs(got["turn"] + 15.0) < 0.5 and abs(got["stretch"] - 15.0) < 0.5
+              and abs(got["turn"] + 15.0) < 3 * err["turn"] + 0.1 and abs(got["stretch"]) > 30 * err["stretch"],
+              "across the first layer: no spreading, and the shear's 15 px/s per 100 px as turning and stretching, far past their errors",
+              f"spread {got['spread']:+.2f}, turn {got['turn']:+.2f}, stretch {got['stretch']:+.2f} +/- {err['stretch']:.2f} px/s per 100 px")
+        check(dense.median_error([1.0, 2.0]) is None and abs(dense.median_error(np.random.default_rng(3).normal(0, 1, 400)) - 0.063) < 0.01,
+              "the median's error from the pairs' own scatter: none from two, 1.25/sqrt(n) of a normal sigma from many")
+        files = [Path(td, f"dense_dense{x}") for x in (".csv", "_map.csv", ".png")]
+        rows = Path(td, "dense_dense.csv").read_text().splitlines() if files[0].exists() else []
+        check(all(f.exists() and str(f) in found.files for f in files) and len(rows) == 5
+              and any(x.startswith("dense field:") for x in layers.said(found.fields)) and "dense field" in found.result,
+              "it writes a row a pair, the map of every match kept, and the figure, and says what it found",
+              f"{[f.name for f in files if f.exists()]}")
+        again = []
+        second = layers.measure(clip, masks, k=5, procs=2, say=again.append, dense=4)
+        check(second.fields["dense"] == d and any("the dense field from" in x for x in again),
+              "measured again, the dense field is read back from beside the frames, the same")
+
+
+def test_zz_scene_dense_floor_and_the_scrambled_frame():
+    """The dense field's match rule: the lowest peak floor at which neither empty pair keeps over 1 % of its templates,
+    each empty pair counted alone (the worse sets it); and the empty pair's scrambled frame: the same power at every
+    scale, nothing where it was."""
+    print("\nlayers' dense field: the floor the empty pairs set, and the scrambled frame")
+    from mcdonald import dense
+    rng = np.random.default_rng(1116)
+    quiet = np.column_stack([rng.uniform(0.0, 0.45, 2000), rng.uniform(0.0, 0.4, 2000)])
+    loud = quiet.copy()
+    loud[:60, 0], loud[:60, 1] = np.linspace(0.55, 0.70, 60), 0.0           # 3 % above 0.55, 1 % above 0.65
+    f, at = dense.floor_of(quiet, quiet)
+    check(f == 0.5 and at == [0.0, 0.0], "two quiet empty pairs leave today's floor of 0.5", f"{f}, {at}")
+    f, at = dense.floor_of(quiet, loud)
+    check(f is not None and 0.64 <= f <= 0.66 and at[1] <= dense.NULL_SHARE and dense.kept_at(loud, round(f - 0.01, 2)).mean() > dense.NULL_SHARE,
+          "where one empty pair keeps more, the floor is raised to the lowest at which it keeps 1 % or less", f"{f}, {at}")
+    worst = np.column_stack([np.full(100, 0.995), np.zeros(100)])
+    f, at = dense.floor_of(quiet, worst)
+    check(f is None and at[1] == 1.0, "an empty pair that keeps everything at every floor leaves no rule: nothing is read", f"{f}")
+    gy, gx = np.mgrid[0:12, 0:20]
+    xy = np.column_stack([80.0 + 16 * gx.ravel(), 80.0 + 16 * gy.ravel()])
+    halves = np.where(gy.ravel() < 6, 1, 2)
+    chequer = 1 + (gx.ravel() + gy.ravel()) % 2
+    split, mixed = dense.neighbours(xy, halves), dense.neighbours(xy, chequer)
+    check(abs(split["same"] - 1 + 20 / split["pairs"]) < 1e-12 and mixed["same"] == 0.0 and split["chance"] == mixed["chance"] == 0.5,
+          "neighbours: a picture split in two halves keeps all but the line between them together, a chequer none; chance 1/2",
+          f"{split}, {mixed}")
+    ridge = np.column_stack([np.full(100, 0.9), np.full(100, 0.88)])
+    check(not dense.kept_at(ridge, 0.5).any(), "a match no further than 0.05 above its runner-up is never kept, at any floor")
+    from scipy import ndimage
+    g = (ndimage.gaussian_filter(rng.normal(0, 1, (240, 320)), 2.0) * 40 + 120).astype(np.float32)
+    bad = np.zeros(g.shape, bool)
+    bad[:20] = True
+    s, m = dense.scrambled(g, bad, 7)
+    s2, _ = dense.scrambled(g, bad, 7)
+    filled = np.where(bad, np.median(g[~bad]), g).astype(np.float64)
+    p0 = np.abs(np.fft.rfft2(filled - filled.mean()))
+    p1 = np.abs(np.fft.rfft2(s.astype(np.float64) - s.mean()))
+    r = float(np.corrcoef(s.ravel(), g.ravel())[0, 1])
+    check(np.array_equal(s, s2) and np.array_equal(m, bad) and float(np.abs(p1 - p0).max() / p0.max()) < 1e-4 and abs(r) < 0.1,
+          "the scrambled frame has the frame's power at every scale, nothing in its place, its mask, and one seed one frame",
+          f"power within {float(np.abs(p1 - p0).max() / p0.max()):.1e}; correlation with the frame {r:+.3f}")
+
+
 def main(argv=None):
     """Every check, or with `--part K/N` every Nth test function from the Kth (round-robin over their sorted names), so
     that N jobs side by side run each one once and their PASS counts add up to one whole run's. Added 2026-11-10 for

@@ -54,6 +54,7 @@ _G = {}
 TEMPLATES = (128, 96, 48)           # px, stride, the second pass's stride
 SMALL_TEMPLATES = (64, 48, 32)
 FEW_TEMPLATES = 16
+PAIRS_DENSE = 24          # `--dense-pairs`' default, `dense.PAIRS` (kept here so that --help needs no import)
 TEXTURE_DN = 1.0          # band-passed grey's std under which a template has nothing to match on (a blurred panel: 0.3-0.7)
 
 
@@ -818,7 +819,7 @@ def _by_pair(tpl):
 
 
 def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, names=None, dark_below=None,
-            out=None, procs=None, fresh=False, say=print, progress=None, stop=None, scene=False):
+            out=None, procs=None, fresh=False, say=print, progress=None, stop=None, scene=False, dense=0, null_from=None):
     """Every frame pair of the window: each layer's screen velocity, the rate of one layer
     against the other, and with a track the object's rate against EACH layer, in 1-s
     windows of wall-clock time. Writes <out>_layers.csv and <out>_layers.png.
@@ -826,6 +827,10 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     With `scene`, a clip left STILL in over SCENE_SHARE of its pairs is read under its pattern too (`read_scene_under`): its
     own fields["scene"], <out>_scene.csv, and a line beside the NO POWER where a block was read. Every other number this function
     returns or writes is what it was: `slew`, `camera` and `over_track` take nothing from it.
+
+    With `dense` (a number of pairs), the dense field of that many of the pairs that moved (`dense.read`, IDEAS.md A14): its own
+    fields["dense"], <out>_dense.csv, <out>_dense_map.csv and <out>_dense.png, and a line of the result. `null_from` is a video for
+    its empty pair's other clip. As with `scene`, nothing else this function gives changes.
 
     The findings come back as numbers (Found.fields); what `mcdonald layers` prints is
     written from them by `said`, so the prose and the fields cannot disagree. The
@@ -997,6 +1002,17 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
             written.append(f"{out}_scene.csv")
             say(f"wrote {out}_scene.csv")
 
+    if dense:
+        from . import dense as dn
+        fields["dense"], records, mapped = dn.read(clip, masks, rows, trk, how, lay, k, reach, made_from, n=dense, null_from=null_from,
+                                                   procs=procs, fresh=fresh, say=say, progress=progress, stop=stop)
+        if out and records:
+            written += dn.write(out, records, mapped, k)
+            say(f"wrote {out}_dense.csv and {out}_dense_map.csv")
+            drawn = dn.figure(Path(f"{out}_dense.png"), clip, records, mapped, k, say=say)
+            if drawn:
+                written.append(drawn)
+
     result, npw, notes = {}, [], []
     for c in ("striated", "isotropic", "all"):
         s = fields["px_per_s"][c]
@@ -1026,6 +1042,9 @@ def measure(clip, masks, rows=None, track=None, k=5, step=1, max_shift=45.0, nam
     under = whole.reported(fields.get("scene"))
     if under:
         result["the scene under the sensor's pattern"] = under
+    if fields.get("dense"):
+        from . import dense as dn
+        result["dense field"] = dn.described(fields["dense"])
     state = scene_state(fields)
     if state and state["state"] == "under":       # the blocks say it moved: "held still" is not what the pixels show
         npw.append(("layers", f"the templates found no motion of the scene even over {longer} frames in {hs['still_again_share']:.0%} of pairs, "
@@ -1108,6 +1127,9 @@ def said(fields):
                  + (f"; {e['ridge_share']:.0%} of the templates sure only across a ridge" if e["ridge_share"] >= 0.05 else ""))
     if fields.get("scene"):
         L += whole.said(fields["scene"])
+    if fields.get("dense"):
+        from . import dense as dn
+        L += dn.said(fields["dense"])
     return L
 
 
@@ -1145,6 +1167,15 @@ def main():
                     help="do not read a clip held still under its sensor's pattern by whole blocks (`mcdonald scene`, <tag>_scene.csv)")
     ap.add_argument("--fresh", action="store_true",
                     help="measure again: do not reuse the templates an earlier run left in the work directory")
+    ap.add_argument("--dense", action="store_true",
+                    help="also map where each background layer is in the picture, and how its motion changes across "
+                         "the picture, from 128-px templates every 16 px; best with a graphics card. Writes "
+                         "<tag>_dense.csv, <tag>_dense_map.csv and <tag>_dense.png")
+    ap.add_argument("--dense-pairs", type=int, default=PAIRS_DENSE, metavar="N",
+                    help=f"with --dense: how many pairs of frames it reads, spread over those that moved (default {PAIRS_DENSE})")
+    ap.add_argument("--null-from", metavar="VIDEO",
+                    help="with --dense: another video, whose middle frame is the empty pair that sets the match rule "
+                         "(default: the clip's own frame with its detail scrambled)")
     ap.add_argument("--json", action="store_true",
                     help="print the measurement as JSON on stdout, its numbers as fields (the envelope every command "
                          "prints); everything else goes to stderr")
@@ -1181,7 +1212,7 @@ def _main(args):
 
     found = measure(clip, masks, rows, trk, k=args.k, step=args.step, max_shift=args.max_shift, names=names,
                     dark_below=args.dark_below, out=out, procs=args.procs, fresh=args.fresh, progress=to_stderr(),
-                    scene=not args.no_scene)
+                    scene=not args.no_scene, dense=args.dense_pairs if args.dense else 0, null_from=args.null_from)
     if args.marks and trk and not args.track:             # the link wrote these on the way: they are this command's files too
         found.files[:0] = [f"{out}_autotrack.csv", f"{out}_autotrack_strip.png"]
     elif args.auto_track and trk:

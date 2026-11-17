@@ -5,6 +5,25 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**`mcdonald layers --dense`: where each layer of the background is, and how its motion changes across one** (2026-11-16;
+ROADMAP 0.6 objective 3, IDEAS.md A14; method section 65). `layers` reads the background with 128-pixel templates every
+96 pixels: on a 1080p frame about 80, enough to find one or two layers but not to say where they are. Asked with
+`--dense`, it also places the same templates every 16 pixels on 24 pairs of frames that moved. That is about 36 times
+as many matches, and a third of a second a pair on a graphics card. The design is the maintainer's choice from the
+measurements of 2026-11-15:
+- *What it is for:* a map of the background's layers, and the parallax between and within them (the shift of a nearer
+  surface against a farther one as the camera moves).
+- *Which matches count:* each video is held against two empty pairs. One is its own second frame turned half a turn; the
+  other is that frame with its detail scrambled, or another video's frame (`--null-from`). A match counts only above
+  the peak height at which neither keeps more than 1 % of its templates.
+It writes a row a pair (`<tag>_dense.csv`), every kept match with its layer (`<tag>_dense_map.csv`) and a figure of the
+map (`<tag>_dense.png`). Two layers are named by speed on the screen, the faster and the slower, with where each lies.
+Across the larger layer it reads how the motion spreads, turns and stretches. A surface whose distance changes across
+the picture stretches it; so can a roll of the camera, and nothing here tells them apart. On 14 reference videos it
+found a second layer only on PR144, the one video with two. There the sea and the cloud tops moved 94 pixels a second
+apart. It found none on the others. Nothing else `layers` gives changes, and no report reads it. On the card and on the CPU it keeps the same matches: 1 of 104,812
+moved by more than 0.01 pixel on PR144.
+
 **Find sooner, with the same list to the bit** (2026-11-15; IDEAS.md G11 and G12). Two changes, and nothing Find
 gives is changed by either: every row, field and sentence of its list is as it was, and so are
 `tools/find_rank.py --link --keep`'s table and kept files.

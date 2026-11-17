@@ -8552,3 +8552,155 @@ can speak; where they cannot, it says nothing.
 1080p, seconds to a minute a video. The labelled set through `mcdonald batch`: 365 clips at 30-60 s each on 4 CPUs (peak
 0.76 GB), about 25 minutes as 16 at a time. AARO's 17 segments: about ten minutes an object at 1080p (PR-004's ten objects 71 minutes), peak about 4 GB.
 The ranking itself: seconds.
+
+## 65. The background as a dense field: where each layer is, and how its motion changes across one (ROADMAP 0.6, objective 3; IDEAS A14; added 2026-11-16)
+
+**What it answers.** Where in the picture each layer of the background is, and how the motion of a layer changes
+across the picture. Section 1's `layers` places 128-px templates every 96 px: on a 1080p frame about 80, enough for a
+consensus or two (the motion groups), not for a map. `mcdonald layers --dense [N]` (`mcdonald.dense`) places the same
+templates every 16 px on N pairs (default 24) of the pairs `layers` found moving with a consensus: about 36 times as
+many, a third of a second a 1080p pair on the graphics card (about 45 CPU cores' worth). It is the work the card was
+for (ROADMAP 0.6, objective 3: "the dense fields").
+
+**It is a reading, and changes nothing else.** The dense field has its own cache (`bg_dense_*.npz` beside the frames),
+its own files (`<tag>_dense.csv`, a row a pair; `<tag>_dense_map.csv`, a row a kept template with its layer;
+`<tag>_dense.png`) and its own entry in the fields (`dense`) and the result ("dense field"). Every other number, line
+and file of `layers` is the same with it or without it, to the byte (test_measurement holds this). No other stage and no
+report reads it; `run` does not ask for it.
+
+**The design** is the maintainer's (2026-11-16), from the measurements of 2026-11-15 (the session's A14 strand, probes
+on PR135, PR113, PR051 and PR144, 4-5 pairs each):
+
+1. *What for, first:* the background's layers, and the parallax between and within them. The other uses measured
+   gave nothing to stand on: the ring about a small object that `mcdonald comotion` reads only fits templates of 32 px, and a
+   fifth to a half of an empty pair's 32-px templates pass the keep rule; the scene behind a sensor's fixed pattern
+   (section 41) was read by no size or stride better than chance on PR135.
+2. *Templates of 128 px every 16 px.* The keep rule stays honest at 128 px (no false keeps on PR144, PR135 or across
+   clips; 1-5 % on the half-turn of clips with a sensor pattern). At 64 px 1-22 % of an empty pair's templates pass,
+   at 32 px 19-46 %. Every 8 px would cost four times as much for templates that overlap seven-eighths.
+3. *Which matches count:* the keep rule of `forensics.good` (a peak of 0.5 or more, 0.05 or more above the runner-up),
+   with each clip held against two empty pairs and the peak floor raised where they keep more than 1 % of their
+   templates. At an equal false-keep rate a raised peak floor kept the most real matches of the masks measured (a gap
+   floor, a texture floor, an information floor, forward-backward agreement): forward-backward agreement lost half the
+   real rows at 128 px.
+
+**A pair.** Pairs are taken evenly over those `layers` read as MOVED with a consensus (`how`, `lay`): held, unmoved,
+lost or unread pairs have no motion to map. The search reaches 24 px (`MARGIN`) past the faster of the pair's groups
+(`layers_of`'s consensus plus its group gap), never past `layers`' own reach; the masks are `layers`' own, the tracked
+object's disc among them. The zone of +-4 px about zero is left out, as in `layers`' first pass.
+
+**The two empty pairs and the floor** (`floor_of`). Each pair's first frame is matched, with the same templates, masks
+and reach, against two frames that cannot hold its scene:
+- *its second frame turned half a turn* (rows and columns reversed): the same texture and the same sensor, nothing in
+  its place. Where the sensor has a fixed pattern (stripes) the turned pattern matches itself away from zero, which a
+  real pair cannot do; this empty pair over-counts there, and so is the stricter of the two on such clips;
+- *a frame of another clip*: with `--null-from VIDEO`, that video's middle frame (masked by its own static masks, cut to
+  the clip's size about its middle); without, the clip's second frame with its phases drawn at random (`scrambled`:
+  the same power at every scale of detail and every direction, nothing where it was, none of the sensor's pattern in
+  place; masked pixels set to the rest's median first; seeded by the pair's first frame). The scrambled frame stands
+  for another clip so that one clip can be measured alone (a person with one video). On the reference clips neither it
+  nor another clip's frame came near binding (the table below).
+The floor is the lowest of 0.50, 0.51, ..., 0.99 at which neither empty pair, its templates over all the clip's pairs
+together, keeps more than 1 % (`NULL_SHARE`). Where none does, nothing of the clip's dense field is read, and it says so.
+
+**Layers and the map** (`pair_layers`, `grow`). A layer is the largest group of kept rows whose shifts follow one
+motion that changes evenly across the picture (an affine field: a shift and its rate of change across and down). It is
+seeded by `forensics.consensus` (`layers_of`'s tolerances, 6 px across and 2.5 px down over k frames), then fitted,
+and its rows found again within the tolerances of the fitted motion, until they stop changing (at most six rounds). A
+second layer is sought among the rest the same way. A layer needs 288 rows (`MIN_ROWS`): at a stride of 16 px a
+picture holds 36 rows where `layers` places one, and 8 templates make a consensus there. A second layer is one only
+where its motion is 12 px or more over k frames from the first's where it lies (`layers_of`'s rule, twice the
+tolerance). Which of the two has more rows can change from pair to pair as the picture moves; which moves faster on the
+screen does not while the parallax keeps its sign, so the summary names them the faster and the slower. The map
+(`<tag>_dense_map.csv`) gives every kept template its layer: 1 the larger, 2 the smaller, 0 neither. That each layer
+lies in a part of the picture of its own is measured by its neighbours (`neighbours`): of the rows next to each other on
+the grid, both in a layer, the share in the same one, against the share chance gives (each layer's share squared, summed).
+
+**The change across a layer** (`fit`, `parts`). The affine fit's rate of change, a 2 x 2 matrix in px over k frames per
+100 px, is given in the four parts it is made of (Koenderink and van Doorn 1976): the spreading (the divergence: a
+zoom, or a surface coming nearer), the turning (the curl: a roll of the camera), and the stretching with its axis (the
+deformation: what a surface whose range changes across the picture gives as the camera moves past it). These are
+readings of the field, not of the camera: a roll and a tilted surface can both turn and stretch it, and nothing here
+tells them apart. Where there are two layers, each one's motion is fitted again on its rows whose templates reach no
+row of the other layer (half a template, 64 px, across or down: `_inside`): a template that straddles the line between
+them reads a blend. On a drawn shear of 15 px/s per 100 px beside a second layer the straddling rows read it 3.5 % low
+(14.47); without them, 15.00.
+
+**Errors.** Neighbouring rows share most of their pixels (a 128-px template moved 16 px keeps seven-eighths of them),
+so the rows' scatter about the fit overstates how many independent readings there are by about (128/16)^2, and a pair's
+error from that scatter is multiplied by 8 (`OVERLAP`). Even so it is a floor: on PR144 the readings of pairs 10 frames
+apart differ by 1.5 to 3.4 times it (the spreading 1.8, the turning 3.4, the stretching 1.5; the robust scatter of
+successive differences over the root of two), part of which is the camera's own change between pairs. So the clip's
+numbers take their errors from the pairs' scatter about their median (`median_error`: the median absolute deviation as
+a sigma, times 1.2533 over the root of the pairs), which does not depend on that factor; a pair's own error stays in its
+row of `<tag>_dense.csv`.
+
+**Card and CPU.** The dense field is `shift_field` at another stride, so it runs on the graphics card wherever `layers`
+does (`forensics.pooled_or_on_card`: the pairs in this process with the frames read ahead, the card doing the
+matching), and on a pool of CPUs elsewhere. The empty frames are made on the CPU either way, so both match the same
+arrays. On PR144 (24 pairs, 1080p) and PR113 (8 pairs) card and CPU chose the same pairs and the same templates;
+1 row of 104,812 took a shift more than 0.01 px from the CPU's (another peak, its own height 0.016 apart); the floors,
+the layers and every count are the same, and the clip's numbers agree to about a part in a million. A run on the card
+and one on the CPU keep their caches apart, as `layers`' templates do (section 52), and a case says which computed it.
+
+**How it is held.** test_measurement: a drawn clip of two layers, the upper one sheared (`test_zz_scene_dense_field_...`):
+both layers in every pair, the second 226 px/s from the first where it lies against the 228 drawn, the faster above and
+the slower centred where it was drawn, neighbours 99.3 % together against 52 % by chance, the shear read as -15.02 and
+15.00 against 15, the files written, the reading read back from its cache, and every other field, line and file of
+`layers` unchanged; the floor and the scrambled frame on their own (`test_zz_scene_dense_floor_...`). Each check fails
+on a small change to the code it holds (taking out the straddling rows' refit, the floor's worse-of-two, the half turn,
+the neighbours' count, the turning's sign, the scrambled frame's power, the second layer's separation, the keep rule's
+gap); the factor of 8 is not held by a drawn clip (on drawn texture a right error and a wrong one both pass), and is
+set by PR144 above. test_gpu: on a drawn clip, the card's code (NumPy standing in, and arthur's card in a job given it)
+against the CPU: the same pairs and templates, the pair's and both empty pairs', each shift within 0.01 px and each
+peak within 1e-4, the same floor and every kept template in the same layer.
+
+**What the reference clips gave** (300 frames from the middle of each, k = 5, 24 pairs, on arthur's card, 2026-11-16):
+
+| clip | picture | pairs measured / with a layer | floor | empty pairs keep: turned, scrambled, another clip's | matches kept a pair (`layers`' own) | two layers | card, s |
+|---|---|---|---|---|---|---|---|
+| PR144 | 1920 x 1080 | 24 / 24 | 0.50 | 0.2 %, 0.0 %, 0.3 % | 2,984 (82) | 7 pairs, 94 px/s apart | 24 |
+| PR113 | 1920 x 1080 | 24 / 16 | 0.74 | 1.0 %, 0.0 %, 0.0 % | 787 (26) | none | 11 |
+| PR149 | 1920 x 1028 | 24 / 18 | 0.50 | 0.3 %, 0.0 %, 0.0 % | 501 (12) | none | 24 |
+| PR43 | 1920 x 1080 | 15 / 15 | 0.50 | 0.0 %, 0.0 %, 0.1 % | 2,281 (63) | none | 11 |
+| PR44 | 1920 x 1080 | 24 / 22 | 0.50 | 0.0 %, 0.0 %, 0.0 % | 438 (12) | none | 9 |
+| PR077 | 1280 x 720 | 12 / 0 | 0.54 | 0.9 %, 0.0 %, 0.0 % | 182 (6) | none | 5 |
+| PR097 | 1280 x 720 | 23 / 0 | 0.50 | 0.2 %, 0.1 %, 0.1 % | 148 (5) | none | 8 |
+| PR099 | 1280 x 720 | 9 / 2 | 0.50 | 0.4 %, 0.1 %, 0.0 % | 272 (8) | none | 6 |
+| PR135, PR41, PR079, PR085, PR088, PR141 | | 0 | | | | | |
+
+The empty pairs' shares are at the clip's floor; "another clip's" is PR144's middle frame (PR113's for PR144). The six
+clips of the last row held still on the screen through these 300 frames, by `layers`' reading: no pair moved with a
+consensus, so there was nothing to map, and the dense field says so. A layer needs 288 kept matches; on PR077 and
+PR097 no pair had that many (a median of 182 and 148 kept), on PR099 two of nine.
+
+- *A second layer only where there is one.* PR144, sea and cloud tops, is the one clip of the fourteen with two layers:
+  `layers` puts two motion groups in 29 % of these pairs and the one against the other at 97 px/s. The dense field found
+  two in 7 of its 24 pairs, 94 px/s apart (median), each pair's neighbouring matches 97.5-99.8 % in their own layer
+  against 50-72 % by chance. In frames 585-834 (the window of the 2026-11-15 probes, and of the figure) it found two in
+  5 of 24, 91 px/s apart, against `layers`' 91: the faster (the sea) in the upper part of the picture and the slower (the
+  cloud tops) below. In the 73 pairs it mapped on the other clips it found no second layer.
+- *The floor.* The half-turn set it wherever it was raised: on PR113 (to 0.74; the half-turn kept 1.0 % there, the
+  other two none) and PR077 (to 0.54). The scrambled frame kept at most 0.1 % anywhere, another clip's frame at most
+  0.3 % (on PR144); neither came near binding. The scrambled frame has none of a real scene's edges and keeps a little
+  less than another clip's frame does, so where a clip's floor could hinge on the second empty pair, `--null-from` with
+  another video is the stricter test.
+- *What PR144's larger layer does across the picture* (px/s per 100 px; the median of 24 pairs and its error from their
+  scatter). In frames 585-834 it spreads by +0.8 +/- 0.3, turns by -4.7 +/- 0.9 and stretches by +2.1 +/- 0.4: the sea's
+  speed falls down the picture, by about 5 px/s per 100 px in the figure's pair (frame 797). In frames 268-567 it spreads
+  by +1.2 +/- 0.1, turns by -2.0 +/- 1.2 and stretches by +1.3 +/- 0.2. So the change across the picture is there, and
+  is not the same along the clip, as the camera's own motion is not. The probes of 2026-11-15 read it at 5-20 times an
+  error from the rows' scatter, which was too small by the overlap; these errors carry the pairs' own spread.
+
+**What it costs.** On arthur's card (an RTX 5070 Ti) the 24 pairs of a 1080p clip and their 48 empty pairs took 9-24 s, a 720p
+clip's 5-8 s, with the search reaching 24 px past each pair's motion (a wider reach costs more: about 0.3 s a 1080p
+field at a reach of 150 px). The CPU's arithmetic is about 45 times one core's time: on PR144 the same 24 pairs took
+143 s with 16 CPU cores, `layers`' own passes included. The job's largest process held 2.6 GB. The map file is about 100 kB a pair at 1080p.
+
+**What it does not do.** It changes no number of `layers` and no sentence of a report; `run` and the window do not ask
+for it. It names no layer: "faster" and "slower" are on the screen, and which is the sea and which the cloud is the
+person's (`--names` names `layers`' own classes, not these). It gives no range: a layer's shift is the camera's
+rotation plus its motion over the layer's range, and neither the parallax between layers nor the change across one
+turns into a distance without the camera's own motion (section 33's unknowns). It does not follow a layer from pair
+to pair; each pair is mapped alone. Smaller templates, a ring about the object and the scene behind a sensor's pattern
+were measured and left out (the design above).

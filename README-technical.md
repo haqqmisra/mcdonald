@@ -293,6 +293,13 @@ mcdonald slew CLIP.mp4 --scene-blocks --out CASE     # k from the slew with the 
                                                      # window, the blocks' agreement with the pointer tested against circular shifts of it
                                                      # (21 blocks or more; the pointer read on every frame, --step 1)
 
+# Where each layer of the background is in the picture, and how its motion changes across one: 128-px templates every
+# 16 px on 24 pairs that moved (method 65; best on a graphics card, about a third of a second a 1080p pair). A match counts
+# above the peak at which two empty pairs -- the clip's own second frame turned half a turn, and that frame with its detail
+# scrambled (or --null-from another video's frame) -- keep 1 % of their templates or fewer. Its files are its own: no other
+# stage and no report takes from it
+mcdonald layers CLIP.mp4 --dense --out CASE           # --dense-pairs 48 for more; <tag>_dense.csv, _dense_map.csv, _dense.png
+
 # The camera's zoom states: where its field changes in a burst of blank frames, or in a step of the picture with no
 # blank (an electronic zoom), and by how much (slew and camera use them)
 mcdonald zoom CLIP.mp4 --out CASE                    # each burst a step (x s), no step, or unknown

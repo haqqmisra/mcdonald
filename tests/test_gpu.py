@@ -1375,6 +1375,46 @@ def test_tethers_stroke_mask_on_the_card_is_the_cpus():
               f"{c.name}: a frame reader given the card gives every frame's grey and mask as one without it")
 
 
+def test_the_dense_field_on_the_card_is_the_cpus():
+    """`layers --dense` (IDEAS.md A14, method section 65), whose work the card is for: on a drawn clip, by the CPU and by
+    the card's code in this process with the frames read ahead. The same pairs and the same templates of each, the pair's
+    and its two empty pairs', shifts within SHIFT_PX and peaks within 1e-4; so the same floor, and every kept template in
+    the same layer."""
+    print("\nlayers' dense field")
+    import csv as csvmod
+    import shutil
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    from mcdonald import layers
+    with tempfile.TemporaryDirectory() as td:
+        clip = _sliding_clip(td, (3.0, 1.0), "dense", frames=24)
+        none = np.zeros((clip.H, clip.W), bool)
+        masks = dict(blocks=none, graphics=none, colour=True, tinted=False)
+
+        def run(card, name):
+            with on(card):
+                found = layers.measure(clip, masks, procs=0, fresh=True, say=lambda *a: None, dense=3, out=str(Path(td) / name))
+                cache = max(clip.dir.glob("bg_dense_k5_*.npz"), key=lambda p: p.stat().st_mtime_ns)
+                with np.load(cache) as z:
+                    kept = {key: z[key] for key in z.files}
+            with open(Path(td) / f"{name}_dense_map.csv", encoding="utf-8") as fh:
+                labels = [(r[0], r[1], r[2], r[6]) for r in csvmod.reader(fh)]
+            return found.fields["dense"], kept, labels
+        d0, z0, l0 = run(None, "cpu")
+        for c in the_cards():
+            d1, z1, l1 = run(c, c.name.split()[0])
+            reals = [fields_agree(z0[key], z1[key]) for key in sorted(z0) if key.startswith("real_")]
+            peaks = [float(np.abs(z0[key] - z1[key]).max()) if z0[key].shape == z1[key].shape else np.inf
+                     for key in sorted(z0) if key.startswith(("turned_", "other_"))]
+            check(sorted(z0) == sorted(z1) and np.array_equal(z0["jobs"], z1["jobs"]) and len(reals) == 3
+                  and all(r[0] for r in reals) and max(r[1] for r in reals) <= SHIFT_PX and max(peaks) <= 1e-4,
+                  f"{c.name}: the same pairs and templates, the pair's and its empty pairs', each shift within {SHIFT_PX} px",
+                  f"{len(reals)} pairs, worst shift {max(r[1] for r in reals):.1e} px, worst empty peak {max(peaks):.1e}")
+            check(d1["floor"] == d0["floor"] and l1 == l0 and len(l0) > 1000,
+                  f"{c.name}: the same floor, and every kept template in the same layer", f"floor {d0['floor']}, {len(l0) - 1} kept")
+
+
 def test_the_third_pass_of_layers_on_the_card_is_the_cpus():
     """`layers`' third pass (2026-11-13): where a pattern on the sensor holds the templates at zero, each pixel's mean
     over a block is taken out and the block's pairs are matched again (`layers._mean_out`). On a card the same blocks
