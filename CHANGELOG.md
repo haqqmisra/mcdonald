@@ -5,6 +5,119 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**The wind-drift tests, made ready for the drift paper** (2026-11-17; ROADMAP 0.5.8; method sections 34 and 66 to
+68). `mcdonald drift` asks whether an object moved with the wind. Its second test, T2, compares the object's motion
+with the winds. This release gives T2 a new input, a way to say how slow a flier it would have caught, and three
+changed rules. Each rule was decided by the maintainer on measurements made that day. Two of the four known answers
+change in their numbers or words, as listed below. None changes its verdict.
+
+*Three rules of the wind test changed.*
+- **A fast flier fails, however poorly its velocity is known.** From lines of sight, T2 fails a body that needs
+  10 m/s more through the air than its tolerance allows. The tolerance already counts two errors of the fitted
+  velocity. Until now T2 first asked whether those two errors were under 5 m/s, and said "cannot say" where they
+  were not. So an airliner at 120 m/s, known to 10 m/s, could not be called a flier. T2 now asks the fail rule
+  first. Short of that margin it says "cannot say" as before, and it still never passes such a body. On the Galileo
+  Project's 80 aircraft with known tracks, T2 now fails all 80. Before, it failed 30 with each camera's own pointing
+  error at its default, and 2 with the larger error the cameras measure. Three of 119 clouds also fail now. They
+  move at 19 to 122 m/s, which no cloud does. No known answer's file changes.
+- **A weather model's wind is allowed 2 m/s of error, where it was allowed 3** (`MODEL_WIND_ERR`). The 3 m/s was
+  chosen on the same clouds it was scored on. Against weather balloons, which move with the air, 2 m/s covers what a
+  drifter needs 91 times in 100. A true drifter then passes 80 times in 100, and a body flying 5 m/s through the
+  air passes 20 times, where it passed 33. A body at 10 m/s passes 4 times in 1,000. The clouds need more than the
+  balloons do, and fewer of them pass: 55 of 119, where 68 did. Balloons flown at Las Vegas on the same days show
+  that this is the clouds and not the model.
+  - *AARO's Puerto Rico lanterns:* the tolerance goes from 10.5 to 9.5 m/s. The reading says "a model's own error
+    (2)" where it said "(3)". They need 1.4 to 3.6 m/s and pass as before.
+- **From the ranges on a display, T2 has a new rule, and its pass no longer decides the verdict.** This is the route
+  of the Yemen video. The old rule passed when the model's winds put the object's sideways motion on the correct
+  side of the aircraft's heading, at every hour and place given. It read no size and could not fail. Measured
+  against balloons, it passed a true drifter 27 times in 100 and a body flying 50 m/s 12 times. The new rule asks
+  how far the sideways motion is from the nearest hour and place given. It passes within two errors of the fit plus
+  4.8 m/s, the size a model's error on such a difference stays under nine times in ten (`WIND_DIFF_ERR`). It fails
+  10 m/s or more beyond that. Scored on balloon stations it was not set on, a drifter passes 97 times in 100. A
+  body crossing at 50 m/s fails 72 times in 100. But bodies flying 5 and 10 m/s pass 95 and 83 times in 100, so the
+  pass cannot tell a drifter from a slow flier. T2 from the ranges is therefore no longer a strong test. Only T2
+  from lines of sight, or a tracer at the object's depth, can carry "consistent with wind-borne drift".
+  - *The Yemen video:* T2 still passes. The nearest hour and place is 2.7 m/s short of the measured motion, against
+    6.3 allowed. Its verdict is unchanged and now rests on the pieces it shed: "passed T4a and failed none", where
+    it said "passed T2, T4a". T2's reading is new, and seven fields are added to it. Every field it had keeps its
+    value.
+  - *PR051's second leg:* only the verdict's reason changes its words. It now reads "no strong test (T2 from lines
+    of sight, or T4a ...) passed".
+  - *The Santa Barbara helicopter:* nothing changes.
+
+*`mcdonald drift --rays`: cameras on the ground, each with its own clock and its own pointing* (method section 66).
+The drift test finds an object's height and its velocity from lines of sight that cross. Until now those could come
+only from one aircraft's display as the aircraft turned (`--platform`, `--los`). Several cameras standing kilometres
+apart see an object at once, and their lines of sight cross without any camera moving. They now go in directly:
+
+```bash
+mcdonald drift --rays rays.csv --cameras cameras.csv --winds model.json --ground-m 600
+```
+
+- *The rays file* has a row for each reading: its time, the camera's name, the azimuth, and the elevation or the
+  depression. The time may be seconds from any zero, a unix time or an ISO time. The cameras' places go in the rows
+  or in a small cameras file. Several cameras may read at the same instant.
+- *No video is needed.* The `video` argument is now optional for the whole command. Only the inputs timed by a
+  video's frames need it, or `--fps`, and the command says so. A call that gives a video does what it did.
+- *Each camera has its own pointing error.* An aircraft's display has one true north, and the test carries one
+  shared error for every azimuth. A calibrated camera is off by its own small angle, in azimuth and in elevation.
+  Two cameras' errors change the angle at which their lines of sight cross, and with it the range. The test now
+  carries a constant error of each camera in both angles. `--pointing-err AZ,EL` says how well a camera's pointing is
+  known. By default it is the error given for one reading (`--los-sigma`, 0.3 and 0.1 degrees), which is a judgement.
+  The Galileo cameras measure about 0.7 and 0.4 degrees.
+- *Each camera's readings have their own scatter,* and the resampling that gives the errors draws each camera's own
+  readings.
+- *One camera cannot say.* A camera standing still cannot range what it sees, and the test says so in those words.
+  Two cameras under 40 metres apart are refused as well.
+- *The winds' hour* comes from the rays' own times where those are unix or ISO times, unless `--when` is given.
+- `--reference shared` fits the cameras as an aircraft's rays, with one azimuth reference for all. With the times of
+  the earlier workaround it gives the earlier numbers to the last digit (239 of 239 Galileo runs).
+
+On the Galileo Project's 239 triangulated objects, with each camera's own pointing at the default and the three
+rules above: no aircraft is called drifting, and T2 fails all 80. T2 passes 55 of the 119 clouds. Against the
+aircraft's own transponder speeds, two stated errors hold the truth on 66 % of aircraft, where one shared reference
+gave 50 %. The table for the paper, with the larger pointing error, is still to be made.
+
+*`mcdonald drift --plant`: how slow a flier the wind test would have caught* (method section 67). How fast a flier
+T2 catches differs from one video to the next. Asked with `--plant`, `drift` now measures it on the video's own
+geometry and winds. It plants bodies at the place and height the lines of sight fixed. Each moves with the air plus
+a speed through it, from 5 to 50 m/s, in eight directions. Each is seen along the real lines of sight, with errors
+the size of the real ones, and goes through the same fit and the same test. The result is a table by speed and a few
+sentences. They give the speed from which every planted body failed and the speeds at which the test could not say.
+They also say whether any flier passed as a drifter, and how often a planted drifter passed.
+- *The air.* Where the object passed the wind test, the bodies are planted in air that moved as the object did. Where
+  it did not, they ride the winds given, one after another (`--plant-air` chooses).
+- *From an aircraft or from cameras.* It works on lines of sight from either (`--platform` and `--los`, or `--rays`).
+  On cameras each planted body keeps each camera's own errors, and its fit carries each camera's pointing error.
+- *AARO's Puerto Rico lanterns,* with the rules above. A body flying 25 m/s or more through the lanterns' air fails
+  whichever way it flies. From 5 to 20 m/s the test cannot say, but for one body of 32 at 20 m/s. No flier passes as
+  a drifter, and a planted drifter passes 32 times in 32. The drift paper's figure was made under 0.4.3, when the
+  tolerance was 7.2 m/s; it is 9.5 now. Then, five of eight fliers at 20 m/s failed and two of eight at 5 m/s
+  passed.
+- *Forty of the Galileo Project's triangulated clouds,* measured that morning, before the three rules changed and
+  with one shared reference. The wind test failed 99 in 100 of the planted fliers at 25 m/s and every one from
+  30 m/s. It failed 86 in 100 at 20 m/s and 36 in 100 at 15 m/s. At 10 m/s and under it failed none: there it mostly
+  could not say. One planted flier in three passed as a drifter at 5 m/s, and one in twenty at 10 m/s. So the test
+  catches a fast flier and cannot tell a slow one, such as a bird, from a drifter. This table is to be made again
+  with the rules as they now stand.
+Nothing changes for a call that does not ask. It takes minutes: 289 fits, each as long as the video's own.
+
+*How far a weather model's wind is from the air's own motion* (method section 68; `tools/wind_model_igra.py`). The
+measurement behind two of the rules above. The known answers are weather balloons: 8,129 flights at 18 stations in
+2026. One to six kilometres up, the model's wind is about 2.1 m/s from the balloon's, half the time. One time in ten
+it is more than 4.3 to 4.6 m/s off. Balloons are fed into the models, so a model is at its best where one flew. The
+model's error on the difference between the winds at the Yemen video's two heights is about 3 m/s across a heading.
+The video's least shortfall is 2.7 m/s, so it fits drift, and it fits a body flying 5 to 10 m/s as well. The tool
+repeats the measurement from public data and scores the new rule; two tables hold its numbers, and a test holds them.
+
+*Smaller.*
+- With several cameras' brightness records (`--flicker a.json,b.json`), the beat test asks whether another camera
+  could have seen a third of a beat. It compared with that camera's smallest visible beat rounded to a whole per
+  cent, so 1.49 % read as 1 % and 1.51 % as 2 %. It now compares the number as measured. No known answer changes.
+- `--plant` checks itself by planting the object's own lines of sight again. That check now also compares the
+  tolerance, which is what moves if a planted body's fit is not given the object's own settings.
+
 **`mcdonald layers --dense`: where each layer of the background is, and how its motion changes across one** (2026-11-16;
 ROADMAP 0.6 objective 3, IDEAS.md A14; method section 65). `layers` reads the background with 128-pixel templates every
 96 pixels: on a 1080p frame about 80, enough to find one or two layers but not to say where they are. Asked with

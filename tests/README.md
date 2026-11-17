@@ -239,8 +239,10 @@ python3 tests/test_camera.py
 Portable; scenes built so that each answer is known (the method is `docs/method.md` §34), in the tests' order since
 2026-10-28 (the three main tests, then other evidence). Stepped range readouts, timed to the frame, must give a body
 holding its height (passes T1) and one climbing at 12 m/s (fails), and with the bearings the straight line's velocity
-to 3 m/s; a body drifting with the winds passes T2 and a drone crossing the heading cannot say (T2 from the ranges
-never fails). From
+to 3 m/s; a body drifting with the winds passes T2 from the ranges, a drone crossing the heading at 25 m/s fails, one
+at 10 m/s cannot say and one at 4 m/s passes as the drifter does (the rule since 2026-11-17: the nearest sample's
+shortfall against two errors of the fit and a model's own error on the difference, 4.8 m/s; until then the rule read
+a side, never failed, and that drone could not be said), its edges to the digit, and its pass carrying no verdict. From
 the aircraft's own track (an aircraft turning 1.65°/s round the object, its line of sight with 0.1° of noise): the
 object's velocity over the ground to 0.4 m/s, its height and climb, the aircraft's own wind and airspeed from its
 turn, the same path from the rays given as ground points, and a straight-flying aircraft that cannot say; a drifter
@@ -276,6 +278,45 @@ Barbara's Huey, a helicopter known to have hovered in calm air (`golden/santa_ba
 nothing to run on, T3 fails on its rotor's held 10.645 Hz, not drifting); Puerto Rico's gates (its path off a line by
 855 m, bound 0.0025, 14 winds counted as before, the model gate's p 0.054 reported). 126 checks, about 2.5 minutes
 (Slurm 19899, 2026-11-02).
+
+Since 2026-11-17 (the drift paper's release; method §66-68):
+- *Cameras on the ground* (`--rays`, `mcdonald.sightlines`; §66), drawn only: three cameras 2 and 10 km apart read a
+  drifter and a flier at the same instants (the path, T1 and T2 with no video and no frame rate); one camera, and two
+  45 m apart, are refused in the cameras' words; a camera's own pointing error in azimuth and in elevation is carried
+  and one constant for all is not enough; each camera's own scatter and its share of every resample; the command line
+  with ISO or unix times and no video, the winds' hour from the rays' own; the aircraft's route untouched, and the
+  two inputs one fit where the cameras share a reference.
+- *Planted fliers* (`mcdonald.fliers`, `--plant`; §67): on a drawn orbit round a drifter, plants at zero airspeed
+  pass 16 times in 16 and the rate stated is the count, plants at 40 m/s fail in every direction, plants at 10 m/s
+  cannot be judged, the case's own rays planted again come out as the case (outcome, airspeeds needed and tolerance),
+  the same seed gives the same result to the last digit in one process or two, and the winds are ridden in turn; no
+  plants and the reason for a straight flight, six readings, no wind that counts and a failed case asked to lend its
+  own motion as the air; through `measure` every other field is the same with and without `plant`; by the command
+  line on the lanterns (skipped without the clip) a drifter passes 8 in 8 and 40 m/s fails 8 in 8. And on three drawn
+  cameras of unequal scatter, with the rays handed to every fit caught on the way: each ray of each plant keeps its
+  camera and the size of its own miss at its own reading, a reading's two misses take one sign drawn afresh, the
+  poorer camera stays the poorer, every fit is handed the cameras' pointing error; through `measure` and through
+  `mcdonald drift --rays ... --plant` with no video.
+- *T2 from the lines of sight, the two rules of that day:* a body 110 m/s through the air whose velocity is known to
+  6 m/s fails (the fail rule before the velocity's gate), one 20 m/s through it and a drifter get the gate's own
+  words and fields, the edge is the whole tolerance plus 10 m/s, from cameras too; a model's own error is 2 m/s: a
+  cloud 2.2 m/s off a model's winds passes, one 3.5 m/s off (which passed at 3 m/s) cannot be said, and the wind in
+  which holding still "fits as well" is a 2 m/s one.
+- *T2 from the ranges against soundings* (`tools/wind_model_igra.py`; §68): the tool on a drawn station (the reader,
+  a model that holds the sounding's winds, a drifter passing on every heading, bodies crossing at 25 and 50 m/s
+  failing either way, at 10 m/s not said, at 5 m/s passing, and the rule before still given by the tool); its table
+  of the model's error on the real soundings (`golden/wind_model_soundings.csv`), with the allowance `WIND_DIFF_ERR`
+  held to the stations it was set on and to those it was not; and the built rule's scores on the stations it was
+  not set on (`golden/wind_model_t2_ranges.csv`: drifters 96.8 %, bodies at 5/10/25/50 m/s passing 94.8/82.9/29.8/
+  13.8 % and failing 0/0/22.7/72.2 %).
+- *The verdict:* T2 is a strong test only from lines of sight; a pass from the ranges alone is "cannot say" with the
+  reason saying so, and beside a tracer the verdict reads "passed T4a and failed none" (the Yemen clip).
+- *T3 from several cameras* compares another camera's floor as measured, not rounded to a whole per cent (a 4 % beat
+  against floors of 1.3 and 1.4 %).
+325 checks, about four and a half minutes on four CPUs of arthur (2026-11-17; 262 s with the machine busy). Most of
+that is the runs that keep the stage's own 2,000 resamples a fit, about 6 s each: the lanterns' planted fliers by the
+command line (17 fits, about 55 s), the cameras' command-line runs (30 s), PR051's two fits and the lanterns' two.
+The tests that go through the stage without checking that count take 60 or 200 resamples (`resamples(n)`).
 
 ```bash
 python3 tests/test_drift.py

@@ -397,7 +397,25 @@ mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5.json 
   --when 2013-04-27T01:22:47 --flicker f.json
 # its errors carry a constant error of the display's own azimuths: --az-ref-err DEG says how well the display's true
 # north is known (by default the azimuth error of --los-sigma, 0.3; inf leaves it to the lines of sight themselves)
+# ... or T1/T2 from cameras on the ground, each with its own clock: a row a reading (a time, the camera's name, its
+# azimuth and elevation), the cameras' places in the rows or in a file of their own. No video is needed. Each camera
+# has its own pointing error (--pointing-err AZ,EL, by default the errors of --los-sigma), its own scatter, and one
+# camera alone cannot say; the winds' hour is the rays' own unless --when is given
+mcdonald drift --rays rays.csv --cameras cameras.csv --winds model.json --ground-m 600 --flicker a.json,b.json
+# how slow a flier that wind test would have caught, on this case's own geometry and winds (from an aircraft's lines
+# of sight or from cameras'): bodies planted at the fitted place, moving with the air plus 5-50 m/s through it in
+# eight directions, each through the same fit and test (minutes; --plant-speeds, --plant-air path|winds,
+# --plant-draws, --procs)
+mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5.json --ground-m 72 \
+  --when 2013-04-27T01:22:47 --plant
+# T2 is a strong test only from lines of sight. From the ranges it passes where the nearest hour and place given is
+# within the fit's errors and a model's own error (4.8 m/s) of the sideways motion, and fails 10 m/s beyond; a slow
+# flier passes it nearly as often as a drifter, so there the verdict needs T4a. From lines of sight a model's wind is
+# allowed 2 m/s of error, and a body 10 m/s beyond the whole tolerance fails however well its velocity is known
 ```
+
+`drift` takes no video where its inputs carry their own times (`--rays`, `--flicker`); the inputs timed by a video's
+frames need the video or `--fps`, and the command says which.
 
 `stabilize`, `aspect`, `waves`, `slew`, `zoom`, `streak`, `readout`, `events`, `versions` and `drift` are not
 stages of `run` yet, and the window has no page for them: so far they are the command line's alone. `horizon`, `haze` and
