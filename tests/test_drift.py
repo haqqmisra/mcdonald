@@ -1996,6 +1996,9 @@ def test_t3_says_the_band_it_listened_in():
     check(t["reading"] == "no beat of its own between 1.5 and 24.0 Hz; only a beat over 2% of its brightness would have shown "
                           "(camera 1 (sphere-2), of 2 cameras). Every camera listened in that band, and every one passes",
           "two cameras that listened in one band: said once, that it is every camera's, and that every one passes", t["reading"])
+    t = drift.test_beat_cameras([b, _heard(24.0, beats=None, video="refused.mp4")])
+    check(t["reading"].endswith("(camera 1 (sphere-2), of 2 cameras). Every camera listened in that band"),
+          "one band from every camera does not say that every one passes where one could not say", t["reading"][-70:])
     t = drift.test_beat_cameras([a, b])
     check(t["outcome"] == drift.PASS and t["reading"] == (
               "no beat of its own between 1.5 and 4.8 Hz; only a beat over 1% of its brightness would have shown (camera 1 "
