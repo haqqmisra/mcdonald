@@ -150,7 +150,7 @@ def soundings(zpath, elev):
             v.append(wv)
         if len(zs) < 3:
             return None
-        o = np.argsort(zs)
+        o = np.argsort(zs, kind="stable")        # stable: of two levels at one height the file's first is kept, on any machine
         zs, u, v = np.array(zs)[o], np.array(u)[o], np.array(v)[o]
         k = np.r_[True, np.diff(zs) > 1.0]
         return dict(time=cur["time"], month=cur["month"], z=zs[k], u=u[k], v=v[k], std=cur["std"])

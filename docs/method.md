@@ -8724,14 +8724,16 @@ what `drift` would be given: Open-Meteo's hourly winds from its historical-forec
 product of the Yemen and Galileo wind files), fetched for each station's point and for two points 340 km west and 520
 km east of it (the Yemen run's three cells lie that far apart), read by `drift.hourly_levels`. A sounding's wind at a
 height is linear between the two wind levels that bracket it, where they are no more than 1,000 m apart (1,500 m
-above 3 km). Vandenberg is reported apart, as fixed beforehand: 3.4 % of its errors are over 20 m/s, none at the other
+above 3 km); of two wind levels within a metre of each other the file's first is kept (seven US soundings in ten
+hold such a pair, and a sort that is not stable kept different ones on two machines until it was made stable).
+Vandenberg is reported apart, as fixed beforehand: 3.4 % of its errors are over 20 m/s, none at the other
 17 stations. Two hours are read: the sounding's own, when the model has just been given that sounding, and the hour
 before, when it has not. Errors are the 16th-84th percentiles of a bootstrap over station-weeks, since a model's
 error comes in spells of days. The design was written down before any outcome was looked at; what was added after
 is named as added.
 
 **A model's wind against a balloon** (7,688 soundings at 17 stations). At the hour before the sounding the model's
-wind misses the balloon's by 2.05 m/s at 1-3 km above the station and 2.20 at 3-6 km (median; 2.02 below 1 km, 2.40
+wind misses the balloon's by 2.06 m/s at 1-3 km above the station and 2.20 at 3-6 km (median; 2.02 below 1 km, 2.40
 at 6-10); the 90th percentile is 4.30 and 4.60, the 95th 5.17 and 5.55; 73 % and 69 % of the errors are under 3 m/s.
 At the sounding's own hour the same figures are 1.67 and 1.87 m/s, 3.63 and 3.97, and 83 % and 78 %. By place, 1-6 km
 up at the hour before (median; 90th percentile): US west coast 1.77; 3.73, tropical coasts 1.96; 4.10, inland plains
@@ -8857,7 +8859,7 @@ at the least and 18.4 kn (9.5 m/s) at the most; the samples spread 6.8 m/s. That
 standard deviation of the model's error on the difference (2.98 m/s), so the clip is consistent with drift. It is as
 consistent with a body moving 3-10 m/s through the air across the heading. Among the drawn cases that pass with the
 measured motion 1.7-3.7 m/s beyond the nearest sample, as the clip's does (fixed after one station and before the
-rest): 1.06 % of true drifters, 2.14 % of bodies at 5 m/s, 2.83 % at 10 m/s, 0.56 % at 25 m/s and 0.15 % at 50 m/s.
+rest): 1.06 % of true drifters, 2.14 % of bodies at 5 m/s, 2.84 % at 10 m/s, 0.56 % at 25 m/s and 0.15 % at 50 m/s.
 Among cases whose samples spread as little as the clip's (within 30 %): 2.47, 5.56, 5.57, 0.51 and 0.35 %; at the
 four Middle East stations alone 3.44, 6.61, 6.55, 0.73 and 0.49 % (looked at afterwards). So the
 clip's numbers are about twice as likely for a body flying 5-10 m/s in a direction drawn at random as for a drifter,
