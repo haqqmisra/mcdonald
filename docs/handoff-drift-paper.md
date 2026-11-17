@@ -186,9 +186,17 @@ their band; 184 objects have a camera heard to 24 Hz; 14 (10 clouds, 4 aircraft)
 unheard; on 36 the reading leads with a camera cut short while another passing camera listened to 24 Hz, which the
 list of bands now shows. The fourteen reference case files measured again with the code before and after (31
 objects): every number, answer, conclusion, bottom line, reason and grade the same; the seven objects with no beat
-gain the band in two sentences each (all seven 1.5 to 12.0 Hz). Nineteen deliberate breaks, each caught by the check
+gain the band in two sentences each (all seven 1.5 to 12.0 Hz). Twenty-one deliberate breaks, each caught by the check
 meant for it. The sentences that changed, old and new, are listed for Jacob in the strand's scratch folder
 (`band/words-for-jacob.md`).
+
+**The suites, on the branch's last code commit** (cb3bac6, arthur's CPUs, one job a suite from a snapshot; the commit
+after it changes this file only): test_drift 342 PASS, test_reduction 734, test_cli 140, test_measurement 711,
+test_beat 60, test_controls 118 (no held line of the table of record gained the band), test_gui 797 and 1 skip (no
+wx module, as ever), test_golden 266, and the four exercise pages 4, 5, 5 and 16; no check fails and none is skipped
+but that one. Three held lines changed with the words, all in `test_measurement`'s drawn checks of the stage's line
+and of the finding for a peak above the top; no exercise page's quoted line changed. A trial merge with `dp-jitter`
+(c9d818f, nothing written) leaves `flicker.py` without a conflict.
 
 **For the table of the paper.** T3's reading now carries each camera's band. The table can count the 14 objects no
 camera heard above about 5 Hz from the readings ("may have gone unheard"), or from each envelope's `top_hz`.
