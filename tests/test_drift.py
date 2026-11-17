@@ -178,6 +178,101 @@ def test_t2_winds_from_an_archive_file():
           f"{np.round(s[0]['w_air'], 3).tolist()}")
 
 
+def drawn_station(folder, sid="XXM00000001", off_400=(0.0, 0.0)):
+    """A drawn radiosonde station for tools/wind_model_igra.py: one sounding in IGRA v2's columns whose wind is
+    (2 + z / 500, -3 + z / 1000) m/s at height z, two of its wind levels given by pressure alone; and a month of model
+    files at three cells that hold the same wind at every level and hour, but for `off_400` (m/s, east and north)
+    added at 400 hPa. Returns the station's entry."""
+    import zipfile
+
+    def wind(z):
+        return np.array([2.0 + z / 500.0, -3.0 + z / 1000.0])
+
+    def height(p):                                                    # an isothermal air at 280 K, 1013 hPa at the sea
+        return 287.05 * 280.0 / 9.80665 * math.log(1013.0 / p)
+
+    def row(p, with_height=True, surface=False):                      # IGRA's fixed columns: pressure in Pa, tenths of a m/s
+        z = height(p)
+        u, v = wind(10.0 if surface else z)
+        gph = f"{round(z):5d}" if with_height else "-9999"
+        return (f"{'21' if surface else '10'} -9999 {round(p * 100):6d} {gph} -9999 -9999 -9999 "
+                f"{round(math.degrees(math.atan2(-u, -v)) % 360):5d} {round(math.hypot(u, v) * 10):5d}")
+
+    levels = [1013, 925, 850, 800, 760, 700, 660, 620, 600, 560, 520, 500, 460, 430, 400, 370, 340, 300, 250, 200]
+    lines = [f"#{sid} 2026 01 01 12 1130 {len(levels):4d} drawn    drawn     150000   450000"]
+    lines += [row(p, with_height=p not in (660, 430), surface=p == 1013) for p in levels]
+    (folder / "igra").mkdir(exist_ok=True)
+    (folder / "model").mkdir(exist_ok=True)
+    with zipfile.ZipFile(folder / "igra" / f"{sid}-data-beg2026.txt.zip", "w") as z:
+        z.writestr(f"{sid}-data.txt", "\n".join(lines) + "\n")
+    times = [f"2026-01-{d:02d}T{h:02d}:00" for d in (1, 2) for h in range(24)]
+    hourly = dict(time=times)
+    for p in (1000, 925, 850, 800, 700, 600, 500, 400, 300, 250, 200):
+        u, v = wind(height(p)) + (np.array(off_400) if p == 400 else 0.0)
+        hourly[f"wind_speed_{p}hPa"] = [math.hypot(u, v) / drift.KN] * len(times)
+        hourly[f"wind_direction_{p}hPa"] = [math.degrees(math.atan2(-u, -v)) % 360] * len(times)
+        hourly[f"geopotential_height_{p}hPa"] = [height(p)] * len(times)
+    for cell in "cwe":
+        (folder / "model" / f"{sid}_{cell}_2026-01.json").write_text(json.dumps(dict(elevation=0.0, hourly=hourly)))
+    return dict(cls="drawn", lat=15.0, lon=45.0, elev=0.0)
+
+
+def test_t2_from_the_ranges_against_soundings():
+    """Method section 68 (2026-11-17). T2 "from the ranges" passes when the model winds' difference between the object's
+    height and the aircraft's lies across the heading the way the measured sideways motion does. What that is worth was
+    measured with radiosondes as the truth and the model as the test's input (tools/wind_model_igra.py). Here the tool
+    itself is held on a drawn station whose answer is known, and the table it made on the real soundings is held to
+    the numbers the method note quotes."""
+    print("\nT2 from the ranges against soundings: the tool on a drawn station, and its table")
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+    import wind_model_igra as tool
+    c = {n: i for i, n in enumerate("k j month week geom design levelset heading tas_kn speed dir passes same_side".split())}
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        st = drawn_station(td)
+        snd = list(tool.soundings(td / "igra" / "XXM00000001-data-beg2026.txt.zip", st["elev"]))
+        z660 = 287.05 * 280.0 / 9.80665 * math.log(1013.0 / 660.0)
+        check(len(snd) == 1 and len(snd[0]["z"]) == 20 and np.min(np.abs(snd[0]["z"] - z660)) < 2.0,
+              "the reader: one sounding of 20 wind levels, a level given by pressure alone placed by ln(p) between its "
+              "neighbours", f"{np.min(np.abs(snd[0]['z'] - z660)):.2f} m from its true height")
+        w = tool.sonde_at(snd[0], tool.OBJ_M, st["elev"])
+        check(w is not None and np.allclose(w, [2 + tool.OBJ_M / 500, -3 + tool.OBJ_M / 1000], atol=0.25)
+              and tool.sonde_at(snd[0], 13000.0, st["elev"]) is None,
+              "the sounding's wind at the object's height, between its levels; none above its top level",
+              f"{np.round(w, 2).tolist()}")
+        res = tool.station((str(td), 0, "XXM00000001", st, None))
+        err = np.array(res["err"])
+        dif = [r for r in res["dif"] if r[6] == "all"]
+        check(len(err) == 2 * len(tool.HEIGHTS) and np.abs(err[:, 6:8]).max() < 0.25 and len(dif) > 10
+              and max(math.hypot(r[8], r[9]) for r in dif) < 0.4,
+              "a model that holds the sounding's own winds: no error at any height, at the hour or the hour before, nor in "
+              "the difference between two heights (but IGRA's rounding)", f"{np.abs(err[:, 6:8]).max():.2f} m/s")
+        C = res["cases"]
+        main = (C[:, c["geom"]] == 0) & (C[:, c["design"]] == 0) & (C[:, c["levelset"]] == 0)
+        drifter, mirror = main & (C[:, c["dir"]] == -1), main & (C[:, c["dir"]] == -2)
+        right, left, along, back = (main & (C[:, c["speed"]] == 50) & (C[:, c["dir"]] == a) for a in (90, 270, 0, 180))
+        check(res["checked"] == 1 and drifter.sum() == tool.HEADINGS and C[drifter, c["passes"]].sum() >= tool.HEADINGS - 2
+              and C[mirror, c["passes"]].sum() <= 2,
+              "drawn cases through drift.test_wind, three cells and 24 hours as the Yemen run had (the samples the same as "
+              "drift.wind_samples'): a drifter passes on nearly every heading, its mirror on nearly none",
+              f"{int(C[drifter, c['passes']].sum())} and {int(C[mirror, c['passes']].sum())} of {tool.HEADINGS}")
+        check(right.sum() == tool.HEADINGS and np.all(C[right, c["passes"]] + C[left, c["passes"]] == 1),
+              "a body crossing the heading at 50 m/s passes one way and not the other, on every heading: the rule reads a "
+              "side, not a size")
+        fast = C[back, c["tas_kn"]] > 150.0
+        check(np.array_equal(C[along, c["passes"]], C[drifter, c["passes"]]) and fast.sum() > 0
+              and not C[back, c["passes"]][fast].any(),
+              "a body flying 50 m/s along the heading passes wherever the drifter does (nothing of it shows across the "
+              "heading, and 0-240 kn takes it in); flying the other way from an aircraft over 150 kn, it does not")
+        st = drawn_station(td, off_400=(4.0, 0.0))
+        res = tool.station((str(td), 0, "XXM00000001", st, None))
+        pair = [r for r in res["dif"] if r[5] == "L700-400" and r[6] == "all" and r[4] == 0]
+        top = [r for r in res["err"] if r[5] == 7500 and r[4] == 0]
+        check(len(pair) == 1 and abs(pair[0][8] - 4.0) < 0.4 and abs(pair[0][9]) < 0.4 and len(top) == 1 and 3.0 < top[0][6] < 4.2,
+              "the model's 400-hPa wind 4 m/s off to the east: the 700-400 hPa difference errs by 4 m/s east, the wind at "
+              "7.5 km by nearly as much", f"{pair[0][8]:.2f} and {top[0][6]:.2f} m/s" if pair and top else "")
+
+
 # ---------------------------------------------------------------- T1/T2 from the aircraft's own track
 def orbit(v_obj=(-6.0, -3.5), climb=-0.5, h_obj=250.0, turn=True, w_air=(-9.0, -3.0), seconds=95.0, every=2.5,
           noise=(0.1, 0.03), seed=5, lat0=18.5, lon0=-67.13):
