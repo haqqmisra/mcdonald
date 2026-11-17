@@ -875,7 +875,178 @@ def test_track_a_model_wind_file_lacking_the_height():
           "file's levels (it passed until 2026-11-02, and failed a body 30 m/s off it)", t2["reading"][:120])
 
 
-# ---------------------------------------------------------------- T3
+# ---------------------------------------------------------------- planted fliers (docs/method.md, section 67)
+def planted_case(v_obj=(-6.0, -3.5), turn=True, nboot=60):
+    """A drawn orbit round a body moving at v_obj, six winds near (-6.0, -3.5) m/s, and the case as `measure` makes it:
+    (rays, fitted path, winds, the case's T2)."""
+    rng = np.random.default_rng(6)
+    wind = np.array([-6.0, -3.5])
+    winds = [dict(label=f"wind {i}", w=wind + rng.normal(0, 0.7, 2), counts=True, note="") for i in range(6)]
+    platform, los, _ = orbit(v_obj=tuple(v_obj), turn=turn)
+    R = drift.rays(platform, los, FPS)
+    path = drift.fit_track(R, (0.1, 0.03), None, np.random.default_rng(20261021), nboot=nboot)
+    return R, path, winds, drift.test_wind_track(path, winds, readings=len(R["t"]))
+
+
+def test_fliers_planted_on_a_drawn_orbit():
+    """`mcdonald drift --plant` (fliers.plant_track): bodies planted at the place a case's rays fixed, moving with the
+    air plus an airspeed, each through the case's own fit and T2. On a drawn orbit round a drifter the answer is known:
+    a planted drifter passes, a body at 40 m/s through the air fails whichever way it flies, one at 10 m/s is beyond the
+    winds but not by a flier's margin, and the same seed gives the same table."""
+    from mcdonald import fliers
+    print("\nPlanted fliers: on a drawn orbit round a drifter")
+    R, path, winds, t2 = planted_case()
+    opts = dict(fit=dict(sig=(0.1, 0.03)), case_t2=t2, speeds=(10.0, 40.0), draws=2, nboot=60, procs=0)
+    f = fliers.plant_track(R, path, winds, **opts)
+    T = {t["airspeed_m_s"]: t for t in f["table"]}
+    check(t2["outcome"] == drift.PASS and f["air"] == "path" and f["air_chosen_by"] == "the case passed the wind test"
+          and f["plants"] == 48 and sorted(T) == [0.0, 10.0, 40.0] and all(t["plants"] == 16 for t in T.values()),
+          "the case passes T2, so the plants ride its own path's velocity: 16 at each of 10 and 40 m/s, and 16 at zero, "
+          "which is added", f"air {f['air']}, {f['plants']} plants at {sorted(T)}")
+    c = f["case_again"]
+    check(c["as_the_case"] is True and c["outcome"] == t2["outcome"] and np.allclose(c["needs_m_s"], t2["needs_m_s"], atol=fliers.AGAIN)
+          and not fliers.as_the_case(dict(c, needs_m_s=[c["needs_m_s"][0] + 0.1, c["needs_m_s"][1]]), t2) and not fliers.as_the_case(dict(c, outcome=drift.FAIL), t2)
+          and not fliers.as_the_case(dict(c, tolerance_m_s=c["tolerance_m_s"] + 0.1), t2),
+          "the check: the case's own rays, planted again as they are, come out as the case did",
+          f"T2 {c['outcome']}, needs {c['needs_m_s']} of {t2['needs_m_s']} m/s")
+    z = f["drifter"]
+    check(z["plants"] == 16 and z["passes"] >= 15 and z["pass_rate"] == round(z["passes"] / 16, 3) and T[0.0]["passes"] == z["passes"]
+          and f"passed {z['passes']} times in 16" in f["sentence"],
+          "plants at zero airspeed are the drifter itself: they pass 15 times in 16 or more, and the rate stated is the count",
+          f"{z['passes']} of {z['plants']}, rate {z['pass_rate']}")
+    check(T[40.0]["fails"] == 16 and f["fails_from_m_s"] == 40.0 and "40 m/s or more through the air would have failed" in f["sentence"],
+          "plants at 40 m/s fail whichever way they fly, and the sentence says so", f["sentence"])
+    check(T[10.0]["cannot_say"] == 16 and T[10.0]["cannot_say_because"] == {fliers.BETWEEN: 16} and f["passes_up_to_m_s"] is None
+          and f["cannot_say_m_s"] == [10.0, 10.0] and "At 10 m/s the wind test could not say." in f["sentence"]
+          and "No planted flier passed as a drifter, down to the slowest tried, 10 m/s" in f["sentence"],
+          "plants at 10 m/s are beyond the winds but not by a flier's margin: cannot say, 16 of 16, and none passes",
+          f"{T[10.0]}")
+    v = np.array([r["fitted_m_s"] for r in f["runs"]]) - np.array([r["ground_m_s"] for r in f["runs"]])
+    check(0.02 < np.sqrt((v ** 2).mean()) < 0.5 and all(len(r["needs_m_s"]) == 2 for r in f["runs"]),
+          "each plant's fit finds the velocity it was given, to the rays' errors (a typical miss under 0.5 m/s, and not none)",
+          f"rms {np.sqrt((v ** 2).mean()):.2f} m/s over {len(v)} plants")
+    few = dict(opts, speeds=(40.0,), draws=1)                    # 16 plants: 8 at zero, 8 at 40 m/s
+    once, again = fliers.plant_track(R, path, winds, **few), fliers.plant_track(R, path, winds, **few)
+    other = fliers.plant_track(R, path, winds, **dict(few, seed=7))
+    check(json.dumps(again, sort_keys=True) == json.dumps(once, sort_keys=True)
+          and [r["fitted_m_s"] for r in other["runs"]] != [r["fitted_m_s"] for r in once["runs"]],
+          "the same seed gives the same result, to the last digit; another seed draws other errors")
+    pooled = fliers.plant_track(R, path, winds, **dict(few, procs=2))
+    check(json.dumps(pooled, sort_keys=True) == json.dumps(once, sort_keys=True), "and the same in two worker processes as in one")
+    # the winds as the air: each plant rides one of the six, each as often as any other
+    w = fliers.plant_track(R, path, winds, **dict(opts, air="winds", speeds=(40.0,)))
+    rides = [sum(r["air"] == f"wind {i}" for r in w["runs"] if r["airspeed_m_s"] == 40.0) for i in range(6)]
+    check(w["air"] == "winds" and len(w["airs"]) == 6 and sorted(rides) == [2, 2, 3, 3, 3, 3] and w["drifter"]["passes"] >= 15
+          and w["fails_from_m_s"] == 40.0 and "as one of the winds given says" in w["sentence"],
+          "asked to ride the winds, the 16 plants at each speed take the six winds in turn (2 or 3 each); a drifter in "
+          "any of them passes, 40 m/s fails", f"rides {rides}; {w['sentence']}")
+    # what the module does not know of goes through it untouched: the rays' other keys, the fit's other options
+    Rx = dict(R, camera=np.arange(len(R["t"])) % 2, cameras=("a", "b"))
+    P = fliers.planted_rays(Rx, path, np.array(path["v_m_s"]), fliers.misses(R, path))
+    check(set(P) == set(Rx) and all(P[k] is Rx[k] for k in Rx if k not in ("az", "dep")) and np.allclose(P["az"], R["az"], atol=1e-9)
+          and np.allclose(P["dep"], R["dep"], atol=1e-9),
+          "a plant's rays are the case's with the two angles alone replaced, so a camera named for each ray goes with them; "
+          "and the case planted as it is gives the case's own rays back")
+    one = dict(opts, speeds=(), directions=1, draws=1)
+    wide = fliers.plant_track(R, path, winds, **dict(one, fit=dict(sig=(0.1, 0.03), az_ref_err=5.0)))
+    usual = fliers.plant_track(R, path, winds, **one)
+    check(wide["runs"][0]["velocity_err_m_s"] > 3 * usual["runs"][0]["velocity_err_m_s"] and wide["runs"][0]["fitted_m_s"] == usual["runs"][0]["fitted_m_s"],
+          "the fit's options are handed to each plant's fit as given: an azimuth reference known to 5 deg widens a plant's "
+          "velocity error and moves no fitted number",
+          f"{usual['runs'][0]['velocity_err_m_s']} -> {wide['runs'][0]['velocity_err_m_s']} m/s")
+    lines = "\n".join(fliers.said(f))
+    check("| 40 | 16 | 0 | 0 | 16 |" in lines and f["sentence"] in lines and "WARNING" not in lines,
+          "the printed lines: the table by airspeed, then the sentence")
+
+
+def test_fliers_are_not_planted_where_the_case_gives_no_ground():
+    """No path, no plants, and the reason: rays that fix no path (a straight flight, too few readings), no wind that
+    counts, the route from the ranges (not built), and the object's own motion as the air where the object failed T2."""
+    from mcdonald import fliers
+    print("\nPlanted fliers: no plants where there is no path to plant on, with the reason")
+    R, path, winds, t2 = planted_case(turn=False)
+    f = fliers.plant_track(R, path, winds, fit=dict(sig=(0.1, 0.03)), case_t2=t2, nboot=60, procs=0)
+    check(f["plants"] == 0 and "runs" not in f and "fix no path" in f.get("why", "") and "flew straight" in f.get("why", "")
+          and f["sentence"].startswith("No bodies were planted: ") and fliers.said(f) == [f"\nplanted fliers: {f['sentence']}"],
+          "a straight flight fixes no path: no plants, and it says why", f["sentence"][:140])
+    few = {k: (v[:6] if isinstance(v, np.ndarray) and len(v) == len(R["t"]) else v) for k, v in R.items()}
+    f = fliers.plant_track(few, None, winds, procs=0)
+    check(f["plants"] == 0 and "6 lines of sight, where at least 9 are needed" in f.get("why", ""), "six lines of sight: no path, no plants",
+          f.get("why", "")[:80])
+    R, path, winds, t2 = planted_case()
+    f = fliers.plant_track(R, path, [dict(w, counts=False) for w in winds], fit=dict(sig=(0.1, 0.03)), nboot=60, procs=0)
+    check(f["plants"] == 0 and "no wind that bears on its height" in f.get("why", ""), "no wind that counts: no plants", f.get("why", "")[:80])
+    R, path, winds, t2 = planted_case(v_obj=np.array([-6.0, -3.5]) + 25.0 * np.array([0.5, -0.866]))
+    f = fliers.plant_track(R, path, winds, fit=dict(sig=(0.1, 0.03)), case_t2=t2, air="path", nboot=60, procs=0)
+    check(t2["outcome"] == drift.FAIL and f["plants"] == 0 and "failed the wind test" in f.get("why", ""),
+          "a flier's own motion is not the air's: asked to ride the path of a case that failed T2, no plants", f.get("why", "")[:90])
+    f = fliers.plant_track(R, path, winds, fit=dict(sig=(0.1, 0.03)), case_t2=t2, speeds=(40.0,), draws=1, nboot=60, procs=0)
+    check(f["air"] == "winds" and f["air_chosen_by"] == "the case did not pass the wind test" and f["drifter"]["passes"] == 8
+          and f["fails_from_m_s"] == 40.0, "left to itself there, it plants in the winds: a drifter in them passes, 40 m/s fails",
+          f["sentence"])
+
+
+def test_fliers_through_the_stage_change_nothing_else():
+    """`measure(plant=...)`: the field `planted_fliers` and nothing else. Every other field of the result is the same
+    with and without it, and a call that does not ask has no such field. From the ranges it says they are not built."""
+    print("\nPlanted fliers: through the stage, a field of their own and nothing else moved")
+    platform, los, _ = orbit()
+    obs = [dict(source="mast", height_m=h, from_deg=59.7, speed_m_s=s) for h, s in ((100.0, 6.5), (400.0, 7.4))]
+    kw = dict(platform=platform, los=los, los_sigma=(0.1, 0.03), observed_winds=obs, ground_m=70.0)
+    plain = drift.measure(FPS, **kw)
+    asked = drift.measure(FPS, plant=dict(speeds=(40.0,), directions=1, draws=1, procs=0), **kw)
+    f = asked.fields.get("planted_fliers") or {}
+    rest = {k: v for k, v in asked.fields.items() if k != "planted_fliers"}
+    dump = lambda d: json.dumps(d, sort_keys=True, default=lambda o: o.tolist())            # noqa: E731
+    check("planted_fliers" not in plain.fields and dump(rest) == dump(plain.fields) and asked.result == plain.result,
+          "without `plant` there is no such field; with it every other field and every printed result is the same")
+    check(f.get("plants") == 2 and f["case_again"]["as_the_case"] is True and f["resamples"] == 2000 and f["fails_from_m_s"] == 40.0
+          and f["sentence"] in "\n".join(drift.said(asked.fields)) and "planted fliers" not in "\n".join(drift.said(plain.fields)),
+          "the field holds the plants (2, each fitted with the case's own 2,000 resamples, and the case again, which comes "
+          "out as the case), and the stage prints their sentence after the verdict",
+          f.get("sentence", "")[:150])
+    g = golden()
+    ranges = drift.measure(FPS, slant=g["slant"], horiz=g["horiz"], own=g["own"], bearings=g["bearings"], heading_deg=144.9,
+                           winds=g["winds"], air_min_kn=0.0, air_max_kn=240.0, plant={})
+    f = ranges.fields["planted_fliers"]
+    check(f["plants"] == 0 and f["route"] == "ranges" and "not built yet" in f.get("why", ""),
+          "from the ranges (the Yemen clip's route) no fliers are planted yet, and it says so", f["sentence"][:120])
+
+
+def test_fliers_by_the_command_line_on_the_lanterns():
+    print("\nPlanted fliers: by the command line, on the Puerto Rico lanterns")
+    if not PR_CLIP.exists():
+        print(f"  SKIP  the clip is not on this computer ({PR_CLIP})")
+        SKIP.append("planted fliers, Puerto Rico command line")
+        return
+    g = PR_GOLDEN
+    with tempfile.TemporaryDirectory() as td:
+        cmd = [sys.executable, "-m", "mcdonald.cli", "drift", str(PR_CLIP), "--platform", str(g / "platform.csv"),
+               "--los", str(g / "los.csv"), "--winds", ",".join(sorted(str(p) for p in g.glob("wind_*.json"))),
+               "--obs-winds", str(g / "obs_winds.csv"), "--ground-m", "72", "--when", "2013-04-27T01:22:47",
+               "--flicker", str(g / "flicker.json"), "--out", str(Path(td) / "p"), "--json",
+               "--plant", "--plant-speeds", "40", "--plant-draws", "1", "--procs", "4"]
+        env = dict(__import__("os").environ, PYTHONPATH=str(reference_data.REPO / "src"))
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env)
+        d = json.loads(p.stdout) if p.stdout.strip().startswith("{") else None
+        bad = subprocess.run(cmd[:cmd.index("--plant")] + ["--plant-speeds", "40"], capture_output=True, text=True,
+                             encoding="utf-8", env=env)
+    if not check(p.returncode == 0 and d is not None and d["command"] == "drift", "one envelope on stdout",
+                 f"exit {p.returncode} {p.stderr[-200:]}"):
+        return
+    f = d["results"].get("planted_fliers") or {}
+    T = {t["airspeed_m_s"]: t for t in f.get("table", [])}
+    check(f.get("air") == "path" and f.get("resamples") == 2000 and f["case_again"]["as_the_case"] is True
+          and np.allclose(f["case_again"]["needs_m_s"], [1.37, 3.64], atol=0.011),
+          "the lanterns pass T2, so the plants ride their own path; each fit resamples 2,000 times, as the case's did; "
+          "the case planted again needs 1.37-3.64 m/s, as the case", f"{f.get('case_again')}")
+    check(T[0.0]["passes"] == 8 and T[40.0]["fails"] == 8 and f["fails_from_m_s"] == 40.0
+          and any("40 m/s or more through the air would have failed" in ln for ln in d["results"]["said"]),
+          "planted in the lanterns' own air: a drifter passes 8 times in 8, and 40 m/s fails in every direction",
+          f.get("sentence", ""))
+    check(bad.returncode != 0 and "go with --plant" in bad.stderr, "--plant-speeds without --plant is refused, with the reason")
+
+
 # ---------------------------------------------------------------- T1/T2 from cameras on the ground (method section 66)
 SITES = ((0.0, 0.0, 740.0), (8600.0, -5500.0, 583.0), (7100.0, -7300.0, 560.0))     # east, north (m), height above the sea:
 #                                                                                     three places about 10 and 2 km apart
@@ -1289,6 +1460,144 @@ def test_cameras_the_aircrafts_route_is_untouched():
           f"{old['los_turn_deg']:.0f} deg; {cam['los_turn_deg']:.1f} deg, crossing at {cam['los_cross_deg']:.0f} deg")
 
 
+def _few_resamples(nboot=60):
+    """`drift.fit_track` with `nboot` resamples where the caller names no count, for a test that goes through `measure`
+    or the command line and does not need the case's own 2,000: returns (the wrapped fit, the real one to put back)."""
+    real = drift.fit_track
+    return (lambda *a, **k: real(*a, **dict(dict(nboot=nboot), **k))), real
+
+
+def test_fliers_planted_from_cameras_of_their_own():
+    """`--plant` where the case came through `--rays` (method sections 66 and 67; the two were built on branches apart,
+    and the planted fliers had never been run on cameras until they met, 2026-11-17). Three drawn cameras, one of them
+    three to four times poorer than the best. A plant's rays must be what section 67 says they are for cameras: the
+    case's rays with the two angles alone replaced, so each keeps its camera; each ray's own miss about the fitted
+    path kept at its own reading (so the poorer camera stays the poorer), its pair of misses under one sign drawn
+    afresh, enlarged by sqrt(2n / (2n - 6)) -- which is each camera's own factor under section 66's rule, where a
+    camera's share of the six parameters is its share of the readings. And each plant's fit must be handed the
+    case's own options, the cameras' pointing error among them. The rays handed to every fit are caught on the way."""
+    from mcdonald import fliers, sightlines
+    print("\nPlanted fliers: on a case seen by cameras of their own (--rays)")
+    rd, truth = cameras_scene(seconds=40.0, every=1.0, noise=((0.02, 0.02), (0.08, 0.06), (0.04, 0.03)))
+    R = sightlines.rays(rd)
+    n = len(R["t"])
+    rng = np.random.default_rng(66)
+    winds = [dict(label=f"wind {i}", w=truth["v"] + rng.normal(0, 0.5, 2), counts=True, note="") for i in range(4)]
+    opt = dict(sig=(0.3, 0.1), ground_m=600.0, pointing_err=(0.05, 0.05))
+    path = drift.fit_track(R, rng=np.random.default_rng(20261021), nboot=60, **opt)
+    t2 = drift.test_wind_track(path, winds, readings=n)
+    seen, real = [], drift.fit_track
+
+    def spy(Rp, *a, **k):
+        seen.append((Rp, dict(k)))
+        return real(Rp, *a, **k)
+    drift.fit_track = spy
+    try:
+        f = fliers.plant_track(R, path, winds, fit=opt, case_t2=t2, speeds=(10.0, 40.0), draws=2, nboot=60, procs=0)
+    finally:
+        drift.fit_track = real
+    T = {t["airspeed_m_s"]: t for t in f.get("table", [])}
+    if not check(t2["outcome"] == drift.PASS and f.get("plants") == 48 and len(seen) == 49 and f["route"] == "lines of sight"
+                 and f["air"] == "path" and f["case_again"]["as_the_case"] is True,
+                 "three cameras' rays fix the drifter and it passes T2; 48 bodies are planted in its own air, and the case "
+                 "planted again comes out as the case", f"T2 {t2['outcome']}: {t2['reading'][:90]}; {f.get('sentence', f.get('why'))}"):
+        return
+    check(T[0.0]["passes"] >= 15 and T[40.0]["fails"] == 16 and T[10.0]["cannot_say"] == 16 and f["fails_from_m_s"] == 40.0,
+          "from cameras as from an aircraft: a planted drifter passes (15 times in 16 or more), 40 m/s fails whichever way "
+          "it flies, 10 m/s cannot be judged", f["sentence"])
+    ca, cd = fliers.misses(R, path)
+    grow = math.sqrt(2 * n / (2 * n - 6))
+    q0 = np.asarray(path["params"], float)
+    kept, paired, signs, cams_kept, opts_kept, poorer = [], [], [], [], [], []
+    for (Rp, kw), row in zip(seen[1:], f["runs"]):
+        th = math.radians(row["toward_deg"] or 0.0)
+        q = q0.copy()
+        q[3:5] = np.array(path["v_m_s"]) + row["airspeed_m_s"] * np.array([math.sin(th), math.cos(th)])
+        ma, md = fliers.misses(Rp, dict(path, params=q.tolist()))          # the plant's rays about the path it was planted on
+        kept.append(np.allclose(np.abs(ma), np.abs(ca) * grow, atol=1e-7) and np.allclose(np.abs(md), np.abs(cd) * grow, atol=1e-7))
+        sa, sd = np.sign(ma * ca), np.sign(md * cd)
+        paired.append(bool(np.all(sa == sd)))
+        signs.append(tuple(sa.astype(int)))
+        cams_kept.append(Rp["camera"] is R["camera"] and Rp["cameras"] == R["cameras"] and Rp["reference"] == "camera"
+                         and set(Rp) == set(R))
+        opts_kept.append(kw.get("pointing_err") == (0.05, 0.05) and kw.get("sig") == (0.3, 0.1) and kw.get("ground_m") == 600.0
+                         and kw.get("nboot") == 60)
+        rms = [float(np.sqrt(np.mean(ma[R["camera"] == c] ** 2 + md[R["camera"] == c] ** 2))) for c in range(3)]
+        poorer.append(rms[1] > 1.5 * rms[2] > 1.5 * rms[0])
+    case_rms = [float(np.sqrt(np.mean(ca[R["camera"] == c] ** 2 + cd[R["camera"] == c] ** 2))) for c in range(3)]
+    first, kw0 = seen[0]
+    check(np.allclose(first["az"], R["az"], atol=1e-9) and np.allclose(first["dep"], R["dep"], atol=1e-9) and first["camera"] is R["camera"]
+          and kw0.get("pointing_err") == (0.05, 0.05),
+          "the case planted again is the case's own rays, each with its camera, fitted with the case's own pointing error")
+    check(all(cams_kept), "every plant's rays are the case's with the two angles alone replaced: each ray keeps its camera, "
+          "the cameras their names and their own pointing")
+    check(all(kept), f"every ray of every plant keeps its own miss at its own reading, enlarged by sqrt(2n / (2n - 6)) "
+          f"({grow:.4f} at {n} rays)", f"{sum(kept)} of {len(kept)} plants")
+    check(all(poorer) and case_rms[1] > 1.5 * case_rms[2] > 1.5 * case_rms[0],
+          "so the poorer camera stays the poorer in every plant, as in the case",
+          "the case's misses by camera, rms deg: " + ", ".join(f"{x:.3f}" for x in case_rms))
+    frac = np.mean([np.mean(np.array(s) > 0) for s in signs])
+    check(all(paired) and len(set(signs)) == len(signs) and 0.4 < frac < 0.6 and all(0.25 < np.mean(np.array(s) > 0) < 0.75 for s in signs),
+          "a reading's two misses take one sign, drawn afresh for every plant: no two plants share their signs, and half "
+          "of them are turned", f"{len(set(signs))} different draws of {len(signs)}; {frac:.2f} of the signs kept")
+    check(all(opts_kept), "every plant's fit is handed the case's own options: the errors given, the ground, the cameras' "
+          "pointing error and the count of resamples")
+    one = dict(case_t2=t2, speeds=(), directions=1, draws=1, nboot=60, procs=0)
+    usual = fliers.plant_track(R, path, winds, fit=opt, **one)["runs"][0]
+    wide = fliers.plant_track(R, path, winds, fit=dict(opt, pointing_err=(1.0, 1.0)), **one)["runs"][0]
+    check(wide["velocity_err_m_s"] > 3 * usual["velocity_err_m_s"] and wide["fitted_m_s"] == usual["fitted_m_s"],
+          "and it is carried there: cameras whose pointing is known to a degree widen a plant's velocity error and move no "
+          "fitted number", f"{usual['velocity_err_m_s']} -> {wide['velocity_err_m_s']} m/s")
+    # through the stage and through the command line, with no video (60 resamples a fit: nothing here needs the 2,000)
+    few, real = _few_resamples()
+    drift.fit_track = few
+    try:
+        kw = dict(sight=R, observed_winds=_soundings(truth["v"]), ground_m=600.0, pointing_err=(0.05, 0.05))
+        plain = drift.measure(None, **kw)
+        asked = drift.measure(None, plant=dict(speeds=(40.0,), directions=2, draws=1, procs=0), **kw)
+        with tempfile.TemporaryDirectory() as td:
+            import contextlib
+            import io
+            rays, cams = _write_rays(td, rd)
+            obs = Path(td) / "obs.csv"
+            obs.write_text("source,height_m,from_deg,speed_m_s\n" + "".join(
+                f"{w['source']},{w['height_m']},{w['from_deg']:.3f},{w['speed_m_s']:.3f}\n" for w in _soundings(truth["v"])),
+                encoding="utf-8")
+            argv, out = sys.argv, io.StringIO()
+            sys.argv = ["mcdonald drift", "--rays", str(rays), "--cameras", str(cams), "--obs-winds", str(obs), "--ground-m", "600",
+                        "--pointing-err", "0.05,0.05", "--plant", "--plant-speeds", "40", "--plant-draws", "1", "--procs", "0",
+                        "--json"]
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    rc = drift.main()
+            finally:
+                sys.argv = argv
+    finally:
+        drift.fit_track = real
+    g = asked.fields.get("planted_fliers") or {}
+    rest = {k: v for k, v in asked.fields.items() if k != "planted_fliers"}
+    dump = lambda d: json.dumps(d, sort_keys=True, default=lambda o: o.tolist())            # noqa: E731
+    check("planted_fliers" not in plain.fields and dump(rest) == dump(plain.fields) and asked.result == plain.result,
+          "through the stage on cameras' rays: with `plant` every other field and every printed result is the same")
+    lines = "\n".join(drift.said(asked.fields))
+    t2s = asked.fields["tests"][1]
+    check(g.get("route") == "lines of sight" and g.get("plants") == 4 and g["case_again"]["as_the_case"] is True and g["fails_from_m_s"] == 40.0
+          and abs(g["case_again"]["tolerance_m_s"] - t2s["tolerance_m_s"]) <= fliers.AGAIN and t2s["velocity_err_m_s"] < 0.3
+          and g["drifter"]["passes"] == 2 and g["sentence"] in lines and "not built yet" not in lines,
+          "and the field holds the plants: the case again as the case, to its tolerance (which a fit without the cameras' "
+          "own pointing error would move), a planted drifter passing, 40 m/s failing; the stage prints their sentence "
+          "after the verdict", g.get("sentence", g.get("why", ""))[:160])
+    d = json.loads(out.getvalue()) if out.getvalue().strip().startswith("{") else {}
+    c = (d.get("results") or {}).get("planted_fliers") or {}
+    Tc = {t["airspeed_m_s"]: t for t in c.get("table", [])}
+    check(rc == 0 and d.get("clip") is None and c.get("plants") == 16 and Tc[0.0]["passes"] >= 7 and Tc[40.0]["fails"] == 8
+          and c["case_again"]["as_the_case"] is True and len(d["results"]["ground_path"]["cameras"]) == 3
+          and any("40 m/s or more through the air would have failed" in ln for ln in d["results"]["said"]),
+          "`mcdonald drift --rays ... --plant`, with no video: 16 bodies planted on the three cameras' case, a drifter "
+          "passes and 40 m/s fails in every direction", c.get("sentence", c.get("why", str(d)[:200])))
+
+
+# ---------------------------------------------------------------- T3
 def test_t3_the_flicker_stages_answers():
     print("\nT3: the beat")
     out = drift.test_beat({"results": {"beats": True, "finding": "a beat at 7.5 Hz"}})

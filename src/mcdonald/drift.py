@@ -1547,13 +1547,16 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
             slant=None, horiz=None, own=None, bearings=None, heading_deg=None, winds=(), speeds=(10.0, 25.0, 50.0),
             air_min_kn=None, air_max_kn=None, flicker=None, seed=20261021,
             out=None, say=print, platform=None, los=None, los_sigma=(0.3, 0.1), observed_winds=None, ground_m=None,
-            when=None, az_ref_err=None, sight=None, pointing_err=None):
+            when=None, az_ref_err=None, sight=None, pointing_err=None, plant=None):
     """Every test the inputs allow, and the verdict. Returns a Found with fields `tests` and `verdict`. T1 and T2 come
     from the ranges (slant, horiz, own, bearings, heading_deg) or, given `platform` and `los` (`read_platform`,
     `read_los`), from the aircraft's own track and the lines of sight; or, given `sight` (`sightlines.rays`), from
     the lines of sight of cameras with their own times and places, `pointing_err` (az, el; deg) how well each
     camera's pointing is known beforehand. `fps` is read only by the inputs that are timed by a video's frames, and
-    may be None without them; `when` is, by default, the mean time of rays whose times are absolute."""
+    may be None without them; `when` is, by default, the mean time of rays whose times are absolute. `plant`, where
+    asked for (a dict of `fliers.plant_track`'s options, which may be empty), plants fliers on the case's own geometry
+    and winds, from an aircraft's lines of sight or from cameras', and puts what T2 made of them in the field
+    `planted_fliers`; nothing else of the result moves with it."""
     rng = np.random.default_rng(seed)
     track = None
     by_rays = sight is not None or (platform is not None and los is not None)
@@ -1629,6 +1632,12 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
         fields["relative_line"] = {k: line[k] for k in ("speed_m_s", "speed_err_m_s", "toward_deg", "toward_err_deg",
                                                        "v_m_s", "v_err_m_s", "r0_m", "t0_frame", "chi2_dof",
                                                        "range_rms_m")}
+    if plant is not None:                           # planted fliers (method section 67): what T2 could have caught here
+        from . import fliers
+        fields["planted_fliers"] = fliers.plant_track(
+            R, track, dict(ground_m=ground_m, model=winds, when=when, observed=observed_winds, own=own_w),
+            dict(sig=los_sigma, ground_m=ground_m, az_ref_err=az_ref_err, pointing_err=pointing_err), case_t2=tw,
+            **dict(dict(seed=seed), **plant)) if by_rays else fliers.none(fliers.NO_RANGES, route="ranges")
     files = []
     if out:
         p = Path(f"{out}_drift.json")
@@ -1707,6 +1716,9 @@ def said(fields):
             line += f". The turn does not fix this wind (two errors over {VELOCITY_FIX:g} m/s), and T2 does not count it"
         L.append(line)
     L.append(f"\nVERDICT: {fields['verdict']} -- {fields['why']}")
+    if fields.get("planted_fliers"):
+        from . import fliers
+        L.extend(fliers.said(fields["planted_fliers"]))
     return L
 
 
@@ -1764,6 +1776,8 @@ def main():
                                    "default the mean time of --rays, where their times are unix or ISO times")
     ap.add_argument("--flicker", help="T3: the --json envelope of `mcdonald flicker` on the object; several, "
                                       "comma-separated, from cameras watching it at the same time")
+    from . import fliers
+    fliers.options(ap)                              # --plant and its options (method section 67)
     ap.add_argument("--fps", type=float, help="frames per second (default: the video's)")
     ap.add_argument("--out", metavar="PREFIX", help="write <PREFIX>_drift.json")
     ap.add_argument("--json", action="store_true", help="print the envelope as JSON on stdout")
@@ -1780,6 +1794,7 @@ def _series(path, value=("value_m", "value", "m")):
 
 
 def _main(args):
+    from . import fliers
     fps = args.fps
     if args.video is not None:                      # the video gives the frame rate, and nothing else
         from .forensics import resolve
@@ -1837,7 +1852,7 @@ def _main(args):
                     los=read_los(args.los) if args.los else None,
                     los_sigma=tuple(float(x) for x in args.los_sigma.split(",")), observed_winds=observed,
                     ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err, sight=sight,
-                    pointing_err=pointing)
+                    pointing_err=pointing, plant=fliers.asked(args))
     print("\n".join(said(found.fields)))
     return found
 

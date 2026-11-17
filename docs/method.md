@@ -9093,6 +9093,222 @@ pointing counted; the winds' hour from the rays' mean time; `frames` in the path
 - T2's rule is section 34's: it cannot say where two errors of the velocity exceed 5 m/s, however fast the body. With
   each camera's pointing carried, a 120-m/s aircraft known to 10 m/s meets that gate (below).
 
+## 67. Planted fliers: how slow a flier the wind test would have caught (`mcdonald drift --plant`; ROADMAP 0.5.8, item 2; added 2026-11-17)
+
+**What it answers.** T2 from the lines of sight (section 34: `fit_track`, `track_winds`, `test_wind_track`) passes a
+body whose velocity over the ground lies within a tolerance of the winds at its height, fails one 10 m/s or more beyond
+it, and cannot say between. What that comes to in metres a second on one case depends on its geometry, its rays' errors
+and how far its winds disagree, and no rule of the test says it. The populations of section 53 do not say it either:
+their slowest aircraft whose velocity is fixed needs 53 m/s through the air, so nothing known flies in the range of
+birds and small drones. So bodies are planted there (`mcdonald.fliers`, `plant_track`): each at the place and height
+the case's rays fixed, with the path's own climb, moving over the ground with the air plus an airspeed. Each is seen
+from the real observer positions at the real times, with errors as the real fit has them, and goes through the same
+`fit_track` and the same `test_wind_track` the case got, with the winds read at its own fitted height. It is asked
+for (`--plant`), costs minutes, and changes nothing else: every other field and line of the stage is the same with it
+and without it (test_drift holds this, and section "Held to" below).
+
+```bash
+mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5_1.json,era5_2.json --obs-winds obs.csv \
+  --ground-m 72 --when 2013-04-27T01:22:47 --plant [--plant-speeds 0,5,10,15,20,25,30,40,50] [--plant-air path|winds] \
+  [--plant-draws 4] [--procs N]
+```
+
+**What comes back** (the field `planted_fliers`, and a block of lines after the verdict): a table with a row for each
+airspeed (plants, passes, cannot say, fails, and why those that could not be judged: `cannot_say_because`); `drifter`,
+the plants at zero airspeed, whose pass rate is the test's power to recognise a drifter here; `passes_up_to_m_s`, the
+fastest airspeed above zero at which any plant passed; `fails_from_m_s`, the slowest airspeed from which every plant
+failed, at it and at every faster one tried; `cannot_say_m_s`, the slowest and the fastest airspeed at which any
+plant could not be judged; `sentence`, these in plain words; `case_again`, the check below; and
+`runs`, every plant (its airspeed and direction, the air it rode, its draw, T2's outcome, the airspeeds T2 says it
+needs, its tolerance, the velocity planted and the velocity fitted). Where nothing can be planted the field says why
+(`why`): fewer than 9 lines of sight, rays that fix no path (`drift.unfixed`), no wind that counts at its height, or
+the route from the ranges, for which planting is not built.
+
+**The judgement calls.** Each is a choice, named for the maintainer to confirm; what was measured for it follows.
+
+1. *The air a plant rides* (`air`, `--plant-air`). Two are offered. `path`: the fitted path's own velocity. Where the
+   object drifts, as a control does, that is the air at its height, measured to the fit's error, and the winds' real
+   miss of the air is then in every plant. `winds`: each wind T2 counted at the case's height, taken in turn (shuffled
+   rounds, so that every wind is ridden as often as any other, to within one, at each airspeed); that needs no belief
+   about the object. Left unsaid, the air is the path's where the case itself passed T2, and the winds' where it did
+   not; `path` is refused where the case failed T2, since a flier's own motion is not the air's. The reason for the
+   default: where the case passed, the verdict says it may have drifted, and the plants then say what that pass
+   excludes in the air the verdict implies; the sentence says "air that moved as the object did". The winds as the
+   default everywhere was tried first and is the harsher world, in a way worth knowing: T2's hold-still rule passes
+   only where the largest airspeed drifting needs, over the counted winds, is under the weakest counted wind's speed.
+   A body drifting exactly with one counted wind needs, against the others, up to that wind's distance from the
+   farthest of them. On the lanterns' 14 winds that distance is 4.55-6.21 m/s for every one of the 14, and the weakest
+   wind blows at 4.53: a body drifting exactly with any one of the winds given cannot pass, while the lanterns, which
+   sit between the winds (1.4-3.6 m/s from each), do. Where the winds disagree by more than the weakest of them blows,
+   T2 can pass only a body that moves near the middle of them. The rule is left as it is. Asked wind by wind instead
+   (drifting needs less than holding still at each counted wind), on section 53's 239 runs at v0.5.7 it would pass
+   one more cloud of the five it holds back, and eight more of the 40 mismatched pairs, which are the false low
+   points the rule was built against (21 pass now).
+2. *The errors a plant's rays carry.* The real rays' own misses about the fitted path, in the fit's measure (azimuth
+   times the cosine of the depression, and depression), each kept at its own reading, so that a poorer camera or a
+   poorer stretch stays where it was; a reading's pair of misses takes one sign, drawn afresh for every plant; and the
+   misses are enlarged by sqrt(2n / (2n - 6)), since the fit's six parameters took that much out of them (the wild
+   bootstrap). The alternative of the script this replaces, the misses as they are, carries no error into a plant's
+   velocity: a least-squares fit's own residuals do not move the fit. Measured on drawn orbits of 39 readings
+   (errors of 0.1 and 0.03 deg; 200 fresh orbits against 12 orbits of 60 plants each): the fitted velocity scatters by
+   0.120 and 0.092 m/s (east, north) over fresh draws of the true errors, and the plants' velocities miss theirs by
+   0.121 and 0.091 (1.03 and 1.01 of it); without the enlargement 0.99 and 0.97; with Gaussian draws at the misses'
+   rms 0.96 and 0.98; with the misses as they are, 0.000. **Not carried:** errors that run on from reading to reading,
+   as the fit's own errors do not carry them (section 34). With a lag-1 correlation of 0.5 drawn in, the plants'
+   velocities scatter 0.64 and 0.61 as much as the truth does. The lanterns' depressions have 0.51, their azimuths 0.07.
+3. *How many draws* (`DRAWS`, `--plant-draws`; 4). Each airspeed has 8 directions x 4 draws = 32 plants, and zero,
+   which has no direction, as many: a rate over 32 plants is known to 0.09 at the worst.
+4. *The bootstrap inside each plant's fit:* as many resamples as the case's (`boots_of`, 2,000). The number of
+   resamples is itself one of the fit's gates (a fit needs 20 resamples kept, and 9 readings keep 69 of 2,000 but 14
+   of 400), so a plant fitted with fewer would not be judged as the case was. On the lanterns fewer would have
+   given the same table: with 400 or 200 resamples none of 576 plants came out differently, the tolerance moving by
+   at most 0.09 and 0.17 m/s; nor did any of 288 on a cloud at the edge of its own tolerance (it needs 4.5-4.6 m/s
+   of 5.0).
+5. *The check* (`case_again`). The case's own rays are planted again as they are, misses unchanged and the fit seeded
+   as the stage seeds the case's; they must come out as the case did: the same outcome, and the airspeeds needed and
+   the tolerance to within 0.05 m/s (`AGAIN`; the tolerance since 2026-11-17: it holds two errors of the fit, so it is
+   what moves where a plant's fit was not handed the case's own options, and the airspeeds needed do not). A mismatch
+   is printed as a warning that the plants are not to be trusted. The allowance
+   is for the fit's own stopping: the two fits start from rays that differ in their last bits, and on the lanterns
+   and the 40 clouds below they came apart by 0.01 m/s on two cases and by nothing on 39; a swapped axis moves them
+   by metres a second (the tests).
+6. *The summary's two numbers* are read over the airspeeds tried, so they are as fine as that grid: `fails_from_m_s`
+   asks every plant at that airspeed and at every faster one to fail; `passes_up_to_m_s` asks one plant to pass.
+7. *The plants' climb and place* are the fitted path's. T1 is not run on them.
+8. *Rays from cameras of their own* (section 66, `--rays`; the two were built on branches apart and met on
+   2026-11-17, when `--plant` was first run on cameras and is since held there by a test on three drawn cameras).
+   A plant's rays are the case's rays with the two angles alone replaced, so each keeps its camera; and each plant's
+   fit is handed the options the case's fit was called with (`plant_track`'s `fit`), the cameras' pointing error
+   (`--pointing-err`) among them. A plant is then fitted camera by camera as the case was: each camera's own
+   scatter, its share of every resample, its pointing carried in the errors. What a plant's rays draw is what they
+   draw from an aircraft: each ray's own miss about the six-parameter path, at its own reading and so at its own
+   camera, its sign afresh, enlarged by sqrt(2n / (2n - 6)), which is each camera's own factor too under section
+   66's rule (a camera's share of the six parameters is its share of the readings: 2 n_c over 2 n_c - 6 n_c / n). A
+   poorer camera stays the poorer: with drawn cameras of 0.03, 0.10 and 0.04 deg of scatter, every ray of 48 plants
+   keeps the size of its own miss to the last digits, and no two plants share their signs. What a camera's pointing
+   offset left in its rays' misses, the part the path could not take up, is drawn as scatter of that size and not
+   as a constant. No plant's rays are turned by a drawn pointing error, as none are turned by a drawn azimuth
+   reference: those errors are in each plant's tolerance, through its fit's errors, as they were in the case's, and
+   not in where its rays point. So a plant on cameras says what T2 does with a flier given the cameras' pointing
+   as the fit took it; it does not say what a wrong pointing would have done to the case (section 66's coverage
+   table does).
+
+**On AARO's Puerto Rico lanterns** (the known drifter of section 34; `tests/golden/puerto_rico_drift/`; 39 lines of
+sight, 14 winds counted, tolerance 10.5 m/s). The lanterns pass T2, so the plants ride their own path: 7.37 m/s toward
+240 deg. Passes / cannot say / fails, of 32 plants at each airspeed (8 of the old script's, which had 35 m/s where
+this has 30, 40 and 50):
+
+| airspeed, m/s | 0.4.3 (the drift paper's Fig. 3d) | now, the lanterns' own air | now, the 14 winds in turn |
+|---|---|---|---|
+| 0 | 1 / 0 / 0 | 32 / 0 / 0 | 2 / 30 / 0 |
+| 5 | 2 / 6 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 10 | 0 / 8 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 15 | 0 / 8 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 20 | 0 / 3 / 5 | 0 / 32 / 0 | 0 / 32 / 0 |
+| 25 | 0 / 0 / 8 | 0 / 0 / 32 | 0 / 7 / 25 |
+| 30 | (35: 0 / 0 / 8) | 0 / 0 / 32 | 0 / 0 / 32 |
+| 40, 50 | | 0 / 0 / 32 | 0 / 0 / 32 |
+
+In the lanterns' own air a body flying 25 m/s or more through it fails whichever way it flies; from 5 to 20 m/s T2
+cannot say; no flier passes as a drifter, down to 5 m/s; and a drifter passes 32 times in 32 (64 in 64 with 8 draws;
+every draw of an airspeed and direction came out alike, so on this case the outcome is the geometry's and the winds',
+not the errors'). What moved since 0.4.3, and why, rule by rule: the old script's 49 plants were put through today's
+`drift` with 0.4.3's rules put back (no model error, the azimuth reference taken as exact, no wind's own error, no
+hold-still rule), and came out as the paper's file has them, 49 of 49, the airspeeds needed to 0.01 m/s. Then the
+rules were put on one at a time:
+
+| airspeed, m/s | 0.4.3's rules | + the azimuth reference at 0.3 deg | + a model's own error, 3 m/s | + the hold-still rule (today) |
+|---|---|---|---|---|
+| 5 | 2 / 6 / 0 | 4 / 4 / 0 | 8 / 0 / 0 | 0 / 8 / 0 |
+| 20 | 0 / 3 / 5 | 0 / 4 / 4 | 0 / 8 / 0 | 0 / 8 / 0 |
+
+(0, 10, 15, 25 and 35 m/s did not move; the aircraft's own wind's error, 2 x 0.55 m/s, is under the model's 3 and adds
+nothing.) The tolerance went from 7.2 m/s to 10.5: the fails at 20 m/s need 10 m/s beyond it and are gone, and 25 m/s
+is now the slowest that fails in every direction, and one of its 32 plants by 0.2 m/s only (they need 21.0 m/s or
+more, against tolerances of 10.0-11.1 plus a flier's 10; at 20 m/s the nearest plant is 1.0 short).
+At 5 m/s the wider tolerance alone would pass all eight directions as drifters; the hold-still rule takes every one
+back, since a body flying 5 m/s through the lanterns' air needs more against the farthest wind than the weakest wind
+blows (4.5 m/s). So with today's rules the paper's sentences become: every flier at 25 m/s or more fails, 5 to 20 m/s
+cannot be said, and none passes. The heading offset moved nothing here (the lanterns' turn asks for none). With the
+plants riding the 14 winds in turn the row at zero says what judgement call 1 says: 2 of 32 pass, 30 "holding still
+fits as well".
+
+**On 40 of the Galileo Project's triangulated clouds** (section 53's objects; aggregate numbers only, the rays are
+theirs). The sample's rule was fixed before any plant was run: of the clouds whose T2 passed in the runs of 2026-11-17
+at v0.5.7 (37 of the 59 seen from three sites, 27 of the 60 seen from two), 20 from each group, the dates gone through
+in turn so that the sample spreads over them: 13 days, no more than 3 clouds of a group from one. Each went through
+the command line as its run of that morning had (section 53's workaround: the sites written as one aircraft, one shared
+azimuth reference; 200-300 rays, two model winds), with `--plant --plant-air path` added; every other field of each of
+the 40 drift files is the same as that morning's. The clouds' own tolerances are 3.5-9.1 m/s (median 6.4), drifting
+needs 0.6-6.7 m/s of them at the most (median 3.3), and they are 2.7-5.2 km up. The share of plants T2 passed, could
+not judge and failed, of 1,280 at each airspeed (32 a cloud), with its error from a bootstrap over the 13 days (the
+days drawn with replacement 2,000 times, each with all its clouds):
+
+| airspeed, m/s | passes | cannot say | fails |
+|---|---|---|---|
+| 0 | 0.98 +- 0.01 | 0.02 +- 0.01 | 0 |
+| 5 | 0.33 +- 0.06 | 0.67 +- 0.06 | 0 |
+| 10 | 0.05 +- 0.02 | 0.95 +- 0.02 | 0 |
+| 15 | 0 | 0.64 +- 0.05 | 0.36 +- 0.05 |
+| 20 | 0 | 0.14 +- 0.04 | 0.86 +- 0.04 |
+| 25 | 0 | 0.01 +- 0.00 | 0.99 +- 0.00 |
+| 30, 40, 50 | 0 | 0 | 1 |
+
+Cloud by cloud, the slowest airspeed from which every plant failed is 15 m/s on 1 cloud, 20 on 19, 25 on 18 and 30 on
+2; a plant at 5 m/s passes on 31 of the 40 and one at 10 m/s on 12, none at 15. A planted drifter passes 32 times in
+32 on 32 of the clouds and 25 times or more on the other 8, the clouds nearest their own tolerance. The two groups
+differ little: at 5 m/s 0.40 +- 0.07 of the plants pass from three sites and 0.25 +- 0.07 from two; at 15 m/s 0.34 +-
+0.05 and 0.38 +- 0.08 fail. Of the 862 plants at 5 m/s that could not be judged, 653 are beyond the tolerance but not by
+a flier's margin and 207 "hold still as well" (the weakest wind is 1.3-20 m/s, median 6.7). A plant's fitted velocity
+misses the velocity planted by 0.37 m/s (median over the clouds; 0.04-2.0). So on these clouds' geometry and winds T2
+fails a flier at 25 m/s or more (99 in 100 at 25, every one from 30) and most at 20 (86 in 100); at 15 m/s it fails a
+third and cannot judge the rest; at 10 m/s and under it fails none, and passes 1 in 20 at 10 m/s and 1 in 3 at 5 m/s
+as drifters. The range where birds and small drones fly is the range where T2 cannot say, and under 15 m/s a flier is
+more often passed than failed.
+
+The same 40 clouds with the plants riding the model's two hourly winds in turn (`--plant-air winds`: the air as the
+model says, so the model's miss of the real air, 3.3 m/s here at the median, is not in the plants), passes / cannot
+say / fails: at 0, 1.00 / 0.00 / 0; at 5 m/s, 0.41 +- 0.10 / 0.59 +- 0.10 / 0; at 10, 0 / 1.00 / 0; at 15, 0 / 0.75 +-
+0.08 / 0.25 +- 0.08; at 20, 0 / 0.06 +- 0.03 / 0.94 +- 0.03; from 25, every plant fails. The two airs give one
+picture; the model's miss, where it is in the plants, lets 1 in 20 pass at 10 m/s and fails a few more at 15.
+
+**What it costs.** One plant is one fit: 0.15-0.3 s without the bootstrap and 6.0-6.3 s with its 2,000 resamples, on
+39 rays as on 200 (one thread of arthur with its core to itself; 11-15 s where two workers share a core). The default
+is 289 fits (9 airspeeds x 32, and the case again): 3 min 30 s for the lanterns on 16 CPUs and 10-12 min for a cloud of
+200-300 rays on 6 (a machine with every core busy), with 120 MB in the main process and about 50 MB a worker. The plants go to worker processes (`--procs`); the
+same seed gives the same result however many there are (each plant's draws are seeded by the stage's seed and the
+plant's number).
+
+**Held to.**
+- *Nothing else moves.* The stage's own files for the four known answers of test_drift (the Yemen clip, the lanterns
+  and the Santa Barbara helicopter, each from its readings and by the command line, and PR051's second leg) are the same
+  to the byte before this branch and after it, without `--plant`; with `--plant`, every field but `planted_fliers` is the
+  same (the lanterns; and each of the 40 clouds below against its run at v0.5.7).
+- *The port.* The 49 plants of the script this replaces, under 0.4.3's rules, as above.
+- *tests/test_drift.py*, on drawn data: a drawn orbit round a drifter (plants at zero pass 16 times in 16, plants at 40
+  m/s fail 16 in 16, plants at 10 m/s cannot be judged; the case planted again comes out as the case; the same seed
+  gives the same result to the last digit, in one process or two, and another seed other draws; the winds ridden in
+  turn, each as often as any other); no plants and the reason where the rays fix no path (a straight flight, six
+  readings), where no wind counts, and where the path is asked for as the air of a case that failed; through the stage
+  with nothing else moved; and by the command line on the lanterns. Each check was made to fail once by a small
+  deliberate break of the code (20 breaks; the list is in the branch's notes).
+
+**What it does not do.**
+- It does not plant on the route from the ranges (`fit_line`, `test_wind`; the Yemen clip): asked there, it says so.
+  The table and the sentence are made from rows of one form (`fliers.summary`: an airspeed, an outcome and why), so a
+  planting function for that route needs only to return such rows.
+- It says what T2 would have made of a flier, not what the verdict would have been: T1 and T3 are not run on a plant.
+  A plant that T2 cannot judge would leave the verdict at "cannot say", not at "consistent with drift".
+- It takes the winds as given. Plants in the object's own air carry the winds' real miss of that air only if the
+  object drifts; plants in the winds carry none. Neither draws a wind's error afresh.
+- It carries no error the rays share (the azimuth reference, or each camera's pointing: the fit's own allowance for
+  it is in each plant's tolerance, but no plant's rays are turned), and none that runs on from reading to reading
+  (judgement calls 2 and 8). So a plant's fitted velocity scatters by the rays' part of the fit's error, not by all
+  of it.
+- A plant flies straight and level at a steady airspeed for the whole stretch, in a wind that is the same along its
+  path. A bird that circles, or a body that changes its speed, is another question (the fit's model gate, section 34).
+- The airspeeds are a grid: "25 m/s or more" means 25 was the slowest tried at which all failed, and 20 was not.
+
 ## 68. A model's wind against the air's own motion: what `MODEL_WIND_ERR` is worth out of sample, and what T2 "from the ranges" is worth (measured 2026-11-17; no rule changed)
 
 **What was asked.** Two parts of `drift`'s T2 (section 34) lean on a weather model's wind and had never been held
