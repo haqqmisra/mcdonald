@@ -40,6 +40,13 @@ The agents' common brief is `/scratch/mcdonald/drift-paper-2026-11-17/BRIEF-comm
 folder there, with its drafts for CHANGELOG and IDEAS.md. The coordinator merges the branches into `drift-paper`
 (worktree `/hugespace/models/mcdonald-drift-paper`), applies those drafts, runs every suite, and then asks Jacob.
 
+## The GPU session's part is in (2026-11-17)
+
+Its message that day: all its code for 0.5.8 is on local `main`, 725df75 (not pushed, not versioned): the planted
+objects through `batch` merged at Jacob's word (5827c89; every suite on Cannon and arthur on the merge candidate), the
+CHANGELOG and IDEAS records, and one bullet of ROADMAP.md. Nothing more of its goes onto `main` before the release.
+So 0.5.8 waits only on this strand. `drift-paper` carries `main` 725df75.
+
 ## Still to do after the agents report
 
 - Merge `dp-cams`, `dp-fliers`, `dp-winds` into `drift-paper`; wire `--plant` to the fixed-camera input; CHANGELOG,
