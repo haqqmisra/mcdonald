@@ -71,7 +71,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .progress import to_stderr
+from .progress import PROCS_HELP, to_stderr
 from .report import Found, emit, inputs_of, said_to_stderr
 
 G = 9.81
@@ -1513,10 +1513,12 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
             slant=None, horiz=None, own=None, bearings=None, heading_deg=None, winds=(), speeds=(10.0, 25.0, 50.0),
             air_min_kn=None, air_max_kn=None, flicker=None, seed=20261021,
             out=None, say=print, platform=None, los=None, los_sigma=(0.3, 0.1), observed_winds=None, ground_m=None,
-            when=None, az_ref_err=None):
+            when=None, az_ref_err=None, plant=None):
     """Every test the inputs allow, and the verdict. Returns a Found with fields `tests` and `verdict`. T1 and T2 come
     from the ranges (slant, horiz, own, bearings, heading_deg) or, given `platform` and `los` (`read_platform`,
-    `read_los`), from the aircraft's own track and the lines of sight."""
+    `read_los`), from the aircraft's own track and the lines of sight. `plant`, where asked for (a dict of
+    `fliers.plant_track`'s options, which may be empty), plants fliers on the case's own geometry and winds and puts
+    what T2 made of them in the field `planted_fliers`; nothing else of the result moves with it."""
     rng = np.random.default_rng(seed)
     track = None
     # T1 first: the ranges, or the lines of sight, give the depression the others use
@@ -1586,6 +1588,16 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
         fields["relative_line"] = {k: line[k] for k in ("speed_m_s", "speed_err_m_s", "toward_deg", "toward_err_deg",
                                                        "v_m_s", "v_err_m_s", "r0_m", "t0_frame", "chi2_dof",
                                                        "range_rms_m")}
+    if plant is not None:                                           # planted fliers: what T2 could have caught here
+        from . import fliers
+        if platform is not None and los is not None:
+            fields["planted_fliers"] = fliers.plant_track(
+                R, track, dict(ground_m=ground_m, model=winds, when=when, observed=observed_winds, own=own_w),
+                los_sigma, ground_m, az_ref_err, case_t2=tw, **dict(dict(seed=seed), **plant))
+        else:
+            fields["planted_fliers"] = fliers.none(
+                "fliers are planted only where the wind test runs from the aircraft's own track (--platform, --los); "
+                "from the ranges they are not built yet", route="ranges")
     files = []
     if out:
         p = Path(f"{out}_drift.json")
@@ -1655,6 +1667,9 @@ def said(fields):
             line += f". The turn does not fix this wind (two errors over {VELOCITY_FIX:g} m/s), and T2 does not count it"
         L.append(line)
     L.append(f"\nVERDICT: {fields['verdict']} -- {fields['why']}")
+    if fields.get("planted_fliers"):
+        from . import fliers
+        L.extend(fliers.said(fields["planted_fliers"]))
     return L
 
 
@@ -1697,6 +1712,20 @@ def main():
     ap.add_argument("--when", help="the time of the clip (ISO, UTC): the model winds' hours within one of it")
     ap.add_argument("--flicker", help="T3: the --json envelope of `mcdonald flicker` on the object; several, "
                                       "comma-separated, from cameras watching it at the same time")
+    ap.add_argument("--plant", action="store_true",
+                    help="plant fliers on this case's own geometry and winds, to see how slow a flier the wind test "
+                         "(T2 from the aircraft's own track) would have caught: bodies at the fitted place and height, "
+                         "moving with the air plus an airspeed in eight directions, each through the same fit and the "
+                         "same test. Minutes of work; the result is the field planted_fliers")
+    ap.add_argument("--plant-speeds", metavar="M/S", help="the airspeeds planted, m/s, comma-separated (default "
+                                                          "0,5,10,15,20,25,30,40,50; zero, a drifter, is always among them)")
+    ap.add_argument("--plant-air", choices=["winds", "path"],
+                    help="the air a planted body rides: path, the object's own fitted velocity, which is the air's "
+                         "where the object drifts; or winds, each wind the test counted in turn. By default path where "
+                         "the object passed the wind test, and winds where it did not")
+    ap.add_argument("--plant-draws", type=int, metavar="N", help="draws of the lines of sight's errors for each airspeed "
+                                                                 "and direction (default 4)")
+    ap.add_argument("--procs", type=int, help="for --plant: " + PROCS_HELP)
     ap.add_argument("--fps", type=float, help="frames per second (default: the video's)")
     ap.add_argument("--out", metavar="PREFIX", help="write <PREFIX>_drift.json")
     ap.add_argument("--json", action="store_true", help="print the envelope as JSON on stdout")
@@ -1710,6 +1739,22 @@ def main():
 
 def _series(path, value=("value_m", "value", "m")):
     return read_series(path, value) if path else None
+
+
+def _plant(args):
+    """`--plant` and its options as `measure`'s `plant`: None unless asked for."""
+    if not args.plant:
+        if args.plant_speeds or args.plant_air or args.plant_draws:
+            raise SystemExit("--plant-speeds, --plant-air and --plant-draws go with --plant")
+        return None
+    opts = dict(procs=args.procs, progress=to_stderr())
+    if args.plant_speeds:
+        opts["speeds"] = tuple(float(x) for x in args.plant_speeds.split(","))
+    if args.plant_air:
+        opts["air"] = args.plant_air
+    if args.plant_draws:
+        opts["draws"] = args.plant_draws
+    return opts
 
 
 def _main(args):
@@ -1746,7 +1791,7 @@ def _main(args):
                     platform=read_platform(args.platform) if args.platform else None,
                     los=read_los(args.los) if args.los else None,
                     los_sigma=tuple(float(x) for x in args.los_sigma.split(",")), observed_winds=observed,
-                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err)
+                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err, plant=_plant(args))
     print("\n".join(said(found.fields)))
     return found
 
