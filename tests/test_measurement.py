@@ -3468,8 +3468,13 @@ def test_a_beat_between_the_old_top_and_the_grids_is_heard_where_holds_are_missi
                   "held at random: the top stays 12.0 Hz, and the beat at 10.8 Hz is heard",
                   f"{pic['held']:.2f} held, {pic['holds']}, top {pic['top_hz']:.2f}; {str(f.get('finding'))[:90]}")
         else:
+            # (the finding's reason is the band's clause at its end since 2026-11-17; until then it read "it holds
+            # pictures in a cadence (...) and carries 25.0 a second", and this check held the words "in a cadence")
             check(pic["cadence"] is True and abs(pic["top_hz"] - 9.99) <= 0.2 and f["beats"] is not True
-                  and "in a cadence" in (f.get("finding") or ""),
+                  and "is above the highest frequency a beat is listened for at in this video" in (f.get("finding") or "")
+                  and "; a beat was listened for between 1.5 and 10.0 Hz only. Faster beats, up to the 12.0 Hz this frame rate "
+                      "could carry, were not listened for." in (f.get("finding") or "")
+                  and "in a steady pattern (1 of every 6), so the picture is new only 25.0 times a second" in (f.get("finding") or ""),
                   "held in a cadence of 25 a second: the top is 10.0 Hz, and the beat above it is not heard",
                   f"{pic['holds']}, top {pic['top_hz']:.2f}; {str(f.get('finding'))[:110]}")
 
@@ -6012,7 +6017,8 @@ def test_words_of_a_cadence_broken_by_a_burst_are_a_cadence():
     p = flicker.pictures(_thumbs(w, rng), 30.0)
     said = flicker.said_pictures(p)
     check(p["cadence"] is True and abs(p["rate"] - 20.0) <= 0.3 and abs(p["top_hz"] - 8.0) <= 0.15 and len(p["held_k"]) == int(w.sum())
-          and "in a cadence over most of the track: in 4 of its 5 stretches" in said and "only up to 8." in said,
+          and "in a cadence over most of the track: in 4 of its 5 stretches" in said and "between 1.5 and 8." in said
+          and "Hz only, not up to the 12.0 Hz the frame rate could carry" in said,
           "so the band's top is 8 Hz, under the holds' own 10 Hz, and the stage says where the cadence holds", said)
     blocks = flicker.cadence_blocks(w)
     check([(b["first"], b["last"]) for b in blocks] == [(1, 63), (64, 126), (127, 190), (191, 253), (254, 316)]
@@ -6414,6 +6420,68 @@ def test_zz_scene_dense_floor_and_the_scrambled_frame():
     check(np.array_equal(s, s2) and np.array_equal(m, bad) and float(np.abs(p1 - p0).max() / p0.max()) < 1e-4 and abs(r) < 0.1,
           "the scrambled frame has the frame's power at every scale, nothing in its place, its mask, and one seed one frame",
           f"power within {float(np.abs(p1 - p0).max() / p0.max()):.1e}; correlation with the frame {r:+.3f}")
+
+
+def test_zzz_flicker_says_the_band_it_listened_in():
+    """The maintainer's decision of 2026-11-17, "say the band in words": every "no beat" of the flicker stage ends with
+    the band a beat was listened for in. Where the frames were read as a cadence the band stops under the frame rate's
+    top, and the finding says how far, that faster beats were not listened for, what was measured that cut it, and the
+    two things that make such frames (a slower source, or compression that copies a still scene: the stage cannot tell
+    which). Two drawn videos through the whole stage: a constant point with a new picture on every frame, and PR34's
+    kind, 10 pictures a second shown at 30, each held three frames. Then the fields of an envelope from before, which
+    record no band: nothing is guessed, and a finding is left as it was. (Named to sort last: a test added in the
+    middle would move every later one to another part of `--part K/N`.)"""
+    print("\nflicker: every \"no beat\" says the band it listened in")
+    from mcdonald import flicker
+    still = _Beating([(0, 0, 0)])
+    f = flicker.measure(still, {"object": {n: still.at(0, n) for n in range(1, 151)}}, say=lambda *a: None).fields
+    b = flicker.listened_in(f) or {}
+    check(f["beats"] is False and b.get("lowered") is False and b.get("lo") == flicker.LOW
+          and abs(b["top"] - flicker.TOP * still.fps / 2) < 1e-9 and b["grid"] == b["top"]
+          and f["finding"].endswith("; a beat was listened for between 1.5 and 12.0 Hz") and "not listened for" not in f["finding"],
+          "a constant point, a new picture on every frame: no beat, listened for over the whole band, 1.5 to 12.0 Hz",
+          f["finding"][-110:])
+    rng = np.random.default_rng(34)
+    level = np.repeat(1 + 0.2 * rng.normal(size=60), 3)[:152]            # a new brightness each picture, held 3 frames
+    clip = _Held(np.r_[level[:1], level], hold=3, width=1.5)
+    lines = []
+    g = flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(1, 151)}}, say=lambda *a: lines.append(" ".join(map(str, a)))).fields
+    b, said = flicker.listened_in(g) or {}, str(g.get("finding"))
+    check(g["beats"] is False and b.get("lowered") is True and abs(b["top"] - 4.0) <= 0.05 and abs(b["grid"] - 12.0) <= 0.05
+          and b["every"] == [2, 3] and abs(b["top"] - g["pictures"]["top_hz"]) < 1e-9,
+          "10 pictures a second shown at 30: the band is read as cut short, 4.0 Hz where the frame rate gives 12.0",
+          str({k: v for k, v in b.items() if k != "held"}))
+    check("; a beat was listened for between 1.5 and 4.0 Hz only. Faster beats, up to the 12.0 Hz this frame rate could carry, "
+          "were not listened for. 67% of the frames nearly repeat the one before in a steady pattern (2 of every 3), so the "
+          "picture is new only 10.0 times a second. A source that delivers pictures at that rate does this. So does compression "
+          "that copies a still scene from frame to frame, and then the object's own picture may still be new on every frame. "
+          "The stage cannot tell which, so a beat faster than 4.0 Hz may have gone unheard" in said
+          and said.endswith("may have gone unheard") and "holds pictures" not in said and "carries" not in said,
+          "and its \"no beat\" says so: the band, that faster beats were not listened for, what was measured, both things "
+          "that make it, and that a faster beat may have gone unheard", said[-420:])
+    line = next((x for x in lines if "nearly the same as the one before" in x), "")
+    check("in a cadence (2 of every 3). The picture is new only 10.0 times a second, so a beat is listened for between 1.5 and "
+          "4.0 Hz only, not up to the 12.0 Hz the frame rate could carry. A source that delivers pictures at that rate does this."
+          in line and line.endswith("The stage cannot tell which") and "holds pictures" not in line,
+          "the stage's own line says the same as it measures, and no longer that the video holds pictures", line.strip()[:200])
+    # an envelope from before: no top_hz (the stage's fields before it recorded one, or a cut-down envelope), or pictures
+    # with no word for how they fall (before 2026-10-29). No band is read, and a finding is left as it was
+    no_top = {k: v for k, v in g.items() if k != "top_hz"}
+    no_word = dict(g, pictures={k: v for k, v in g["pictures"].items() if k != "cadence"})
+    was = "no beat reaches 3 times what the background beside it does"
+    check(all(flicker.listened_in(x) is None and flicker.listened_said(x) == "" and flicker.with_band(was, x) == was
+              for x in (no_top, no_word, dict(g, pictures=None), {})),
+          "fields that record no band (no top_hz, or no word for how the pictures fall): none is read, and a finding stays "
+          "as it was")
+    check(flicker.with_band(was, g).startswith(was + "; a beat was listened for between 1.5 and 4.0 Hz only.")
+          and flicker.with_band(said, g) == said and flicker.with_band(None, g) is None,
+          "fields that record it give an older finding its band, once: a finding that says its band is left alone")
+    check(flicker.listened_why(flicker.listened_in(f)) == "" and flicker.listened_why(None) == ""
+          and flicker.listened_why(b, who="the test", plain=True).startswith("Faster rhythms, up to 12.0 times a second at this "
+                                                                             "frame rate, were not looked for. 67% of the frames")
+          and flicker.listened_why(b, who="the test", plain=True).endswith("The test cannot tell which, so a rhythm faster than "
+                                                                           "4.0 times a second may have gone unseen."),
+          "a band that is not cut short has no why; the report's words for one that is speak of a rhythm, times a second")
 
 
 def main(argv=None):

@@ -1636,9 +1636,11 @@ def cameras_bands(names, bands, outcomes, said=None):
     if len(got) == len(names) and len({key(b) for _, b, _ in got}) == 1:
         out = ". Every camera listened " + ("in that band" if said == key(got[0][1]) else rng(got[0][1]))
     else:
-        none = [n for n, b in zip(names, bands) if not b]
+        dumb = [n for n, b, o in zip(names, bands, outcomes) if not b and o == CANNOT]   # no power: it listened in none
+        none = [n for n, b, o in zip(names, bands, outcomes) if not b and o != CANNOT]
         out = (". The cameras' bands: " + ", ".join(f"{n} {rng(b)}" + (" (it could not say)" if o == CANNOT else "")
                                                      for n, b, o in got)
+               + (f"; {_and(dumb)} could not say" if dumb else "")
                + (f"; {_and(none)} record{'s' if len(none) == 1 else ''} none" if none else ""))
     low = [(n.split(" (")[0], b) for n, b, _ in got if b["lowered"]]      # "camera 2": its file was named above
     if low:

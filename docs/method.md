@@ -4171,6 +4171,31 @@ depression below the horizontal.
   nothing of the track's noise: on 18 of the 28 reference objects the track's own floor is higher, by up to 17 times
   (PR088 object 2: 2 % quoted, 36 % in truth), and PR097 object 4 read "only a beat over 2 % would have shown" beside
   an 8.7 % peak that did not show. Only the sentence moves, no outcome; the rule's threshold stays the last resort.
+  *The band* (`drift.beat_band`, `flicker.listened_in`; since 2026-11-17, IDEAS.md N10). A pass is a pass over the
+  frequencies `flicker` listened in, and its reading now names them: "no beat of its own between 1.5 and 24.0 Hz; only
+  a beat over 3% of its brightness would have shown". That is 1.5 Hz to 0.8 of the Nyquist frequency of the frame
+  rate, or of the picture rate where the frames were read as a cadence (§35). There the band stops short, and the
+  reading says how far, that faster beats were not listened for, what was measured that cut it, and the two things
+  that make such frames, which the test cannot tell apart: "no beat of its own between 1.5 and 4.8 Hz; only a beat
+  over 3% of its brightness would have shown. Faster beats, up to the 24.0 Hz this frame rate could carry, were not
+  listened for. 78% of the frames nearly repeat the one before in a steady pattern, so the picture is new only 12.1
+  times a second. A source that delivers pictures at that rate does this. So does compression that copies a still
+  scene from frame to frame, and then the object's own picture may still be new on every frame. This test cannot tell
+  which, so a beat faster than 4.8 Hz may have gone unheard". A pass on a beat in one stretch, or on windows apart no
+  more than chance gives, names its band the same way; a fail and a test without power read as before. The numbers
+  are the envelope's own (`top_hz`, and `pictures` with whether its frames were read as a cadence), and an envelope
+  that records neither reads as it did, since a band is never guessed: of the four known answers below, the Yemen
+  clip's, the lanterns' and the Santa Barbara helicopter's envelopes are cut down and say what they said, and PR051's
+  second leg, a source of 29.97 pictures a second doubled onto 59.94 frames, now says it was heard between 1.5 and
+  12.0 Hz of the 24.0 its frame rate carries. With several cameras the reading names its first passing camera's band,
+  as it names that camera's floor, and then each camera's where they differ, with what cut short any that stops under
+  its frame rate's; where no camera that could say listened to the frame rate's top it adds the two makers and that a
+  beat faster than the highest top may have gone unheard (`drift.cameras_bands`). On the Galileo objects (§53) 184 of
+  198 have a camera heard to 24 Hz, and 14 (10 clouds, 4 aircraft) were heard to about 5 Hz from every camera. Words
+  only: no outcome, no number and no verdict reads the band. One thing the words now show and the rule does not ask
+  (IDEAS.md N20): a camera counts as one that could have seen another's beat by its floor alone, also where the beat's
+  rate is above the band that camera listened in. The reading says so where it happens ("but that rate is above the
+  4.8 Hz this camera listened to, where no beat could have shown"); the outcome is the rule's, as before.
 - *T4, other evidence.* Does other evidence in the video, where there is any, agree with drift? Few videos show a strike
   or anything shed, so this test runs only on whichever of its parts the inputs allow. It fails when a part fails,
   passes when a part passes and none fails, and cannot say otherwise; only its tracer part bears on the airspeed.
@@ -4605,6 +4630,39 @@ does that. So does compression that copies a still scene from frame to frame, wh
 Either way the video's clock is its frame rate, and a beat is heard up to 24.0 Hz". A trap that stays: those frames
 are still left out of the Lomb-Scargle periodogram beside the stage's own tests (`held_k`), so on such a chain that
 reading works with a third of the object's samples: a loss of power there, not an error, and not changed here.
+
+**The band said in words (IDEAS.md N10, N18; 2026-11-17).** A cadence lowers the band's top, and until now only the
+stage's own line said so, in the command's output: the finding read "no beat reaches 3 times what the background
+beside it does ..." whether the stage had listened to 24 Hz or to 5, and so did everything that quotes it (`drift`'s
+T3, the report's beat row). On 98 of the Galileo Project's 494 clips with power the band was 1.5 to about 5 Hz
+(§53), and beats planted at 6-23 Hz in eight of those clips' own curves, at 5-20 % of the brightness, were found 0
+times of 576. Every "no beat" now ends with the band it covers, from the fields the stage records
+(`flicker.listened_in`: `top_hz`, the lower edge LOW, 1.5 Hz in every version, and `pictures.cadence`): "...; a beat was
+listened for between 1.5 and 12.0 Hz". Where the frames were read as a cadence it says the band stops short, and why:
+"...; a beat was listened for between 1.5 and 6.3 Hz only. Faster beats, up to the 12.0 Hz this frame rate could carry,
+were not listened for. 48% of the frames nearly repeat the one before in a steady pattern, so the picture is new only
+15.9 times a second. A source that delivers pictures at that rate does this. So does compression that copies a still
+scene from frame to frame, and then the object's own picture may still be new on every frame. The stage cannot tell
+which, so a beat faster than 6.3 Hz may have gone unheard" (PR055's sphere, whose source does deliver 15.9: its own
+picture is held with the frame). The frame rate's top is the recorded top over 1 - a, with a the slope the picture
+rate was read from (the whole word's, or its blocks' median). The sentences are right for both makers because the
+test cannot tell them apart ("what it cannot tell", above): a word in step with a regular GOP is a source's cadence or
+an encoder's, and where no picture types are read (`places` None) nothing was asked. The stage's own line for a
+cadence is reworded to match. It said "the video holds pictures in a cadence (48% of frames repeat the one before), so
+it carries 15.9 pictures a second, and a beat is heard only up to 6.3 Hz": true of PR34 and of the sphere, false of a
+camera that delivers 60 pictures a second whose encoder copies a still sky into four frames of five. It says "48% of
+frames are nearly the same as the one before, in a cadence. The picture is new only 15.9 times a second, so a beat is
+listened for between 1.5 and 6.3 Hz only, not up to the 12.0 Hz the frame rate could carry", then the two makers, and
+that the stage cannot tell which. Outside a cadence the line ends "a beat is listened for between 1.5 and 24.0 Hz". The
+finding for a strongest peak above the top no longer says "it holds pictures in a cadence (...) and carries N a second"
+either: its reason is the band's clause at its end. The report's rows follow (`report.Case.beat_band`): the checklist's
+"no rhythm of its own between 1.5 and 12.0 times a second stands out above the background beside it", with the same
+sentences in its own words where the band is cut short, and the measurements' row, which gives a finding from before
+its band. Fields that record no `top_hz`, or `pictures` without `cadence` (an envelope from before 2026-10-29, whose
+top came down for any video with a tenth of its frames held), get no band: the words are as they were. Words only: no
+band, call, number or outcome changes, held on the fourteen reference case files measured again and on `drift`'s four
+known answers. What it does not do: ask the object's own frames before it lowers the band, which would give a fast
+object on a still sky its 24 Hz back (IDEAS.md N16; after 0.5.8, measured first).
 
 ## 36. A farthest range: `--range-max` (added 2026-10-30)
 
@@ -6841,8 +6899,26 @@ and they triangulate to the pipeline's positions within 0.5 %.
   aircraft's to a median of 1.00. It came within 5 % half the time and within 20 % nine times in ten, and above the truth
   in 30 % of clips: "the least its speed can be" is so only up to the errors of the range and the scale, and the report
   now says so. Near the frame's edge it read 12 % high through k1 alone; `--lens-k2` (section 37) takes the rest of the lens.
-- *Pictures* (`flicker.pictures`). It reads 70 % of a Dalek clip's frames as held. The object's own steps show a fresh
-  picture every frame: the encoder copies a still sky. The band stays at the frame rate, so no number changes.
+- *Pictures* (`flicker.pictures`; corrected 2026-11-17, IDEAS.md N10). These cameras' files hold an I frame every 5
+  frames, 12 a second, and the four P frames between copy whatever the encoder finds unchanged (all 513 clips, read
+  frame by frame). `pictures` reads 60 % of a typical clip's frames as held (3-78 %, ten to ninety in a hundred of
+  the 494 clips with power). On 396 clips the holds keep no cadence and the band stays at the frame rate. On 98, where
+  the scene is still enough that 97 % of the P frames are held, the word is a cadence of the GOP's own period (section
+  35's "what it cannot tell") and the band's top comes down from 24 Hz to 4.8-5.3 Hz: 53 clips by the whole word at
+  0.5.2 already, 45 more by the block-by-block reading since 0.5.6. A fast object's picture is new on every frame all
+  the same: on the 34 aircraft clips among the 98, the box about the object is a copy of the frame before on 0.2 % of
+  the held frames, and the band is lowered for nothing. A slow cloud's is not: on the 64 cloud clips the box is a copy
+  on 55 % of the held frames and the cloud's centroid steps 0.004 px on a held frame against 0.22 px on an I frame, so
+  the file renews a cloud's picture about 12 times a second. What it costs: beats of 6-23 Hz at 5-20 % of the
+  brightness, planted in the object's own curve on eight of those clips, are found 0 times of 576 with the band as the
+  stage set it, and 165 of 192 with the band at the frame rate where the picture is new on every frame. On the clips as
+  they are it changed no call: with the band at the frame rate none of the 98 gains a beat. So on those 98 clips T3's
+  "no beat" covers 1.5 to about 5 Hz, and since 0.5.8 its reading says so, and why (sections 34 and 35). The band
+  itself is as it was: asking the object's own frames before lowering it is measured first (IDEAS.md N16). (Until
+  2026-11-17 this item read "It reads 70 % of a Dalek clip's frames as held. The object's own steps show a fresh
+  picture every frame: the encoder copies a still sky. The band stays at the frame rate, so no number changes". That
+  is so of the five Dalek clips of the flyers, none of which is read as a cadence; it is not so of one ring-camera
+  clip in five.)
 
 **What it could not do.** No bird was triangulated by the pipeline: a bird near one site is under a pixel at another,
 2 km away. A search of the second site's detections found two candidates seen from both sites, too briefly to hear a
