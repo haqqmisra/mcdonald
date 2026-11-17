@@ -8247,13 +8247,13 @@ The rows a window keeps do not matter to the plants (12 to 400 take the same obj
 halving them takes a third more planted objects, most of them faint points and members of groups (the plain bright
 points that move gain 9 of 255), and puts 1,071 more rows in the catalog's table. The controls cannot set the number:
 their objects are the videos' own, so a lower rule's extra objects in them are not false alarms by any test made here.
-That choice is the maintainer's (IDEAS.md PL6).
+The maintainer kept the 40 frames on 2026-11-17 (IDEAS.md PL6).
 
 **What `--card` changes here: nothing.** No stage of `--only track,report` computes on the graphics card (the card's
 stages are `layers`, `integrity`, `flicker`'s camera shake and `tether`, section 52). The same two planted videos run in
 one job given the card (`--slurm --card 2`) gave Find's files and all 19 followed tracks byte for byte, every case
 `computed_on` none, and the same times within what neighbouring jobs move them (344 s against 336 s; 556 against 605);
-the job held the card ten minutes for nothing. The card would have a part with `--only track,flicker,report`.
+the job held the card ten minutes for nothing. The card has a part with `--only track,flicker,report` (section 62.2).
 
 **What it cost.** Planting: 60-214 s a 1000-frame video on 2 CPUs (5.2 CPU-hours for the 80; 2.7 GB at most at 1080p).
 The batch: a planted video 171-657 s on 4 CPUs at the median by video, Find 83-314 s of it and the links the rest (up
@@ -8268,6 +8268,63 @@ them in one `select`, which ffmpeg refuses past about 100 terms; nothing came ba
 stretch asks for about 300: 2,892 of the run's 3,856 objects had no `contrast_after` and their pictures were blank. The
 frames are now read 64 at a time (`plant.SELECT_MOST`, a test holds it); the 80 truth tables were read again with the
 fix (the 964 values that existed came out the same, the originals kept as `*_truth.orig.json`).
+
+### 62.2 The planted beats through the batch, and what the graphics card changes (ROADMAP 0.6, objective 4; added 2026-11-17)
+
+**What it is.** The 80 planted videos of section 62.1 again, through `mcdonald batch --keep 400 --most 40 --only
+track,flicker,report`: each object the batch makes is followed and `flicker` is measured on it, as the catalog's batch
+measures it; the controls and the videos' own stretches the same way (`--most 40`), for beats where nothing was
+planted. Find's files were taken from 62.1's run (a unit with no state takes a window whose file is there as searched;
+Find depends on the video, `--window`, `--overlap` and `--keep`, not on the stages after it), so the objects are 62.1's
+to the row: 798 objects of the rule, 747 followed. The maintainer kept the rule's 40 frames on 2026-11-17 (IDEAS.md
+PL6). The run is on the CPU, the reference; the card is measured apart, below.
+
+**How a beat is held** (`plant.beat_of`, `beat_right`, `beat_tables`). For each planted object the batch followed over
+half its frames, `flicker`'s word on the object whose link lies on it most: a beat called (`beats` true: the object's
+own), none, or "could not tell" (`beats` none; counted in the cell, not as called). A planted beat -- steady, or
+wandering as a bird's -- is recovered where a line called lies within two resolutions of its frequency or of its
+double, or the line's double within two of it (the pilot's rule, section 62). A beat called on a constant object
+(points, bodies, the members of formations) is a false one; a strobe is counted apart. For a group the lines are its
+members' that beat.
+
+**What it found**, over all eight videos (`plants.md` of the run, the section "The beat"):
+
+| light planted | followed and measured | a beat called | could not tell | at its frequency |
+|---|---|---|---|---|
+| constant | 473 | 3 (0.6 %, at most 2 %) | 61 | - |
+| a steady beat | 30 | 18 (60 %, 42-75) | 8 | 18 (60 %, 42-75) |
+| a beat that wanders (birds and flocks) | 227 | 128 (56 %, 50-63) | 38 | 125 (55 %, 49-61) |
+| a strobe | 17 | 0 (0-18 %) | 4 | - |
+
+No twinkle was followed (they move with the scene, and Find does not list them). The beating ones are recovered at
+their frequency by depth: 37 % (27-49) at 0.15 of their brightness, 56 % (46-65) at 0.3, 74 % (63-82) at 0.6; by
+frequency: 62 % under 6 Hz, 66 % at 6-9 Hz, 42 % (33-52) at 9-12 Hz, where a 30-frame video has fewer than three and a
+half frames a cycle; by contrast as written: 39-48 % at 15-60 grey levels (and 2 of 2 under 15), 58-62 % above. By video, at their frequency:
+PR141 35 %, PR135 45 %, PR44 48 %, PR144 56 %, PR051 61 %, PR113 64 %, PR149 65 %, PR088 71 %; a false beat on a
+constant object 1 in 22 on PR051, 1 in 44 on PR113, 1 in 80 on PR135, none on the other five. The pilot, with `flicker`
+run by hand on followed tracks of 60 frames or more, had 50 % (44-56) of its planted beats at their frequency and 1 false
+beat in 369 constant points; through the batch, with its own links and every followed object measured, 56 % (50-62) and
+3 in 473.
+
+**Where nothing was planted.** `flicker` calls a beat on 4 of the controls' 27 measured objects (could not tell on 3)
+and on 4 of the 26 of the videos' own stretches, and all 4 of the controls' beating objects beat in the stretch itself
+too: PR135's flock (2) and two objects of PR44. So no beat here is made by the second encode; those beats are the
+videos' own (PR135's are the bird paper's flock).
+
+**What the card changes** (the two probe videos, PR135 seed 1 and PR44 seed 1, measured on the CPU and in one job given
+the card, `--slurm --card 2`). With these options the card takes only `flicker`'s camera-shake pass, which runs for an
+object that beats (the case says `computed_on` the card there, and nothing elsewhere). On the 16 objects of 32 that
+beat, `flicker` took 6-30 s on the card against 16-79 s on 4 CPUs; on the 16 that did not, the same time. A unit took
+407 s against 504 (PR135) and 372 s against 566 (PR44). Every track is the same byte for byte, every call the same,
+every beat's frequency and amplitude the same, every report's conclusion the same. What moved is in two readings beside
+the beat, the beat in the position (`position_beat`, section 59.1: 198 values) and the scene's shift (`scene_shift`: 112
+values), each by at most 6e-5 of itself: the card's transforms are not the CPU's (section 52). Over the whole run
+`flicker` was 10,233 s of the units' time, 6,292 s of it on the 203 objects that beat (29 s each at the median, 4.5 s on
+the others): on the card that part would take about a third as long, which is about a seventh of the run's time.
+
+**What it cost.** The 80 planted videos: 30.6 CPU-hours as the jobs held them (4 CPUs a video, 52-525 s a video at the
+median by video, 2.9 GB at most), one hour of wall time on 36-44 of arthur's CPUs; the controls and stretches 2.3. Find
+was not run again: in 62.1 it was 19.8 CPU-hours of these videos.
 
 ## 63. What the sensors' own backgrounds do: the corpus noise model, its tail, and a false discovery rate over the pass (ROADMAP 0.6, objective 6; S3, E24, D7; added 2026-11-15)
 
