@@ -244,7 +244,7 @@ And the track's own jitter (2026-11-17, the Galileo Project's clouds; method sec
     own. It needs no second look at the frames. It is read for every object whose aperture rides the track, and decides
     only of a beat that would otherwise be the object's own: it can take a beat away and never gives one. Re-measuring
     on a smoothed track, the first remedy tried, lost known birds their beats: a track holds the camera's own shake and
-    the object's real path, which a smoothed track leaves (12 of 19 reference birds at a second of smoothing).
+    the object's real path, which a smoothed track leaves (13 of 21 reference birds at a second of smoothing).
 
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
