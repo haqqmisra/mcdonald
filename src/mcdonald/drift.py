@@ -26,6 +26,8 @@ of sight) and the object's brightness, so they can run on any video whose displa
 
 Where the display shows the aircraft's own position and its line of sight's ground point rather than ranges to the
 object, T1 and T2 run from the aircraft's own track instead (`--platform`, `--los`).
+Where cameras standing on the ground saw it from places apart, T1 and T2 run from their lines of sight, each with its
+own time and camera and no video (`--rays`, `--cameras`; `mcdonald.sightlines`).
 
 The fourth test weighs evidence that only some videos hold -- something the object sheds, cloud at its depth, a strike
 -- and runs whichever of its parts the inputs allow. It fails when a part fails, passes when a part passes and none
@@ -907,7 +909,7 @@ def az_reference(fit, R, sig, plane, tm, scale, known=None):
     return dict(fitted_deg=float(g.x[6]), err_deg=float(sd), used_deg=float(used), part=pull * used, pull=pull)
 
 
-def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err=None):
+def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err=None, pointing_err=None):
     """The object's straight, steady path through the rays `R` (from `rays`): east, north and height at the readings'
     mean time on a map about the aircraft's mean position, and their rates; least squares in angle (azimuth weighted by
     the cosine of the depression; `sig`, deg, the errors given), its errors from the covariance read with the errors
@@ -919,8 +921,19 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err
     the model gate's F test of an accelerating path over the straight one (`model_F`, `model_p`), and how many of
     the `nboot` resamples the bootstrap kept (`boots`, against BOOT_MIN; a resample is fitted only where it holds
     BOOT_DISTINCT distinct readings, so fewer than READINGS_MIN readings keep too few, and the bootstrap's fields are
-    then None rather than an error)."""
+    then None rather than an error).
+
+    Rays that came from cameras with a time and a name of their own (`sightlines.rays`; since 2026-11-17, method
+    section 66) are fitted the same way, and what differs is what each camera has of its own: its rays' scatter
+    (`sightlines.own_scatter`), its share of each bootstrap resample (`sightlines.resample`) and its pointing error,
+    a constant in azimuth and one in elevation taken as known to `pointing_err` (az, el; deg; by default the errors
+    given, `sig`), carried in place of the one azimuth reference (`sightlines.pointing`; `az_ref_err` is then not
+    read). The fields then name the cameras (`cameras`, `places`, `baseline_m`, `los_cross_deg`), and `range_bound`
+    counts the pointing. Cameras that share one reference (`reference="shared"`) are fitted as an aircraft's rays."""
     rng = rng or np.random.default_rng(20261021)
+    cams = "camera" in R and R.get("reference", "camera") != "shared"     # each camera its own pointing and scatter
+    if "camera" in R:
+        from . import sightlines
     lat0, lon0 = float(np.mean(R["platform"][:, 0])), float(np.mean(R["platform"][:, 1]))
     plane = Plane(lat0, lon0)
     fit, tm = _fit_track(R, sig, plane)
@@ -930,7 +943,11 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err
     n = len(R["t"])
     dof = max(1, len(fit.fun) - 6)
     chi2 = float(np.sum(fit.fun ** 2)) / dof
-    scale, errors_from, p_low = own_scatter(fit.fun, n)
+    if cams:
+        scale, sources, tails = sightlines.own_scatter(fit.fun, R["camera"])
+        errors_from, p_low = None, None                                    # by camera: `sightlines.carried` says
+    else:
+        scale, errors_from, p_low = own_scatter(fit.fun, n)
     try:
         cov = _covariance(fit.jac, scale)
         err = np.sqrt(np.diag(cov))
@@ -941,7 +958,7 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err
     mF, mp = model_test(fit, R, sig, plane, tm)
     boots = []
     for _ in range(nboot):
-        i = np.sort(rng.integers(0, n, n))
+        i = sightlines.resample(R["camera"], rng) if cams else np.sort(rng.integers(0, n, n))
         if len(set(i.tolist())) < BOOT_DISTINCT:
             continue
         S = {k: (v[i] if isinstance(v, np.ndarray) and len(v) == n else v) for k, v in R.items()}
@@ -978,6 +995,14 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err
                    toward_sd_deg=float(btw.std()), velocity_err_m_s=max(sd_v, float(math.hypot(err[3], err[4]))),
                    speed_p05_p95=[float(x) for x in np.percentile(bsp, [5, 95])],
                    climb_err_m_s=float(max(err[5], B[:, 5].std())))
+    if "camera" in R and R.get("epoch") is not None:                       # the rays' own clock, where it is absolute
+        out["time_utc"] = sightlines.when(R, tm)
+    if cams:                               # each camera's own pointing, in place of one azimuth reference for all
+        known = (float(sig[0]), float(sig[1])) if pointing_err is None else (float(pointing_err[0]), float(pointing_err[1]))
+        out.update(sightlines.carried(fit, R, sig, plane, tm, scale, sources, tails, cov, out, known))
+        return out
+    if "camera" in R:                      # cameras that share one reference: named, and fitted as an aircraft's rays
+        out.update(sightlines.shared(R, p, plane, tm))
     # the azimuth reference: what the rays' scatter cannot show, added in quadrature to what it can
     az_ref_err = float(sig[0]) if az_ref_err is None else float(az_ref_err)     # by default, as well as an azimuth is given
     ref = az_reference(fit, R, sig, plane, tm, scale, az_ref_err) if cov is not None else None
@@ -1008,6 +1033,12 @@ def unfixed(path):
     if path["boots"] < BOOT_MIN:
         return (f"the bootstrap over its {path['readings']} readings kept {path['boots']} of {path['boots_of']:,} "
                 f"resamples, under the {BOOT_MIN} its errors are read from")
+    if not path["path_gate"] and path.get("cameras"):
+        from . import sightlines
+        return sightlines.one_place(path)
+    if not path["range_bound"] < RANGE_FIX and path.get("cameras"):
+        from . import sightlines
+        return sightlines.open_range(path)
     if not path["path_gate"]:
         return (f"the aircraft flew straight: its path leaves a straight line by {path['path_off_line_m']:.0f} m, within "
                 f"its readings' own error ({PATH_GATE:g} x {POSITION_ERR:.0f} m), and a straight-flying aircraft cannot "
@@ -1254,6 +1285,9 @@ def test_wind_track(path, winds, readings=None):
     ev = path["velocity_err_m_s"]
     out.update(speed_m_s=round(path["speed_m_s"], 2), toward_deg=round(path["toward_deg"], 1),
                velocity_err_m_s=round(ev, 2))
+    if (not math.isfinite(ev) or 2 * ev > VELOCITY_FIX) and path.get("cameras"):
+        from . import sightlines
+        return dict(out, outcome=CANNOT, reading=sightlines.open_velocity(path, VELOCITY_FIX))
     if not math.isfinite(ev) or 2 * ev > VELOCITY_FIX:
         ref, rays = path.get("velocity_err_reference_m_s"), path.get("velocity_err_rays_m_s")
         if ref is not None and rays is not None and math.isfinite(ev) and 2 * rays <= VELOCITY_FIX:
@@ -1513,16 +1547,23 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
             slant=None, horiz=None, own=None, bearings=None, heading_deg=None, winds=(), speeds=(10.0, 25.0, 50.0),
             air_min_kn=None, air_max_kn=None, flicker=None, seed=20261021,
             out=None, say=print, platform=None, los=None, los_sigma=(0.3, 0.1), observed_winds=None, ground_m=None,
-            when=None, az_ref_err=None):
+            when=None, az_ref_err=None, sight=None, pointing_err=None):
     """Every test the inputs allow, and the verdict. Returns a Found with fields `tests` and `verdict`. T1 and T2 come
     from the ranges (slant, horiz, own, bearings, heading_deg) or, given `platform` and `los` (`read_platform`,
-    `read_los`), from the aircraft's own track and the lines of sight."""
+    `read_los`), from the aircraft's own track and the lines of sight; or, given `sight` (`sightlines.rays`), from
+    the lines of sight of cameras with their own times and places, `pointing_err` (az, el; deg) how well each
+    camera's pointing is known beforehand. `fps` is read only by the inputs that are timed by a video's frames, and
+    may be None without them; `when` is, by default, the mean time of rays whose times are absolute."""
     rng = np.random.default_rng(seed)
     track = None
+    by_rays = sight is not None or (platform is not None and los is not None)
     # T1 first: the ranges, or the lines of sight, give the depression the others use
-    if platform is not None and los is not None:
-        R = rays(platform, los, fps)
-        track = fit_track(R, los_sigma, ground_m, rng, az_ref_err=az_ref_err) if len(R["t"]) >= READINGS_MIN else None
+    if by_rays:
+        R = sight if sight is not None else rays(platform, los, fps)
+        track = (fit_track(R, los_sigma, ground_m, rng, az_ref_err=az_ref_err, pointing_err=pointing_err)
+                 if len(R["t"]) >= READINGS_MIN else None)
+        if when is None and track is not None:
+            when = track.get("time_utc")
         t1 = test_vertical_track(track, readings=len(R["t"]))
         delta_r = track["depression_deg"] if track else None
     else:
@@ -1547,8 +1588,8 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
         t4b.update(band_range_s=round(f["band_range_s"], 2), band_nugget_px=round(f["band_nugget_px"], 3),
                    band_light=f["band_light"], bootstrap_block_s=round(BLOCK / fps, 2))
     line = None
-    if platform is not None and los is not None:                    # T2 from the aircraft's own track
-        own_w = aircraft_wind(platform, fps)
+    if by_rays:                                                     # T2 from the aircraft's own track, or the cameras'
+        own_w = aircraft_wind(platform, fps) if sight is None else None    # cameras on the ground fly through no wind
         tw = test_wind_track(track, track_winds(track["height_m"], ground_m, winds, when, observed_winds, own_w)
                              if track else [], readings=len(R["t"]))
         if own_w:
@@ -1582,6 +1623,8 @@ def measure(fps, L=None, remains=None, pieces=(), delta_deg=None, comotion=None,
     fields = dict(tests=tests, verdict=v, why=why, depression_deg=delta_deg)
     if track is not None:
         fields["ground_path"] = track
+    if sight is not None:
+        fields["winds_when"] = when                      # the hour the model winds were read at (the rays' own, or given)
     if line is not None:
         fields["relative_line"] = {k: line[k] for k in ("speed_m_s", "speed_err_m_s", "toward_deg", "toward_err_deg",
                                                        "v_m_s", "v_err_m_s", "r0_m", "t0_frame", "chi2_dof",
@@ -1613,33 +1656,42 @@ def said(fields):
     for t in flat(fields["tests"]):
         L.append(f"{t['test']} {t['outcome']}: {t['reading']}")
     g = fields.get("ground_path")
-    if g:
+    by_cameras = bool(g and g.get("cameras"))
+    whose = "the cameras' shared azimuth reference" if by_cameras else "the display's azimuth reference"
+    if by_cameras:                                # the rays came from cameras: the path in their words
+        from . import sightlines
+        L.extend(sightlines.said(g))
+    if g and g.get("reference") != "camera":      # one azimuth reference for every ray: an aircraft's, or cameras that share one
         above = f", {g['above_ground_m']:.0f} m above the ground" if g.get("above_ground_m") is not None else ""
         if g.get("errors_from") == "the rays' own scatter":
             L.append(f"\nthe lines of sight fit better than the errors given for them allow (1 fit in "
                      f"{_one_in(g['chi2_p_low'])} would, by chance), so the errors below come from the rays' own scatter about "
                      f"the path: {g['sigma_deg'][0]:.3f} deg in azimuth, {g['sigma_deg'][1]:.3f} in depression")
-        L.append(f"\nthe path from {g['readings']} lines of sight (the line of sight turned {g['los_turn_deg']:.0f} deg): "
-                 f"{g['speed_m_s']:.2f} m/s toward {g['toward_deg']:.1f} deg (two errors {2 * g['velocity_err_m_s']:.2f}), "
-                 f"climb {g['climb_m_s']:+.2f} +- {g['climb_err_m_s']:.2f} m/s, {g['height_m']:.0f} m above the sea{above}; "
-                 f"reduced chi-square {g['chi2_dof']:.2f}, rms {g['rms_az_deg']:.2f} deg azimuth, {g['rms_dep_deg']:.2f} "
-                 f"depression; {g['range_m'][0] / 1e3:.1f}-{g['range_m'][1] / 1e3:.1f} km away; the aircraft's path left a "
-                 f"straight line by {g['path_off_line_m']:.0f} m, the range's bound {min(g['range_bound'], 1e6):.3f} "
-                 f"(a factor of {math.exp(min(g['range_bound'], 20.0)):.2f}), an accelerating path over a straight one p "
-                 f"{g['model_p'] if g['model_p'] is None else round(g['model_p'], 3)}; {g['boots']} of {g['boots_of']:,} "
-                 f"resamples fitted")
+        if not by_cameras:
+            L.append(
+                f"\nthe path from {g['readings']} lines of sight (the line of sight turned {g['los_turn_deg']:.0f} deg): "
+                f"{g['speed_m_s']:.2f} m/s toward {g['toward_deg']:.1f} deg (two errors {2 * g['velocity_err_m_s']:.2f}), "
+                f"climb {g['climb_m_s']:+.2f} +- {g['climb_err_m_s']:.2f} m/s, {g['height_m']:.0f} m above the sea{above}; "
+                f"reduced chi-square {g['chi2_dof']:.2f}, rms {g['rms_az_deg']:.2f} deg azimuth, {g['rms_dep_deg']:.2f} "
+                f"depression; {g['range_m'][0] / 1e3:.1f}-{g['range_m'][1] / 1e3:.1f} km away; the aircraft's path left a "
+                f"straight line by {g['path_off_line_m']:.0f} m, the range's bound {min(g['range_bound'], 1e6):.3f} "
+                f"(a factor of {math.exp(min(g['range_bound'], 20.0)):.2f}), an accelerating path over a straight one p "
+                f"{g['model_p'] if g['model_p'] is None else round(g['model_p'], 3)}; {g['boots']} of {g['boots_of']:,} "
+                f"resamples fitted")
         if g.get("az_reference_err_deg") is not None:
             k = g.get("az_reference_known_deg")
             known = (f"it is taken as known to {k:g} deg beforehand" if k is not None and math.isfinite(k) else
                      f"nothing is taken as known of it beforehand, so their own reading is carried ({g['az_reference_used_deg']:.2f} deg)")
-            L.append(f"\nthe display's azimuth reference: {known}; the lines of sight themselves read it as "
+            L.append(f"\n{whose}: {known}; the lines of sight themselves read it as "
                      f"{g['az_reference_fitted_deg']:+.2f} +- {g['az_reference_err_deg']:.2f} deg. A constant error of one degree "
                      f"in every azimuth moves the velocity by "
                      f"{g['az_reference_pull_m_s']:.2f} m/s and the climb by {g['az_reference_pull_climb_m_s']:.2f} m/s. The "
                      f"errors above carry it: from the rays' scatter alone, two errors of the velocity are "
                      f"{2 * g['velocity_err_rays_m_s']:.2f} m/s and the climb's error is {g['climb_err_rays_m_s']:.2f} m/s")
         elif "az_reference_err_deg" in g:
-            L.append("\nthe display's azimuth reference: the lines of sight do not fix it, so the velocity and the climb are open")
+            L.append(f"\n{whose}: the lines of sight do not fix it, so the velocity and the climb are open")
+    if g and g.get("time_utc") and fields.get("winds_when") == g["time_utc"]:
+        L.append(f"\nthe model winds are read at the hours within one of the lines of sight's own mean time, {g['time_utc']} UTC")
     own = next((t.get("aircraft_wind") for t in fields["tests"] if t.get("aircraft_wind")), None)
     if own:
         line = (f"\nthe aircraft's own wind, from its turn of {own['heading_turn_deg']:.0f} deg: {own['speed_m_s']:.1f} m/s from "
@@ -1662,7 +1714,9 @@ def said(fields):
 def main():
     import argparse
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("video")
+    ap.add_argument("video", nargs="?",
+                    help="the video, for its frame rate: the inputs timed by its frames need it, or --fps. Lines of "
+                         "sight with their own times (--rays) and a flicker envelope (--flicker) need neither")
     ap.add_argument("--size-px", help="the object's length on the screen, px; two values (just before, smallest) "
                                       "give the range of L")
     ap.add_argument("--depression", type=float, help="the line of sight's depression, deg (from the ranges if given)")
@@ -1691,10 +1745,23 @@ def main():
                     help="how well the display's azimuth reference (its true north) is known, deg: an error every line "
                          "of sight shares. By default the azimuth error of --los-sigma; inf leaves it to the lines of "
                          "sight themselves")
+    ap.add_argument("--rays", help="T1/T2 from cameras with their own clocks, no video needed: a line of sight per row "
+                                   "(a time t_s, t_unix_s or time_utc; camera, its name; az_deg; el_deg or dep_deg; and "
+                                   "the camera's place lat,lon,alt_m, there or in --cameras). Several cameras may read "
+                                   "at the same instant")
+    ap.add_argument("--cameras", help="with --rays: the cameras' places, a row each (camera,lat,lon,alt_m)")
+    ap.add_argument("--pointing-err", metavar="AZ,EL",
+                    help="with --rays: how well each camera's pointing is known, deg in azimuth and in elevation: a "
+                         "constant error of its own, which its lines of sight share. By default the errors of "
+                         "--los-sigma; inf leaves an angle to the lines of sight themselves")
+    ap.add_argument("--reference", choices=["camera", "shared"],
+                    help="with --rays: camera (the default), each camera has its own pointing error; shared, every "
+                         "camera's azimuth rests on one reference (--az-ref-err), as an aircraft's display's does")
     ap.add_argument("--obs-winds", help="T2 from the track: observed winds (source,height_m above the sea,from_deg,"
                                         "speed_m_s), e.g. a METAR, a sounding")
     ap.add_argument("--ground-m", type=float, help="the ground's height above the sea under the object, m")
-    ap.add_argument("--when", help="the time of the clip (ISO, UTC): the model winds' hours within one of it")
+    ap.add_argument("--when", help="the time of the clip (ISO, UTC): the model winds' hours within one of it. By "
+                                   "default the mean time of --rays, where their times are unix or ISO times")
     ap.add_argument("--flicker", help="T3: the --json envelope of `mcdonald flicker` on the object; several, "
                                       "comma-separated, from cameras watching it at the same time")
     ap.add_argument("--fps", type=float, help="frames per second (default: the video's)")
@@ -1713,13 +1780,19 @@ def _series(path, value=("value_m", "value", "m")):
 
 
 def _main(args):
-    from .forensics import resolve
-    video, tag, _ = resolve(args.video)
-    args.video = str(video)
     fps = args.fps
-    if fps is None:
-        from .clip import probe
-        fps = float(probe(video)["fps"])
+    if args.video is not None:                      # the video gives the frame rate, and nothing else
+        from .forensics import resolve
+        video, tag, _ = resolve(args.video)
+        args.video = str(video)
+        if fps is None:
+            from .clip import probe
+            fps = float(probe(video)["fps"])
+    by_frame = [o for o in ("remains", "pieces", "slant", "horizontal", "own_height", "bearings", "platform", "los")
+                if getattr(args, o)]
+    if fps is None and by_frame:
+        raise SystemExit("give the video, or --fps: " + ", ".join("--" + o.replace("_", "-") for o in by_frame)
+                         + (" is" if len(by_frame) == 1 else " are") + " timed by its frames")
     L = None
     if args.size_px:
         v = [float(x) for x in args.size_px.split(",")]
@@ -1737,6 +1810,23 @@ def _main(args):
         raise SystemExit("--platform and --los go together")
     if args.platform and (args.slant or args.horizontal):
         raise SystemExit("T1/T2 come from the ranges or from the aircraft's own track, not both")
+    if args.rays and (args.platform or args.slant or args.horizontal):
+        raise SystemExit("T1/T2 come from the ranges, from the aircraft's own track or from cameras' lines of sight "
+                         "(--rays): one of the three")
+    if (args.cameras or args.pointing_err or args.reference) and not args.rays:
+        raise SystemExit("--cameras, --pointing-err and --reference go with --rays")
+    sight = pointing = None
+    if args.rays:
+        from . import sightlines
+        try:
+            sight = sightlines.rays(sightlines.read_sightlines(
+                args.rays, sightlines.read_cameras(args.cameras) if args.cameras else None), args.reference or "camera")
+        except (KeyError, ValueError) as ex:
+            raise SystemExit(f"--rays: {ex}")
+        if args.pointing_err:
+            pointing = tuple(float(x) for x in args.pointing_err.split(","))
+            if len(pointing) != 2:
+                raise SystemExit("--pointing-err takes two numbers: azimuth,elevation in degrees")
     observed = read_rows(args.obs_winds) if args.obs_winds else None
     own = read_series(args.own_height, ("value_m", "value"), ("err_m", "err"), 10.0) if args.own_height else None
     found = measure(fps, L, remains, pieces, args.depression, comot, args.tracer_depth, _series(args.slant),
@@ -1746,7 +1836,8 @@ def _main(args):
                     platform=read_platform(args.platform) if args.platform else None,
                     los=read_los(args.los) if args.los else None,
                     los_sigma=tuple(float(x) for x in args.los_sigma.split(",")), observed_winds=observed,
-                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err)
+                    ground_m=args.ground_m, when=args.when, az_ref_err=args.az_ref_err, sight=sight,
+                    pointing_err=pointing)
     print("\n".join(said(found.fields)))
     return found
 

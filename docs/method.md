@@ -8882,3 +8882,197 @@ rotation plus its motion over the layer's range, and neither the parallax betwee
 turns into a distance without the camera's own motion (section 33's unknowns). It does not follow a layer from pair
 to pair; each pair is mapped alone. Smaller templates, a ring about the object and the scene behind a sensor's pattern
 were measured and left out (the design above).
+
+## 66. Cameras on the ground: lines of sight with their own time and camera (`mcdonald drift --rays`; ROADMAP 0.5.8, item 1; added 2026-11-17)
+
+**What it is.** Section 34's route "from the aircraft's own track" fits a straight path at a steady velocity to rays that
+cross (`drift.fit_track`), and until now the only way in was `--platform` and `--los`: one camera that moves, its
+readings keyed by the frames of one video, every azimuth resting on one reference. Cameras standing on the ground see
+an object at once from places kilometres apart, and their rays cross with no turn at all. The Galileo Project's three
+sites near Las Vegas (section 53) went in by a workaround kept outside the package: the sites written as one aircraft
+that jumps between them, each site's reading at a 1/60-s bin put on frame 3 x bin + site at 180 frames a second, a
+grey placeholder for the video, one azimuth reference for all. `mcdonald.sightlines` is the input of their own:
+
+```bash
+mcdonald drift --rays rays.csv --cameras cameras.csv --winds model_1.json,model_2.json --ground-m 600 \
+  --flicker a.json,b.json --out CASE --json
+# rays.csv     time_utc,camera,az_deg,el_deg            a row a reading; t_unix_s or t_s for the time, dep_deg for
+#                                                        the depression; lat,lon,alt_m here if there is no cameras file
+# cameras.csv  camera,lat,lon,alt_m
+#   --pointing-err AZ,EL   how well each camera's pointing is known, deg (by default the errors of --los-sigma)
+#   --reference shared     one azimuth reference for every camera (--az-ref-err), as an aircraft's display has
+```
+
+**The input.** A reading is a row: its own time (seconds from any zero, unix seconds, or an ISO time, UTC where it
+names no zone), its camera's name, an azimuth, and an elevation or a depression. A camera's place is in its rows or,
+once, in a cameras file; a camera that moves gives its place in every row. Several cameras may read at the same
+instant. No video is asked for: `video` is now optional for the whole command, and only the inputs timed by a video's
+frames (`--platform`, `--los`, the ranges, the tracks) need it or `--fps`, and say so without. A call that gives a
+video does what it did: the drift files of section 34's four known answers are the same to the byte before and
+after. `sightlines.rays` returns the dict `drift.rays` returns, with four more keys (`camera`, an index a reading;
+`cameras`, the names; `epoch`, the unix time of t = 0 where the times are absolute; `reference`), and `fit_track`
+takes one more keyword (`pointing_err`). Where the times are absolute, `--when` (the hour of the model winds) is by
+default the rays' own mean time, the time the path's point is quoted at, and the command says so (the workaround
+gave the median time: on none of the 239 Galileo objects do the two pick different hours).
+
+**What a camera has of its own**, and an aircraft's display has once for all its rays:
+
+- *Its place, and the two gates* (`drift.path_off_line`, `drift.range_bound`). The path gate asks how far the places
+  the rays start from leave one straight path at a steady speed. One camera standing still leaves it by nothing, and
+  is refused: "one camera standing still cannot range what it sees". Two cameras reading together leave it by half
+  their distance. The gate's 20 m (2 x `POSITION_ERR`) is section 34's judgement, unchanged, so two cameras under 40 m
+  apart are refused whatever their angles. The range's bound is taken from the camera it is largest for (the
+  aircraft's route takes the reading nearest the mean time, which among cameras is any one of them), and it counts
+  the cameras' pointing: two cameras 45 m apart, 8 km from the object, cross at a third of a degree, their rays'
+  scatter alone bounds the logarithm of the range at 0.03, and a pointing error of 0.3 deg in each makes that 1.3 (the
+  tests). The words name cameras, their distance apart and the angle their lines of sight cross at; `los_turn_deg`
+  is the most any one camera's own line turned (the workaround's was the jump between cameras, and over three
+  interleaved sites `np.unwrap` ran it to 4,487 deg on one run).
+- *Its pointing* (`sightlines.pointing`, `--pointing-err`). `drift.az_reference` adds one constant to every azimuth:
+  the display's true north. One constant turns every ray the same way, and the angle at which two cameras' rays
+  cross hardly moves. A calibrated camera has its own error, and two cameras' errors change that angle itself, and
+  with it the range and everything that scales with it. Carried: a constant in azimuth and a constant in elevation
+  for each camera. Over the few degrees an object crosses in a frame, any small rotation of the camera, and a lens
+  model that is off there, move all of its rays alike in the two angles; a clock that is off moves them alike along
+  the track, which over a short track is such a constant too. As in section 34 the path stays the six-parameter
+  fit, which takes every camera's pointing as right, and what is carried is the error of doing so: the path moves by
+  S = (J'J)^-1 J'B for one degree (J the fit's Jacobian, B what a degree in one camera's azimuths or elevations does
+  to the residuals; exact for the least-squares path while the offsets are small), and the covariance S diag(known^2) S'
+  is added to the rays' own. The rays' own reading of each offset is reported beside (the offsets fitted with the
+  path, each held to what is taken as known) and never used to tighten it. With `inf` nothing is taken as known,
+  the rays' reading and its error stand in, and for two cameras that leaves the velocity open.
+- *Its scatter* (`sightlines.own_scatter`). Section 34's rule (whose errors the path carries), camera by camera: a
+  camera's degrees of freedom are its two residuals a reading less its share of the six parameters. On the 239
+  Galileo runs the largest of a run's cameras' rms residuals is 1.95 times the smallest in azimuth (median; over 3
+  times on a third of runs) and 1.38 times in elevation, and 72 runs have cameras under different cases of the rule.
+  The scatter is read about the six-parameter path, so an offset the path cannot take up counts twice, once as
+  scatter and once in the pointing: the errors are wide rather than narrow where cameras disagree.
+- *Its share of the bootstrap* (`sightlines.resample`). Which camera read how often is the design, not chance: each
+  resample draws each camera's own readings. Drawn from all readings alike, 1 resample in 160 holds none of a camera
+  that read 5 times beside one that read 121, and is one camera's fit: the velocity's error came out 10 times the
+  covariance's and the height's 40 times; by camera, 1.3 to 2.3 and 1.1 to 1.8 (the tests' scene, three seeds).
+- *No wind of its own.* `aircraft_wind` reads the wind an aircraft flies through from its turn. A camera on a roof
+  flies through none, and none is looked for.
+
+**How large a camera's pointing error is, measured on the Galileo rays.** At an instant two cameras give four angles
+for a point's three coordinates and three cameras six. One or three combinations of the angles say nothing of where the
+point is, only whether the rays meet, with no path model at all. Their means over an object are read as each camera's
+constant offsets seen through the geometry, and the likelihood of the offsets' size is summed over objects (a working
+note of 2026-11-17; aggregate numbers only, the data are the Galileo Project's).
+- The rays do not meet. From two sites they pass each other at 0.24 deg for a cloud (the median object's mean; 0.97
+  for one in ten), 0.30 for an aircraft and 0.69 for two different clouds matched, while within an object that angle
+  scatters by 0.03 deg for a cloud. With no offset allowed the likelihood falls by a factor beyond counting, and
+  with none in elevation nearly as far: both angles are needed.
+- The size has a heavy tail, so no one number is right. The median object is best fitted by 0.25-0.30 deg (one size
+  for both angles; 0.30-0.40 in azimuth and 0.15-0.25 in elevation apart); a quarter of objects ask for 0.5-0.7 or
+  more, a tenth for 1.0. Read as one Gaussian the tail sets the size: 0.70 deg in azimuth and 0.40 in elevation, set
+  on the days of even rank (89 aircraft and clouds) and read as the same two numbers on the 110 of the odd days.
+- What the offsets are is not decided here. Two cameras of one site's ring, where their frames overlap, disagree
+  by 0.3-5.5 deg in azimuth (the frames' far edges: the lens model, or a box cut by the edge); two sites see
+  different parts of a cloud; an aircraft's miss grows with how fast its line of sight turns (rank correlation +0.30,
+  p 0.006; a quarter of a second of clock would make the median miss), a cloud's does not.
+- So the default, each camera's pointing as well known as one of its readings is given to be (`--los-sigma`, 0.3 and
+  0.1 deg), is the median object's in azimuth and half of it in elevation. **It is section 34's judgement carried
+  over, not this measurement**, and which number the Galileo runs should be given is the maintainer's to say (the
+  runs below give three).
+
+**Held on drawn cameras** (cameras standing as the three sites do, about 10 and 2 km apart, watching a drawn drifter
+2.5-5.5 km up for 40-80 s; each camera's rays with a white error and a constant offset of its own in each angle; 400
+draws a row; two errors hold the true east and north velocity, climb and height this many times in 100):
+
+| what was drawn, and how it was fitted | cameras | east | north | climb | height |
+|---|---|---|---|---|---|
+| offsets of 0.3 and 0.1 deg, taken as known to that; errors given 0.3 and 0.1 (the defaults), scatter 0.03 | three | 97.8 | 98.8 | 99.5 | 95.2 |
+| | two, 10 km apart | 97.8 | 97.8 | 98.2 | 92.8 |
+| | two, 2 km apart | 96.8 | 97.8 | 99.0 | 95.8 |
+| the same draws, fitted with one shared azimuth reference (0.3 deg) | three | 94.8 | 94.8 | 96.2 | 30.8 |
+| | two, 10 km apart | 89.0 | 90.0 | 90.8 | 26.2 |
+| | two, 2 km apart | 73.2 | 75.0 | 84.2 | 10.2 |
+| offsets of 0.3 and 0.1 deg known; errors given equal to the scatter drawn (0.03) | three | 99.0 | 98.5 | 99.5 | 94.2 |
+| | two, 10 km apart | 98.0 | 97.2 | 98.2 | 94.2 |
+| | two, 2 km apart | 96.5 | 97.0 | 99.0 | 94.8 |
+| offsets of 0.03 deg in each angle, known; errors given 0.03 | three | 98.2 | 96.5 | 98.2 | 94.5 |
+| | two, 10 km apart | 98.0 | 95.5 | 97.5 | 94.8 |
+| | two, 2 km apart | 96.2 | 97.2 | 96.8 | 94.8 |
+| offsets of 0.1 deg drawn, taken as 0.3 and 0.1 (the defaults) | three | 99.0 | 99.5 | 100.0 | 98.2 |
+| | two, 2 km apart | 99.0 | 99.0 | 99.2 | 98.8 |
+| no offsets; each camera's scatter drawn from 0.015, 0.05 and 0.15 deg; each camera's own scatter | three | 96.2 | 96.8 | 95.8 | 94.5 |
+| | two, 2 km apart | 94.8 | 96.8 | 96.0 | 94.8 |
+| the same draws, one pooled scatter | three | 93.5 | 96.0 | 96.2 | 95.0 |
+| | two, 2 km apart | 94.5 | 93.8 | 95.0 | 95.8 |
+
+With each camera's pointing carried, two errors hold the true height 93-96 times in 100 and the velocity and the climb
+96-100: the velocity's are a little wide, because an offset the path cannot take up is counted as scatter too. With one
+shared reference, the aircraft's model, the same rays' errors hold the height 10-31 times in 100 and the velocity of two
+cameras 2 km apart 73-75: the error that model leaves out is the one that sets the range. A binomial error on 400 draws
+is 1.1 at 95. The covariance's errors alone were read (no bootstrap), as section 34's coverage was. One pooled scatter
+holds the truth as often as each camera's own on these draws (93-96 against 94-97), so drawn cameras do not decide
+between them; each camera's own was kept because the Galileo cameras' scatters differ as they do (above).
+
+**Held to the 239 Galileo runs** (section 53's objects, run at the v0.5.7 tag on 2026-11-17 by the workaround; the
+same selection of rays, the same winds and flicker envelopes):
+
+- *The same fit.* Given by `--rays --reference shared` with the workaround's own times (each site's reading a third
+  or two of a bin late) and its `--when`, every number the two drift files have in common is the same to the last
+  bit on 239 of 239 objects, the readings' numbers in `frames` excepted. The tests hold the same on drawn cameras.
+- *What the stagger was worth.* With each reading at its own time, the fitted speed moves by at most 0.14 m/s (5
+  parts in 10,000, a 283-m/s aircraft), a climb by 0.12 m/s, the velocity's error by 4 %; the one shared reference's
+  pull moves most, on short tracks (0.36 to 0.011 m/s a degree on a 3.3-s track: a site read always a 180th of a
+  second late turns a constant shift of position into a velocity of about shift x 6 dt / T^2). One verdict moves: a
+  mismatched pair at 1.0 m/s goes from drifting to cannot say at the edge of the hold-still rule (drifting needs
+  0.7 m/s, holding still 0.7).
+- *Each camera's own pointing.* Verdicts as drifting (tentative) / cannot say / not drifting; a site as one camera,
+  as the workaround had one ray a site; the winds' hour from the rays' mean time:
+
+| group | n | v0.5.7, one shared reference | each camera's own, 0.3 and 0.1 deg (the default) | 0.3 and 0.2 | 0.7 and 0.4 |
+|---|---|---|---|---|---|
+| aircraft below 3 km | 60 | 0 / 9 / 51 | 0 / 26 / 34 | 0 / 32 / 28 | 0 / 56 / 4 |
+| aircraft above 8 km | 20 | 0 / 7 / 13 | 0 / 14 / 6 | 0 / 19 / 1 | 0 / 20 / 0 |
+| clouds, three sites | 59 | 37 / 21 / 1 | 40 / 18 / 1 | 32 / 26 / 1 | 27 / 31 / 1 |
+| clouds, two sites | 60 | 27 / 28 / 5 | 28 / 29 / 3 | 29 / 28 / 3 | 26 / 31 / 3 |
+| mismatched low pairs | 40 | 21 / 19 / 0 | 20 / 20 / 0 | 20 / 20 / 0 | 20 / 20 / 0 |
+
+  The fitted path is the same in every column; only its errors differ. Two errors of an aircraft's velocity go from
+  3.0-4.0 m/s (medians, by group) to 8.8-9.9 at the default, 11-12 at 0.3 and 0.2 and 23-25 at 0.7 and 0.4; of a
+  cloud's from 2.2 to 2.3-2.4, 2.6-2.7 and 3.0-4.5; of an aircraft's height from 10-39 m to 133-172, 155-246 and
+  343-491. No aircraft is called drifting in any column.
+- *Every verdict that moves at the default* (35 objects against v0.5.7). 24 aircraft go from not drifting to cannot
+  say: T2 failed them (they need 93-250 m/s through the air), and now cannot say because two errors of their
+  velocity pass 5 m/s (5.4-31 m/s). One of them, and two aircraft that were already cannot say, lose T1's pass the
+  same way (two errors of the climb over 8 m/s). Five clouds go from cannot say to drifting: they need 4.6-11.2 m/s,
+  and the tolerance, wider by the fit's two errors, now reaches that. One cloud goes from drifting to cannot say (it
+  needs 6.8-7.8 m/s, and the tolerance is 7.65 where it was 7.78: the fit's two errors are 0.13 smaller with each
+  camera's own scatter). Two "clouds" go from not drifting to cannot say: one climbing at 25.8 m/s whose climb is now known to
+  7.6, one at 19 m/s whose two errors are now 5.6. One mismatched pair moves as with the true times, above.
+- *The stated errors against known speeds.* The 80 aircraft carry transponders, and the Galileo catalog gives each
+  one's speed from them. The fitted speed misses it by 5.5 m/s (median; 30 m/s for one in ten). Two stated errors
+  hold it on 50 % of the aircraft with one shared reference, on 66 % with each camera's own pointing at the default,
+  72 % at 0.3 and 0.2 and 78 % at 0.7 and 0.4 (84 % with 2 m/s allowed for the transponder and a speed that
+  changes along the track). Nothing was set on these speeds. The shared reference's errors were half too small; no
+  one size of pointing error reaches 95, the sizes' tail again.
+- *One camera.* The site with most rays alone, on the first 121 of the 239 objects (a run takes up to 460 s, the
+  bootstrap fitting a flat cost): T1 and T2 cannot say on 121 of 121, each reading "all N lines of sight start from
+  one place. One camera standing still cannot range what it sees".
+- *T2's gate, measured and not changed.* T2 cannot say wherever two errors of the velocity exceed 5 m/s
+  (`VELOCITY_FIX`), before it asks whether the body is a flier's 10 m/s beyond the whole tolerance, which already
+  holds those two errors. Asked in the other order, as the far-wind rule already is, T2 fails 80 of the 80 aircraft
+  in every column (54 at v0.5.7), and one to three "clouds" that move at 19-64 m/s. The least clear aircraft moves at
+  60 m/s with two errors of 8-13 and needs 58 m/s against a tolerance of 12-18.
+
+**Judgements** (each for the maintainer to confirm): the default for what is known of a camera's pointing (above);
+the path gate's 20 m kept for cameras; the bootstrap by camera; the range's bound from the worst camera with the
+pointing counted; the winds' hour from the rays' mean time; `frames` in the path's fields as the readings' numbers.
+
+**How it fails.**
+- A camera's offset is taken as constant over the track. A track that crosses much of a frame, or passes from one
+  camera of a ring to the next (a step of a degree at the Galileo frames' edges), is not one constant; give each
+  physical camera its own name.
+- The offsets' size is one number for every camera and object, and the measured sizes have a heavy tail: for the
+  median object the errors are right or wide, for one object in four they are narrow.
+- A clock error is carried only as the constant it looks like over a short track. Cameras whose clocks disagree by a
+  quarter of a second put a fast object's rays a quarter of a second apart along its path.
+- Two different objects matched across cameras give rays that still cross somewhere (section 53's mismatched pairs).
+  Nothing here sees that. The misfit and the rays' own reading of each camera's pointing are the only signs, and
+  they are reported, not judged.
+- T2's rule is section 34's: it cannot say where two errors of the velocity exceed 5 m/s, however fast the body. With
+  each camera's pointing carried, a 120-m/s aircraft known to 10 m/s meets that gate (below).

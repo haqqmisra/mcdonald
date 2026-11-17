@@ -20,6 +20,9 @@ skipped). AARO's Puerto Rico lanterns, a known drifter (tests/golden/puerto_rico
 track). Santa Barbara's Huey, a helicopter known to have hovered in calm air (tests/golden/santa_barbara_drift/: its
 rotor's held beat fails T3). And PR051's second leg (tests/golden/pr051_drift/: a second display for the route from the
 aircraft's own track, from an agent's readings of its data bar that no person has checked; no verdict is drawn).
+Cameras on the ground (method section 66) are drawn only: lines of sight with their own time and camera from three
+places, a drifter and a flier; one camera refused; each camera's own pointing error and scatter carried; the command
+line with no video; and the aircraft's route untouched.
 
     python3 tests/test_drift.py        # or: pytest tests/
 
@@ -744,6 +747,419 @@ def test_track_a_model_wind_file_lacking_the_height():
 
 
 # ---------------------------------------------------------------- T3
+# ---------------------------------------------------------------- T1/T2 from cameras on the ground (method section 66)
+SITES = ((0.0, 0.0, 740.0), (8600.0, -5500.0, 583.0), (7100.0, -7300.0, 560.0))     # east, north (m), height above the sea:
+#                                                                                     three places about 10 and 2 km apart
+
+
+def cameras_scene(v=(8.0, 3.0), climb=0.0, h=3600.0, at=(6000.0, 5000.0), sites=SITES, seconds=60.0, every=0.5,
+                  noise=(0.03, 0.03), offsets=None, seed=7, lat0=36.1, lon0=-115.1, epoch=None):
+    """Cameras standing at `sites` on a map about (lat0, lon0), all reading every `every` s an object on a straight path
+    through `at` (east, north at the middle of the span) at height h, velocity v and `climb`. `noise` (azimuth across
+    the line of sight, elevation; deg) is each reading's own error, one pair for all or a pair a camera; `offsets` a
+    constant (azimuth, elevation) added to each camera's angles; `epoch` a unix time for the first reading (else the
+    times are seconds from zero). Returns (readings as `sightlines.read_sightlines` gives them, truth)."""
+    rng = np.random.default_rng(seed)
+    plane = drift.Plane(lat0, lon0)
+    noise = np.broadcast_to(np.asarray(noise, float), (len(sites), 2))
+    out, tm = [], seconds / 2
+    for t in np.arange(0.0, seconds + 1e-9, every):
+        ola, olo = plane.latlon(at[0] + v[0] * (t - tm), at[1] + v[1] * (t - tm))
+        X = drift.ecef(float(ola), float(olo), h + climb * (t - tm))
+        for i, (e, n, alt) in enumerate(sites):
+            la, lo = plane.latlon(e, n)
+            d = drift.enu_rows(float(la), float(lo)) @ (X - drift.ecef(float(la), float(lo), alt))
+            el = math.atan2(d[2], math.hypot(d[0], d[1]))
+            off = offsets[i] if offsets is not None else (0.0, 0.0)
+            out.append(dict(time=(epoch or 0.0) + float(t), absolute=epoch is not None, camera=f"camera {chr(65 + i)}",
+                            lat=float(la), lon=float(lo), alt=alt,
+                            az=(math.degrees(math.atan2(d[0], d[1])) + off[0] + rng.normal(0, noise[i][0]) / math.cos(el)) % 360,
+                            dep=-(math.degrees(el) + off[1] + rng.normal(0, noise[i][1]))))
+    return out, dict(v=np.array(v, float), climb=climb, h=h)
+
+
+def _from_deg(w):
+    return (math.degrees(math.atan2(w[0], w[1])) + 180) % 360
+
+
+def _soundings(w, heights=(3000.0, 4200.0)):
+    """Two observed sources that bracket the object's height, their winds 1.2 and 1.4 m/s either side of `w`."""
+    return [dict(source=name, height_m=z, from_deg=_from_deg(np.array(w) + d), speed_m_s=float(np.hypot(*(np.array(w) + d))))
+            for name, d in (("sounding", np.array([0.9, -0.8])), ("profiler", np.array([-1.0, 1.0]))) for z in heights]
+
+
+def test_cameras_a_drifter_and_a_flier_from_three_cameras():
+    """Lines of sight with their own time and camera (`--rays`; method section 66): three cameras standing about 10 and
+    2 km apart read a drawn object at the same instants. Their rays cross without any camera moving, so the path, T1
+    and T2 come out as from an aircraft's turn, with no video and no frame rate."""
+    print("\nT1/T2 from cameras on the ground: a drifter and a flier seen by three cameras at once")
+    from mcdonald import sightlines
+    rd, truth = cameras_scene(epoch=1779917405.25)
+    R = sightlines.rays(rd)
+    check(len(R["t"]) == 363 and len(set(R["t"].tolist())) == 121 and R["cameras"] == ("camera A", "camera B", "camera C")
+          and np.bincount(R["camera"]).tolist() == [121] * 3 and R["epoch"] == 1779917405.0 and abs(R["t"][0] - 0.25) < 1e-6
+          and all(k in R for k in ("frames", "t", "A", "az", "dep", "platform", "rot")),
+          "363 readings, three at each of 121 instants, each with its camera; the times kept from their own clock",
+          f"{len(R['t'])} readings, cameras {R['cameras']}")
+    found = drift.measure(None, sight=R, observed_winds=_soundings(truth["v"]), ground_m=600.0)
+    T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
+    p = found.fields["ground_path"]
+    miss = float(np.hypot(*(np.array(p["v_m_s"]) - truth["v"])))
+    check(miss < 0.3 and miss <= 2 * p["velocity_err_m_s"] and abs(p["height_m"] - truth["h"]) < 30 and abs(p["climb_m_s"]) < 0.1,
+          "the rays of three cameras fix the drifter's velocity, its height and its climb",
+          f"{np.round(p['v_m_s'], 2).tolist()} of {truth['v'].tolist()}, two errors {2 * p['velocity_err_m_s']:.2f}; "
+          f"{p['height_m']:.0f} m; climb {p['climb_m_s']:+.2f} m/s")
+    check(p["places"] == 3 and 10000 < p["baseline_m"] < 10500 and 30 < p["los_cross_deg"] < 120 and p["los_turn_deg"] < 10
+          and [c["name"] for c in p["cameras"]] == list(R["cameras"]) and p["reference"] == "camera"
+          and p["time_utc"] == "2026-05-27T21:30:35" and found.fields["winds_when"] == p["time_utc"],
+          "the path says where the rays came from: three places 10 km apart at most, lines of sight that cross at tens of "
+          "degrees though none turned, and the rays' own mean time",
+          f"{p['places']} places, {p['baseline_m']:.0f} m, crossing at {p['los_cross_deg']:.0f} deg, {p['time_utc']}")
+    check(T["T1"]["outcome"] == drift.PASS and T["T2"]["outcome"] == drift.PASS and "aircraft_wind" not in T["T2"]
+          and found.fields["verdict"].startswith("consistent"),
+          "the drifter: T1 and T2 pass against winds that bracket its height, and no aircraft's own wind is looked for",
+          T["T2"]["reading"][:110])
+    rd, tr = cameras_scene(v=(8.0 + 20.0, 3.0 - 15.0), climb=1.5)
+    found = drift.measure(None, sight=sightlines.rays(rd), observed_winds=_soundings(truth["v"]), ground_m=600.0)
+    T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
+    check(T["T2"]["outcome"] == drift.FAIL and found.fields["verdict"] == "not drifting" and "it flies" in T["T2"]["reading"],
+          "a flier at 25 m/s through the same air: T2 fails, not drifting", T["T2"]["reading"][:110])
+    text = "\n".join(drift.said(found.fields))
+    check("of 3 cameras (camera A 121, camera B 121, camera C 121" in text and "aircraft" not in text and "display" not in text
+          and "| camera B | 121 |" in text,
+          "the printed lines name the cameras and their readings, and speak of no aircraft and no display")
+    few = sightlines.rays(rd[:8])
+    found = drift.measure(None, sight=few)
+    check(len(few["t"]) == 8 and "at least 9 are needed" in found.fields["tests"][1]["reading"],
+          "eight readings are too few, as they are from an aircraft", found.fields["tests"][1]["reading"][:60])
+
+
+def test_cameras_one_camera_cannot_range_what_it_sees():
+    """The bearings-only problem for a camera on a roof: any path scaled along its rays fits as well. The path gate and
+    the range's bound are the aircraft route's, read for cameras, and their words must fit: no aircraft flew."""
+    print("\nT1/T2 from cameras on the ground: rays from one place fix nothing")
+    from mcdonald import sightlines
+    rd, truth = cameras_scene()
+    winds = _soundings(truth["v"])
+    one = sightlines.rays([r for r in rd if r["camera"] == "camera A"])
+    found = drift.measure(None, sight=one, observed_winds=winds)
+    T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
+    p = found.fields["ground_path"]
+    check(T["T1"]["outcome"] == drift.CANNOT and T["T2"]["outcome"] == drift.CANNOT and found.fields["verdict"] == "cannot say"
+          and "One camera standing still cannot range what it sees" in T["T2"]["reading"] and "all 121 lines of sight start from one place" in T["T1"]["reading"]
+          and p["places"] == 1 and p["path_off_line_m"] < 1e-6 and not p["path_gate"],
+          "one camera standing still: T1 and T2 cannot say, and say why", T["T2"]["reading"])
+    text = "\n".join(drift.said(found.fields))
+    check("aircraft" not in text and "flew" not in text and "all from one place" in text,
+          "in words that fit a camera on a roof: no aircraft, no flight")
+    near = sightlines.rays(cameras_scene(sites=((0.0, 0.0, 700.0), (25.0, 0.0, 700.0)))[0])
+    found = drift.measure(None, sight=near, observed_winds=winds)
+    t2, p = found.fields["tests"][1], found.fields["ground_path"]
+    check(t2["outcome"] == drift.CANNOT and "so nearly one place" in t2["reading"] and p["places"] == 2 and 12 < p["path_off_line_m"] < 13,
+          "two cameras 25 m apart: within the path gate's 20 m of one place, refused", t2["reading"][:130])
+    # 45 m apart, 8 km from the object: the path gate opens, the rays cross at a third of a degree and scatter by a
+    # tenth of that, so the rays alone would fix a range; each camera's own pointing (0.3 deg) does not allow one
+    pair = sightlines.rays(cameras_scene(sites=((0.0, 0.0, 700.0), (45.0, 0.0, 700.0)))[0])
+    p = drift.fit_track(pair, nboot=100)
+    t2 = drift.test_wind_track(p, [dict(label="w", w=truth["v"], counts=True, note="")])
+    check(p["path_gate"] and p["range_bound_rays"] < 0.3 and p["range_bound"] > drift.RANGE_FIX and t2["outcome"] == drift.CANNOT
+          and "do not fix its range" in t2["reading"] and "The cameras stand 45 m apart" in t2["reading"]
+          and "Each camera's pointing is taken as known to 0.3 deg" in t2["reading"],
+          "two cameras 45 m apart: their rays' scatter alone would give a range, each camera's own pointing does not; the "
+          "range's bound counts it, and T2 cannot say", f"bound {p['range_bound']:.2f} (the rays alone {p['range_bound_rays']:.3f}); "
+          + t2["reading"][:100])
+    exact = drift.fit_track(pair, nboot=100, pointing_err=(0.002, 0.002))
+    check(exact["range_bound"] < drift.RANGE_FIX and drift.unfixed(exact) is None,
+          "the same pair with its pointing known a hundred times better: the range is fixed", f"bound {exact['range_bound']:.3f}")
+
+
+def test_cameras_each_cameras_own_pointing_is_carried():
+    """An aircraft's rays share one azimuth reference, and `az_reference` carries one constant. Calibrated cameras each
+    have their own pointing error, in azimuth and in elevation, and two cameras' errors change the angle at which their
+    rays cross: on two cameras 2 km apart, 10 km from the object, that is the range itself. Rays drawn with a known
+    constant error of each camera must move the path by the pull the fit reports, and the errors must hold the truth
+    with each camera's pointing allowed for, and not with one shared reference."""
+    print("\nT1/T2 from cameras on the ground: each camera's own pointing error is carried")
+    from mcdonald import sightlines
+    two = (SITES[1], SITES[2])
+    rd, truth = cameras_scene(sites=two)
+    R = sightlines.rays(rd)
+    p = drift.fit_track(R, nboot=0)
+    exact = drift.fit_track(R, nboot=0, pointing_err=(1e-9, 1e-9))
+    wide = drift.fit_track(R, nboot=0, pointing_err=(1.0, 1.0))
+    check(p["pointing_known_deg"] == [0.3, 0.1] and abs(exact["velocity_err_m_s"] - exact["velocity_err_rays_m_s"]) < 1e-6
+          and exact["velocity_err_m_s"] < p["velocity_err_m_s"] < wide["velocity_err_m_s"]
+          and p["velocity_err_rays_m_s"] == exact["velocity_err_rays_m_s"] and "az_reference_err_deg" not in p,
+          "by default each camera's pointing is as well known as one of its readings is given to be (0.3 and 0.1 deg): the "
+          "velocity's error lies between pointing taken as exact and pointing known to a degree",
+          f"{exact['velocity_err_m_s']:.3f} < {p['velocity_err_m_s']:.3f} < {wide['velocity_err_m_s']:.3f} m/s")
+    check(np.allclose(p["v_m_s"], exact["v_m_s"]) and np.allclose(p["v_m_s"], wide["v_m_s"]) and p["height_m"] == wide["height_m"],
+          "the path itself does not move with what is known of the pointing")
+    B = p["cameras"][1]
+    for j, (angle, add) in enumerate((("azimuth", 0.5), ("elevation", 0.3))):
+        off = [(0.0, 0.0), (add, 0.0) if j == 0 else (0.0, add)]
+        q = drift.fit_track(sightlines.rays(cameras_scene(sites=two, offsets=off)[0]), nboot=0)
+        moved = float(np.hypot(*(np.array(q["v_m_s"]) - np.array(p["v_m_s"])))) / add
+        check(B["pull_m_s"][j] > 0.3 and abs(moved / B["pull_m_s"][j] - 1) < 0.15,
+              f"camera B's {angle}s {add} deg off: the velocity moves by the pull the fit reports for a degree of it",
+              f"{moved:.2f} m/s a degree against {B['pull_m_s'][j]:.2f}")
+    off = [(0.25, -0.08), (-0.2, 0.09)]                        # within what is taken as known, and against each other
+    rdo = cameras_scene(sites=two, offsets=off)[0]
+    own = drift.fit_track(sightlines.rays(rdo), nboot=200)
+    one = drift.fit_track(sightlines.rays(rdo, reference="shared"), nboot=200)
+    dh = abs(own["height_m"] - truth["h"])
+    check(100 < dh <= 2 * own["height_err_m"] and dh > 2 * own["height_err_rays_m"]
+          and float(np.hypot(*(np.array(own["v_m_s"]) - truth["v"]))) <= 2 * own["velocity_err_m_s"],
+          "each camera's pointing off by its own quarter of a degree: the height is 200 m out, and two errors hold it, and "
+          "the velocity; the rays' scatter alone would not have", f"{dh:.0f} m out, two errors {2 * own['height_err_m']:.0f} (the rays' "
+          f"alone {2 * own['height_err_rays_m']:.0f})")
+    check(np.allclose(one["v_m_s"], own["v_m_s"]) and one["height_m"] == own["height_m"] and dh > 2 * one["height_err_m"]
+          and "pointing_known_deg" not in one and one["az_reference_known_deg"] == 0.3 and one["reference"] == "shared",
+          "the same rays read with one azimuth reference for both cameras (an aircraft's model): the same path, and two "
+          "errors that do not hold its height", f"{dh:.0f} m out, two errors {2 * one['height_err_m']:.0f}")
+    tight = (0.03, 0.03)                                       # the errors given as the scatter drawn: the velocity too
+    own = drift.fit_track(sightlines.rays(rdo), tight, nboot=200, pointing_err=(0.3, 0.1))
+    one = drift.fit_track(sightlines.rays(rdo, reference="shared"), tight, nboot=200, az_ref_err=0.3)
+    miss = float(np.hypot(*(np.array(own["v_m_s"]) - truth["v"])))
+    check(2 * one["velocity_err_m_s"] < miss <= 2 * own["velocity_err_m_s"],
+          "with the errors given equal to the scatter drawn, the velocity too: held with each camera's own pointing, not "
+          "with one shared reference", f"{miss:.2f} m/s off, two errors {2 * own['velocity_err_m_s']:.2f} against "
+          f"{2 * one['velocity_err_m_s']:.2f}")
+    # coverage: 40 pairs of cameras, each camera's offsets drawn at what is taken as known (0.3 and 0.1 deg). The
+    # measurement is method section 66's (400 draws of each of three layouts); the 40 here are a guard on it
+    hit = total = high = shared_high = 0
+    rng = np.random.default_rng(66)
+    for seed in range(40):
+        offs = [(rng.normal(0, 0.3), rng.normal(0, 0.1)) for _ in two]
+        rds, tr = cameras_scene(sites=two, offsets=offs, seed=200 + seed, every=1.0)
+        f = drift.fit_track(sightlines.rays(rds), nboot=0)
+        g = drift.fit_track(sightlines.rays(rds, reference="shared"), nboot=0)
+        for got, want, err in ((f["v_m_s"][0], tr["v"][0], f["v_err_m_s"][0]), (f["v_m_s"][1], tr["v"][1], f["v_err_m_s"][1]),
+                               (f["climb_m_s"], tr["climb"], f["climb_err_m_s"]), (f["height_m"], tr["h"], f["height_err_m"])):
+            total += 1
+            hit += abs(got - want) <= 2 * err
+        high += abs(f["height_m"] - tr["h"]) <= 2 * f["height_err_m"]
+        shared_high += abs(g["height_m"] - tr["h"]) <= 2 * g["height_err_m"]
+    check(0.85 * total <= hit and high >= 34 and shared_high < 20,
+          "over 40 drawn pairs two such errors hold the true velocity, climb and height as often as two errors should (85 "
+          "of 100 at the least over these 40); with one shared reference the height is held on fewer than half",
+          f"{hit} of {total}; the height on {high} of 40 with each camera's own pointing, {shared_high} with one shared reference")
+    own = drift.fit_track(sightlines.rays(rdo), nboot=100)
+    t2 = drift.test_wind_track(dict(own, velocity_err_m_s=3.0, velocity_err_rays_m_s=1.0, velocity_err_pointing_m_s=2.83),
+                               [dict(label="w", w=truth["v"], counts=True, note="")])
+    check(t2["outcome"] == drift.CANNOT and "Each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation" in t2["reading"]
+          and "An error of one degree at camera" in t2["reading"] and "display" not in t2["reading"],
+          "a velocity the rays' scatter would fix and the pointing leaves open: cannot say, naming the camera it hangs on",
+          t2["reading"][:170])
+    free = drift.fit_track(R, nboot=0, pointing_err=(float("inf"), float("inf")))
+    check(not math.isfinite(free["velocity_err_m_s"]) or 2 * free["velocity_err_m_s"] > drift.VELOCITY_FIX,
+          "nothing taken as known of two cameras' pointing: their rays cannot read it themselves, and the velocity is open",
+          f"two errors {2 * free['velocity_err_m_s']:.1f} m/s")
+    text = "\n".join(drift.said(dict(tests=[], verdict="", why="", ground_path=dict(own, above_ground_m=None))))
+    check("Each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation beforehand" in text
+          and "read each camera's pointing as" in text and "one degree of its azimuth" in text,
+          "and the command's own words give what is taken as known, each camera's pull and what the rays alone would give")
+
+
+def test_cameras_each_cameras_own_scatter():
+    """`own_scatter`'s rule, camera by camera: cameras differ (their pixels, their range, what part of the object each
+    sees), and one pooled scatter gives a quiet camera a noisy one's errors."""
+    print("\nT1/T2 from cameras on the ground: each camera's rays have their own scatter")
+    from mcdonald import sightlines
+    drawn = ((0.02, 0.02), (0.08, 0.06), (0.5, 0.2))           # against the 0.3 and 0.1 deg given: far better, better, worse
+    rd, truth = cameras_scene(noise=drawn)
+    p = drift.fit_track(sightlines.rays(rd), nboot=0)
+    A, B, C = p["cameras"]
+    check(A["errors_from"] == "the rays' own scatter" and B["errors_from"] == "the rays' own scatter"
+          and all(0.75 < s / d < 1.35 for c, dr in ((A, drawn[0]), (B, drawn[1])) for s, d in zip(c["sigma_deg"], dr))
+          and p["errors_from"] == "each camera's own",
+          "two cameras whose rays fit better than the errors given allow: each read with its own scatter, the scatter it "
+          "was drawn with", f"A {A['sigma_deg'][0]:.3f}, {A['sigma_deg'][1]:.3f} of {drawn[0]}; B {B['sigma_deg'][0]:.3f}, "
+          f"{B['sigma_deg'][1]:.3f} of {drawn[1]}")
+    check(C["errors_from"].startswith("the errors given, scaled up") and C["sigma_deg"][0] > 0.4 and C["chi2_p_low"] is None,
+          "a third whose rays fit worse than the errors given: its errors scaled up by its own misfit, the others' not",
+          f"C {C['sigma_deg'][0]:.3f}, {C['sigma_deg'][1]:.3f} of {drawn[2]}")
+    same = drift.fit_track(sightlines.rays(cameras_scene(noise=(0.28, 0.093), seed=3)[0]), nboot=0)
+    check(same["errors_from"] == "the errors given" and all(c["sigma_deg"] == [0.3, 0.1] for c in same["cameras"]),
+          "rays drawn with nearly the errors given: they stand, for every camera")
+    # coverage where the cameras differ: each camera's scatter drawn from 0.015, 0.05 and 0.15 deg, no offsets
+    hit = total = 0
+    rng = np.random.default_rng(67)
+    for seed in range(30):
+        ns = [(s, s) for s in rng.choice((0.015, 0.05, 0.15), 3)]
+        rds, tr = cameras_scene(noise=ns, seed=300 + seed, every=1.0)
+        f = drift.fit_track(sightlines.rays(rds), nboot=0, pointing_err=(1e-9, 1e-9))
+        for k, (got, want) in enumerate(((f["v_m_s"][0], tr["v"][0]), (f["v_m_s"][1], tr["v"][1]), (f["climb_m_s"], tr["climb"]))):
+            total += 1
+            hit += abs(got - want) <= 2 * (f["v_err_m_s"][k] if k < 2 else f["climb_err_m_s"])
+    check(0.85 * total <= hit, "over 30 drawn scenes with unlike cameras two such errors hold the truth as often as two "
+          "errors should (85 of 100 at the least over these 30)", f"{hit} of {total}")
+    # a camera with few readings: which camera read how often is the design, so the bootstrap resamples each camera's
+    # own. Drawn from all 126 readings alike, 1 resample in 160 holds none of camera B's 5 and is one camera's fit
+    rd2, _ = cameras_scene(sites=(SITES[0], SITES[1]))
+    few = sightlines.rays([r for j, r in enumerate(rd2) if r["camera"] == "camera A" or (j // 2) % 30 == 0])
+    cov, boot = drift.fit_track(few, nboot=0), drift.fit_track(few, nboot=400)
+    check(np.bincount(few["camera"]).tolist() == [121, 5] and boot["boots"] == 400
+          and boot["velocity_err_rays_m_s"] < 4 * cov["velocity_err_rays_m_s"] and boot["height_err_rays_m"] < 5 * cov["height_err_rays_m"],
+          "a camera with five readings beside one with 121: every resample keeps five of its readings, and the bootstrap's "
+          "errors are near the covariance's, not ten and forty times them", f"velocity {boot['velocity_err_rays_m_s']:.2f} against "
+          f"{cov['velocity_err_rays_m_s']:.2f} m/s, height {boot['height_err_rays_m']:.1f} against {cov['height_err_rays_m']:.1f} m")
+
+
+def _write_rays(td, rd, when=True):
+    """The readings as a rays file and a cameras file: ISO times, elevations, the cameras' places apart."""
+    from datetime import datetime, timezone
+    rays, cams = Path(td) / "rays.csv", Path(td) / "cameras.csv"
+    lines = ["# a drawn object seen by cameras on the ground", "time_utc,camera,az_deg,el_deg"]
+    for r in rd:
+        t = datetime.fromtimestamp(r["time"], tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        lines.append(f"{t},{r['camera']},{r['az']:.7f},{-r['dep']:.7f}")
+    rays.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    seen = {}
+    for r in rd:
+        seen.setdefault(r["camera"], (r["lat"], r["lon"], r["alt"]))
+    cams.write_text("camera,lat,lon,alt_m\n" + "".join(f"{k},{la:.8f},{lo:.8f},{al:.3f}\n" for k, (la, lo, al) in seen.items()),
+                    encoding="utf-8")
+    return rays, cams
+
+
+def test_cameras_by_the_command_line_with_no_video():
+    """`mcdonald drift --rays rays.csv --cameras cameras.csv`: no video is given, since nothing here is timed by a
+    video's frames; the winds' hours come from the rays' own times. And the calls that do need a frame rate say so."""
+    print("\nT1/T2 from cameras on the ground: by the command line, with no video")
+    from mcdonald import sightlines
+    rd, truth = cameras_scene(epoch=1779917405.25)
+    env = dict(__import__("os").environ, PYTHONPATH=str(reference_data.REPO / "src"))
+    kn = float(np.hypot(*truth["v"])) / drift.KN
+    with tempfile.TemporaryDirectory() as td:
+        rays, cams = _write_rays(td, rd)
+        back = sightlines.read_sightlines(rays, sightlines.read_cameras(cams))
+        check(len(back) == len(rd) and all(abs(a["time"] - b["time"]) < 2e-3 and a["camera"] == b["camera"] and abs(a["dep"] - b["dep"]) < 1e-6
+                                           and abs(a["lat"] - b["lat"]) < 1e-7 for a, b in zip(back, rd)) and back[0]["absolute"],
+              "a rays file with ISO times and elevations, the cameras' places in a file of their own: read back as written")
+        rows = Path(td) / "rows.csv"                           # unix times, depressions, the places in the rows
+        rows.write_text("t_unix_s,camera,az_deg,dep_deg,lat,lon,alt_m\n" + "".join(
+            f"{r['time']:.6f},{r['camera']},{r['az']:.7f},{r['dep']:.7f},{r['lat']:.8f},{r['lon']:.8f},{r['alt']:.3f}\n"
+            for r in rd), encoding="utf-8")
+        again = sightlines.read_sightlines(rows)
+        check(all(abs(a["time"] - b["time"]) < 1e-5 and abs(a["az"] - b["az"]) < 1e-6 and a["alt"] == b["alt"] for a, b in zip(again, rd))
+              and abs(sightlines._unix("2026-05-27T23:30:05.25+02:00") - 1779917405.25) < 1e-6
+              and abs(sightlines._unix("2026-05-27 21:30:05.25") - 1779917405.25) < 1e-6,
+              "the same with unix times, depressions and each camera's place in its rows; an ISO time with a zone, or with "
+              "none (taken as UTC), is the same instant")
+        try:
+            sightlines.read_sightlines(rays)
+            said = ""
+        except ValueError as ex:
+            said = str(ex)
+        check("no place for the camera 'camera A'" in said, "rays with no place for a camera, in the rows or in a cameras "
+              "file: refused, naming the camera", said[-70:])
+        wind = Path(td) / "model.json"                         # the drifter's wind in the two hours about the rays' time,
+        hours = ["2026-05-27T20:00", "2026-05-27T21:00", "2026-05-27T22:00", "2026-05-28T03:00"]   # 30 kn more in the others
+        wind.write_text(json.dumps({"elevation": 600.0, "hourly": {
+            "time": hours, "wind_speed_700hPa": [kn + 30, kn, kn, kn + 30], "wind_direction_700hPa": [_from_deg(truth["v"])] * 4,
+            "geopotential_height_700hPa": [3100.0] * 4, "wind_speed_600hPa": [kn + 30, kn, kn, kn + 30],
+            "wind_direction_600hPa": [_from_deg(truth["v"])] * 4, "geopotential_height_600hPa": [4300.0] * 4}}), encoding="utf-8")
+        cmd = [sys.executable, "-m", "mcdonald.cli", "drift", "--rays", str(rays), "--cameras", str(cams), "--winds", str(wind),
+               "--ground-m", "600", "--out", str(Path(td) / "c"), "--json"]
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", env=env)
+        d = json.loads(p.stdout) if p.stdout.strip().startswith("{") else None
+        wrote = (Path(td) / "c_drift.json").exists()
+        if check(p.returncode == 0 and d is not None and d["command"] == "drift" and wrote and d["clip"] is None
+                 and "video" not in d["inputs"], "no video given: one envelope on stdout, the drift file written",
+                 f"exit {p.returncode} {p.stderr[-300:]}"):
+            T = {t["test"]: t for t in drift.flat(d["results"]["tests"])}
+            g = d["results"]["ground_path"]
+            check(T["T1"]["outcome"] == drift.PASS and T["T2"]["outcome"] == drift.PASS
+                  and d["results"]["verdict"] == "consistent with wind-borne drift (tentative)" and len(g["cameras"]) == 3,
+                  "T1 and T2 pass on the drifter; the verdict is tentative drift", T["T2"]["reading"][:100])
+            check(T["T2"]["winds_counted"] == 2 and d["results"]["winds_when"] == "2026-05-27T21:30:35" == g["time_utc"]
+                  and any("the lines of sight's own mean time, 2026-05-27T21:30:35 UTC" in ln for ln in d["results"]["said"]),
+                  "the model's hours are those within one of the rays' own mean time: two of the file's four, with no --when",
+                  f"{T['T2']['winds_counted']} winds counted, at {d['results']['winds_when']}")
+        p = subprocess.run(cmd + ["--when", "2026-05-28T03:10:00"], capture_output=True, text=True, encoding="utf-8", env=env)
+        d = json.loads(p.stdout) if p.stdout.strip().startswith("{") else {}
+        t2 = (d.get("results") or {}).get("tests", [{}, {}])[1]
+        check(t2.get("outcome") == drift.FAIL and t2.get("winds_counted") == 1, "a --when given still decides the hour: "
+              "against the wind of another hour the same object fails", str(t2.get("reading"))[:80])
+        p = subprocess.run(cmd[:8] + ["--reference", "shared", "--json"], capture_output=True, text=True, encoding="utf-8", env=env)
+        d = json.loads(p.stdout) if p.stdout.strip().startswith("{") else {}
+        g = (d.get("results") or {}).get("ground_path") or {}
+        check(g.get("reference") == "shared" and g.get("az_reference_known_deg") == 0.3 and "pointing_known_deg" not in g
+              and any("the cameras' shared azimuth reference" in ln for ln in d["results"]["said"]),
+              "--reference shared: one azimuth reference for every camera, said as the cameras'")
+        # what needs a frame rate says so, and what does not runs without a video
+        g = PR_GOLDEN
+        p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "drift", "--platform", str(g / "platform.csv"), "--los",
+                            str(g / "los.csv")], capture_output=True, text=True, encoding="utf-8", env=env)
+        check(p.returncode != 0 and "give the video, or --fps" in p.stderr and "--platform" in p.stderr,
+              "an aircraft's track without its video or --fps: refused, saying which inputs are timed by frames",
+              p.stderr.strip()[-110:])
+        p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "drift", "--platform", str(g / "platform.csv"), "--los",
+                            str(g / "los.csv"), "--fps", str(PR_FPS), "--ground-m", "72", "--json"],
+                           capture_output=True, text=True, encoding="utf-8", env=env)
+        d = json.loads(p.stdout) if p.stdout.strip().startswith("{") else {}
+        gp = (d.get("results") or {}).get("ground_path") or {}
+        check(p.returncode == 0 and gp.get("readings") == 39 and 7.2 < gp.get("speed_m_s", 0) < 7.5 and "cameras" not in gp,
+              "the same track with --fps and no video: the Puerto Rico path, as with the video", f"{gp.get('speed_m_s')}")
+        p = subprocess.run([sys.executable, "-m", "mcdonald.cli", "drift", "--flicker", str(SB_GOLDEN / "flicker.json"), "--json"],
+                           capture_output=True, text=True, encoding="utf-8", env=env)
+        d = json.loads(p.stdout) if p.stdout.strip().startswith("{") else {}
+        check(p.returncode == 0 and (d.get("results") or {}).get("verdict") == "not drifting",
+              "a flicker envelope alone needs no video: the Huey's held beat, not drifting")
+        p = subprocess.run(cmd[:8] + ["--platform", str(g / "platform.csv"), "--los", str(g / "los.csv"), "--fps", "30"],
+                           capture_output=True, text=True, encoding="utf-8", env=env)
+        check(p.returncode != 0 and "one of the three" in p.stderr, "--rays beside --platform: refused")
+
+
+def test_cameras_the_aircrafts_route_is_untouched():
+    """The route from an aircraft's own track must give what it gave: its rays carry no camera, its one azimuth
+    reference is carried as before, and its words speak of the aircraft. And cameras written as one aircraft that jumps
+    between them, a frame a reading (how several cameras went in before `--rays`), give the same path and errors as
+    `--rays` with one shared reference and the same times: the two inputs are one fit."""
+    print("\nT1/T2 from cameras on the ground: the aircraft's route untouched, and the two inputs one fit")
+    from mcdonald import sightlines
+    platform, los, truth = orbit()
+    R = drift.rays(platform, los, FPS)
+    p = drift.fit_track(R, (0.1, 0.03), nboot=100)
+    check("camera" not in R and "cameras" not in p and "reference" not in p and "pointing_known_deg" not in p and "time_utc" not in p
+          and p["az_reference_known_deg"] == 0.1 and p["errors_from"] == "the errors given" and p["los_turn_deg"] > 100,
+          "an aircraft's rays: no camera in them, one azimuth reference carried, the fields as they were")
+    said = "\n".join(drift.said(dict(tests=[], verdict="", why="", ground_path=dict(p, above_ground_m=None))))
+    check("the aircraft's path left a straight line by" in said and "the display's azimuth reference" in said and "camera" not in said,
+          "and its words speak of the aircraft and its display")
+    sp, sl, _ = orbit(turn=False)
+    t2 = drift.test_wind_track(drift.fit_track(drift.rays(sp, sl, FPS), (0.1, 0.03), nboot=100),
+                               [dict(label="w", w=truth["v"], counts=True, note="")])
+    check("the aircraft flew straight" in t2["reading"] and "a straight-flying aircraft cannot range what it sees" in t2["reading"],
+          "a straight flight is refused in the aircraft's words, as before", t2["reading"][:60])
+    # three cameras as one aircraft that jumps between them: the reading of camera i at step k on frame 3k + i + 1 at
+    # three times the step's rate
+    rd, tr = cameras_scene(every=0.5, offsets=[(0.1, 0.0), (-0.1, 0.05), (0.0, -0.05)])
+    plat, lo2, shifted = {}, {}, []
+    for j, r in enumerate(rd):
+        k, i = divmod(j, 3)
+        f = 3 * k + i + 1
+        plat[f] = (r["lat"], r["lon"], r["alt"], None)
+        lo2[f] = dict(az=r["az"], dep=r["dep"], tgt=None, off=(0.0, 0.0))
+        shifted.append(dict(r, time=(f - 1) / 6.0))
+    old = drift.fit_track(drift.rays(plat, lo2, 6.0), nboot=100, rng=np.random.default_rng(5))
+    new = drift.fit_track(sightlines.rays(shifted, reference="shared"), nboot=100, rng=np.random.default_rng(5))
+    keys = [k for k in old if k != "frames"]
+    check(all(old[k] == new.get(k) for k in keys) and new["reference"] == "shared" and len(keys) > 40,
+          "cameras written as one jumping aircraft, and the same rays by --rays with one shared reference: every number "
+          "of the path the same", f"{sum(old[k] == new.get(k) for k in keys)} of {len(keys)} fields")
+    true = drift.fit_track(sightlines.rays(rd, reference="shared"), nboot=100, rng=np.random.default_rng(5))
+    dv = float(np.hypot(*(np.array(true["v_m_s"]) - np.array(old["v_m_s"]))))
+    check(0 < dv < 0.01, "with each reading at its own time, not a third or two of a step late: the path moves, by under "
+          "a hundredth of a m/s here", f"{dv:.5f} m/s")
+    cam = drift.fit_track(sightlines.rays(rd), nboot=0)
+    check(old["los_turn_deg"] > 30 and cam["los_turn_deg"] < 5 and 30 < cam["los_cross_deg"] < 120,
+          "what the old way could not say: its \"turn\" of the line of sight is the jump between cameras; by --rays it is "
+          "the most one camera's own line of sight turned, and the angle the cameras' lines cross at is a field of its own",
+          f"{old['los_turn_deg']:.0f} deg; {cam['los_turn_deg']:.1f} deg, crossing at {cam['los_cross_deg']:.0f} deg")
+
+
 def test_t3_the_flicker_stages_answers():
     print("\nT3: the beat")
     out = drift.test_beat({"results": {"beats": True, "finding": "a beat at 7.5 Hz"}})
