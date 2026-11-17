@@ -9092,3 +9092,214 @@ pointing counted; the winds' hour from the rays' mean time; `frames` in the path
   they are reported, not judged.
 - T2's rule is section 34's: it cannot say where two errors of the velocity exceed 5 m/s, however fast the body. With
   each camera's pointing carried, a 120-m/s aircraft known to 10 m/s meets that gate (below).
+
+## 68. A model's wind against the air's own motion: what `MODEL_WIND_ERR` is worth out of sample, and what T2 "from the ranges" is worth (measured 2026-11-17; no rule changed)
+
+**What was asked.** Two parts of `drift`'s T2 (section 34) lean on a weather model's wind and had never been held
+against a known answer they were not set on. T2 from the lines of sight adds `MODEL_WIND_ERR`, 3 m/s, to its tolerance;
+the 3 was chosen after seeing the same 119 clouds it was scored on. T2 "from the ranges" (`drift.test_wind`, the Yemen
+clip's route) passes when the model winds' difference between the object's height and the aircraft's lies across the
+aircraft's heading the way the measured sideways motion does, at every hour and cell given, and the airspeed a
+drifter needs of the aircraft is in the range given. It has no term for the model's error and no stated rate. Both are
+measured here. Nothing in `drift.py` changes: the choices are the maintainer's, and are listed at the end.
+
+**The truth and the test's input** (`tools/wind_model_igra.py`; its table is `tests/golden/wind_model_soundings.csv`,
+and `test_drift` holds the tool on a drawn station and the table to the numbers below). The truth is a radiosonde, a
+balloon that moves with the air: IGRA v2's 00 and 12 UTC soundings of 2026 at the 18 stations of the data folder's
+`winds_igra/` (8,129 soundings with three wind levels or more; a wind level given by pressure alone is placed in ln p
+between the sounding's own levels that have a height, which lets the four Middle East stations count). The input is
+what `drift` would be given: Open-Meteo's hourly winds from its historical-forecast API with no model named (the
+product of the Yemen and Galileo wind files), fetched for each station's point and for two points 340 km west and 520
+km east of it (the Yemen run's three cells lie that far apart), read by `drift.hourly_levels`. A sounding's wind at a
+height is linear between the two wind levels that bracket it, where they are no more than 1,000 m apart (1,500 m
+above 3 km); of two wind levels within a metre of each other the file's first is kept (seven US soundings in ten
+hold such a pair, and a sort that is not stable kept different ones on two machines until it was made stable).
+Vandenberg is reported apart, as fixed beforehand: 3.4 % of its errors are over 20 m/s, none at the other
+17 stations. Two hours are read: the sounding's own, when the model has just been given that sounding, and the hour
+before, when it has not. Errors are the 16th-84th percentiles of a bootstrap over station-weeks, since a model's
+error comes in spells of days. The design was written down before any outcome was looked at; what was added after
+is named as added.
+
+**A model's wind against a balloon** (7,688 soundings at 17 stations). At the hour before the sounding the model's
+wind misses the balloon's by 2.06 m/s at 1-3 km above the station and 2.20 at 3-6 km (median; 2.02 below 1 km, 2.40
+at 6-10); the 90th percentile is 4.30 and 4.60, the 95th 5.17 and 5.55; 73 % and 69 % of the errors are under 3 m/s.
+At the sounding's own hour the same figures are 1.67 and 1.87 m/s, 3.63 and 3.97, and 83 % and 78 %. By place, 1-6 km
+up at the hour before (median; 90th percentile): US west coast 1.77; 3.73, tropical coasts 1.96; 4.10, inland plains
+2.09; 4.39, the Gulf coast 2.19; 4.42, desert coasts 2.50; 4.86, mountains 2.50; 5.11 (Abha, at 2,084 m, 2.97; 5.78).
+November to April 2.27; 4.73, May to October 2.02; 4.23. What this cannot show: soundings are fed into the models, so
+a model is at its best where and when a balloon flew, and every one of these places has a balloon twice a day. The
+hour before is the nearest this comes to a place without one, and it is still a place the model was corrected at
+twelve hours earlier.
+
+**The clouds again, split by day** (the Galileo Project's catalog, section 53; aggregates only, from a working note of
+the known answers). `MODEL_WIND_ERR` was chosen on 2026-11-13 after seeing 119 clouds that lie on 13 local days, 108 of
+them on nine days of late May. Held here: the pipeline's own catalog of objects tracked 10 s or more, its straight-line
+velocities against the same wind files, read through `drift.track_winds` (41 of 41 checked give the stage's own needs).
+A clean cloud was defined before any outcome was looked at: no ADS-B name, no gap over 2 s, 2-6 km above the lowest
+site, not solved by the 2-km pair of sites alone, under 60 m/s over the ground, climbing or sinking under 8 m/s. That
+keeps 1,687 clouds on 25 local days, 1,494 on the 13 days the constant was chosen on and 193 on 12 days it was not.
+Errors below are the 16th-84th percentiles of a bootstrap over days.
+- *What a cloud needs.* 3.8 m/s through the air against the model's wind at its height (median; 3.3-4.4), 10.4 at the
+  90th percentile (9.3-11.3). By height above the lowest site: 2.7 m/s at 2-3 km, 4.3 at 3-4, 3.9 at 4-5, 6.0 at
+  5-6 (90th percentile 5.7, 10.2, 11.6, 22.3). By day the median runs from 2.1 to 8.2 m/s over the 16 days with ten
+  clouds or more. On the days the constant was chosen on: 3.6 (3.1-4.0; 90th percentile 9.6). On the other days: 6.2
+  (5.5-7.1; 17.2).
+- *What the constant covers.* The part of a cloud's need that the constant must cover is its largest need less the
+  two hours' spread and two errors of the fit (0.72 m/s, the median of the clouds run through `drift`). 3 m/s covers
+  that for 66 % of the clouds (60-73): 69 % on the days it was chosen on, 41 % (34-53) on the others. Chosen on every
+  second day (13 days) for 80 %, the constant would be 4.1 m/s (3.9-4.6), and covers 73 % (65-81) on the 12 days
+  between; for 90 %, 7.4 m/s (6.2-8.3), covering 88 % (85-91); for 95 %, 11.0 m/s, covering 95 %.
+- *T2's pass rate by the constant.* On the 239 objects run through `drift` at v0.5.7, T2's outcome recomputed from the
+  fields the stage wrote, by its own order of rules (at 3 m/s it gives back all 239 recorded outcomes): at 0, 2, 3, 4
+  and 5 m/s T2 passes 25, 52, 64, 72 and 77 of the 119 clouds; of the 98 whose velocity the rays fix, 26, 53, 65
+  (61-71), 73 and 79 %. No aircraft passes at any constant up to 60 m/s: the slowest whose velocity is fixed needs
+  53 m/s through the air, so the aircraft do not bound the constant from above at all. On the catalog's clean clouds,
+  with the rule emulated (the pipeline's velocity, the error above): 49, 57 (50-64), 63 and 68 % pass at 2, 3, 4 and 5
+  m/s; on the days the constant was not chosen on, 30, 41 (34-53), 49 and 60 %.
+- *Whose error it is.* Las Vegas flies its own radiosonde 8 km from the wind files' cell (IGRA USM00072388). On 106
+  soundings inside the files' dates, 2-6 km above the lowest site, the same model files miss the balloon by 2.3 m/s
+  (median; 90th percentile 4.9) at the hour before the sounding and by 1.9 (4.1) at its hour. The 276 clean clouds seen
+  within two hours of an afternoon sounding need 3.6 m/s (90th percentile 11.5) where the model misses the balloon at
+  the nearest height by 2.5 (5.5). So the clouds' median is near a model's error against a balloon, and their tail is
+  not: one cloud in ten moves 10 m/s or more off the model's wind, which no balloon here does. On the day the clouds
+  lag most (76 clouds at 0.62 of the wind's speed, needing 8.2 m/s) the model misses that afternoon's balloon by 3.5.
+  A cloud is not a clean truth for a model's error: some stand in a wave, and some are two clouds matched as one.
+
+**T2 from the lines of sight on balloons, and the slowest flier it tells** (`drift.track_winds` and
+`drift.test_wind_track` themselves, the constant set for the run and nothing edited). A drifter is the sounding's
+wind at 2, 3, 4 or 5 km above the station; the fitted velocity is that plus an error of 0.72 m/s (the Galileo
+clouds' median); the winds are the station's cell at the two hours either side, as an object seen mid-hour has
+(29,303 drifters from 7,495 soundings; the two hours' spread 1.02 m/s, median). A drifter's need less the spread and
+two errors of the fit is covered by 1.07 m/s 80 times in 100, by 1.89 m/s 90 times and by 2.68 m/s 95 times (set on
+the even-numbered stations; on the odd-numbered they cover 80, 91 and 95); 3 m/s covers 96-97. So for a balloon the
+constant is generous, and for the clouds it is not: the same quantity is covered for 66 % of them. With the whole
+rule, the hold-still condition included, per cent passing by the body's airspeed and the constant:
+
+| airspeed (m/s) | 0 m/s | 2 m/s | 3 m/s (as built) | 4 m/s | 5 m/s | fails, as built |
+|---|---|---|---|---|---|---|
+| 0, a drifter | 50.2 | 80.4 | 84.1 (83.7-84.6) | 85.6 | 86.2 | 0.0 |
+| 2 | 31.3 | 68.3 | 75.7 | 78.7 | 79.8 | 0.0 |
+| 3 | 17.8 | 53.6 | 65.2 | 70.8 | 73.0 | 0.0 |
+| 5 | 3.9 | 20.0 | 33.4 (33.0-33.9) | 45.6 | 53.2 | 0.0 |
+| 7.5 | 0.5 | 2.9 | 6.3 | 12.4 | 20.8 | 0.0 |
+| 10 | 0.1 | 0.4 | 0.8 | 1.8 | 3.7 | 0.4 |
+| 15 | 0.0 | 0.0 | 0.0 | 0.0 | 0.1 | 33.9 |
+| 20 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 95.9 |
+| 25 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 99.8 |
+
+The drifters that do not pass at 3 m/s are held back by the hold-still rule in light winds: where the wind is 10
+m/s or more, 95.0 % pass. The arithmetic behind the table: the tolerance is the winds' spread plus two errors of the
+fit plus the constant plus the wind's change over any gap in height, and against winds that were exact a body
+flying U through the air needs U; so T2 stops passing a flier at the tolerance, cannot say up to 10 m/s beyond it,
+and fails beyond that. The tolerance is 5.5 m/s here (median), 6.6 on the Galileo runs and 10.2 on the Puerto Rico
+lanterns; the model's own error blurs the edge by its 2 m/s. Each m/s added to the constant moves the edge by one:
+at 3 m/s a body flying 5 m/s passes one time in three, at 5 m/s one time in two.
+
+**The difference of the winds at two heights** (what T2 from the ranges reads; the Yemen clip's heights, 3,695 and
+7,488 m above the sea; 7,358 soundings at 17 stations, the hour before). The model's difference misses the
+sounding's by 3.17 m/s as a vector (median; 68th percentile 4.17, 90th 6.48, 95th 7.78) with the Yemen files' three
+levels (700, 600 and 400 hPa), and by 3.14 with every level between. Across a heading its error has a standard
+deviation of 2.98 m/s (5.8 kn); it is under 4.80 m/s (9.3 kn) nine times in ten and under 5.97 (11.6 kn) 95 times in
+100. At the sounding's own hour: 2.59 m/s as a vector, 2.47 across. With the separation it grows from 2.24 m/s at
+0.5 km to 2.94 at 1 km, then no further (3.03, 3.30, 3.14, 3.58 and 3.26 at 2, 3, 3.8, 5 and 6 km): about the square
+root of two times one wind's error, as two errors that have little to do with each other give. The true difference
+is 9.5 m/s (median), so the model's error is a third of what it is asked to tell. By station, at the soundings' own
+700- and 400-hPa levels, the error across a heading runs from 2.3 m/s (Miami) to 3.8 (Abha); the stations nearest
+the strike in climate are the worst: Abha 3.8, Jeddah 3.3, Muscat 3.3, Salalah 3.0, against 2.9 for all.
+
+**T2 from the ranges as it stands** (`drift.test_wind` itself, 15.1 million calls; the samples built here are those of
+`drift.wind_samples` on files of the Yemen files' shape, checked on 36 soundings). A case: the true air at both
+heights from a sounding; an aircraft on one of 12 headings round the compass at a true airspeed drawn from 120-220
+kn (an MQ-9's; a judgement); the fitted relative velocity with the Yemen line's own errors (0.90 and 0.33 m/s);
+`--airspeed-kn 0,240`; the model's winds as the Yemen run had them, three cells and the 24 hours of the day (72
+samples), or the station's cell at three hours where the place and hour are known. Per cent passing:
+
+| the body | three cells, 24 hours (the Yemen run's shape) | one cell, three hours |
+|---|---|---|
+| a true drifter | 27.2 (26.4-28.1) | 85.3 (85.0-85.6) |
+| the same case with its sideways motion's sign turned | 0.5 | 6.1 |
+| flying 5 m/s through the air (eight directions) | 26.0 | 77.9 |
+| 10 m/s | 23.0 | 67.7 |
+| 25 m/s | 15.8 | 51.9 |
+| 50 m/s | 12.1 | 41.4 |
+
+- *Why a drifter passes one time in four.* The rule asks every sample to lie on one side of the heading. Over three
+  cells and a day's hours they do so at all in 28.3 % of cases (91.0 % for one cell over three hours). Where they do,
+  a drifter is on that side 98 times in 100.
+- *What a pass is worth.* A drifter passes 1.05 times as often as a body flying 5 m/s, 1.19 times as often as one at
+  10 m/s, 1.72 times as one at 25 and 2.25 times as one at 50 (1.10, 1.26, 1.64 and 2.06 for one cell over three
+  hours). The rule reads a side and not a size, so a body crossing the heading at any speed is on the winds' side
+  half the time, by chance alone: 14 % of all cases with 72 samples, 45 % with three. A body flying along the
+  heading shows nothing across it and passes exactly as a drifter does (27-28 % at every speed), unless the airspeed
+  it implies leaves 0-240 kn: 2.9 % at 50 m/s against the heading.
+- *The airspeed range is where its power is.* Had the aircraft flown 185 kn and the range given been 150-220 kn, a
+  drifter would pass 24.8 %, bodies at 5 and 10 m/s 23.0 and 17.6 %, and bodies at 25 and 50 m/s 3.8 and 3.2 % (one
+  cell over three hours: 85.3, 77.9, 67.7, 21.9 and 11.4).
+- *By place and season* (the Yemen run's shape): a drifter passes 37 % on desert coasts, 32 % on tropical and Gulf
+  coasts, 25 % at mountain stations, 21 % on the west coast and 18 % on inland plains; 38 % from November to April
+  and 20 % from May to October. The odds a pass carries are the same everywhere (10 m/s: 1.14-1.21), so the answer
+  does not lean on the stations nearest the strike in climate. With the cell and hour known every class passes
+  84-87 %.
+
+**The Yemen clip's own numbers.** Its T2 reads: measured sideways motion 23.2 kn to the right of the heading; the 72
+samples' difference 4.8-18.0 kn the same way; so the measured motion lies beyond every sample, by 5.2 kn (2.7 m/s)
+at the least and 18.4 kn (9.5 m/s) at the most; the samples spread 6.8 m/s. That least shortfall is inside one
+standard deviation of the model's error on the difference (2.98 m/s), so the clip is consistent with drift. It is as
+consistent with a body moving 3-10 m/s through the air across the heading. Among the drawn cases that pass with the
+measured motion 1.7-3.7 m/s beyond the nearest sample, as the clip's does (fixed after one station and before the
+rest): 1.06 % of true drifters, 2.14 % of bodies at 5 m/s, 2.84 % at 10 m/s, 0.56 % at 25 m/s and 0.15 % at 50 m/s.
+Among cases whose samples spread as little as the clip's (within 30 %): 2.47, 5.56, 5.57, 0.51 and 0.35 %; at the
+four Middle East stations alone 3.44, 6.61, 6.55, 0.73 and 0.49 % (looked at afterwards). So the
+clip's numbers are about twice as likely for a body flying 5-10 m/s in a direction drawn at random as for a drifter,
+and 2-7 times likelier for a drifter than for a body at 25-50 m/s. What they exclude is a fast body crossing the
+heading. They do not tell drift from slow flight, and say nothing of flight along the heading: a drifter needs the
+aircraft at 179-191 kn, and any airspeed of the object along the heading moves that figure inside 0-240 kn.
+
+**A rule with the error in it** (a draft; not built). In words: T2 passes when, at some hour and cell given, the
+model winds' difference across the heading is within the model's own error of the measured sideways motion, and the
+airspeed a drifter needs of the aircraft is in the range given; it fails when even the nearest hour and cell leaves
+the object 10 m/s or more beyond that; else it cannot say. In arithmetic: with s the measured sideways motion, d_i
+the samples' differences across the heading and sigma_s the fit's error across it, the least shortfall min |s - d_i|
+is held against 2 sigma_s + E_d, where E_d is the size the model's error on the difference stays under nine times in
+ten: 4.8 m/s, set on the even-numbered stations at the hour before. Its two rates, on the odd-numbered stations:
+
+| | drifters pass | 5 m/s pass | 10 m/s pass | 25 m/s pass; fail | 50 m/s pass; fail |
+|---|---|---|---|---|---|
+| three cells, 24 hours | 96.9 | 95 | 84 | 30; 22 | 14; 72 |
+| one cell, three hours | 98.8 | 91 | 53 | 21; 54 | 15; 75 |
+
+It fails no drifter (under 0.01 %). Bodies crossing the heading at 25 and 50 m/s fail 63 and 99 times in 100 (99 and
+100 with one cell); bodies flying along it pass as drifters do. The form of the lines-of-sight rule (the largest
+shortfall against the samples' spread plus the same terms) passes the same shares and fails fewer, since over three
+cells and a day the spread alone is 13.8 m/s (median). Either draft passes the Yemen clip (2.7 m/s against 1.5 +
+4.8; 9.5 against 6.8 + 1.5 + 4.8), at an E_d of 3.6, 4.8 or 6.0 m/s (80, 90 or 95 in 100). What the draft adds is a
+stated rate for a drifter and a fail for a fast crosser, which the rule as it stands cannot give. It does not make
+the pass strong: bodies at 5 and 10 m/s pass 95 and 84 times in 100.
+
+**The season and the year of the strike.** IGRA's station list, read again: the nearest stations to any of the Yemen
+run's three cells that reported in 2024 are Abha (414 km from the southern Red Sea cell, at 2,084 m), Salalah (592 km
+from the eastern Gulf of Aden cell) and Jeddah (868 km). Aden's record ends in 1994, Djibouti's in 1994, Sanaa's in
+1998. Against their soundings of October and November 2024 the same product's 700-400 hPa difference, across the
+clip's heading (144.9 deg) and at the hour before, errs by 3.1 m/s (one standard deviation; 6.1 kn) at Abha (115
+soundings), 3.2 at Jeddah (118), 2.6 at Salalah (15) and 3.0 at Muscat (34). An error of 2.7 m/s or more, the least
+the Yemen clip's T2 needs of the model, is there on 40, 40, 33 and 44 % of those soundings. The model has the
+difference on the wrong side of the heading on 14, 2, 13 and 3 %. On 30 October at 12 UTC the Abha sounding's
+difference lay 35.6 kn to the right of the heading and the model's 16.3 (the hour before) and 21.0 (at the hour); at
+Jeddah 32.2 against 23.2 and 27.6, and the two soundings after it 41.5 and 43.3 against 27-33. The model was short
+of the balloons on the day of the strike, the way the clip's T2 is short (5-18 kn where 23 was measured). These
+stations are 400-900 km away and 4-9 degrees of latitude north of the cells, under the edge of the subtropical jet;
+they say what the product does in that season, not what the air did over the strike.
+
+**What cannot be known.** No balloon has flown near the strike since the 1990s, so the model's error there on 30
+October 2024 is not measured, only what the same product does elsewhere and what it did that week 400-900 km to the
+north. The hour and the place of the strike are not known to the stage, which is why it was given three cells and
+24 hours; every rate above for "three cells, 24 hours" has the truth at the middle cell, and a truth between cells
+can only fare worse. The model behind Open-Meteo's product is not named in its files and may differ by place and
+year. The aircraft's own airspeed is not on the display.
+
+**Left to the maintainer** (nothing here was built on either). For `MODEL_WIND_ERR`: keep 3 m/s and say what it
+covers (96-97 % of a balloon's need at radiosonde stations; 66 % of the clouds', 41 % on days it was not chosen on;
+a body flying 5 m/s passes one time in three), or move it and take the table's column. For T2 from the ranges:
+keep the rule and state these rates; add the model's error to it (the draft); stop counting it among the strong
+tests of the verdict (`STRONG`), which leaves the Yemen clip's verdict on T4a, where it also passes; or give it the
+aircraft's real range of airspeeds, where its power lies.
