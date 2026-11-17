@@ -11,14 +11,17 @@ is, and what it must give, is `tests/golden/controls.csv`:
 - **non-birds get none** -- a drone, an airplane and a helicopter of the labelled set (a distant one of each), the
   WA9ONY-5 balloon, PR23, PR055 and PR071: the report never says "Beats like a bird" of them;
 - **the strobe helicopters keep their trains** (V_HELICOPTER_054 and _030, item 13);
-- **the false alarms of record stay as they are, with their causes** -- HELICOPTER_043 (a fence line and poles passing
-  behind it), and, since the floor went to 7 % (method section 43), HELICOPTER_024, a 3.53-Hz beat at 7.8 % that the
-  capped point disc hears: the non-birds the report names a bird on the whole set. A change that removes one is an
-  improvement to be checked and written down, not a silent pass. One was removed so on 2026-11-13: DRONE_059, named at
-  10.00 Hz, a third of the frame rate. A third of its frames are held (a 20-a-second source in a 30-a-second file), the
-  held-pictures test (M3) missed the cadence by a hair (a burst of holds inside it: 0.843 against 0.85), and the holds'
-  own rhythm was heard as a beat. The word is read in blocks now (method section 35), the band's top is 8 Hz, and the
-  drone is held here as a non-bird;
+- **the false alarm of record stays as it is, with its cause** -- since the floor went to 7 % (method section 43),
+  HELICOPTER_024, a 3.53-Hz beat at 7.8 % that the capped point disc hears: the one non-bird the report names a bird on
+  the whole set. A change that removes one is an improvement to be checked and written down, not a silent pass. One was
+  removed so on 2026-11-13: DRONE_059, named at 10.00 Hz, a third of the frame rate. A third of its frames are held (a
+  20-a-second source in a 30-a-second file), the held-pictures test (M3) missed the cadence by a hair (a burst of holds
+  inside it: 0.843 against 0.85), and the holds' own rhythm was heard as a beat. The word is read in blocks now (method
+  section 35), the band's top is 8 Hz, and the drone is held here as a non-bird. A second on 2026-11-17: HELICOPTER_043,
+  named at 2.09 Hz with 21 % of its brightness and put down to a fence line and poles passing behind it. Its beat follows
+  its track's own jitter (method section 69: the label's box hops 0.6 px over a body wider than the disc; with the
+  jitter's share taken out 27 % of the beat is left, and with the brightness read again on the track smoothed over a third
+  of a second, 27 %, the stage finding no beat there). It is held here as a non-bird too;
 - **NO POWER stays NO POWER** where the stage could not decide.
 
 Each is held, rule by rule, to the outcome the manifest records (its `<rule>_beats`, `_named`, `_hz`, `_train` columns,
@@ -84,18 +87,22 @@ def manifest(every=False):
 # of "a beat that comes back" (IR_BIRD_035's refusal became "no beat": birds answered 110 to 111 and 108 to 109), and the
 # cadence read in blocks (IR_DRONE_059 and IR_DRONE_098 lose a 10-Hz call: non-birds called a bird 18 to 16 and 25 to 23,
 # drones 3 to 1 and 7 to 5; non-birds named 3 to 2, drones 1 to 0, distant non-birds 1 to 0 under the stage's rule).
+# And on 2026-11-17, the same way, after the track's own jitter was read (method section 69): IR_HELICOPTER_043's beat is its
+# track's (non-birds called a bird 16 to 15 and 23 to 22, helicopters 8 to 7 and 7 to 6; non-birds named 2 to 1 and
+# helicopters named 2 to 1 under either rule), and IR_DRONE_011, refused under the paper's rule (the encoder may make its
+# beat), has no beat of its own (non-birds answered 287 to 288 there). No bird's row moves.
 RECORD = {
     "stage": {
-        "BIRD: bird": (31, 125), "BIRD: named": (30, 125), "non-bird: bird": (16, 307), "non-bird: named": (2, 307),
-        "AIRPLANE: bird": (7, 82), "DRONE: bird": (1, 168), "HELICOPTER: bird": (8, 57), "AIRPLANE: named": (0, 82),
-        "DRONE: named": (0, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (5, 57), "non-bird DISTANT: named": (0, 100),
+        "BIRD: bird": (31, 125), "BIRD: named": (30, 125), "non-bird: bird": (15, 307), "non-bird: named": (1, 307),
+        "AIRPLANE: bird": (7, 82), "DRONE: bird": (1, 168), "HELICOPTER: bird": (7, 57), "AIRPLANE: named": (0, 82),
+        "DRONE: named": (0, 168), "HELICOPTER: named": (1, 57), "BIRD DISTANT: named": (5, 57), "non-bird DISTANT: named": (0, 100),
         "BIRD: answered": (111, 125), "non-bird: answered": (288, 307),
     },
     "paper": {
-        "BIRD: bird": (30, 125), "BIRD: named": (27, 125), "non-bird: bird": (23, 307), "non-bird: named": (2, 307),
-        "AIRPLANE: bird": (11, 82), "DRONE: bird": (5, 168), "HELICOPTER: bird": (7, 57), "AIRPLANE: named": (0, 82),
-        "DRONE: named": (0, 168), "HELICOPTER: named": (2, 57), "BIRD DISTANT: named": (6, 57), "non-bird DISTANT: named": (0, 100),
-        "BIRD: answered": (109, 125), "non-bird: answered": (287, 307),
+        "BIRD: bird": (30, 125), "BIRD: named": (27, 125), "non-bird: bird": (22, 307), "non-bird: named": (1, 307),
+        "AIRPLANE: bird": (11, 82), "DRONE: bird": (5, 168), "HELICOPTER: bird": (6, 57), "AIRPLANE: named": (0, 82),
+        "DRONE: named": (0, 168), "HELICOPTER: named": (1, 57), "BIRD DISTANT: named": (6, 57), "non-bird DISTANT: named": (0, 100),
+        "BIRD: answered": (109, 125), "non-bird: answered": (288, 307),
     },
 }
 
@@ -432,7 +439,8 @@ EXOTICA = [
     ("a propeller's line folded into the band", ("sv_airplane_064",), "a candidate, not a finding"),
     ("held pictures' own rhythm heard as a beat (one frame in three held: fps/3)", ("sv_drone_059",),
      "named a bird until 2026-11-13; a cadence in most of its blocks since, the band's top under the rhythm"),
-    ("a background crossing behind the object", ("sv_helicopter_043",), ""),
+    ("a track that hops over a body wider than the disc (put down to a background crossing behind it until 2026-11-17)", ("sv_helicopter_043",),
+     "named a bird until the track's own jitter was read (method section 69)"),
     ("a helicopter's own modulation heard in the capped point disc, over the floor", ("sv_helicopter_024",), ""),
     ("a balloon whose payload swings", ("wa9ony5",), "and test_golden's swing"),
     ("an object lost against a hot roof", ("pr23",), ""),

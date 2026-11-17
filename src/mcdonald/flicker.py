@@ -231,6 +231,21 @@ And a member's own background (2026-10-30, exercise 4's bisect):
     own, clear of its fellows (`clear_offsets`), read over its own frames and in its own brightness, and its whole track
     and its windows are held to those alone; the set about the member seen longest stays for the readings.
 
+And the track's own jitter (2026-11-17, the Galileo Project's clouds; method section 69):
+
+18. **A beat that follows the track** (`track_jitter`, `unjittered`, `jitter_reading`, `beat[..]["jitter"]`,
+    `fields["jittered"]`). The aperture rides the track, smoothed over SMOOTH frames: a count, a twelfth of a second at 60
+    frames a second. A detector's box on something wider than the aperture hops a fraction of a pixel at 1.5-4 Hz, and each
+    hop puts the aperture on a brighter or a darker part: seven of 303 cloud clips beat so, across their videos, past every
+    test here, and the sky beside them was quiet. The brightness is then a function of where the aperture sits, at every
+    frequency. So the brightness's deviation is fitted on the track's jitter (the aperture's path against its own running
+    mean, as the brightness is taken against its own) away from the beat's frequency, block by block, and the fit taken
+    out whole: a beat that keeps under JITTER_KEEP of its amplitude is the track's, and the object has no beat of its
+    own. It needs no second look at the frames. It is read for every object whose aperture rides the track, and decides
+    only of a beat that would otherwise be the object's own: it can take a beat away and never gives one. Re-measuring
+    on a smoothed track, the first remedy tried, lost known birds their beats: a track holds the camera's own shake and
+    the object's real path, which a smoothed track leaves (13 of 21 reference birds at a second of smoothing).
+
 What it cannot do: say that a beat is a wingbeat. A tumbling or rotating body beats too,
 and so does a light that blinks. A beat that survives the controls is the object's own;
 what makes it is the rest of the case.
@@ -481,6 +496,8 @@ ONCE_P = 0.01             # a beat heard in one stretch stands only where a whol
                           # (`once_held`). The rate is stated, then held to a null (2026-10-30): of 11,400 drawn tracks with no line (coloured noise,
                           # bursts of it, hops, steps and a level that flips, 100 cells), 15.8 % come out as one stretch and 0.8 % keep it (the worst
                           # family 2.8 %); a real line of 3 % in 3 s of it, all 46 calls kept; 91 % of the windows of beats that do come back
+JITTER_KEEP = 0.5         # a beat that keeps under this share of its amplitude once what follows the track's own jitter is taken out of the
+                          # brightness is the track's, not the object's (`jitter_reading`, item 18; method section 69, where the null is)
 RULE = "stage"            # how a whole curve's beat is judged (`whole_passes`): "stage" -- ABOVE times the strongest of the
                           # background apertures beside it and the drift test; "paper" -- the paper's continuum null under
                           # CONTINUUM_P and ABOVE times the background apertures at the beat's own frequency, and the
@@ -3855,6 +3872,85 @@ def unheld_said(b, cont, frames):
             f"{looks_of(b.get('windows')):.0f} such stretches to find it in: no beat of its own in {frames} frames")
 
 
+def track_jitter(x, y, fps):
+    """The track's own jitter, (jx, jy) in px: the aperture's path (`smoothed`: the track as given, its gaps filled, its
+    5-frame mean) taken against its own running mean over DETREND_S, as every brightness curve is taken against its own
+    (`deviation`). What is left is what the track does in the band a beat is looked for in. Taken over the whole track
+    and cut to a stretch afterwards: the running mean wants the path on both sides of a stretch's ends."""
+    k = trend_frames(fps)
+    x, y = np.asarray(x, float), np.asarray(y, float)
+    return x - ndimage.uniform_filter1d(x, k, mode="nearest"), y - ndimage.uniform_filter1d(y, k, mode="nearest")
+
+
+def unjittered(r, jx, jy, fps, hz):
+    """The deviation curve `r` less what follows the jitter (jx, jy): a straight-line fit of r on the two, by least
+    squares, in blocks of WINDOW_S, half overlapping and Hann-weighted (one fit where r is no longer than a window): how
+    the brightness answers a hop changes along a track, as the aperture crosses the object's texture. The coefficients are
+    learned away from the beat: in each block a cosine and a sine at `hz` are taken out of the brightness and of the
+    jitter first, and what is fitted on the rest is then applied to the jitter whole. A box hopping over something wider
+    than the aperture makes the brightness a function of where the aperture sits, at every frequency, so what is learned
+    off the beat accounts for the beat too. A bird's body rises and falls with its wings (section 59.1 of the method), so
+    its track and its brightness keep time at the wingbeat and nowhere else: fitted with the beat left in, a straight
+    line took up to two thirds of known birds' beats; learned away from it, three tenths at most (method section 69).
+    (the residual, the share of r's variance the fit took, the number of blocks)"""
+    r = np.asarray(r, float)
+    X = np.c_[jx, jy]
+    n = len(r)
+    t = np.arange(n) / fps
+    W = max(MIN_FRAMES, int(round(WINDOW_S * fps)))
+
+    def part(a, b):
+        A = X[a:b] - X[a:b].mean(0)
+        y = r[a:b] - r[a:b].mean()
+        S = np.c_[np.cos(2 * np.pi * hz * t[a:b]), np.sin(2 * np.pi * hz * t[a:b])]
+        out = lambda v: v - S @ np.linalg.lstsq(S, v, rcond=None)[0]
+        beta, *_ = np.linalg.lstsq(out(A), out(y), rcond=None)
+        return A @ beta
+    if n <= W + W // 8:
+        fit, blocks = part(0, n), 1
+    else:
+        starts = list(range(0, n - W + 1, W // 2))
+        if starts[-1] != n - W:
+            starts.append(n - W)
+        acc, ws = np.zeros(n), np.zeros(n)
+        h = np.hanning(W + 2)[1:-1]
+        for s in starts:
+            acc[s:s + W] += h * part(s, s + W)
+            ws[s:s + W] += h
+        fit, blocks = acc / np.where(ws > 0, ws, 1.0), len(starts)
+    res = r - fit
+    var = float(r.var())
+    return res, (float(max(0.0, 1 - res.var() / var)) if var > 0 else 0.0), blocks
+
+
+def jitter_reading(r, jx, jy, fps, hz):
+    """Is a beat the track's own jitter, and not the object's light (item 18)? `r` is the object's deviation curve over
+    the stretch its beat is reported from, (jx, jy) the track's jitter on the same frames (`track_jitter`), `hz` the
+    stretch's strongest frequency. A detector's box that hops a fraction of a pixel over something wider than the
+    aperture puts the hop into the brightness (the Galileo Project's clouds, 2026-11-17: seven beats that came back, every
+    one of them this); a beat of the object's own light does not follow where the aperture was put. {kept: the share of
+    the beat's amplitude left at `hz` once what follows the jitter is out (`unjittered`), share: the share of the curve's
+    variance the fit took, px: the jitter's size (the rms of the two coordinates together), blocks, hz, holds: kept >=
+    JITTER_KEEP}. A track that does not move against its own running mean has nothing to follow: kept 1."""
+    jx, jy = np.asarray(jx, float), np.asarray(jy, float)
+    res, share, blocks = unjittered(r, jx, jy, fps, hz)
+    fr, F0, _, _, _ = _spec(r, fps)
+    _, F1, _, _, _ = _spec(res, fps)
+    k = int(np.argmin(np.abs(fr - hz)))
+    kept = float(np.abs(F1[k]) / np.abs(F0[k])) if np.abs(F0[k]) > 0 else None
+    return dict(kept=kept, share=share, px=float(np.hypot(jx.std(), jy.std())), blocks=blocks, hz=float(hz),
+                holds=bool(kept is None or kept >= JITTER_KEEP))
+
+
+def jitter_said(b, frames):
+    """The finding's words for a beat `jitter_reading` gave to the track."""
+    j = b["jitter"]
+    return (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, over frames {b['first']}–{b['last']} "
+            f"follows the track's own jitter; with the jitter's share taken out, {j['kept']:.0%} of the beat is left, where a "
+            f"beat of the object's own keeps {JITTER_KEEP:.0%} or more: the beat is the track's, not the object's: no beat "
+            f"of its own in {frames} frames")
+
+
 def said_seis(fields):
     """What `mcdonald flicker` prints of the seismologist's tests, from the fields."""
     L = []
@@ -4555,6 +4651,26 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
     if unheld:
         strong = [n for n in strong if n not in unheld]
         fields["strong"], fields["unheld"] = strong, unheld
+    # ---- the track's own jitter (item 18; 2026-11-17): a beat that follows where the aperture was put is the track's. Read
+    # for every object whose aperture rides the track (one re-centred on the object's own light each frame does not), from
+    # the curve and the aperture's path alone; it decides only of a beat that would otherwise be called the object's own
+    jittered = []
+    for n in (obj if positions else []):
+        if n not in positions or n in (fields.get("recentred") or []):
+            continue
+        b = fields["beat"][n]
+        s0, s1 = b["first"] - lo, b["last"] - lo + 1         # the stretch the beat is reported from (a window, or the whole track)
+        if not (seg[n][0] <= s0 < s1 <= seg[n][1]):
+            s0, s1 = seg[n]
+        r = deviation(use[n][seg[n][0]:seg[n][1]], fps)[s0 - seg[n][0]:s1 - seg[n][0]]
+        hz = (per[n]["hz"] if b["source"] == "the whole track" else
+              next((w["hz"] for w in fields["windows"].get(n, []) if w["first"] == b["first"] and w["last"] == b["last"]), per[n]["hz"]))
+        jx, jy = track_jitter(*positions[n], fps)            # over the whole track, then the stretch: the running mean needs both sides
+        b["jitter"] = dict(jitter_reading(r, jx[s0:s1], jy[s0:s1], fps, hz), frames=[int(ns[s0]), int(ns[s1 - 1])])
+    jittered = [n for n in strong if not (fields["beat"][n].get("jitter") or {}).get("holds", True)]
+    if jittered:
+        strong = [n for n in strong if n not in jittered]
+        fields["strong"], fields["jittered"] = strong, jittered
     fields["in_step"] = None
     if len(strong) > 1:
         lo_, hi_ = max(seg[m][0] for m in strong), min(seg[m][1] for m in strong)
@@ -4627,6 +4743,8 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
         over = [n for n in obj if per[n]["amplitude"] >= ABOVE * (fields.get("floors") or {}).get(n, floor)]
         if unheld:
             beats, why = False, unheld_said(fields["beat"][unheld[0]], cont[unheld[0]], fields["frames"])
+        elif jittered:
+            beats, why = False, jitter_said(fields["beat"][jittered[0]], fields["frames"])
         elif gated:
             b = fields["beat"][gated[0]]
             beats, why = False, (f"what beats at {b['hz']:.2f} Hz, {b['amplitude']:.0%} of its brightness, does not pass the "
@@ -4776,6 +4894,17 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
                      "none apart from it agreeing, has to stand over the curve's own continuum as a line does, as seldom as "
                      f"{ONCE_P:g} over the whole track (chance {c['p']:.2g} there, {once_needed(b.get('windows')):.2g} needed)."
                      + (" The other checks: " + "; ".join(off) + "." if off else ""))
+    for n in jittered:                                     # a beat given to the track: why, and what would show a beat of its own
+        b = fields["beat"][n]
+        j = b["jitter"]
+        notes.append(f"A beat at {b['hz']:.2f} Hz{f' ({n})' if len(names) > 1 else ''} was not kept: it follows the track's jitter. "
+                     "Jitter is the small scatter of the object's measured position from frame to frame, "
+                     f"{j['px']:.2f} pixels here. The brightness is read in a small disc that rides the track. Over an object "
+                     "wider than the disc, each small jump of the track puts the disc on a brighter or a darker part of it. The "
+                     "brightness then rises and falls with the track, not with the object. Here the brightness followed the "
+                     f"jitter at rates away from the beat's own. That accounts for all but {j['kept']:.0%} of the beat. A "
+                     f"beat of the object's own keeps {JITTER_KEEP:.0%} or more. A smoother track, or a disc as wide as the "
+                     "object (--aperture), would show whether the object itself beats.")
     if beats is True:                                      # where the astronomer's tests disagree with the stage, the notes say so
         off = disagreements(strong, astro, far)
         if off:
@@ -5011,6 +5140,12 @@ def said(fields):
                  + ("; reported: " if name in fields.get("strong", [name]) else "; no beat of its own, the strongest: ")
                  + _pm(b["hz"], b.get("hz_err")) + (f" and {double_said(b['hz'], b['double_hz'])} {b['double_hz']:.2f}" if b["double_hz"] else "")
                  + f", {b['amplitude']:.1%}, {b['stands']:.0f}x, frames {b['first']}-{b['last']} ({b['source']})")
+    for name, b in (fields.get("beat") or {}).items():
+        j = b.get("jitter")
+        if j and j.get("kept") is not None:
+            L.append(f"  {name}, the track's own jitter over frames {j['frames'][0]}-{j['frames'][1]} ({j['px']:.2f} px): with what follows "
+                     f"it taken out of the brightness, {j['kept']:.0%} of what beats at {j['hz']:.2f} Hz is left ({JITTER_KEEP:.0%} or more: "
+                     "the object's own)" + ("" if j["holds"] else " -- the track's, not the object's"))
     for name, a in (fields.get("analytic") or {}).items():
         secs = (a.get("seconds_for") or {}).get("0.1")
         L.append(f"  {name}, in closed form: a beat needs {a['amplitude']:.1%} of its brightness to be heard {a['complete']:.0%} of the "

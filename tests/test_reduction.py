@@ -4348,9 +4348,9 @@ def test_checklist():
 def test_controls_weights_and_plot():
     """The labelled infrared set as the report's control population (session 18, 2026-11-07): the packaged table
     (`controls_beat.csv`) against the data folder's whole table where it is there, the beat row's answers weighed on it
-    -- a bird named 35.6 times as common on birds under the stage's rule at 8 %, 63.9 under the paper's, the old "No"'s
-    two halves 0.42 and 4.5 -- the screening words, and the discriminant plot drawn in the house style with nothing over
-    a line (S20)."""
+    -- a bird named on 29 of 125 birds and on none of the 307 others at 8 % since 2026-11-17 (35.6 times as common on
+    birds under the stage's rule when the set was run, 63.9 under the paper's), the old "No"'s two halves 0.41 and 4.6 --
+    the screening words, and the discriminant plot drawn in the house style with nothing over a line (S20)."""
     print("\nthe control population: the labelled infrared set's weights, the screening words and the plot")
     import csv as _csv
     import os
@@ -4371,21 +4371,31 @@ def test_controls_weights_and_plot():
     r3 = lambda x: round(x, 2)
     # the record remade on 2026-11-13/14 (N3's revision; the held pictures' cadence read in blocks): IR_DRONE_059's 10-Hz
     # "bird" left the named non-birds (2 -> 1 of 307 under the stage's rule at 8 %, so its ratio 35.6 -> 71.2) and
-    # IR_BIRD_035 left the refused for no beat (the noisy track's ratio 4.48 -> 4.62); the paper's rule had 1 already
-    check(r3(got["named", "stage"]["lr"]) == 71.22 and got["named", "stage"]["birds"] == [29, 125] and got["named", "stage"]["others"] == [1, 307]
-          and round(got["named", "paper"]["lr"], 1) == 63.9 and got["named", "stage"]["weight"] == "for"
-          and r3(got["none", "stage"]["lr"]) == 0.42 and got["none", "stage"]["weight"] == "against"
+    # IR_BIRD_035 left the refused for no beat (the noisy track's ratio 4.48 -> 4.62); the paper's rule had 1 already.
+    # And on 2026-11-17 (the track's own jitter, method section 69): IR_HELICOPTER_043's 2.09-Hz "bird" at 21 %, the last
+    # non-bird named at 8 %, is its track's (1 -> 0 of 307 under either rule: no ratio, and the words say "none of the
+    # others"), and is a "No" with power (0.42 -> 0.41). At the report's own floor, 7 %, IR_HELICOPTER_024's 7.8 % is
+    # still named: 73.7 times (stage) and 66.3 (paper), where they were 36.8 and 33.2
+    at7 = {rule: controls.weigh("named", rule, 0.07) for rule in controls.RULES}
+    check(math.isinf(got["named", "stage"]["lr"]) and got["named", "stage"]["birds"] == [29, 125] and got["named", "stage"]["others"] == [0, 307]
+          and math.isinf(got["named", "paper"]["lr"]) and got["named", "paper"]["others"] == [0, 307] and got["named", "stage"]["weight"] == "for"
+          and "29 of 125 birds gave this answer and none of the 307 aircraft, drones and helicopters did" in got["named", "stage"]["said"]
+          and r3(at7["stage"]["lr"]) == 73.68 and at7["stage"]["others"] == [1, 307] and round(at7["paper"]["lr"], 1) == 66.3
+          and "about 74 times as common on birds" in at7["stage"]["said"]
+          and r3(got["none", "stage"]["lr"]) == 0.41 and got["none", "stage"]["weight"] == "against"
           and r3(got["deaf", "stage"]["lr"]) == 4.62 and got["refused", "stage"]["weight"] == "none"
           and got["once", "stage"]["weight"] == "no power" and got["shaken", "stage"]["weight"] == "no power",
-          "at 8 %: a bird named 71.2 (stage) and 63.9 (paper) times as common on birds; a 'No' with power 0.42; a track too noisy "
-          "to show a bird's beat 4.6 (why the row says Can't tell there); a refusal about as common on both; one stretch and the "
-          "shake too few to weigh", str({k: r3(v["lr"]) for k, v in got.items() if k[1] == "stage"}))
-    s1, s2 = controls.screen(7.8, 0.15, "stage", 0.08), controls.screen(7.8, 0.6, "stage", 0.08)
-    check(s1 and s1["others"] == [1, 21] and "not screened out" in s1["said"] and "consistent with the birds" in s1["said"]
+          "at 8 %: a bird named on 29 of 125 birds and on none of the others; at 7 %, 73.7 (stage) and 66.3 (paper) times as common on "
+          "birds; a 'No' with power 0.41; a track too noisy to show a bird's beat 4.6 (why the row says Can't tell there); a refusal "
+          "about as common on both; one stretch and the shake too few to weigh",
+          str({k: r3(v["lr"]) for k, v in got.items() if k[1] == "stage"}) + f"; at 7 %: {r3(at7['stage']['lr'])}, {r3(at7['paper']['lr'])}")
+    s1, s2 = controls.screen(7.8, 0.075, "stage", 0.08), controls.screen(7.8, 0.15, "stage", 0.08)
+    check(s1 and s1["others"] == [2, 20] and "not screened out" in s1["said"] and "consistent with the birds" in s1["said"]
           and s2 and s2["others"][0] == 0 and "None of the 288 others the test could judge beat so strongly" in s2["said"] and "up to 1.0 in 100" in s2["said"]
           and controls.screen(1.0, 0.3, "stage", 0.08) is None,
           "the screening words rest on the plot's populations: consistent with the birds, the others not screened out while any "
-          "reach it, screened out with the exact bound where none does; nothing said outside a wingbeat's rate", s1["said"] if s1 else "")
+          "reach it (a helicopter's 7.8 %), screened out with the exact bound where none does (15 %: until 2026-11-17 a helicopter's "
+          "21 % reached it, a beat that was its track's); nothing said outside a wingbeat's rate", (s1["said"] if s1 else "") + " | " + (s2["said"] if s2 else ""))
     figures.CLASHES.clear()
     with tempfile.TemporaryDirectory() as td:
         path = figures.beat_controls(f"{td}/t_controls.png", [(7.8, 0.25)], "stage", 0.08)
