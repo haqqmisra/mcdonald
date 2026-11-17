@@ -12,6 +12,8 @@ that table (`recovered`). ROADMAP.md 0.6, objective 4; docs/method.md section 62
     mcdonald plant VIDEO --n0 1 --n1 400 --plants mine.json                 # the objects given, one a row
     mcdonald plant VIDEO --n0 1 --n1 400 --draw 0                           # nothing planted: the re-encode alone
     mcdonald plant --score TRUTH.json --proposals LOOK.json                 # Find's list held against the truth table
+    mcdonald plant --table BATCH --control CONTROLS                         # planted videos through `mcdonald batch`:
+                                                                             # the completeness table, video by video
 
 What it writes, in --out (default ./<tag>/planted):
 
@@ -68,6 +70,13 @@ one run to the next (`planted`'s docstring). So two runs with one seed give the 
 be repeated is the first encoder itself, and the second encode starts from the first one's picture, not the
 sensor's: the control for both is the `_none` file, the same stretch through the same encoder with nothing in it.
 
+Planted videos through `mcdonald batch` (`completeness`; docs/method.md section 62.1). The planted files go through the
+batch as any video does, with `--keep` above the 30 rows a window keeps (so that a planted object pushed down the list by
+the others planted beside it is still there to count) and `--only track,report` (each object followed, nothing more
+measured); their controls with `--most 0`. `--table` then holds each planted video's batch against its truth table:
+whether Find listed each object, whether the batch's own rule made an object of it at the rule's settings, and whether
+its link followed it, with what the rule makes of the control beside it.
+
 What a planted object can and cannot stand for is in docs/method.md, section 62. In short: it tests whether an
 object *like the ones drawn* would have been found *in these frames*; it does not glide (B13), it has no wing and
 no shape that turns, and a dot alone in the frame is found more often than a real member of a flock (B22).
@@ -77,6 +86,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1090,6 +1100,17 @@ def on_path(track, truth, size=0.0, px=12.0, share=0.7):
     return (len(shared), float(np.median(d))) if float(np.mean(d <= px)) > share else None
 
 
+def _fields(pl):
+    """What a completeness is tabulated by, of one planted object of a truth table (`recovered`, `recovered_batch`)."""
+    return dict(id=pl["id"], kind=pl.get("kind"), group=pl.get("group"), contrast=pl["contrast"],
+                contrast_written=pl.get("contrast_written"), contrast_after=pl.get("contrast_after"), sigma=pl.get("sigma"),
+                diameter=pl.get("diameter"), speed=pl.get("speed_px_per_frame"),
+                speed_scene=pl.get("speed_against_scene"), dark=bool(pl.get("dark")),
+                light=(pl.get("light") or {}).get("kind"), hz=(pl.get("light") or {}).get("hz"),
+                frames=pl.get("frames_on", len(pl.get("track") or {})) - pl.get("frames_hidden", 0),
+                clipped=pl.get("frames_clipped", 0))
+
+
 def recovered(truth, proposals, px=12.0):
     """Find's list held against a truth table: dict(plants: one row an object -- id, kind, group, contrast, sigma,
     speed, dark, frames (seen: on the frame, not hidden), found, rank (the place on the list of the first row on its
@@ -1115,13 +1136,7 @@ def recovered(truth, proposals, px=12.0):
         for i, (tr, p) in enumerate(props, 1):             # every row on it, not only the first: none of them is "another"
             if i not in taken and on_path(tr, path_, float(p.get("size_px") or 0.0), px):
                 taken.add(i)
-        rows.append(dict(id=pl["id"], kind=pl.get("kind"), group=pl.get("group"), contrast=pl["contrast"],
-                         contrast_written=pl.get("contrast_written"), contrast_after=pl.get("contrast_after"), sigma=pl.get("sigma"),
-                         diameter=pl.get("diameter"), speed=pl.get("speed_px_per_frame"),
-                         speed_scene=pl.get("speed_against_scene"), dark=bool(pl.get("dark")),
-                         light=(pl.get("light") or {}).get("kind"), hz=(pl.get("light") or {}).get("hz"),
-                         frames=pl.get("frames_on", len(path_)) - pl.get("frames_hidden", 0),
-                         clipped=pl.get("frames_clipped", 0), found=hit is not None,
+        rows.append(dict(_fields(pl), found=hit is not None,
                          rank=hit[0] if hit else None, rank_alone=None, strength=hit[1].get("strength") if hit else None,
                          score=hit[1].get("score") if hit else None, shared=hit[2][0] if hit else None,
                          px=round(hit[2][1], 2) if hit else None,
@@ -1147,6 +1162,408 @@ def tabulate(rows, by=("kind",), found="found"):
         lo, hi = wilson(sum(v), len(v))
         out.append(dict(zip(by, key), n=len(v), found=sum(v), share=sum(v) / len(v), low=lo, high=hi))
     return out
+
+
+# ---- planted videos through `mcdonald batch`: what its own rule takes of them, and the table over many ----------------
+FOLLOW_PX = 6.0         # px: the batch's link is on a planted object on a frame where it lies this close (the pilot's rule)
+FOLLOW_SHARE = 0.5      # followed: on the object on half its frames or more
+# The cells a completeness is given by: [low, high) of each field, the last open. Each edge lies between two values of
+# the draw's grids (CONTRAST, SPEED, SIGMA), so that a grid's value and what is measured of it share a cell: an object
+# drawn at 1 px a frame on a still scene is measured at 0.98 or 1.02 against it.
+CELLS = dict(contrast_written=(0, 15, 30, 60, 120),          # DN as written (10, 20, 40, 80, 160 asked; less where clipped)
+             contrast_after=(0, 5, 15, 30, 60, 120),         # DN after the encoder: the planted video less the control
+             speed_scene=(0, 0.5, 2, 5, 20),                 # px a frame against the scene (0.3, 1, 3, 10, 30 drawn on the screen)
+             frames=(0, 40, 80),                             # frames on screen and not under the overlay
+             sigma=(0, 1.25, 2, 3))                          # px: a point's blur (1, 1.5, 2.5, 4 drawn)
+MOVING = 0.5            # px a frame against the scene: "moving" in the tables, the draw's 1 px a frame and faster
+LEVELS = ("listed", "kept", "object", "followed")             # what came of a planted object, each a part of the one before
+
+
+def cell(v, edges):
+    """The cell of `edges` (CELLS) that `v` falls in, as text ("15-30", "over 120"), or None."""
+    if v is None:
+        return None
+    for lo, hi in zip(edges, list(edges[1:]) + [None]):
+        if v >= lo and (hi is None or v < hi):
+            return f"{lo:g}-{hi:g}" if hi is not None else f"over {lo:g}"
+    return None
+
+
+def batch_unit(folder):
+    """What `mcdonald batch` made of one video, read back from its folder (a batch's `<unit>` folder): dict(tag, frames,
+    keep -- the rows a window kept --, windows -- [dict(name, n0, n1, rows: Find's rows as `Proposal.to_dict` gives them,
+    each with its `rank`)] --, objects -- the batch's own list, each with its sources `windows` ("w00:3") and `object`,
+    the number of the folder it was measured in, or None --, followed -- {object number: the link's track {frame: (x, y)},
+    empty where the link found none}). None where the unit has made no record yet."""
+    from . import several
+    from .forensics import read_track
+    folder = Path(folder)
+    recs = sorted(folder.glob("*_batch.json"))
+    if not recs:
+        return None
+    rec = json.loads(recs[0].read_text(encoding="utf-8"))
+    windows = []
+    for name, a, b in rec.get("windows") or []:
+        f = folder / "find" / f"{name}.json"
+        d = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+        windows.append(dict(name=name, n0=a, n1=b, rows=d.get("proposals") or [], error=d.get("error")))
+    followed = {}
+    for t in several.things(folder):
+        p = Path(f"{t.prefix}_autotrack.csv")
+        try:
+            followed[t.k] = read_track(p) if p.exists() else {}
+        except (OSError, ValueError, KeyError, StopIteration):
+            followed[t.k] = {}
+    make = rec.get("make") or {}
+    return dict(folder=str(folder), tag=recs[0].name[:-len("_batch.json")], frames=rec.get("frames"), outcome=rec.get("outcome"),
+                keep=(make.get("rule") or {}).get("keep"), most=make.get("most"), windows=windows, objects=rec.get("objects") or [],
+                followed=followed)
+
+
+def _track(row, shift=0):
+    return {int(n) + shift: (float(xy[0]), float(xy[1])) for n, xy in (row.get("track") or {}).items()}
+
+
+def on_rows(truth, unit, px=12.0):
+    """{(window, rank): [the ids of the planted objects whose path the row is on]} for a batch's unit (`batch_unit`), by
+    `on_path`'s rule: which of Find's rows are planted objects. The costly part of `recovered_batch`, made once a unit and
+    handed to it again for each setting asked about."""
+    paths = [(pl["id"], {int(n): tuple(xy) for n, xy in pl["track"].items()}) for pl in truth["plants"] if pl.get("track")]
+    spans = [(i, min(p), max(p), p) for i, p in paths]
+    out = {}
+    for w in unit["windows"]:
+        for r in w["rows"]:
+            tr = _track(r)
+            if not tr:
+                continue
+            a, b = min(tr), max(tr)
+            ids = [i for i, lo, hi, p in spans if lo <= b and a <= hi and on_path(tr, p, float(r.get("size_px") or 0.0), px)]
+            if ids:
+                out[(w["name"], int(r["rank"]))] = ids
+    return out
+
+
+def _covered(track, path_):
+    """The share of a planted object's frames on which `track` lies within FOLLOW_PX of it."""
+    if not path_:
+        return 0.0
+    on = sum(1 for n, (x, y) in path_.items() if n in track and math.hypot(track[n][0] - x, track[n][1] - y) <= FOLLOW_PX)
+    return on / len(path_)
+
+
+def batch_objects(windows, keep, seen=None, round_=None):
+    """The objects `mcdonald batch`'s rule makes of windows of Find's rows ({window: [row with its rank]}), keeping each
+    window's first `keep` rows by rank: [dict(first, last, seen, dark, strength, score, size, track)], as `batch.long_lived`
+    and `batch.merged` make them. `seen` and `round_` are the rule's numbers (the batch's own where not given)."""
+    from . import batch as B
+    kept, _ = B.long_lived({w: [r for r in rows if r["rank"] <= keep] for w, rows in windows.items()},
+                           B.SEEN if seen is None else seen, B.ROUND if round_ is None else round_)
+    return [dict(first=o["a"], last=o["b"], seen=len(o["t"]), dark=o["dark"], strength=o["strength"], score=o.get("score"),
+                 size=o.get("size"), track=o["t"]) for o in B.merged(kept)]
+
+
+def same_object(a, b):
+    """Are two objects (`batch_objects`') on one path, by `on_path`'s rule either way round?"""
+    return bool(on_path(a["track"], b["track"], float(b.get("size") or 0.0)) or on_path(b["track"], a["track"], float(a.get("size") or 0.0)))
+
+
+def recovered_batch(truth, unit, keep=None, seen=None, round_=None, on=None):
+    """A planted video's batch (`batch_unit`) held against its truth table: what `mcdonald batch`'s rule took of each
+    planted object, and the objects it made of what was not planted.
+
+    Each planted object is one row (`_fields`, then):
+      listed   -- a row of Find's list in some window is on its path (`on_path`), among every row the run kept;
+      rank     -- the best place such a row had, with the rows above it that are planted objects set aside (where it
+                  would stand with no other object planted: a draw puts a few in the frame at once);
+      kept     -- that place is within `keep`, the rows a window keeps (the run's own, where not given);
+      object   -- such a row passes the batch's rule (`batch.refusals`: seen on `seen` frames or more, background all
+                  round it, not a scrolling tape): the batch makes an object of it;
+      why      -- where it is no object: "not listed", "past the rows kept", or the rule's reasons for its longest row;
+      measured -- the folder the run measured its object in (None: not measured, past the run's own cap);
+      followed -- that object's link lies within FOLLOW_PX of it on FOLLOW_SHARE of its frames or more.
+    `followed` reads the run's own links: asked at other settings than the run's, an object the run did not make has no
+    link, and is not followed. `on` is `on_rows`', where made already.
+
+    Returns dict(plants, others -- the objects the rule makes of the rows on no planted path, each with its rows' places
+    taken with the planted rows set aside --, keep, seen, round)."""
+    from . import batch as B
+    keep = int(keep or unit.get("keep") or B.KEEP)
+    seen = B.SEEN if seen is None else seen
+    round_ = B.ROUND if round_ is None else round_
+    on = on_rows(truth, unit) if on is None else on
+    mine, rest = {}, {}
+    for w in unit["windows"]:
+        above = 0
+        for r in sorted(w["rows"], key=lambda r: r["rank"]):
+            ids = on.get((w["name"], int(r["rank"])))
+            alone = int(r["rank"]) - above
+            if ids:
+                above += 1
+                for i in ids:
+                    mine.setdefault(i, []).append((w["name"], int(r["rank"]), alone, r))
+            else:
+                rest.setdefault(w["name"], []).append(dict(r, rank=alone))
+    measured_as = {}
+    for o in unit["objects"]:
+        for src in o.get("windows") or []:
+            w, _, rk = str(src).partition(":")
+            measured_as[(w, int(rk))] = o.get("object")
+    rows = []
+    for pl in truth["plants"]:
+        path_ = {int(n): tuple(xy) for n, xy in (pl.get("track") or {}).items()}
+        hits = mine.get(pl["id"], [])
+        kept = [h for h in hits if h[2] <= keep]
+        took = [h for h in kept if not B.refusals(h[3], seen, round_)]
+        ks = sorted({measured_as.get((h[0], h[1])) for h in took} - {None})
+        covered = max((_covered(unit["followed"].get(k) or {}, path_) for k in ks), default=0.0)
+        why = None
+        if not took:
+            why = ("not listed" if not hits else "past the rows kept" if not kept
+                   else ",".join(B.refusals(max(kept, key=lambda h: h[3]["seen_in"])[3], seen, round_)))
+        best = min(took or kept or hits, key=lambda h: h[2], default=None)
+        rows.append(dict(_fields(pl), listed=bool(hits), rank=best[2] if best else None, kept=bool(kept), object=bool(took),
+                         seen=max((h[3]["seen_in"] for h in hits), default=0), why=why,
+                         strength=best[3].get("strength") if best else None, measured=ks[0] if ks else None,
+                         covered=round(covered, 3), followed=bool(took) and covered >= FOLLOW_SHARE))
+    return dict(plants=rows, others=batch_objects(rest, keep, seen, round_), keep=keep, seen=seen, round=round_)
+
+
+def control_name(truth, planted_file):
+    """The control's file name for a planted file: the truth table's, or `<stem>_s<seed>.mp4`'s `<stem>_none.mp4` where
+    the control was written with another seed (it is the same file: one stretch, one encoding, nothing planted)."""
+    if (truth.get("files") or {}).get("none"):
+        return truth["files"]["none"]
+    name = Path(planted_file).name
+    return re.sub(r"_s\d+(\.[^.]+)$", r"_none\1", name)
+
+
+def _share(rows, key):
+    k, n = sum(bool(r.get(key)) for r in rows), len(rows)
+    lo, hi = wilson(k, n)
+    return dict(n=n, k=k, share=k / n if n else None, low=lo, high=hi)
+
+
+def completeness(planted, control=None, keep=None, seen=None, round_=None, say=lambda *a: None):
+    """The completeness table over a batch of planted videos: `planted` is the folder of a `mcdonald batch` of planted
+    files, each with its truth table beside it; `control`, where given, the folder of a batch of their controls (the
+    `_none` files) and, if it has them, of the stretches of the videos themselves (`VIDEO:N0-N1`). `keep`, `seen` and
+    `round_` are the batch's rule (`recovered_batch`), its own where not given.
+
+    Returns dict(rows -- one a planted object: `recovered_batch`'s, with its video, file and seed --, units -- one a
+    planted video: what its control lists where nothing was planted, the chance of a planted path in it, the objects of
+    the planted video on no planted path and how many of them the control has too, the second encode's change where the
+    stretch of the video itself was run, and the unit's cost --, videos -- by the video planted in: the tables
+    (`tables`) -- and rule)."""
+    from . import batch as B
+    pp = B.read_plan(planted)
+    cp = B.read_plan(control) if control else None
+    cunits = {} if cp is None else {u["file"]: u for u in cp["units"]}
+    originals = {} if cp is None else {(u["file"], u.get("n0"), u.get("n1")): u for u in cp["units"] if u.get("n0") is not None}
+    cache, rows, units = {}, [], []
+
+    def objects_of(u, shift=0):
+        if u["file"] not in cache:
+            un = batch_unit(Path(control) / u["folder"]) if B.read_state(Path(control) / u["folder"]).get("state") == "done" else None
+            cache[u["file"]] = un
+        un = cache[u["file"]]
+        if un is None:
+            return None, None
+        k = int(keep or B.KEEP)
+        obs = batch_objects({w["name"]: w["rows"] for w in un["windows"]}, k, seen, round_)
+        for o in obs:
+            o["track"] = {n - shift: xy for n, xy in o["track"].items()}
+            o["first"], o["last"] = o["first"] - shift, o["last"] - shift
+        return un, obs
+
+    for u in pp["units"]:
+        video = Path(u["video"])
+        tf = video.with_name(video.stem + "_truth.json")
+        folder = Path(planted) / u["folder"]
+        st = B.read_state(folder)
+        if not tf.exists():
+            say(f"{u['file']}: no truth table beside it, so not a planted video: left out")
+            continue
+        truth = json.loads(tf.read_text(encoding="utf-8"))
+        name = video.name.split("_planted_")[0] if "_planted_" in video.name else truth["source"]["video"]
+        unit = batch_unit(folder) if st.get("state") == "done" else None
+        if unit is None:
+            say(f"{u['file']}: not done in the batch ({st.get('state') or 'waiting'}): left out")
+            units.append(dict(video=name, file=u["file"], seed=truth.get("seed"), state=st.get("state") or "waiting"))
+            continue
+        res = recovered_batch(truth, unit, keep, seen, round_)
+        for r in res["plants"]:
+            rows.append(dict(r, video=name, file=u["file"], seed=truth.get("seed")))
+        frames = truth["stretch"]["frames"]
+        un = dict(video=name, file=u["file"], seed=truth.get("seed"), state="done", frames=frames, planted=len(res["plants"]),
+                  source=truth["source"]["video"], stretch=[truth["stretch"]["n0"], truth["stretch"]["n1"]],
+                  scene_px_per_frame=(truth.get("scene") or {}).get("speed_px_per_frame"),
+                  overlay=(truth.get("overlay") or {}).get("share"), types_same=truth["settings"].get("types_same"),
+                  bit_rate=truth["settings"].get("bit_rate"), bit_rate_made=truth["settings"].get("bit_rate_made"),
+                  others=len(res["others"]), others_strong_or_fair=sum(o["strength"] != "weak" for o in res["others"]),
+                  rows_kept=unit.get("keep"), seconds=st.get("seconds"), wall_s=st.get("wall_s"), cpus=st.get("cpus"),
+                  peak_rss_mb=st.get("peak_rss_mb"), card=st.get("card"),
+                  objects_measured=len(unit["followed"]), past_cap=sum(1 for r in res["plants"] if r["object"] and r["measured"] is None))
+        cu = cunits.get(control_name(truth, video.name))
+        if cu is not None:
+            cun, cobs = objects_of(cu)
+            if cun is not None:
+                on = on_rows(truth, cun)
+                k = res["keep"]
+                ids = {}
+                for w in cun["windows"]:
+                    for r in w["rows"]:
+                        for i in on.get((w["name"], int(r["rank"])), []):
+                            ids.setdefault(i, []).append(r)
+                taken = [i for i, rs in ids.items() if any(r["rank"] <= k and not B.refusals(r, res["seen"], res["round"]) for r in rs)]
+                un.update(control=cu["file"], control_objects=len(cobs),
+                          control_strengths={s_: sum(o["strength"] == s_ for o in cobs) for s_ in ("strong", "fair", "weak")},
+                          chance_listed=len(ids), chance_object=len(taken),
+                          others_in_control=sum(any(same_object(o, c) for c in cobs) for o in res["others"]))
+                orig = originals.get((truth["source"]["video"], truth["stretch"]["n0"], truth["stretch"]["n1"]))
+                if orig is not None:
+                    oun, oobs = objects_of(orig, shift=truth["stretch"]["n0"] - 1)
+                    if oun is not None:
+                        un.update(original_objects=len(oobs), original_in_control=sum(any(same_object(o, c) for c in cobs) for o in oobs),
+                                  control_in_original=sum(any(same_object(c, o) for o in oobs) for c in cobs))
+        units.append(un)
+    videos = {}
+    for name in ["all"] + sorted({r["video"] for r in rows}):
+        part = [r for r in rows if name == "all" or r["video"] == name]
+        videos[name] = dict(tables=tables(part), units=[x for x in units if name == "all" or x["video"] == name])
+    return dict(rows=rows, units=units, videos=videos,
+                rule=dict(keep=int(keep or B.KEEP), seen=B.SEEN if seen is None else seen, round=B.ROUND if round_ is None else round_))
+
+
+def tables(rows):
+    """The completeness by cell over planted objects (`completeness`'s rows): {name: [dict(cell, n, and for each of LEVELS
+    its share with Wilson's interval)]}. By kind over all of them; the constant points ("dot") by contrast as written and
+    after the encoder, by speed against the scene, by blur and by frames on screen, and by contrast and speed at once."""
+    def by(part, key, edges=None):
+        cells = {}
+        for r in part:
+            v = r.get(key) if edges is None else cell(r.get(key), edges)
+            cells.setdefault(v, []).append(r)
+        order = sorted(cells, key=lambda v: (v is None, _lead(v)))
+        return [dict(cell=v, n=len(cells[v]), **{lv: _share(cells[v], lv) for lv in LEVELS}) for v in order]
+    dots = [r for r in rows if r.get("kind") == "dot"]
+    moving = [r for r in dots if (r.get("speed_scene") if r.get("speed_scene") is not None else r.get("speed") or 0) >= MOVING]
+    out = dict(kind=by(rows, "kind"), contrast=by(dots, "contrast_written", CELLS["contrast_written"]),
+               contrast_moving=by(moving, "contrast_written", CELLS["contrast_written"]),
+               after=by(dots, "contrast_after", CELLS["contrast_after"]),
+               speed=by([r for r in dots if (r.get("contrast_written") or 0) >= 30], "speed_scene", CELLS["speed_scene"]),
+               sigma=by(dots, "sigma", CELLS["sigma"]), frames=by(dots, "frames", CELLS["frames"]),
+               why=[dict(cell=k, n=sum(1 for r in rows if r.get("why") == k)) for k in
+                    sorted({r.get("why") for r in rows if r.get("why")}, key=lambda k: (-sum(1 for r in rows if r.get("why") == k), k))])
+    grid = {}
+    for r in dots:
+        grid.setdefault((cell(r.get("contrast_written"), CELLS["contrast_written"]),
+                         cell(r.get("speed_scene") if r.get("speed_scene") is not None else r.get("speed"), CELLS["speed_scene"])), []).append(r)
+    out["contrast_by_speed"] = [dict(cell=list(k), n=len(v), **{lv: _share(v, lv) for lv in LEVELS})
+                                for k, v in sorted(grid.items(), key=lambda kv: (_lead(kv[0][0]), _lead(kv[0][1])))]
+    return out
+
+
+def _lead(v):
+    try:
+        return (0, float(str(v).replace("over ", "").split("-")[0]))
+    except ValueError:
+        return (1, str(v))
+
+
+def _said(c):
+    return "-" if not c["n"] else f"{c['k']}/{c['n']} = {100 * c['share']:.0f} % ({100 * c['low']:.0f}-{100 * c['high']:.0f})"
+
+
+def _headline(name, v):
+    """One video's completeness in a sentence: the share of the planted objects the batch made objects of, and what its
+    control gave where nothing was planted."""
+    kinds = v["tables"]["kind"]
+    n = sum(c["n"] for c in kinds)
+    if not n:
+        return None
+    took = sum(c["object"]["k"] for c in kinds)
+    fol = sum(c["followed"]["k"] for c in kinds)
+    us = [u for u in v["units"] if u.get("control")]
+    ctl = {u["control"]: u for u in us}
+    line = (f"{name}: of {n} planted objects, the batch made objects of {took} ({100 * took / n:.0f} %) and followed {fol} "
+            f"over half their frames.")
+    if ctl:
+        frames = sum(u["frames"] for u in ctl.values())
+        line += (f" Where nothing was planted it made {sum(u['control_objects'] for u in ctl.values())} objects in "
+                 f"{frames} frames.")
+    return line
+
+
+HEADS = dict(listed="on Find's list", kept="in the rows a window keeps", object="an object of the batch's rule",
+             followed="followed over half its frames")
+
+
+def table_said(res):
+    """`completeness`'s result as Markdown lines: a section a video (and one for all), each its tables and its controls."""
+    r = res["rule"]
+    L = ["# Planted objects through `mcdonald batch`: the completeness table", "",
+         f"The batch's rule as held here: a window's first {r['keep']} rows, a spot seen on {r['seen']} frames or more with "
+         f"background all round it on {r['round']:g} of them. A planted object's place on the list is taken with the other "
+         "planted objects' rows set aside. Each cell: found / planted = share (Wilson's 95 % interval).", "",
+         "Levels: " + "; ".join(f"*{HEADS[k]}*" for k in LEVELS) + " -- each a part of the one before.", ""]
+    for name, v in res["videos"].items():
+        t, us = v["tables"], [u for u in v["units"] if u.get("state") == "done"]
+        frames = sum(u["frames"] for u in us)
+        n = sum(u["planted"] for u in us)
+        L += [f"## {name}", "", f"{len(us)} planted videos, {frames} frames, {n} planted objects (a group's members each count)."
+              + ("" if len(us) == len(v["units"]) else f" {len(v['units']) - len(us)} more not done in the batch."), ""]
+        for key, title in (("kind", "By kind"), ("contrast", "Constant points, by contrast as written (grey levels)"),
+                           ("contrast_moving", f"Constant points moving {MOVING:g} px a frame or more against the scene, by contrast as written"),
+                           ("after", "Constant points, by contrast after the encoder (grey levels)"),
+                           ("speed", "Constant points of 30 grey levels or more, by speed against the scene (px a frame)"),
+                           ("sigma", "Constant points, by blur (sigma, px)"),
+                           ("frames", "Constant points, by frames on screen (the rule takes a spot seen on "
+                                      f"{r['seen']} frames or more in one window)")):
+            L += [f"**{title}**", "", "| cell | " + " | ".join(HEADS[k] for k in LEVELS) + " |", "|---|" + "---|" * len(LEVELS)]
+            L += [f"| {c['cell']} | " + " | ".join(_said(c[k]) for k in LEVELS) + " |" for c in t[key]] + [""]
+        if t["why"]:
+            L += ["**Why a planted object is no object of the batch**: " + "; ".join(f"{c['cell']} {c['n']}" for c in t["why"]), ""]
+        withc = [u for u in us if u.get("control")]
+        if withc:
+            cf = {u["control"]: u for u in withc}
+            cframes = sum(u["frames"] for u in cf.values())
+            cobj = sum(u["control_objects"] for u in cf.values())
+            pl = sum(u["planted"] for u in withc)
+            L += ["**Where nothing was planted** (the control: the same stretch encoded the same way)", "",
+                  f"- The batch makes {cobj} objects of the controls' {cframes} frames ({1000 * cobj / max(cframes, 1):.1f} a "
+                  f"thousand frames; {sum(u['control_strengths']['strong'] + u['control_strengths']['fair'] for u in cf.values())} "
+                  "of them fair or strong). Each would be a row of the batch's table with nothing planted.",
+                  f"- A planted path is on the control's list by chance {sum(u['chance_listed'] for u in withc)} times in {pl}, "
+                  f"and an object of the rule there {sum(u['chance_object'] for u in withc)} times.",
+                  f"- In the planted videos the rule makes {sum(u['others'] for u in withc)} objects on no planted path, "
+                  f"{sum(u['others_in_control'] for u in withc)} of them objects of the control too.", ""]
+            orig = [u for u in cf.values() if u.get("original_objects") is not None]
+            if orig:
+                L += [f"- The second encode alone: of the video's own {sum(u['original_objects'] for u in orig)} objects in these "
+                      f"stretches, {sum(u['original_in_control'] for u in orig)} are objects of the control too; of the control's "
+                      f"{sum(u['control_objects'] for u in orig)}, {sum(u['control_in_original'] for u in orig)} are the video's.", ""]
+        cap = sum(u.get("past_cap") or 0 for u in us)
+        if cap:
+            L += [f"{cap} objects of the rule on a planted path were past the run's own cap and not measured: not followed here.", ""]
+    return L
+
+
+TSV = ["video", "file", "seed", "id", "kind", "group", "dark", "light", "hz", "contrast", "contrast_written", "contrast_after",
+       "sigma", "diameter", "speed", "speed_scene", "frames", "clipped", "listed", "rank", "kept", "object", "seen", "why",
+       "strength", "measured", "covered", "followed"]
+
+
+def write_table(res, stem):
+    """`completeness`'s result as `<stem>.md`, `<stem>.tsv` (one row a planted object) and `<stem>.json`. Returns the paths."""
+    stem = Path(stem)
+    md, tsv, js = (stem.with_name(stem.name + x) for x in (".md", ".tsv", ".json"))
+    md.write_text("\n".join(table_said(res)) + "\n", encoding="utf-8")
+    with open(tsv, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, TSV, delimiter="\t", extrasaction="ignore")
+        w.writeheader()
+        w.writerows(res["rows"])
+    js.write_text(json.dumps(dict(rule=res["rule"], units=res["units"], videos=res["videos"]), indent=1, default=_plain), encoding="utf-8")
+    return [str(md), str(tsv), str(js)]
 
 
 # ---- the command --------------------------------------------------------------------------------------------------
@@ -1201,10 +1618,29 @@ def main():
     ap.add_argument("--score", metavar="TRUTH", help="hold a search against a truth table and plant nothing: with --proposals")
     ap.add_argument("--proposals", metavar="JSON", help="with --score: what `mcdonald look --propose --more --json` printed "
                                                        "for the planted video")
+    ap.add_argument("--table", metavar="BATCH", help="plant nothing: hold a `mcdonald batch` folder of planted videos against "
+                    "their truth tables, and write the table of how many were found, video by video, in that folder")
+    ap.add_argument("--control", metavar="BATCH", help="with --table: the `mcdonald batch` folder of the same stretches with "
+                    "nothing planted, for what the batch finds where there is nothing to find")
     ap.add_argument("--out", metavar="DIR", help="where the planted video and its table go (default: ./<tag>/planted)")
     ap.add_argument("--json", action="store_true", help="print what was written, and the truth table, as JSON on stdout")
     args = ap.parse_args()
     inputs = inputs_of(args)
+
+    if args.table:
+        with said_to_stderr(args.json) as lines:
+            res = completeness(args.table, args.control, say=print)
+            files = write_table(res, Path(args.table) / "plants")
+            for name, v in res["videos"].items():
+                said = _headline(name, v)
+                if said:
+                    print(said)
+            print(f"wrote {files[0]} (and .tsv, .json): every planted object, and the shares found by kind and by cell")
+        if args.json:
+            emit(envelope("plant", inputs, None, files, dict(rule=res["rule"], units=res["units"], videos=res["videos"], said=lines),
+                          notes=["A planted video is a test article, not footage. Each share is of the objects drawn: a "
+                                 "completeness for a sky of other objects needs those objects' numbers by cell."]))
+        return 0
 
     if args.score:
         if not args.proposals:

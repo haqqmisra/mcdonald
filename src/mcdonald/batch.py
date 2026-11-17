@@ -156,14 +156,16 @@ def cut(frames, window=WINDOW, overlap=OVERLAP):
     return out
 
 
-def refusals(p):
+def refusals(p, seen=SEEN, round_=ROUND):
     """Why a proposal of Find's is not an object of the batch: [] where it is one; else each rule it fails, of "brief"
     (seen on fewer than SEEN frames), "edge" (background all round it on less than ROUND of them: an edge or a line
-    more than a spot) and "tape" (one of a row of marks that slide together)."""
+    more than a spot) and "tape" (one of a row of marks that slide together). `seen` and `round_` are the rule's two
+    numbers, given otherwise only to ask what another setting would take (`plant.recovered_batch`); a batch runs with
+    SEEN and ROUND."""
     why = []
-    if p["seen_in"] < SEEN:
+    if p["seen_in"] < seen:
         why.append("brief")
-    if p["background_all_round"] < ROUND:
+    if p["background_all_round"] < round_:
         why.append("edge")
     if p["scrolling_tape"]:
         why.append("tape")
@@ -172,12 +174,13 @@ def refusals(p):
     return why
 
 
-def long_lived(windows):
+def long_lived(windows, seen=SEEN, round_=ROUND):
     """The proposals of a video's windows that are objects, seen longest first, and the rest with why not.
 
     `windows` is {window's name: [proposal as `Proposal.to_dict` gives it, with its `rank`]}. Returns (kept, refused):
     kept as [{tag, rank, dark, seen, a, b, t, strength, bg, score, size, marks, says}] -- the sweep's fields, and what
-    the batch needs to mark and order them -- and refused as [{tag, rank, why, seen, a, b, dark, size, t}]."""
+    the batch needs to mark and order them -- and refused as [{tag, rank, why, seen, a, b, dark, size, t}]. `seen` and
+    `round_` are `refusals`'."""
     kept, refused = [], []
     for tag in sorted(windows):
         for p in windows[tag]:
@@ -186,7 +189,7 @@ def long_lived(windows):
                        strength=p["strength"], bg=p["against_background_px_per_frame"], score=p.get("score", 0.0),
                        size=p.get("size_px"), marks={int(k): tuple(v) for k, v in (p.get("mark_at") or {}).items()},
                        says=p.get("says", ""))
-            why = refusals(p)
+            why = refusals(p, seen, round_)
             if why:
                 refused.append(dict(row, why=why))
             else:

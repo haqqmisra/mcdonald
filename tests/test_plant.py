@@ -443,6 +443,108 @@ def test_find_lists_a_planted_object_and_not_in_the_control(tmp, made):
           f"{ctl['found']} of {ctl['planted']} 'found' in the control's {ctl['rows']} rows")
 
 
+def _row(rank, track, seen=None, round_=0.9, score=5.0):
+    """One of Find's rows as a batch's window keeps it (`Proposal.to_dict`, with its rank)."""
+    return dict(rank=rank, strength="strong" if score >= 10 else "fair" if score >= 4 else "weak", score=score,
+                seen_in=seen or len(track), background_all_round=round_, scrolling_tape=False, dark=False, size_px=6.0,
+                says="drawn", against_background_px_per_frame=1.0, track={str(n): list(xy) for n, xy in track.items()},
+                mark_at={str(n): list(xy) for n, xy in list(track.items())[::20]}, frames=[min(track), max(track)])
+
+
+def test_what_the_batch_takes():
+    """`recovered_batch` on a batch's unit made here: a window of six rows, five planted paths."""
+    line = lambda x0, y0, a=1, b=100: {n: (x0 + 1.0 * (n - a), y0) for n in range(a, b + 1)}
+    paths = {i: line(*xy) for i, xy in {1: (100, 100), 2: (100, 200), 3: (100, 300, 20), 4: (400, 100), 5: (400, 300)}.items()}
+    truth = dict(plants=[dict(id=i, kind="dot", contrast=60.0, track={str(n): list(xy) for n, xy in t.items()}, frames_on=len(t))
+                         for i, t in paths.items()])
+    off = {n: (x + 10.0, y) for n, (x, y) in paths[5].items()}
+    rows = [_row(1, {n: xy for n, xy in paths[1].items() if n <= 60}, score=12.0),          # object 1: found, followed
+            _row(2, {n: xy for n, xy in paths[5].items() if n <= 60}, score=11.0),          # object 5: found; its link 10 px off
+            _row(3, line(700, 500, 1, 60)),                                                  # on no planted path: another object
+            _row(4, {n: xy for n, xy in paths[2].items() if n <= 30}),                       # object 2: seen on 30 frames
+            _row(5, {n: (80.0 + n, 300.0) for n in range(10, 60)})]                         # object 3 (from frame 20), and
+    # from 10 frames before it began: three planted rows above it
+    unit = dict(keep=400, windows=[dict(name="w00", n0=1, n1=100, rows=rows)],
+                objects=[dict(object=1, windows=["w00:1"]), dict(object=2, windows=["w00:2"]), dict(object=3, windows=["w00:3"]),
+                         dict(object=None, windows=["w00:5"])],
+                followed={1: dict(paths[1]), 2: off, 3: line(700, 500, 1, 60)})
+    on = plant.on_rows(truth, unit)
+    check(on == {("w00", 1): [1], ("w00", 2): [5], ("w00", 4): [2], ("w00", 5): [3]}, "which of Find's rows are planted objects", str(on))
+    res = plant.recovered_batch(truth, unit, keep=30, on=on)
+    got = {r["id"]: r for r in res["plants"]}
+    check(got[1]["object"] and got[1]["followed"] and got[1]["measured"] == 1 and got[1]["covered"] == 1.0 and got[1]["rank"] == 1,
+          "a planted object whose row lasts and whose link stays on it is an object of the batch, and followed", str(got[1]))
+    check(got[5]["object"] and not got[5]["followed"] and got[5]["covered"] == 0.0,
+          "one whose link lies 10 px off it is an object, and not followed", str({k: got[5][k] for k in ("object", "covered", "followed")}))
+    check(got[2]["listed"] and not got[2]["object"] and got[2]["why"] == "brief" and got[2]["seen"] == 30,
+          "one whose row lasts 30 frames is listed, and no object: the rule's 40 frames", str({k: got[2][k] for k in ("why", "seen")}))
+    check(got[3]["object"] and got[3]["rank"] == 2 and got[3]["measured"] is None and not got[3]["followed"],
+          "a row fifth on the list with three planted rows above it stands second alone; its object, past the run's cap, is not followed",
+          str({k: got[3][k] for k in ("rank", "measured", "followed")}))
+    check(not got[4]["listed"] and not got[4]["object"] and got[4]["why"] == "not listed" and got[4]["rank"] is None,
+          "one with no row is not listed")
+    check(len(res["others"]) == 1 and res["others"][0]["first"] == 1 and res["others"][0]["last"] == 60,
+          "the row on no planted path is the one other object the rule makes", str([(o["first"], o["last"]) for o in res["others"]]))
+    at = lambda **kw: {r["id"]: r for r in plant.recovered_batch(truth, unit, on=on, **kw)["plants"]}
+    check(at(keep=2)[3]["kept"] and at(keep=1)[3]["why"] == "past the rows kept" and not at(keep=1)[3]["object"],
+          "with a window keeping two rows it is kept, with one it is past them")
+    check(at(seen=20)[2]["object"] and at(seen=20)[2]["why"] is None and not at(seen=20)[2]["followed"],
+          "asked at 20 frames the rule takes the 30-frame row; the run made no object of it, so it has no link")
+    check(at(round_=0.95)[1]["why"] == "edge", "asked with more background round it than the row has, the rule calls it an edge")
+    tab = plant.tables(res["plants"])
+    k = {c["cell"]: c for c in tab["kind"]}["dot"]
+    check(k["n"] == 5 and k["listed"]["k"] == 4 and k["object"]["k"] == 3 and k["followed"]["k"] == 1
+          and tab["why"] == [dict(cell="brief", n=1), dict(cell="not listed", n=1)],
+          "the table counts each level over what was planted, and why the rest were not taken", str(k))
+    check(plant.cell(14.9, plant.CELLS["contrast_written"]) == "0-15" and plant.cell(160, plant.CELLS["contrast_written"]) == "over 120"
+          and plant.cell(None, plant.CELLS["frames"]) is None, "the cells' edges: a cell is [low, high), the last open")
+    check(plant.control_name(dict(files=dict(none=None)), "pr113_planted_301_1300_s7.mp4") == "pr113_planted_301_1300_none.mp4"
+          and plant.control_name(dict(files=dict(none="x_none.mp4")), "y_s1.mp4") == "x_none.mp4",
+          "a planted file's control: the truth table's, or the one another seed of the stretch wrote")
+
+
+def _env(tmp):
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), MCDONALD_HOME=str(tmp / "home"), MCDONALD_GPU="none")
+    for k in ("MCDONALD_CATALOG", "MCDONALD_CASES", "MCDONALD_DATA", "MCDONALD_CPUS", "SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID"):
+        env.pop(k, None)
+    return env
+
+
+def test_through_the_batch(tmp, made):
+    """The drawn planted video and its control through `mcdonald batch` as the plants at scale go (`--only track,report`,
+    `--keep`; the control `--most 0`), then `mcdonald plant --table`."""
+    run = lambda *a: subprocess.run([sys.executable, "-m", "mcdonald.cli", *map(str, a)], capture_output=True, encoding="utf-8",
+                                    errors="replace", env=_env(tmp))
+    r1 = run("batch", made["planted"], "--out", tmp / "bp", "--only", "track,report", "--keep", "60", "--most", "10")
+    r2 = run("batch", made["none"], "--out", tmp / "bc", "--most", "0", "--keep", "60")
+    check(r1.returncode == 0 and r2.returncode == 0, "the planted video and its control go through `mcdonald batch`",
+          (r1.stderr or "")[-300:] + (r2.stderr or "")[-300:])
+    r = run("plant", "--table", tmp / "bp", "--control", tmp / "bc", "--json")
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        d = {}
+    res = d.get("results") or {}
+    check(r.returncode == 0 and len(d.get("files") or []) == 3 and all(Path(f).exists() for f in d.get("files") or ["-"]),
+          "`mcdonald plant --table BATCH --control BATCH`: the table, as .md, .tsv and .json", (r.stderr or "")[-300:])
+    rows = {}
+    for f in d.get("files") or []:
+        if f.endswith(".tsv"):
+            import csv
+            rows = {int(x["id"]): x for x in csv.DictReader(open(f, encoding="utf-8"), delimiter="\t")}
+    moving = [rows.get(i, {}) for i in (1, 2, 3)]
+    check(len(rows) == len(PLANTS) and all(x.get("object") == "True" and x.get("followed") == "True" for x in moving),
+          "the three planted objects that move against the scene are objects of the batch, and followed",
+          "; ".join(f"{i}: {x.get('object')}/{x.get('followed')} ({x.get('why')}, seen {x.get('seen')})" for i, x in zip((1, 2, 3), moving)))
+    check(rows.get(6, {}).get("object") == "False", "the one planted with the scene is not", str({k: rows.get(6, {}).get(k) for k in ("listed", "why")}))
+    u = (res.get("units") or [{}])[0]
+    check(u.get("control") == Path(made["none"]).name and u.get("chance_object") == 0 and u.get("planted") == len(PLANTS),
+          "its control is found by name, and no planted path is an object there", str({k: u.get(k) for k in ("control", "chance_listed", "chance_object", "control_objects")}))
+    md = Path(next((f for f in d.get("files") or [] if f.endswith(".md")), tmp / "none.md"))
+    check(md.exists() and "## drawn" in md.read_text() and "Where nothing was planted" in md.read_text(),
+          "the table has a section for the video, with what the control gave")
+
+
 def main():
     if not planted.has_x264():
         skip("every check", "this ffmpeg has no libx264 encoder, which the planted video is encoded with")

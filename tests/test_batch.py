@@ -126,6 +126,12 @@ def test_rules():
     why = sorted((p["tag"], p["rank"], tuple(p["why"])) for p in refused)
     check(len(kept) == 4 and why == [("w00", 3, ("brief",)), ("w00", 4, ("edge",)), ("w00", 5, ("tape",))],
           "kept: seen on 40 frames or more, with background all round, not a tape; each of the rest with why not", str(why))
+    k2, r2 = batch.long_lived(windows, seen=15, round_=0.05)
+    check(len(k2) == 6 and [(p["tag"], p["rank"], p["why"]) for p in r2] == [("w00", 5, ["tape"])]
+          and batch.refusals(windows["w00"][2], seen=15) == [] and batch.refusals(windows["w00"][3], round_=0.05) == []
+          and batch.refusals(windows["w00"][2]) == ["brief"],
+          "the rule's two numbers can be asked about (the plants' table does): at 15 frames and 0.05 round, the brief one and the "
+          "edge are taken, the tape is not", str([(p["tag"], p["rank"], p["why"]) for p in r2]))
     objs = batch.merged(kept)
     spans = sorted((o["a"], o["b"], o["dark"], len(o["src"])) for o in objs)
     check(spans == [(1, 60, True, 1), (1, 119, False, 2), (50, 119, False, 1)],
