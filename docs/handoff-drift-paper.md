@@ -146,3 +146,26 @@ check meant for it (one did not at first, and a check was added for it).
   session's; manuscripts are Jacob's. What moves for it: the Yemen clip's T2 is no longer a strong test and its
   verdict rests on the shed pieces; the lanterns' tolerance is 9.5 m/s; the planted-flier figure's numbers are in
   section 67.
+
+## 2026-11-18: the jitter control merged; the cadence study; what waits
+
+- **`dp-jitter` is merged** (ef56bd3): `flicker` reads a beat against the track's own jitter and calls it the track's
+  where it keeps under half its amplitude (method section 69). Jacob took it as built: the labelled set's record
+  without IR_HELICOPTER_043's false bird, the weights 37 -> 74 and 33 -> 66, the line at 0.5. **The data folder's
+  `controls/svanstrom_tracks.csv` is NOT yet swapped** (2 lines differ; the new one is
+  `/scratch/mcdonald/drift-paper-2026-11-17/jitter/staged/d2/svanstrom_tracks.csv`): `main` and any branch without
+  the control still need the old table. Swap it, with its SHA256SUMS line, when this branch reaches `main`. Until
+  then run the suites with `MCDONALD_DATA=/scratch/mcdonald/drift-paper-2026-11-17/jitter/staged/data` (an overlay
+  of the data folder with the new table). Its CHANGELOG and IDEAS drafts (`jitter/drafts/`) are not applied yet, and
+  method sections 43, 44 and 47 still quote the old rates.
+- **The cadence study** (`cadence/README.md`; nothing built): the Galileo clips' 12 pictures a second is the encoder's
+  group of pictures. Jacob: for 0.5.8 the beat test, `flicker`'s finding and the report's beat row say the band
+  listened in (agent "band", branch `dp-band`, running); after 0.5.8, measured first, `pictures` asks the object's
+  own frames before lowering the band.
+- **The table** (agent "table", scratch `table/`): all 239 Galileo objects through `--rays`, each ring camera its
+  own at 0.7/0.4 deg, once with v0.5.7's envelopes and once with the jitter control's (`jitter/mcd_jit/`); the planted
+  fliers on the 40-cloud sample.
+- **Then:** merge `dp-band`; apply the jitter drafts; every suite with the goldens on the final tree (overlay); Mac and
+  Windows; Jacob reads `band/words-for-jacob.md`; his word for main, the table swap, the version, push and tag.
+- **After 0.5.8** (his decisions): a hold-still rule against the winds' middle, measured; `pictures` on the object's
+  own frames; `tools/shear_igra.py`'s sort and dropped levels; the jitter reading window by window.
