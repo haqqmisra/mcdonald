@@ -106,6 +106,24 @@ The four known answers after all of it: the Yemen clip, consistent with wind-bor
 T4a; the Puerto Rico lanterns, the same, by T2 from lines of sight; the Santa Barbara helicopter, not drifting (its
 file the same to the byte through every step); PR051's second leg, cannot say.
 
+### The suites, on the integration's last code commit (ce298f0; the two commits after it change words in docs only)
+
+Every suite with the goldens, each from a snapshot of that commit, `MCDONALD_DATA` exported:
+
+| where | job | result |
+|---|---|---|
+| arthur, CPU (`tools/suites.sbatch golden`) | 5709 | ALL SUITES PASS: test_golden 266 PASS / 0 FAIL / 0 SKIP, test_gui 797 / 0 / 1 (the Wx backend, as always), test_drift 325 / 0 / 0, test_measurement 704, test_reduction 732, test_cli 140, test_gpu 137, the other 22 suites all PASS with no FAIL and no SKIP |
+| arthur, the graphics card (`--gres=gpu:1`) | 5710 | ALL SUITES PASS: the same counts, test_gpu 168 |
+| Cannon (`mcdonald-test --golden`, run 20261117-144352-drift-paper-ce298f0) | 61600543 | ALL SUITES PASS: test_golden 266 / 0 / 0, test_drift 325 / 0 / 0, test_gui 695 / 0 / 4 and test_cli 137 (Cannon's usual counts: no installed menu entry, no GTK or Wx there), test_measurement 702, test_reduction 732 |
+
+test_drift takes about four and a half minutes on four CPUs of arthur (it took five before, with 293 checks of
+today's 325): its stage runs take 60 or 200 resamples where no check turns on the count. Under two minutes would mean
+dropping one of the command-line runs that keep the stage's 2,000 resamples (the lanterns' planted fliers alone are
+a minute), which was not done.
+
+Deliberate breaks: 21, of the plants on cameras, the three rules, the soundings tool and T3's floor; each fails the
+check meant for it (one did not at first, and a check was added for it).
+
 ### Still to do
 
 - **The Galileo table for the paper** (another agent, scratch folder `table/`): the 239 objects through `--rays`
