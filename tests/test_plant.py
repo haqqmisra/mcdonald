@@ -443,6 +443,22 @@ def test_find_lists_a_planted_object_and_not_in_the_control(tmp, made):
           f"{ctl['found']} of {ctl['planted']} 'found' in the control's {ctl['rows']} rows")
 
 
+def test_many_frames_read_back(tmp):
+    """The frames the encoder's contrast and the picture of the objects are read from: 300 asked of a 300-frame video
+    come back, each the frame asked for. One `select` for all of them came back empty past about 100 (2026-11-16)."""
+    v = tmp / "long.mp4"
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=64x48:rate=30:duration=10",
+                    "-c:v", "libx264", "-threads", "1", "-pix_fmt", "yuv420p", str(v)], check=True)
+    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(v), "-vf", "extractplanes=y", "-f", "rawvideo",
+                        "-pix_fmt", "gray", "-"], capture_output=True, check=True)
+    every = np.frombuffer(r.stdout, np.uint8).reshape(-1, 48, 64)
+    got = plant._luma_frames(v, range(1, 301), 64, 48)
+    check(len(every) == 300 and sorted(got) == list(range(1, 301)) and all(np.array_equal(got[n], every[n - 1]) for n in got),
+          "300 frames asked of a 300-frame video come back, each the frame asked for", f"{len(got)} of 300")
+    some = plant._luma_frames(v, [7, 150, 299, 7], 64, 48)
+    check(sorted(some) == [7, 150, 299] and all(np.array_equal(some[n], every[n - 1]) for n in some), "and a few, once each")
+
+
 def _row(rank, track, seen=None, round_=0.9, score=5.0):
     """One of Find's rows as a batch's window keeps it (`Proposal.to_dict`, with its rank)."""
     return dict(rank=rank, strength="strong" if score >= 10 else "fair" if score >= 4 else "weak", score=score,

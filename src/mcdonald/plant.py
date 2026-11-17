@@ -999,17 +999,27 @@ def after_the_encoder(plants, seen, f_planted, f_none, W, H, lv, most=8, reach=3
 
 
 # ---- looking at what was planted ----------------------------------------------------------------------------------
+SELECT_MOST = 64        # frames one ffmpeg `select` asks for: its expression of eq() terms is parsed to a depth of 100 at most
+
+
 def _luma_frames(video, frames, W, H):
-    """{frame: H x W uint8 luma} of the frames asked for, by one pass of ffmpeg over the file."""
+    """{frame: H x W uint8 luma} of the frames asked for, by passes of ffmpeg over the file, SELECT_MOST frames a pass.
+
+    One pass for every frame asked failed past about 100 of them: ffmpeg refuses a `select` expression nested deeper
+    than that ("Error initializing filters"), and nothing came back. A planted stretch of 1000 frames with fifty
+    objects asks for some 300, so until 2026-11-16 most of the objects of such a stretch had no `contrast_after` and
+    the truth table's picture showed no frame of them; the pilot's 500-frame stretches asked for fewer."""
     frames = sorted(set(int(n) for n in frames))
-    if not frames:
-        return {}
-    sel = "+".join(f"eq(n,{n - 1})" for n in frames)
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(video), "-vf", f"select='{sel}',extractplanes=y",
-                        *every_frame(), "-frames:v", str(len(frames)), "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True)
-    a = np.frombuffer(r.stdout, np.uint8)
-    got = len(a) // (W * H)
-    return dict(zip(frames, a[:got * W * H].reshape(got, H, W)))
+    out = {}
+    for i in range(0, len(frames), SELECT_MOST):
+        part = frames[i:i + SELECT_MOST]
+        sel = "+".join(f"eq(n,{n - 1})" for n in part)
+        r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(video), "-vf", f"select='{sel}',extractplanes=y",
+                            *every_frame(), "-frames:v", str(len(part)), "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True)
+        a = np.frombuffer(r.stdout, np.uint8)
+        got = len(a) // (W * H)
+        out.update(zip(part, a[:got * W * H].reshape(got, H, W)))
+    return out
 
 
 def sheet(truth, folder, out, per=6, box=48, zoom=4, page=10):
