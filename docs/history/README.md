@@ -28,3 +28,4 @@ Paths in these files were written when they lived in `docs/`; `docs/handoff-x.md
 - [`handoff-ui.md`](handoff-ui.md) -- Handoff: two ways in — the command line alone, and the window alone
 - [`handoff-waves.md`](handoff-waves.md) -- Handoff: `mcdonald waves` (branch `waves`, worktree `/models/mcdonald-waves`, 2026-10-19)
 - [`handoff-zoom-slew.md`](handoff-zoom-slew.md) -- Handoff: zoom states in `slew`, and a scene zoom fit that works on PURSUE (2026-10-20; built 2026-10-21, merged to main, unreleased)
+- [`roadmap-2026-10-16.md`](roadmap-2026-10-16.md) -- The plan to 1.0 as written on 2026-10-16 at 0.2.20 and kept current until 2026-11-17: what "ROADMAP 0.x objective N" and "decision N" mean wherever the code, tests and method notes cite them
