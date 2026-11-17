@@ -996,15 +996,16 @@ and it models a naive overlay rather than a match-moved physical composite.
 
 ## Roadmap
 
-[ROADMAP.md](ROADMAP.md) is the plan to 1.0, written 2026-10-16: one theme a minor version --
-0.3 the beat held to account and the reference cases as files, 0.4 the four unknowns of the
-velocity equation, 0.5 controls (drones, helicopters, aircraft, balloons, gliding birds,
-insects), 0.6 every frame of every video on the workstation, 0.7 finding without a hand,
-0.8 the sensor's record and the displays, 0.9 the walkthrough and the documentation, and 1.0
-a reproducible case file for every PURSUE video with the ideas bank exhausted and the
-software paper submitted to the Journal of Open Source Software. It carries the principles,
-what every release is held to, the working rules, the open decisions and the bank of ideas
-from the methods surveys. CHANGELOG.md is what happened.
+[ROADMAP.md](ROADMAP.md) is the plan to 1.0, rewritten 2026-11-17 at version 0.5.7. A version
+names a state to reach: 0.5.8 the wind-drift paper's release, 0.6 known answers at scale (the
+Galileo Project's triangulated objects as a standing test, and one route in for new footage of
+known objects), 0.7 the catalog object by object and finding without a hand, 0.8 the displays
+and the sensor's record, 0.9 the walkthrough, and 1.0 a reproducible case file for every
+PURSUE video with the ideas bank closed and the software paper submitted to the Journal of
+Open Source Software. It carries the principles, what every release is held to, the working
+rules and the decisions. The plan of 2026-10-16, whose objectives the code and the method notes
+cite by number, is kept as [docs/history/roadmap-2026-10-16.md](docs/history/roadmap-2026-10-16.md).
+CHANGELOG.md is what happened.
 
 Working (0.2): the `run` driver and the case report; background layers; clip
 integrity; track verification; symbology (boresight, north pointer, corner

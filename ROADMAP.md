@@ -1,6 +1,6 @@
 # Roadmap to 1.0
 
-**A draft, proposed on 2026-11-17 at version 0.5.7, for the maintainer to confirm or change.** It replaces the plan
+Rewritten on 2026-11-17 at version 0.5.7 and taken by the maintainer that day ("Take it"). It replaces the plan
 written on 2026-10-16 at version 0.2.20, which is kept whole as
 [docs/history/roadmap-2026-10-16.md](docs/history/roadmap-2026-10-16.md). Where the code, the tests, the method notes
 or the ideas bank cite "ROADMAP 0.3 objective 2" or "decision 6", they mean that file; its decisions are carried
@@ -48,7 +48,7 @@ goes to the Journal of Open Source Software (JOSS), which accepts the repository
 4. **A theme a minor version did not hold.** 0.5.7 carries most of the old 0.6. Version numbers below name a state
    to reach, not a theme to work inside.
 5. **The ideas bank grows faster than it empties.** It holds 452 rows: 128 shipped, 62 measured, and 184 theme rows
-   still open. "Exhausted" needs a rule for closing rows (decision 13, proposed).
+   still open. "Exhausted" needs a rule for closing rows (decision 13).
 
 ## Principles
 
@@ -71,7 +71,7 @@ Kept from 2026-10-16, in the maintainer's words:
 - **Nothing invents detail.** A learned tracker may propose; it never judges.
 - **A graphics card is never required of a user.** The CPU is the reference.
 
-Proposed additions:
+Added on 2026-11-17:
 
 - **A paper pins a release.** Each paper cites one version, and every number in it is held by a test or a golden in
   that version, so a later release cannot move a submitted number unseen.
@@ -113,7 +113,11 @@ No aircraft is called a drifter. Of the six clouds called not drifting, two clim
 clouds, one needs 20 m/s through the air, and three beat on the old envelopes. The slowest aircraft here needs 53 m/s
 through the air, so nothing in the set flies between a cloud and that.
 
-**What the package still lacks for it**, in the order proposed:
+**The maintainer's word, 2026-11-17:** build items 1, 2, 4 and 5; measure item 3 first and bring him the choice; the
+release goes out when these are done and the graphics-card session then running has finished, which is enough card
+work for it.
+
+**What the package still lacks for it:**
 
 1. **Fixed cameras as an input of their own.** The lines of sight of several sites go into `mcdonald drift` today by
    a workaround kept outside the package: the sites are written as one aircraft that jumps between them on frames
@@ -243,7 +247,7 @@ readings, and a bird is named only from a beat that comes back; (7) the amplitud
 for the bird paper's reviews; (8) report-changers before additions; (11) the review of 2026-11-02. Decisions 9 and
 10 (how the catalog's case files are made; when the reference case files are made again) stay open and belong to 0.7.
 
-Proposed on 2026-11-17, each the maintainer's to confirm:
+Decided on 2026-11-17 with this rewrite ("Take it"):
 
 12. **The order above:** the drift paper's release first, then known answers at scale, then the catalog.
 13. **How the ideas bank closes.** Every report-changer is shipped or refused. Every theme row is marked once, by
