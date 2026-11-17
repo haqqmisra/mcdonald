@@ -76,6 +76,9 @@ def main():
     ap.add_argument("--avoid", metavar="TRACK.csv[,TRACK.csv...]",
                     help="other tracked things in the video, not measured here: the flicker stage's background apertures keep "
                          "clear of them (each of several birds measured on its own)")
+    ap.add_argument("--dense", action="store_true",
+                    help="in the layers step, also map where each layer of the background is and how its motion changes "
+                         "across the picture (`mcdonald layers --dense`); best with a graphics card")
     ap.add_argument("--black-hot", action="store_true",
                     help="the clip is a black-hot thermal display (hot is dark): the flicker stage looks for a light, which is "
                          "hot, in the darkest pixels")

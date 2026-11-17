@@ -2004,6 +2004,20 @@ def drive_measuring(td):
     p.slow["integrity"].setChecked(True)
     check("less than a minute" not in p.cost.text() and "pairs of frames" in p.cost.text() and "integrity" in p.cost.text(),
           "what the two slow stages will take is said before they start", repr(p.cost.text()[:80]))
+    check(not p.dense.isChecked() and p.dense.isEnabled() and "--dense" in p.dense.toolTip() and p.layers_asked() == {}
+          and "map" not in p.cost.text(),
+          "under layers, the map of the background's layers is offered, not ticked (Jacob, 2026-11-16: an option under Advanced, "
+          "off by default), its command-line flag under the pointer")
+    p.dense.setChecked(True)
+    check(p.layers_asked() == {"dense": True} and "map of the background's layers" in p.cost.text(),
+          "ticked, the layers step is asked for the map, and what it adds to the time is said", repr(p.cost.text()[-120:]))
+    p.slow["layers"].setChecked(False)
+    check(not p.dense.isEnabled() and p.layers_asked() == {} and "map" not in p.cost.text(),
+          "with layers unticked, the map cannot be asked for: the box is greyed out and nothing of it is passed on")
+    p.slow["layers"].setChecked(True)
+    p.dense.setChecked(False)
+    check("--dense" in " ".join(out.split()) and "map where each layer" in " ".join(out.split()),
+          "and `mcdonald run --help` has the same option, --dense, for the command line")
 
     for n in (2, 5):
         w.ms.add("object", n, *truth.truth(n))

@@ -106,6 +106,8 @@ def cost_text(n0, n1, chosen):
     L = []
     if "layers" in chosen:
         L.append(f"layers: {pairs} pairs of frames at about a second each, so about {_about(pairs * 1.7)}")
+    if "dense" in chosen:
+        L.append("the map of the background's layers: under a minute more with a graphics card, several minutes without one")
     if "integrity" in chosen:
         L.append(f"integrity: longer still, about {_about(pairs * 2.6 + 90)}")
     rest = (n1 - n0 + 1) * 0.4                      # groups and flicker, about 0.4 s a frame between them (PR135)
@@ -181,6 +183,8 @@ class MeasurePanel(QtWidgets.QFrame):
             self.slow[name].setChecked(name not in OFF_AT_FIRST)
             self.slow[name].toggled.connect(self._say_cost)
             sl.addWidget(self.slow[name])
+            if name == "layers":                      # the dense field (A14), offered under layers and off unless ticked
+                sl.addWidget(self._dense_box())
         self.cost = muted()
         sl.addWidget(self.cost)
         lay.addWidget(slow)
@@ -365,6 +369,28 @@ class MeasurePanel(QtWidgets.QFrame):
                               f"it), and come back. Everything is saved in {Path(w.out).parent.resolve()}.")
         self._say_cost()
 
+    def _dense_box(self):
+        """The layers step's own option (Jacob, 2026-11-16: "an option under Advanced", off by default): the background's
+        layers mapped, `mcdonald layers --dense`. Indented under the layers check, and only to be ticked while it is."""
+        box = QtWidgets.QWidget()
+        row = QtWidgets.QHBoxLayout(box)
+        row.setContentsMargins(24, 0, 0, 0)
+        self.dense = QtWidgets.QCheckBox("Also map where each layer of the background is, and how its motion changes across the picture")
+        self.dense.setToolTip("the background matched in squares 128 pixels wide, every 16 pixels, on 24 pairs of frames: where "
+                              "each part of the background that moves on its own lies. Best with a graphics card "
+                              "(command line: --dense)")
+        self.dense.setChecked(False)
+        self.dense.setEnabled(self.slow["layers"].isChecked())
+        self.slow["layers"].toggled.connect(self.dense.setEnabled)
+        self.dense.toggled.connect(self._say_cost)
+        row.addWidget(self.dense)
+        return box
+
+    def layers_asked(self):
+        """What the layers step is asked for beyond itself, as run_case's keywords: the map of the layers where it is
+        ticked and layers is too."""
+        return {"dense": True} if self.dense.isChecked() and self.slow["layers"].isChecked() else {}
+
     def frames(self):
         """(first, last) of what will be measured: round the track, or everything open."""
         w = self.window_
@@ -373,7 +399,8 @@ class MeasurePanel(QtWidgets.QFrame):
     def _say_cost(self, *_):
         if not hasattr(self, "cost"):                 # a radio button toggled while the panel is still being built
             return
-        self.cost.setText(cost_text(*self.frames(), [n for n, b in self.slow.items() if b.isChecked()] + ["groups", "flicker"]))
+        self.cost.setText(cost_text(*self.frames(), [n for n, b in self.slow.items() if b.isChecked()] + ["groups", "flicker"]
+                                    + (["dense"] if self.layers_asked() else [])))
 
     def known(self):
         """The form as run_case's keywords; an empty field is a thing not known. Raises
@@ -425,6 +452,7 @@ class MeasurePanel(QtWidgets.QFrame):
         if not self.avoid.isHidden() and self.avoid.isChecked() and self.others():    # shown, even folded away
             kw.update(avoid=",".join(str(p) for p in self.others()))
         skip = [n for n, b in self.slow.items() if not b.isChecked()]
+        kw.update(self.layers_asked())
         a, b = self.frames()
         clip = w.clip
         if (a, b) != (clip.n0, clip.n1):              # the same frames on disk, fewer of them: nothing is extracted

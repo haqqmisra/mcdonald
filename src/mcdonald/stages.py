@@ -1255,7 +1255,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
              own_ship=None, line_of_sight=None, aperture=None, beat_rule=None, avoid=None, procs=None, black_hot=False, height=None, horizon=None,
              visibility=None, haze_reference=None, band=None, pupil=None, focus_at=None, ground_scale=None, lens_k1=None, pixel_aspect=None,
              lens_k2=None, verbose=False, clip=None, say=print, progress=None, stop=None, sheet=None, masks=None,
-             flicker_of=None, siblings=None, segment=None, started=None, no_phone=False):
+             flicker_of=None, siblings=None, segment=None, started=None, no_phone=False, dense=False):
     """One clip through every stage, into one Case. Returns (case, clip, files written).
 
     `segment` is (first, last) of the frames the person chose to open, where the clip measured
@@ -1425,7 +1425,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                               lens_k2=lens_k2, pixel_aspect=pixel_aspect,            # as given, with where it was read: the Reproduce line carries it (2026-11-02)
                               avoid=avoid if isinstance(avoid, str) else None,
                               only=",".join(only) if only else None, skip=",".join(skip) if skip else None,
-                              i_looked=i_looked is True, no_phone=bool(no_phone), **given))
+                              i_looked=i_looked is True, no_phone=bool(no_phone), dense=bool(dense), **given))
 
     masks = masks if masks is not None else vf.static_masks(clip, progress=at("ingest"))
     rows = vf.parse_rows(mask_rows)
@@ -1542,7 +1542,8 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
             from . import layers
             if trk:
                 f = layers.measure(clip, masks, rows, trk, names=dict(p.split("=") for p in names.split(",")) if names else None,
-                                   dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop, scene=True)
+                                   dark_below=dark_below, out=prefix, procs=procs, say=say, progress=at("layers"), stop=stop, scene=True,
+                                   dense=layers.PAIRS_DENSE if dense else 0)
                 say("  " + "\n  ".join(layers.said(f.fields)))
             else:
                 tell("layers", "Layers glance")
@@ -1551,7 +1552,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                     ", ".join(f"{k} {v:.0f} px/s on screen" for k, v in f.fields["screen_px_per_s"].items())
                     + " (one frame pair; with a track, the object is measured against each layer)")
             f.into(case, command=f"mcdonald layers {shlex.quote(video_arg)}" + _flags(track=track) + window
-                   + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below))
+                   + _flags(mask_rows=mask_rows, names=names, dark_below=dark_below, dense=bool(dense and trk)))
             files += f.files
         except Exception as e:
             failed("layers", e)
