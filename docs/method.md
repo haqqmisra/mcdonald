@@ -8752,7 +8752,10 @@ the route from the ranges, for which planting is not built.
    farthest of them. On the lanterns' 14 winds that distance is 4.55-6.21 m/s for every one of the 14, and the weakest
    wind blows at 4.53: a body drifting exactly with any one of the winds given cannot pass, while the lanterns, which
    sit between the winds (1.4-3.6 m/s from each), do. Where the winds disagree by more than the weakest of them blows,
-   T2 can pass only a body that moves near the middle of them.
+   T2 can pass only a body that moves near the middle of them. The rule is left as it is. Asked wind by wind instead
+   (drifting needs less than holding still at each counted wind), on section 53's 239 runs at v0.5.7 it would pass
+   one more cloud of the five it holds back, and eight more of the 40 mismatched pairs, which are the false low
+   points the rule was built against (21 pass now).
 2. *The errors a plant's rays carry.* The real rays' own misses about the fitted path, in the fit's measure (azimuth
    times the cosine of the depression, and depression), each kept at its own reading, so that a poorer camera or a
    poorer stretch stays where it was; a reading's pair of misses takes one sign, drawn afresh for every plant; and the
@@ -8771,7 +8774,8 @@ the route from the ranges, for which planting is not built.
    resamples is itself one of the fit's gates (a fit needs 20 resamples kept, and 9 readings keep 69 of 2,000 but 14
    of 400), so a plant fitted with fewer would not be judged as the case was. On the lanterns fewer would have
    given the same table: with 400 or 200 resamples none of 576 plants came out differently, the tolerance moving by
-   at most 0.09 and 0.17 m/s.
+   at most 0.09 and 0.17 m/s; nor did any of 288 on a cloud at the edge of its own tolerance (it needs 4.5-4.6 m/s
+   of 5.0).
 5. *The check* (`case_again`). The case's own rays are planted again as they are, misses unchanged and the fit seeded
    as the stage seeds the case's; they must come out as the case did: the same outcome, and the airspeeds needed to
    within 0.05 m/s (`AGAIN`). A mismatch is printed as a warning that the plants are not to be trusted. The allowance
