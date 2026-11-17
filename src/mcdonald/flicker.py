@@ -2277,31 +2277,117 @@ HOLDS_SAID = {"runs": "in runs", "random": "at random", "uneven": "more evenly t
 
 
 def said_pictures(pic):
-    """The stage's line for a video whose frames repeat (`pictures`): in a cadence, the pictures a second and the band's
-    top they set -- over most of the track, where a burst of holds breaks it (`cadence_blocks`); otherwise how they
-    fall, and that the band's top is the frame rate's.
+    """The stage's line for a video whose frames repeat (`pictures`): in a cadence, the pictures a second and the band a
+    beat is listened for in under them -- over most of the track, where a burst of holds breaks it (`cadence_blocks`);
+    otherwise how they fall, and that the band is the frame rate's.
 
     Outside a cadence it does not say the pictures were held (IDEAS.md N7, 2026-11-13). `pictures` compares whole
     frames, and an encoder that copies a still sky makes most of a frame the same as the one before while the object's
     own picture is new on every frame: 70 % of a Galileo Dalek clip's frames read so, where the object steps 1.4 px a
     frame and never stands still. Until then the line said "the video holds pictures in runs (70% of frames repeat the
     one before) ...: they are missing samples", which is true of a stalled picture and false of that clip. It says
-    what was measured, and the two things that make it."""
+    what was measured, and the two things that make it.
+
+    In a cadence it does not say them held either (IDEAS.md N18, 2026-11-17). Until then the line said "the video
+    holds pictures in a cadence ..., so it carries 12.1 pictures a second": true of a source that delivers that many
+    (PR34, PR055's sphere), and false of a camera that delivers 60 whose encoder stores one frame in five whole and
+    copies a still scene into the four between (98 of 494 Galileo ring-camera clips; method section 53). The word is
+    the same and the stage cannot tell which made it (section 35, "what it cannot tell"): the line says what was
+    measured, the band it sets, and both makers (`listened_why`)."""
+    b = listened_in(dict(pictures=pic, top_hz=pic.get("top_hz")))
     if pic.get("cadence"):
         pq = pic.get("every")
-        per = f", {pq[0]} of every {pq[1]}" if pq else ""
         bl = pic.get("blocks") or {}
         if bl.get("cadence"):                             # a cadence by most of its blocks: broken in the rest
-            return (f"the video holds pictures in a cadence over most of the track: in {bl['cadence']} of its {bl['of']} "
-                    f"stretches of about {CADENCE_BLOCK} frames, and broken in the rest. {pic['held']:.0%} of frames repeat the "
-                    f"one before. It carries {pic['rate']:.1f} pictures a second, so a beat is heard only up to "
-                    f"{pic['top_hz']:.1f} Hz")
-        return (f"the video holds pictures in a cadence ({pic['held']:.0%} of frames repeat the one before{per}), so it "
-                f"carries {pic['rate']:.1f} pictures a second, and a beat is heard only up to {pic['top_hz']:.1f} Hz")
+            how = (f"in a cadence over most of the track: in {bl['cadence']} of its {bl['of']} stretches of about "
+                   f"{CADENCE_BLOCK} frames, and broken in the rest. The")
+        else:
+            how = f"in a cadence{f' ({pq[0]} of every {pq[1]})' if pq else ''}. The"
+        grid = f", not up to the {b['grid']:.1f} Hz the frame rate could carry" if b and b.get("grid") else ""
+        return (f"{pic['held']:.0%} of frames are nearly the same as the one before, {how} picture is new only "
+                f"{pic['rate']:.1f} times a second, so a beat is listened for between {LOW:g} and {pic['top_hz']:.1f} Hz only"
+                f"{grid}. {MAKERS} The stage cannot tell which")
     return (f"{pic['held']:.0%} of frames are nearly the same as the one before, {HOLDS_SAID.get(pic.get('holds'), 'unevenly')}, "
             "not in a cadence. A held picture does that. So does compression that copies a still scene from frame to frame, "
-            "while the object's own picture is new. Either way the video's clock is its frame rate, and a beat is heard up to "
-            f"{pic['top_hz']:.1f} Hz")
+            "while the object's own picture is new. Either way the video's clock is its frame rate, and a beat is listened "
+            f"for between {LOW:g} and {pic['top_hz']:.1f} Hz")
+
+
+# What makes a cadence of frames nearly the same as the one before, in words a person can follow: said wherever the
+# band's top is under the frame rate's for one (`said_pictures`, `listened_why`). Right for both, since the word cannot
+# tell them apart (method section 35, "what it cannot tell")
+MAKERS = ("A source that delivers pictures at that rate does this. So does compression that copies a still scene from "
+          "frame to frame, and then the object's own picture may still be new on every frame.")
+
+
+def listened_in(fields):
+    """The band a beat was listened for in, as a flicker envelope's own fields record it, for the words that say it
+    (`listened_said`, `drift.test_beat`, the report's beat row; Jacob's decision of 2026-11-17: "say the band in words"):
+    dict(lo, top, lowered, grid, rate, held, every, blocks), the frequencies in Hz. `top` is the recorded `top_hz`.
+    `lo` is LOW, the band's lower edge in every version that has written an envelope (1.5 Hz since the stage's first
+    commit, 2026-09-23; were it ever changed it would have to be recorded beside `top_hz`). `lowered`: the frames were
+    read as a cadence (`pictures`), so the top is TOP of the picture rate's Nyquist frequency and not of the frame
+    rate's. `grid` is then the top the frame rate would have given: top / (1 - a), `a` the slope the picture rate was
+    read from (the whole word's, or its blocks' median: `cadence`), None where the fields record no slope. Where the
+    band is not lowered `grid` is `top`. `rate`, `held`, `every` and `blocks` (how many of how many, for a cadence by
+    most of its blocks) are `pictures`' own.
+
+    None where the fields do not record the band: no `top_hz` (the stage ended before it looked for a beat, or a
+    cut-down envelope: three of `drift`'s four known answers), or no `pictures.cadence` (an envelope from before
+    2026-10-29, whose top came down for any video with a tenth of its frames held and which does not say on what
+    word). Whoever asks then says what it said before: a band is never guessed."""
+    pic, top = fields.get("pictures"), fields.get("top_hz")
+    if top is None or not isinstance(pic, dict) or not isinstance(pic.get("cadence"), bool):
+        return None
+    out = dict(lo=float(LOW), top=float(top), lowered=False, grid=float(top), rate=pic.get("rate"), held=pic.get("held"),
+               every=None, blocks=None)
+    if pic["cadence"]:
+        bl = pic.get("blocks") or {}
+        a = bl.get("slope") if bl.get("cadence") else pic.get("slope")
+        out.update(lowered=True, grid=float(top / (1 - a)) if a is not None and 0 <= a < 1 else None,
+                   every=pic.get("every"), blocks=(bl["cadence"], bl["of"]) if bl.get("cadence") else None)
+    return out
+
+
+def listened_why(b, who="the stage", plain=False):
+    """Why a beat was not listened for up to the frame rate's top, for a band `listened_in` read as lowered: sentences a
+    person can follow, each ending in its full stop ("" for a band that is not lowered, or None). What was measured
+    (the share of frames nearly the same as the one before, in a steady pattern, and the pictures a second that
+    leaves), the two things that make it (MAKERS), that `who` cannot tell which, and what follows: a faster beat may
+    have gone unheard. `plain`: the report's words (a rhythm, times a second) in place of the stage's (a beat, Hz)."""
+    if not b or not b["lowered"]:
+        return ""
+    beat, heard, unit = ("rhythm", "looked for", " times a second") if plain else ("beat", "listened for", " Hz")
+    upto = ((f", up to {b['grid']:.1f} times a second at this frame rate," if plain else
+             f", up to the {b['grid']:.1f} Hz this frame rate could carry,") if b.get("grid") else "")
+    how = ("in a steady pattern" + (f" over most of the track ({b['blocks'][0]} of its {b['blocks'][1]} stretches of about "
+                                    f"{CADENCE_BLOCK} frames)" if b.get("blocks") else
+                                    f" ({b['every'][0]} of every {b['every'][1]})" if b.get("every") else ""))
+    seen = (f"{b['held']:.0%} of the frames nearly repeat the one before {how}, so the picture is new only "
+            f"{b['rate']:.1f} times a second. " if b.get("held") is not None and b.get("rate") else
+            f"Its frames nearly repeat the one before {how}. ")
+    return (f"Faster {beat}s{upto} were not {heard}. {seen}{MAKERS} {who[0].upper()}{who[1:]} cannot tell which, so a "
+            f"{beat} faster than {b['top']:.1f}{unit} may have gone {'unseen' if plain else 'unheard'}.")
+
+
+def listened_said(fields, who="the stage"):
+    """The clause a "no beat" ends with: the band a beat was listened for in, and, where its top is under the frame
+    rate's, why (`listened_why`). No full stop at its end, as a finding has none. "" where the fields do not record the
+    band (`listened_in`)."""
+    b = listened_in(fields)
+    if b is None:
+        return ""
+    said = f"a beat was listened for between {b['lo']:g} and {b['top']:.1f} Hz"
+    return said if not b["lowered"] else f"{said} only. {listened_why(b, who)}"[:-1]
+
+
+def with_band(finding, fields, who="the stage"):
+    """A "no beat" finding with the band it covers (`listened_said`), unless it says it already or the fields do not
+    record one: `_judge`'s own, and the report's for a case file measured before the finding said its band."""
+    said = listened_said(fields, who)
+    if not finding or not said or "a beat was listened for between" in finding:
+        return finding
+    return f"{finding}; {said}"
 
 
 def common(raw, seg, members, ns, fps, lines=()):
@@ -4637,10 +4723,12 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
                                  f"seismologist's line test: " + "; ".join(disagreements_seis(gated_s, seis)) + ": no beat of its own")
         elif over and per[over[0]]["above_top"]:
             p = per[over[0]]
-            held = (f"it holds pictures in a cadence ({pic['held']:.0%} of frames repeat the one before) and carries "
-                    f"{pic['rate']:.1f} a second, so " if pic.get("cadence") else "")
-            beats, why = False, (f"its strongest, at {p['hz']:.2f} Hz, is above the highest frequency this video can carry as "
-                                 f"a beat: {held}a beat is heard only up to {top:.1f} Hz ({TOP:g} of the Nyquist frequency), "
+            # why the top is where it is, for a cadence, is said with the band at the finding's end (`with_band`): until
+            # 2026-11-17 it was said here, as "it holds pictures in a cadence (...) and carries N a second" (IDEAS.md N18)
+            head = ("is above the highest frequency a beat is listened for at in this video" if pic.get("cadence") else
+                    "is above the highest frequency this video can carry as a beat")
+            beats, why = False, (f"its strongest, at {p['hz']:.2f} Hz, {head}: a beat is heard only up to {top:.1f} Hz "
+                                 f"({TOP:g} of the Nyquist frequency{' of its pictures' if pic.get('cadence') else ''}), "
                                  f"and nothing below that beats: no beat of its own in {fields['frames']} frames")
         elif over and per[over[0]]["edge"]:
             p = per[over[0]]
@@ -4792,6 +4880,8 @@ def _judge(raw, ns, fps, lines, fields, first, out, say, positions, stamps, thum
                      f"or none) on frames {where}: left out of the spectra -- filled across from the frames either side, or "
                      "trimmed at the ends -- and no window holding one is used. What a crossing does to the contrast is "
                      "the background's, not the object's.")
+    if beats is False:                                     # every "no beat" says the band it covers, and why where it is cut
+        why = with_band(why, fields)
     fields.update(beats=beats, finding=why, resolution_hz=res)
     notes.append("A beat that is the object's own says it varies; it does not say it is a wingbeat. A tumbling or "
                  "rotating body beats too, and so does a light that blinks.")
