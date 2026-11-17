@@ -1275,7 +1275,8 @@ def recovered_batch(truth, unit, keep=None, seen=None, round_=None, on=None):
       listed   -- a row of Find's list in some window is on its path (`on_path`), among every row the run kept;
       rank     -- the best place such a row had, with the rows above it that are planted objects set aside (where it
                   would stand with no other object planted: a draw puts a few in the frame at once);
-      kept     -- that place is within `keep`, the rows a window keeps (the run's own, where not given);
+      kept     -- that place is within `keep`, the rows a window keeps (the batch's own KEEP, the catalog's, where not
+                  given: a planted run keeps more, so that this can be asked);
       object   -- such a row passes the batch's rule (`batch.refusals`: seen on `seen` frames or more, background all
                   round it, not a scrolling tape): the batch makes an object of it;
       why      -- where it is no object: "not listed", "past the rows kept", or the rule's reasons for its longest row;
@@ -1287,7 +1288,7 @@ def recovered_batch(truth, unit, keep=None, seen=None, round_=None, on=None):
     Returns dict(plants, others -- the objects the rule makes of the rows on no planted path, each with its rows' places
     taken with the planted rows set aside --, keep, seen, round)."""
     from . import batch as B
-    keep = int(keep or unit.get("keep") or B.KEEP)
+    keep = int(keep or B.KEEP)
     seen = B.SEEN if seen is None else seen
     round_ = B.ROUND if round_ is None else round_
     on = on_rows(truth, unit) if on is None else on

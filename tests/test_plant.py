@@ -485,6 +485,9 @@ def test_what_the_batch_takes():
           "one with no row is not listed")
     check(len(res["others"]) == 1 and res["others"][0]["first"] == 1 and res["others"][0]["last"] == 60,
           "the row on no planted path is the one other object the rule makes", str([(o["first"], o["last"]) for o in res["others"]]))
+    from mcdonald import batch
+    check(plant.recovered_batch(truth, unit, on=on)["keep"] == batch.KEEP,
+          "asked at no setting, the rule is the batch's own: its 30 rows a window, not the 400 the planted run kept")
     at = lambda **kw: {r["id"]: r for r in plant.recovered_batch(truth, unit, on=on, **kw)["plants"]}
     check(at(keep=2)[3]["kept"] and at(keep=1)[3]["why"] == "past the rows kept" and not at(keep=1)[3]["object"],
           "with a window keeping two rows it is kept, with one it is past them")
