@@ -8148,6 +8148,184 @@ object on merlin. So "thousands a video" is about 13 CPU-seconds a planted point
 the 144 videos is of the order of 1,000 CPU-hours, a day or two of arthur, and Find on a graphics card (IDEAS.md G2)
 would save at most two fifths of it.
 
+### 62.1 The plants through `mcdonald batch`: the completeness table per video (ROADMAP 0.6, objective 4; added 2026-11-16)
+
+**What it is.** The planted videos go through the batch as any video does, so that what the table says is what the
+batch does on the catalog, rule for rule: Find in windows of 400 frames that overlap by 30; the batch's rule for an
+object (section 54: seen on 40 frames or more in one window, background all round on 0.3 of them or more, not a
+scrolling tape); the same object in two windows made one; each object followed from Find's own seeds. Three of the
+batch's options are set for the plants, as section 54 provided for them: `--keep 400` (each window keeps 400 of Find's
+rows, so that an object pushed down the list by the others planted beside it is still there to count: its place is
+then taken with the other planted rows set aside, and held to the 30 the catalog keeps), `--only track,report` (each
+object followed and reported, nothing more measured: this is a completeness of the search and the link) and `--most
+40` (a stretch with fifty planted objects can have more lasting spots than the catalog's twelve). The controls -- each
+stretch encoded again with nothing planted, and the stretch of the video itself -- go through a second batch with
+`--most 0` (Find alone). `mcdonald plant --table PLANTED --control CONTROLS` then holds each planted video's folder
+against its truth table (`plant.completeness`, `plant.recovered_batch`) and writes `plants.md`, `.tsv` (one row a
+planted object) and `.json` into the planted batch's folder.
+
+**What a planted object is held to**, each level a part of the one before:
+
+- *on Find's list*: a row of some window's list lies on its path (the pilot's rule, `on_path`), among all 400 kept;
+- *in the rows a window keeps*: that row's place, the rows above it that are other planted objects set aside, is
+  among the first 30;
+- *an object of the batch's rule*: such a row passes the rule (`batch.refusals`); on the catalog it would be a row of
+  the table, measured or listed past the cap;
+- *followed over half its frames*: the object's link, as the batch ran it, lies within 6 px of the planted object on
+  half its frames or more (the pilot's rule). This is the headline, as the pilot's fork F4 chose.
+
+Where a planted object is no object, the table says why: not listed, past the rows kept, or the rule's reasons for its
+longest row ("brief", "edge"). The rule's two numbers are parameters of `batch.refusals` and `batch.long_lived` for this
+alone; the batch runs with SEEN and ROUND as before. The control's objects by the same rule are the rows the batch
+would give the stretch with nothing in it to find; a planted path on one of them is chance; an object of the planted
+video on no planted path is held against them.
+
+**The run** (2026-11-16, the code of main 133deba; arthur, 4 CPUs a video, no graphics card). Eight PURSUE videos
+chosen to span the corpus (the pilot's five, PR051's long sky, PR088 at a quarter of a megabit a second, PR141 at
+1472 x 828), one stretch of 1000 frames each (PR144: its 837), ten seeds each: 80 planted videos, 79,000 frames, 3,856
+planted objects. Each draw is 28 units (24 on PR144) of the pilot's mix -- 11 constant points, 3 flocks, 3 formations,
+3 birds, 2 steady beats, 2 bodies, one each held still, strobing, with the scene and twinkling -- up to 120 frames
+each, 4 in the frame at once, the grids of section 62 (contrast 10-160 grey levels, sigma 1-4 px, 0.3-30 px a frame).
+
+| video (frames) | planted | on Find's list | an object of the rule | followed | plain bright points that move: followed | the control's objects (of them the video's own) |
+|---|---|---|---|---|---|---|
+| PR051 (1-1000) | 481 | 24 % | 10 % | 8 % (6-11) | 6/20 | 0 |
+| PR088 (1-1000) | 480 | 55 % | 28 % | 25 % (22-29) | 18/25 | 0 |
+| PR113 (301-1300) | 488 | 31 % | 16 % | 15 % (12-18) | 21/36 | 0 |
+| PR135 (661-1700) | 479 | 50 % | 27 % | 26 % (22-30) | 21/25 | 7 (6) |
+| PR141 (1-1000) | 486 | 37 % | 16 % | 15 % (12-18) | 15/29 | 6 (4) |
+| PR144 (1-837) | 452 | 49 % | 26 % | 24 % (20-28) | 34/48 | 5 (5) |
+| PR149 (1-1000) | 492 | 38 % | 22 % | 21 % (18-25) | 24/35 | 5 (4) |
+| PR44 (2978-4000) | 498 | 43 % | 23 % | 21 % (18-25) | 31/37 | 2 (2) |
+| all | 3,856 | 41 % (39-42) | 21 % (19-22) | 19 % (18-21) | 170/255 = 67 % (61-72) | 25 in 7,900 frames (21) |
+
+"Plain bright points that move" are the constant points written at 30 grey levels or more, moving half a pixel a frame
+or more against the scene, on screen 80 frames or more: what a search should find. By kind over all eight, followed:
+constant points 30 % (27-33), bodies 31 %, birds 28 %, strobes 21 %, steady beats 19 %, members of flocks 15 % and of
+formations 16 % (a group has a member followed in 85 of 240 flocks and 81 of 240 formations), held still 2 %, with the
+scene and twinkling 0 of 70 each. The constant points by contrast as written: 2 % under 15 grey levels, 13 % at
+15-30, 31 % at 30-60, 58 % at 60-120, 52 % over 120. Those of 30 grey levels or more, by speed against the scene: 33 %
+under 0.5 px a frame, 52 % at 0.5-2, 79 % at 2-5, 69 % at 5-20, and 13 % over 20, where an object crosses the frame
+in fewer than 40 frames. Find lists constant points about as the pilot found (per video 26-67 %, the pilot's five
+within 8 points of their pilot values).
+
+**Where the batch loses them.** Of the 3,856: 2,281 (59 %) are on no row of Find's list in any window, even among
+400; 90 are listed only past the 30 rows kept; 687 are listed and refused by the rule, 626 of them as seen on fewer
+than 40 frames and 61 as edges; 798 are objects of the rule, of which 747 are followed and 51 are not. No object on a
+planted path was past the run's cap. The brief ones are seen on 19 frames at the median, of the 41 their objects spent
+on screen: Find sees a slow or faint object on some frames and not on others, and the rule counts the frames it was
+seen on. Joining a planted object's rows within a window would not help: the frames of all of an object's kept rows in
+one window together reach 40 for 3 more objects in 3,856. The loss is Find's own (section 3), then the rule's 40 frames.
+
+**Where nothing was planted.** The controls give 25 objects in 7,900 frames (3.2 a thousand frames; 20 fair or
+strong), and the videos' own stretches 26, of which 22 are objects of the controls too (21 of the controls' 25 are the
+videos'). So the control's objects are the scenes' own lasting spots, kept through the second encode (PR135's flock,
+PR149's sea, the moving camera of PR144), not rows the encode made: what the second encode alone does to the batch's
+objects is 4 of the videos' 26 one way and 4 of the controls' 25 the other. Of the 3,856 planted paths, 14 lie on a row of a control's list by chance and 1 on an object
+of the rule there. In the planted videos the rule makes 283 objects on no planted path: 185 are objects of the control
+too; of the 98 others, 36 lie 12-30 px from a member of a planted flock or formation (a group listed as one spot between
+its members, the fold of PL2) and 62 are near no planted object (0.8 a thousand frames).
+
+**The rule at other settings** (measured, not changed; `batch.refusals` with its numbers given, over the same rows;
+the catalog's rows from its own Find files of 2026-11-13/14, where today's rule gives its 1,715 to the object):
+
+| the rule | planted objects taken (of 3,856) | plain bright points that move (of 255) | objects of the controls (7,900 frames) | rows of the catalog (144 videos, 881,996 frames) |
+|---|---|---|---|---|
+| seen on 10 frames | 1,254 (33 %) | 193 (76 %) | 43 | 3,854 |
+| seen on 20 frames | 1,067 (28 %) | 183 (72 %) | 34 | 2,786 |
+| seen on 30 frames | 888 (23 %) | 180 (71 %) | 27 | 2,181 |
+| **seen on 40 frames (the batch's)** | **798 (21 %)** | **174 (68 %)** | **25** | **1,715** |
+| seen on 60 frames | 587 (15 %) | 152 (60 %) | 16 | 1,168 |
+| 40 frames from first to last sight | 910 (24 %) | 184 (72 %) | 27 | 2,386 |
+| 60 frames from first to last sight | 793 (21 %) | 179 (70 %) | 21 | 1,705 |
+| seen on 40, 12 rows a window kept | 795 (21 %) | 174 (68 %) | 24 | 1,572 |
+| seen on 40, 400 rows a window kept | 799 (21 %) | 174 (68 %) | 27 | - |
+| seen on 40, no background asked round it | 859 (22 %) | 176 (69 %) | 34 | 3,084 |
+| seen on 40, background round half of it | 717 (19 %) | 160 (63 %) | 20 | 1,239 |
+
+The rows a window keeps do not matter to the plants (12 to 400 take the same objects within 4). The 40 frames do:
+halving them takes a third more planted objects, most of them faint points and members of groups (the plain bright
+points that move gain 9 of 255), and puts 1,071 more rows in the catalog's table. The controls cannot set the number:
+their objects are the videos' own, so a lower rule's extra objects in them are not false alarms by any test made here.
+The maintainer kept the 40 frames on 2026-11-17 (IDEAS.md PL6).
+
+**What `--card` changes here: nothing.** No stage of `--only track,report` computes on the graphics card (the card's
+stages are `layers`, `integrity`, `flicker`'s camera shake and `tether`, section 52). The same two planted videos run in
+one job given the card (`--slurm --card 2`) gave Find's files and all 19 followed tracks byte for byte, every case
+`computed_on` none, and the same times within what neighbouring jobs move them (344 s against 336 s; 556 against 605);
+the job held the card ten minutes for nothing. The card has a part with `--only track,flicker,report` (section 62.2).
+
+**What it cost.** Planting: 60-214 s a 1000-frame video on 2 CPUs (5.2 CPU-hours for the 80; 2.7 GB at most at 1080p).
+The batch: a planted video 171-657 s on 4 CPUs at the median by video, Find 83-314 s of it and the links the rest (up
+to 40 objects; 2.3 GB at most); a control or a stretch of the video itself 77-368 s. In all about 51 CPU-hours as the
+jobs held them (6 planting, 40 the planted batch, 4 the controls), 1 h 40 min of wall time on 36-48 of arthur's CPUs:
+0.58 CPU-hours a planted 1000-frame video and 0.54 a stretch's two controls. One stretch of every PURSUE video with
+three seeds would be about 330 CPU-hours (7 hours on 48 CPUs), with ten about 910.
+
+**Found on the way: the frames read back.** `plant` reads back the frames each object is on, to say how much of its
+contrast the second encode left (`contrast_after`) and to draw the truth table's picture. It asked ffmpeg for all of
+them in one `select`, which ffmpeg refuses past about 100 terms; nothing came back, without a word. A 1000-frame
+stretch asks for about 300: 2,892 of the run's 3,856 objects had no `contrast_after` and their pictures were blank. The
+frames are now read 64 at a time (`plant.SELECT_MOST`, a test holds it); the 80 truth tables were read again with the
+fix (the 964 values that existed came out the same, the originals kept as `*_truth.orig.json`).
+
+### 62.2 The planted beats through the batch, and what the graphics card changes (ROADMAP 0.6, objective 4; added 2026-11-17)
+
+**What it is.** The 80 planted videos of section 62.1 again, through `mcdonald batch --keep 400 --most 40 --only
+track,flicker,report`: each object the batch makes is followed and `flicker` is measured on it, as the catalog's batch
+measures it; the controls and the videos' own stretches the same way (`--most 40`), for beats where nothing was
+planted. Find's files were taken from 62.1's run (a unit with no state takes a window whose file is there as searched;
+Find depends on the video, `--window`, `--overlap` and `--keep`, not on the stages after it), so the objects are 62.1's
+to the row: 798 objects of the rule, 747 followed. The maintainer kept the rule's 40 frames on 2026-11-17 (IDEAS.md
+PL6). The run is on the CPU, the reference; the card is measured apart, below.
+
+**How a beat is held** (`plant.beat_of`, `beat_right`, `beat_tables`). For each planted object the batch followed over
+half its frames, `flicker`'s word on the object whose link lies on it most: a beat called (`beats` true: the object's
+own), none, or "could not tell" (`beats` none; counted in the cell, not as called). A planted beat -- steady, or
+wandering as a bird's -- is recovered where a line called lies within two resolutions of its frequency or of its
+double, or the line's double within two of it (the pilot's rule, section 62). A beat called on a constant object
+(points, bodies, the members of formations) is a false one; a strobe is counted apart. For a group the lines are its
+members' that beat.
+
+**What it found**, over all eight videos (`plants.md` of the run, the section "The beat"):
+
+| light planted | followed and measured | a beat called | could not tell | at its frequency |
+|---|---|---|---|---|
+| constant | 473 | 3 (0.6 %, at most 2 %) | 61 | - |
+| a steady beat | 30 | 18 (60 %, 42-75) | 8 | 18 (60 %, 42-75) |
+| a beat that wanders (birds and flocks) | 227 | 128 (56 %, 50-63) | 38 | 125 (55 %, 49-61) |
+| a strobe | 17 | 0 (0-18 %) | 4 | - |
+
+No twinkle was followed (they move with the scene, and Find does not list them). The beating ones are recovered at
+their frequency by depth: 37 % (27-49) at 0.15 of their brightness, 56 % (46-65) at 0.3, 74 % (63-82) at 0.6; by
+frequency: 62 % under 6 Hz, 66 % at 6-9 Hz, 42 % (33-52) at 9-12 Hz, where a 30-frame video has fewer than three and a
+half frames a cycle; by contrast as written: 39-48 % at 15-60 grey levels (and 2 of 2 under 15), 58-62 % above. By video, at their frequency:
+PR141 35 %, PR135 45 %, PR44 48 %, PR144 56 %, PR051 61 %, PR113 64 %, PR149 65 %, PR088 71 %; a false beat on a
+constant object 1 in 22 on PR051, 1 in 44 on PR113, 1 in 80 on PR135, none on the other five. The pilot, with `flicker`
+run by hand on followed tracks of 60 frames or more, had 50 % (44-56) of its planted beats at their frequency and 1 false
+beat in 369 constant points; through the batch, with its own links and every followed object measured, 56 % (50-62) and
+3 in 473.
+
+**Where nothing was planted.** `flicker` calls a beat on 4 of the controls' 27 measured objects (could not tell on 3)
+and on 4 of the 26 of the videos' own stretches, and all 4 of the controls' beating objects beat in the stretch itself
+too: PR135's flock (2) and two objects of PR44. So no beat here is made by the second encode; those beats are the
+videos' own (PR135's are the bird paper's flock).
+
+**What the card changes** (the two probe videos, PR135 seed 1 and PR44 seed 1, measured on the CPU and in one job given
+the card, `--slurm --card 2`). With these options the card takes only `flicker`'s camera-shake pass, which runs for an
+object that beats (the case says `computed_on` the card there, and nothing elsewhere). On the 16 objects of 32 that
+beat, `flicker` took 6-30 s on the card against 16-79 s on 4 CPUs; on the 16 that did not, the same time. A unit took
+407 s against 504 (PR135) and 372 s against 566 (PR44). Every track is the same byte for byte, every call the same,
+every beat's frequency and amplitude the same, every report's conclusion the same. What moved is in two readings beside
+the beat, the beat in the position (`position_beat`, section 59.1: 198 values) and the scene's shift (`scene_shift`: 112
+values), each by at most 6e-5 of itself: the card's transforms are not the CPU's (section 52). Over the whole run
+`flicker` was 10,233 s of the units' time, 6,292 s of it on the 203 objects that beat (29 s each at the median, 4.5 s on
+the others): on the card that part would take about a third as long, which is about a seventh of the run's time.
+
+**What it cost.** The 80 planted videos: 30.6 CPU-hours as the jobs held them (4 CPUs a video, 52-525 s a video at the
+median by video, 2.9 GB at most), one hour of wall time on 36-44 of arthur's CPUs; the controls and stretches 2.3. Find
+was not run again: in 62.1 it was 19.8 CPU-hours of these videos.
+
 ## 63. What the sensors' own backgrounds do: the corpus noise model, its tail, and a false discovery rate over the pass (ROADMAP 0.6, objective 6; S3, E24, D7; added 2026-11-15)
 
 **What it answers.** The flicker stage holds an object's beat against the four background apertures beside it, each

@@ -156,14 +156,16 @@ def cut(frames, window=WINDOW, overlap=OVERLAP):
     return out
 
 
-def refusals(p):
+def refusals(p, seen=SEEN, round_=ROUND):
     """Why a proposal of Find's is not an object of the batch: [] where it is one; else each rule it fails, of "brief"
     (seen on fewer than SEEN frames), "edge" (background all round it on less than ROUND of them: an edge or a line
-    more than a spot) and "tape" (one of a row of marks that slide together)."""
+    more than a spot) and "tape" (one of a row of marks that slide together). `seen` and `round_` are the rule's two
+    numbers, given otherwise only to ask what another setting would take (`plant.recovered_batch`); a batch runs with
+    SEEN and ROUND."""
     why = []
-    if p["seen_in"] < SEEN:
+    if p["seen_in"] < seen:
         why.append("brief")
-    if p["background_all_round"] < ROUND:
+    if p["background_all_round"] < round_:
         why.append("edge")
     if p["scrolling_tape"]:
         why.append("tape")
@@ -172,12 +174,13 @@ def refusals(p):
     return why
 
 
-def long_lived(windows):
+def long_lived(windows, seen=SEEN, round_=ROUND):
     """The proposals of a video's windows that are objects, seen longest first, and the rest with why not.
 
     `windows` is {window's name: [proposal as `Proposal.to_dict` gives it, with its `rank`]}. Returns (kept, refused):
     kept as [{tag, rank, dark, seen, a, b, t, strength, bg, score, size, marks, says}] -- the sweep's fields, and what
-    the batch needs to mark and order them -- and refused as [{tag, rank, why, seen, a, b, dark, size, t}]."""
+    the batch needs to mark and order them -- and refused as [{tag, rank, why, seen, a, b, dark, size, t}]. `seen` and
+    `round_` are `refusals`'."""
     kept, refused = [], []
     for tag in sorted(windows):
         for p in windows[tag]:
@@ -186,7 +189,7 @@ def long_lived(windows):
                        strength=p["strength"], bg=p["against_background_px_per_frame"], score=p.get("score", 0.0),
                        size=p.get("size_px"), marks={int(k): tuple(v) for k, v in (p.get("mark_at") or {}).items()},
                        says=p.get("says", ""))
-            why = refusals(p)
+            why = refusals(p, seen, round_)
             if why:
                 refused.append(dict(row, why=why))
             else:
@@ -1622,6 +1625,12 @@ def status_said(p, rows):
 # section 54), not guessed. They are one machine's: elsewhere they are wrong by the ratio of the machines.
 FIND_S = 0.2                   # s Find takes a frame at 8 CPUs: 0.11 to 0.22 measured, 720p and 1080p alike
 OBJECT_MIN = 3.0               # minutes to measure an object at 8 CPUs, every stage: 0.6 to 9.2 measured, 2.8 on average
+# Each stage's share of an object's time, every stage run: the catalog run of 2026-11-13/14 (786 objects at 4 CPUs,
+# 298,130 s over the stages). A unit asked for fewer stages (--only, --skip, --quick) is sized by the share it runs;
+# `ingest` runs whatever is asked. The plants at scale (--only track,report, 2026-11-16) took 12 to 25 s an object at
+# 4 CPUs, where every stage's OBJECT_MIN said 4.5 minutes, and were put in the 12-hour class for it.
+STAGE_SHARE = dict(layers=0.524, integrity=0.283, track=0.054, flicker=0.041, tether=0.038, verify=0.011, groups=0.011,
+                   kinematics=0.011, survey=0.008, camera=0.005, ingest=0.005, symbology=0.004, report=0.004, scale=0.0)
 UNIT_MIN = 5.0                 # the rest of a unit: the picture, the frames (150 a second), the index, the case file
 CPU_POWER = 0.6                # half the CPUs take 2 ** 0.6 = 1.5 times as long: 1.35 (an object) to 1.8 (Find) from 8 to 4
 # MB a unit's processes held at their most, each counted by its fair share (`_tree_rss`), fitted to the pilot's units at
@@ -1633,24 +1642,36 @@ MEM_STEP = 1500                                # MB: a class's memory is rounded
 TIME_CLASSES = (60, 240, 720, 2880)        # minutes: a unit goes in the first class its estimate fits twice over
 
 
-def resources(u, cpus=8, most=MOST):
+def stage_share(only=None, skip=None):
+    """The share of an object's time (STAGE_SHARE) that a unit measuring these stages spends: 1 for every stage."""
+    from .stages import asked_for
+    run = set(asked_for(only or None, skip or None)) | {"ingest"}
+    return sum(v for k, v in STAGE_SHARE.items() if k in run) / sum(STAGE_SHARE.values())
+
+
+def resources(u, cpus=8, most=MOST, share=1.0):
     """(megabytes, minutes) to ask a scheduler for, for one unit on `cpus` CPUs with `most` objects measured, from the
     constants above: the minutes it is expected to take, and MEM_ROOM times the memory its processes are expected to
     hold at their most. (A scheduler's own count of a job's memory reads higher, up to the job's limit: it counts the
-    frames the system keeps to hand, which it gives back when asked.)"""
+    frames the system keeps to hand, which it gives back when asked.) `share` is `stage_share`'s, for a unit that
+    measures only some of the stages."""
     mpx = (u.get("width") or 1920) * (u.get("height") or 1080) / 1e6
     n = (u["n1"] - u["n0"] + 1) if u.get("n0") else (u.get("frames") or 3000)
-    minutes = (UNIT_MIN + FIND_S * n / 60.0 + OBJECT_MIN * most) * (8.0 / max(1, cpus)) ** CPU_POWER
+    minutes = (UNIT_MIN + FIND_S * n / 60.0 + OBJECT_MIN * share * most) * (8.0 / max(1, cpus)) ** CPU_POWER
     return MEM_ROOM * (MEM_FIXED + MEM_PER_MPX * mpx + cpus * (MEM_CPU + MEM_CPU_PER_MPX * mpx)), minutes
 
 
-def classes(units, cpus=8, most=MOST):
+def _share_of(options):
+    return stage_share(options.get("only"), options.get("skip"))
+
+
+def classes(units, cpus=8, most=MOST, share=1.0):
     """The units in size classes, each to be one job array: [{minutes, mem_mb, units: [k, ...], work}]. A unit goes in
     the first time class that holds twice its estimate (a class's limit kills what runs past it, and a killed unit is
     only taken up again by the next submission), with the units whose memory, rounded up to MEM_STEP, is its own."""
     out = {}
     for u in units:
-        mem, minutes = resources(u, cpus, most)
+        mem, minutes = resources(u, cpus, most, share)
         limit = next((c for c in TIME_CLASSES if 2 * minutes <= c), TIME_CLASSES[-1])
         mem = int(math.ceil(mem / MEM_STEP) * MEM_STEP)
         c = out.setdefault((limit, mem), dict(minutes=limit, mem_mb=mem, units=[], work=0.0))
@@ -1701,14 +1722,14 @@ exec {run} --table
 """
 
 
-def card_job(todo, cpus=8, n=4, most=MOST):
+def card_job(todo, cpus=8, n=4, most=MOST, share=1.0):
     """The one job given the graphics card (`--card N`): {cpus, mem_mb, minutes, n} for a pool of `n` videos side by
     side, each with `cpus` CPUs. Its memory is the `n` largest videos' (`resources`) together, rounded up to MEM_STEP;
     its time twice the work on CPUs alone shared among the `n`, or the longest video's twice, at most the largest
     class (TIME_CLASSES). That is the CPUs' estimate, an upper bound with a card: eight parts of 1080p videos in a pool
     on the card (2026-11-14) took 1,933 s together where it says 30,451, most of the gap its twelve objects a video
     (they had none to three). A video still running when the job ends is taken up by the next submission."""
-    sized = sorted((resources(u, cpus, most) for u in todo), reverse=True)
+    sized = sorted((resources(u, cpus, most, share) for u in todo), reverse=True)
     n = max(1, min(int(n), len(todo) or 1))
     mem = int(math.ceil(sum(m for m, _ in sized[:n]) / MEM_STEP) * MEM_STEP)
     work = sum(t for _, t in sized)
@@ -1728,7 +1749,7 @@ def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_
     p = read_plan(out)
     todo = p["units"] if todo is None else todo
     if card:
-        j = card_job(todo, cpus, card, p["options"].get("most", MOST))
+        j = card_job(todo, cpus, card, p["options"].get("most", MOST), _share_of(p["options"]))
         line = ["sbatch", "--parsable", "-J", name, "-c", str(j["cpus"]), f"--mem={j['mem_mb']}M",
                 f"--time={j['minutes'] // 60:02d}:{j['minutes'] % 60:02d}:00", "--gres=gpu:1", "-o", str(out / "logs" / "%x_%j.out"),
                 *shlex.split(extra or ""), str(out / "batch.sbatch"), "--pool", str(j["n"])]
@@ -1737,8 +1758,8 @@ def slurm_lines(out, cpus=8, throttle=None, extra="", todo=None, name="mcdonald_
         table = ["sbatch", "--parsable", "-J", f"{name}_table", "-c", "1", "--mem=2000M", "--time=00:30:00",
                  "-o", str(out / "logs" / "%x_%j.out"), *shlex.split(extra or ""), str(out / "batch.sbatch")]
         return [line], table, [dict(minutes=j["minutes"], mem_mb=j["mem_mb"], units=[u["k"] for u in todo], card=j["n"], cpus=j["cpus"],
-                                    work=sum(resources(u, cpus, p["options"].get("most", MOST))[1] for u in todo))]
-    cs = classes(todo, cpus, p["options"].get("most", MOST))
+                                    work=sum(resources(u, cpus, p["options"].get("most", MOST), _share_of(p["options"]))[1] for u in todo))]
+    cs = classes(todo, cpus, p["options"].get("most", MOST), _share_of(p["options"]))
     work = sum(c["work"] for c in cs) or 1.0
     share = [max(1, min(len(c["units"]), int(round((throttle or 0) * c["work"] / work)) or 1)) for c in cs]
     while throttle and sum(share) > max(int(throttle), len(cs)):      # rounding up must not pass the most asked for
