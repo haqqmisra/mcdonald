@@ -8858,7 +8858,8 @@ standard deviation of the model's error on the difference (2.98 m/s), so the cli
 consistent with a body moving 3-10 m/s through the air across the heading. Among the drawn cases that pass with the
 measured motion 1.7-3.7 m/s beyond the nearest sample, as the clip's does (fixed after one station and before the
 rest): 1.06 % of true drifters, 2.14 % of bodies at 5 m/s, 2.83 % at 10 m/s, 0.56 % at 25 m/s and 0.15 % at 50 m/s.
-Among cases whose samples spread as little as the clip's (within 30 %): 2.47, 5.56, 5.57, 0.51 and 0.35 %. So the
+Among cases whose samples spread as little as the clip's (within 30 %): 2.47, 5.56, 5.57, 0.51 and 0.35 %; at the
+four Middle East stations alone 3.44, 6.61, 6.55, 0.73 and 0.49 % (looked at afterwards). So the
 clip's numbers are about twice as likely for a body flying 5-10 m/s in a direction drawn at random as for a drifter,
 and 2-7 times likelier for a drifter than for a body at 25-50 m/s. What they exclude is a fast body crossing the
 heading. They do not tell drift from slow flight, and say nothing of flight along the heading: a drifter needs the
