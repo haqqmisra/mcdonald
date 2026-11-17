@@ -773,7 +773,7 @@ def test_fliers_planted_on_a_drawn_orbit():
           "which is added", f"air {f['air']}, {f['plants']} plants at {sorted(T)}")
     c = f["case_again"]
     check(c["as_the_case"] is True and c["outcome"] == t2["outcome"] and np.allclose(c["needs_m_s"], t2["needs_m_s"], atol=fliers.AGAIN)
-          and not fliers._as(dict(c, needs_m_s=[c["needs_m_s"][0] + 0.1, c["needs_m_s"][1]]), t2) and not fliers._as(dict(c, outcome=drift.FAIL), t2),
+          and not fliers.as_the_case(dict(c, needs_m_s=[c["needs_m_s"][0] + 0.1, c["needs_m_s"][1]]), t2) and not fliers.as_the_case(dict(c, outcome=drift.FAIL), t2),
           "the check: the case's own rays, planted again as they are, come out as the case did",
           f"T2 {c['outcome']}, needs {c['needs_m_s']} of {t2['needs_m_s']} m/s")
     z = f["drifter"]

@@ -8834,10 +8834,43 @@ cannot be said, and none passes. The heading offset moved nothing here (the lant
 plants riding the 14 winds in turn the row at zero says what judgement call 1 says: 2 of 32 pass, 30 "holding still
 fits as well".
 
+**On 40 of the Galileo Project's triangulated clouds** (section 53's objects; aggregate numbers only, the rays are
+theirs). The sample's rule was fixed before any plant was run: of the clouds whose T2 passed in the runs of 2026-11-17
+at v0.5.7 (37 of the 59 seen from three sites, 27 of the 60 seen from two), 20 from each group, the dates gone through
+in turn so that the sample spreads over them: 13 days, no more than 3 clouds of a group from one. Each went through
+the command line as its run of that morning had (section 53's workaround: the sites written as one aircraft, one shared
+azimuth reference; 200-300 rays, two model winds), with `--plant --plant-air path` added; every other field of each of
+the 40 drift files is the same as that morning's. The clouds' own tolerances are 3.5-9.1 m/s (median 6.4), drifting
+needs 0.6-6.7 m/s of them at the most (median 3.3), and they are 2.7-5.2 km up. The share of plants T2 passed, could
+not judge and failed, of 1,280 at each airspeed (32 a cloud), with its error from a bootstrap over the 13 days (the
+days drawn with replacement 2,000 times, each with all its clouds):
+
+| airspeed, m/s | passes | cannot say | fails |
+|---|---|---|---|
+| 0 | 0.98 +- 0.01 | 0.02 +- 0.01 | 0 |
+| 5 | 0.33 +- 0.06 | 0.67 +- 0.06 | 0 |
+| 10 | 0.05 +- 0.02 | 0.95 +- 0.02 | 0 |
+| 15 | 0 | 0.64 +- 0.05 | 0.36 +- 0.05 |
+| 20 | 0 | 0.14 +- 0.04 | 0.86 +- 0.04 |
+| 25 | 0 | 0.01 +- 0.00 | 0.99 +- 0.00 |
+| 30, 40, 50 | 0 | 0 | 1 |
+
+Cloud by cloud, the slowest airspeed from which every plant failed is 15 m/s on 1 cloud, 20 on 19, 25 on 18 and 30 on
+2; a plant at 5 m/s passes on 31 of the 40 and one at 10 m/s on 12, none at 15. A planted drifter passes 32 times in
+32 on 32 of the clouds and 25 times or more on the other 8, the clouds nearest their own tolerance. The two groups
+differ little: at 5 m/s 0.40 +- 0.07 of the plants pass from three sites and 0.25 +- 0.07 from two; at 15 m/s 0.34 +-
+0.05 and 0.38 +- 0.08 fail. Of the 862 plants at 5 m/s that could not be judged, 653 are beyond the tolerance but not by
+a flier's margin and 207 "hold still as well" (the weakest wind is 1.3-20 m/s, median 6.7). A plant's fitted velocity
+misses the velocity planted by 0.37 m/s (median over the clouds; 0.04-2.0). So on these clouds' geometry and winds T2
+fails a flier at 25 m/s or more (99 in 100 at 25, every one from 30) and most at 20 (86 in 100); at 15 m/s it fails a
+third and cannot judge the rest; at 10 m/s and under it fails none, and passes 1 in 20 at 10 m/s and 1 in 3 at 5 m/s
+as drifters. The range where birds and small drones fly is the range where T2 cannot say, and under 15 m/s a flier is
+more often passed than failed.
+
 **What it costs.** One plant is one fit: 0.15-0.3 s without the bootstrap and 6.0-6.3 s with its 2,000 resamples, on
 39 rays as on 200 (one thread of arthur with its core to itself; 11-15 s where two workers share a core). The default
-is 289 fits (9 airspeeds x 32, and the case again): 3 min 30 s for the lanterns on 16 CPUs, 7-9 min for a cloud of
-200 rays on 6-8, with 120 MB in the main process and about 50 MB a worker. The plants go to worker processes (`--procs`); the
+is 289 fits (9 airspeeds x 32, and the case again): 3 min 30 s for the lanterns on 16 CPUs and 10-12 min for a cloud of
+200-300 rays on 6 (a machine with every core busy), with 120 MB in the main process and about 50 MB a worker. The plants go to worker processes (`--procs`); the
 same seed gives the same result however many there are (each plant's draws are seeded by the stage's seed and the
 plant's number).
 
@@ -8853,7 +8886,7 @@ plant's number).
   turn, each as often as any other); no plants and the reason where the rays fix no path (a straight flight, six
   readings), where no wind counts, and where the path is asked for as the air of a case that failed; through the stage
   with nothing else moved; and by the command line on the lanterns. Each check was made to fail once by a small
-  deliberate break of the code (18 breaks; the list is in the branch's notes).
+  deliberate break of the code (20 breaks; the list is in the branch's notes).
 
 **What it does not do.**
 - It does not plant on the route from the ranges (`fit_line`, `test_wind`; the Yemen clip): asked there, it says so.

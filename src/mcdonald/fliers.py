@@ -139,7 +139,7 @@ def _one(job):
     return row
 
 
-def _as(again, t2):
+def as_the_case(again, t2):
     """Did the case planted again come out as the case: the same outcome, and the airspeeds needed within AGAIN."""
     a, b = again.get("needs_m_s"), t2.get("needs_m_s")
     if again["outcome"] != t2["outcome"] or (a is None) != (b is None):
@@ -256,7 +256,7 @@ def plant_track(R, path, winds, fit=None, case_t2=None, speeds=SPEEDS, direction
                   what=f"planting {len(jobs) - 1} bodies, each through the fit and the wind test", pixels=1)
     again, rows = rows[0], rows[1:]
     again = dict(outcome=again["outcome"], needs_m_s=again["needs_m_s"], tolerance_m_s=again["tolerance_m_s"],
-                 as_the_case=None if case_t2 is None else _as(again, case_t2))
+                 as_the_case=None if case_t2 is None else as_the_case(again, case_t2))
     out = dict(route="lines of sight", air=air, air_chosen_by=chosen,
                airs=[dict(a, w=[round(x, 2) for x in a["w"]]) for a in airs], speeds_m_s=speeds, directions_deg=[360.0 * i / directions for i in range(directions)], draws=draws,
                plants=len(rows), plants_each_speed=directions * draws, resamples=nboot, seed=seed, case_again=again)
