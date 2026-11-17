@@ -57,14 +57,14 @@ def read(clip, masks, rows, trk, how, lay, k, reach, made_from, n=PAIRS, null_fr
     """The dense field of up to `n` pairs, its two empty pairs each, and the floor they set: (fields, per-pair records,
     kept rows with their layer). `how` and `lay` are `layers.measure`'s: how each pair was measured, and its layers;
     `made_from` names what `layers`' templates were measured from, `reach` its search. `null_from`: a video whose middle
-    frame is the empty pair's other clip; without it, frame b with its phases drawn at random (`scrambled`)."""
+    frame is the empty pair's other clip; without it, the second frame with its phases drawn at random (`scrambled`)."""
     moving = sorted(a for a, l in lay.items() if how.get(a) == layers.MOVED and l.get("all") is not None)
     if not moving:
         return dict(template=TEMPLATE, stride=STRIDE, pairs=0, why="no pair of frames moved with a consensus: there is "
                     "no motion of the background to map"), [], np.zeros((0, len(MAP_COLS)))
     picked = [moving[i] for i in np.unique(np.linspace(0, len(moving) - 1, min(n, len(moving))).round().astype(int))]
     jobs = [(a, _reach(lay[a], reach)) for a in picked]
-    other, other_is = (_other_frame(null_from, clip.H, clip.W) if null_from else (None, "frame b with its phases drawn at random"))
+    other, other_is = (_other_frame(null_from, clip.H, clip.W) if null_from else (None, "that frame with its detail scrambled"))
     key = repr((made_from, "dense", TEMPLATE, STRIDE, MARGIN, jobs, other_is, SEED, vf.PK_GAP))
     cache = clip.dir / f"bg_dense_k{k}_{clip.n0}_{clip.n1}_{hashlib.sha1(key.encode()).hexdigest()[:10]}.npz"
     if cache.exists() and not fresh:
@@ -461,8 +461,8 @@ def said(d):
     if d.get("why"):
         return L + ["  " + d["why"]]
     e = d["empty_pairs"]
-    L.append(f"  a match counts at a peak of {d['floor']:.2f} or more, where the empty pairs (frame b turned half a turn; "
-             f"{e['other_clip_is']}) keep {e['half_turn']:.1%} and {e['other_clip']:.1%} of their templates")
+    L.append(f"  a match counts at a peak of {d['floor']:.2f} or more, where the empty pairs (the pair's second frame turned half "
+             f"a turn; {e['other_clip_is']}) keep {e['half_turn']:.1%} and {e['other_clip']:.1%} of their templates")
     r = d["rows_kept"]
     if r["median"] is not None:
         L.append(f"  matches kept a pair: median {r['median']:.0f} (the 128-px templates every 96 px: {r['today_median']:.0f}); "
@@ -481,7 +481,7 @@ def said(d):
     c = d.get("change_across")
     if c:
         words = dict(spread="spreads (a zoom, or a surface coming nearer)", turn="turns (a roll of the camera)",
-                     stretch="stretches (a surface whose range changes across the picture)")
+                     stretch="stretches (a surface whose distance changes across the picture)")
         L.append(f"  across the larger layer, how its motion changes, in px/s per 100 px (the median of {c['pairs']} pairs, its "
                  "error from their scatter, and the middle two-thirds of the pairs):")
         for p in ("spread", "turn", "stretch"):
