@@ -1618,28 +1618,44 @@ def _and(words):
     return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
 
 
-def cameras_bands(names, bands, outcomes, said=None):
+def cameras_bands(names, bands, outcomes, said=None, floors=None, lead=None):
     """What a T3 reading from several cameras says of the bands they listened in (2026-11-17), as sentences that follow
     the reading ("" where no camera's envelope records its band: `beat_band`). One band from every camera: that it is
-    every camera's (`said`: the band the reading has named already, as `(lo, top)` printed). Otherwise each camera's
-    own, "only" where it was cut short under the frame rate's (`flicker.listened_in`'s `lowered`). Then, for those
-    cameras, what was measured of their frames that cut it. Where every camera that found no beat was cut short, the
-    two things that make such frames (`flicker.MAKERS`) and what follows: a beat faster than the highest of their tops
-    may have gone unheard. A camera that listened to the frame rate's top and found none leaves no such gap, and that
-    is not added (each camera's own reading, in `each`, says it of that camera)."""
+    every camera's (`said`: the band the reading has named already, as `(lo, top)` printed), and that every one passes
+    where it does. Otherwise each camera's own, "only" where it was cut short under the frame rate's
+    (`flicker.listened_in`'s `lowered`), with what that camera's own test said: a camera other than the one the
+    reading leads with (`lead`) that passes too, and the smallest beat it could have shown (`floors`, as `beat_floor`
+    gives them); one that could not say; one whose beat was its own view. So a reading that leads with a camera cut
+    short says where another listened to the frame rate's top and at what strength it would have heard. Then, for the
+    cameras cut short, what was measured of their frames that cut it. Where every camera that could say was cut short,
+    the two things that make such frames (`flicker.MAKERS`) and what follows: a beat faster than the highest of their
+    tops may have gone unheard. A camera that listened to the frame rate's top leaves no such gap, and that is not
+    added (each camera's own reading, in `each`, says it of that camera). A camera with no band says so: one without
+    power "could not say", one whose envelope does not record a band "records none"."""
     from .flicker import MAKERS
     got = [(n, b, o) for n, b, o in zip(names, bands, outcomes) if b]
     if not got:
         return ""
     key = lambda b: (f"{b['lo']:g}", f"{b['top']:.1f}")
     rng = lambda b: f"between {b['lo']:g} and {b['top']:.1f} Hz" + (" only" if b["lowered"] else "")
+
+    def its(n, o):
+        i = names.index(n)
+        if o == CANNOT:
+            return " (it could not say)"
+        if o == FAIL:
+            return " (its beat is its own view)"
+        if i == lead:
+            return ""
+        floor = floors[i] if floors else None
+        return f" (it passes too: only a beat over {100 * floor:.0f}% would have shown)" if floor else " (it passes too)"
     if len(got) == len(names) and len({key(b) for _, b, _ in got}) == 1:
-        out = ". Every camera listened " + ("in that band" if said == key(got[0][1]) else rng(got[0][1]))
+        out = (". Every camera listened " + ("in that band" if said == key(got[0][1]) else rng(got[0][1]))
+               + (", and every one passes" if all(o == PASS for o in outcomes) else ""))
     else:
         dumb = [n for n, b, o in zip(names, bands, outcomes) if not b and o == CANNOT]   # no power: it listened in none
         none = [n for n, b, o in zip(names, bands, outcomes) if not b and o != CANNOT]
-        out = (". The cameras' bands: " + ", ".join(f"{n} {rng(b)}" + (" (it could not say)" if o == CANNOT else "")
-                                                     for n, b, o in got)
+        out = (". The cameras' bands: " + ", ".join(f"{n} {rng(b)}{its(n, o)}" for n, b, o in got)
                + (f"; {_and(dumb)} could not say" if dumb else "")
                + (f"; {_and(none)} record{'s' if len(none) == 1 else ''} none" if none else ""))
     low = [(n.split(" (")[0], b) for n, b, _ in got if b["lowered"]]      # "camera 2": its file was named above
@@ -1687,7 +1703,8 @@ def test_beat_cameras(envs):
     each = [dict(t, reading=t["reading"] + why) for t, why in bare]
     names = [_camera(e, i) for i, e in enumerate(envs)]
     bands = [beat_band(e) for e in envs]
-    said_bands = lambda said=None: cameras_bands(names, bands, [t["outcome"] for t in each], said)
+    said_bands = lambda said=None, lead=None: cameras_bands(names, bands, [t["outcome"] for t in each], said,
+                                                            floors=[beat_floor(e) for e in envs], lead=lead)
     held, views = [], []
     for i, t in enumerate(each):
         if t["outcome"] != FAIL:
@@ -1729,7 +1746,7 @@ def test_beat_cameras(envs):
         i = passing[0]
         named = (f"{bands[i]['lo']:g}", f"{bands[i]['top']:.1f}") if bands[i] else None
         return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]},
-                    reading=f"{bare[i][0]['reading']} ({names[i]}, of {len(envs)} cameras){said_bands(named)}")
+                    reading=f"{bare[i][0]['reading']} ({names[i]}, of {len(envs)} cameras){said_bands(named, i)}")
     return dict(base, outcome=CANNOT, reading="the flicker test had no power on any camera's clip")
 
 
