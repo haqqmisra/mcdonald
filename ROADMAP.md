@@ -100,8 +100,9 @@ written reason.** The 1.0 software paper goes to the Journal of Open Source Soft
 - **A GPU is never required of a user, and the development machine's is used to the full from
   the start** (the maintainer, 2026-10-16). The CPU path is the reference and the goldens run
   on both; the GPU is where the work too costly for a CPU goes -- planted objects by the
-  thousand, dense motion fields, error models -- and that work starts when the workstation
-  arrives, not at 0.6.
+  thousand, dense motion fields -- and that work starts when the workstation arrives, not at
+  0.6. (A third example written here on 2026-10-16, "error models", was a session's, never
+  defined; the maintainer dropped it on 2026-11-17.)
 
 ## The releases at a glance
 
@@ -639,7 +640,7 @@ knowing what the search could not have found.
    correlation shift field and the matched filters, the CPU path the reference and the goldens
    run on both, with the move to single precision checked against them. The gain on the
    existing stages is expected to be small; the point is what is too costly on the CPU, and
-   that work (the plants, the dense fields, the error models) begins as soon as the
+   that work (the plants, the dense fields) begins as soon as the
    workstation is on the desk -- 0.4's and 0.5's validation runs are its first customers --
    so that by 0.6 the GPU path is complete rather than begun. On GitHub's runners, which have
    no GPU, the CPU path is what is tested; the GPU path is held to the goldens on the
@@ -657,8 +658,8 @@ knowing what the search could not have found.
    card's code is run with NumPy standing in for it. *Since 2026-11-13* `flicker`'s camera-shake pass and the third pass of
    `layers` run on it too. *Still to do for "complete":* `stabilize`; Find and Follow, where a card version was
    measured and would be slower than the pool and give another list of spots (IDEAS.md, G2: it needs the picking on
-   the card too, and the proposer's gate); and the work the card is for -- the plants, the dense field, the error models (objective 4,
-   A14). *The dense field since 2026-11-16* (`mcdonald layers --dense`, method section 65, IDEAS.md A14): the background's layers mapped and the change of
+   the card too, and the proposer's gate; "not now", the maintainer, 2026-11-16); and the work the card is for -- the plants and the
+   dense field (objective 4, A14; "the error models" dropped on 2026-11-17, never defined). *The dense field since 2026-11-16* (`mcdonald layers --dense`, method section 65, IDEAS.md A14): the background's layers mapped and the change of
    motion across a layer read from 128-px templates every 16 px, on the card in seconds a clip, held to the CPU's. `stabilize` was measured on the card on 2026-11-14 and not built (IDEAS.md, G7): the pass the card can be
    held on is level with a pool of 32 workers, and the passes it would shorten, most of a run and all in one process,
    cannot be held to the CPU's while the template's points are drawn by their count. *Not owed* (the maintainer,

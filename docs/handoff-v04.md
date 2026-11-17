@@ -27,43 +27,23 @@ session 26's two additions, and three of session 27's:
   calibrate an error on real adjacent pairs, and give a clip's numbers errors from the pairs' own scatter. And a flag
   with an optional number (`nargs="?"`) swallows the next word, a video's name among them: a flag plus `--...-pairs N`.
 
-**The open GPU work, in order.**
-1. **Jacob's answers** to the questions below.
-2. **The plants at scale** (ROADMAP 0.6 objective 4): done as a measurement, on branch `plants-scale` (session 27 below): 80 planted videos (8 PURSUE videos x 10
-   seeds x 1,000 frames, 3,856 objects) through `mcdonald batch --only track,report`, the completeness table per video
-   (`mcdonald plant --table BATCH --control BATCH`), the 40-frame rule measured at other settings and not changed. Left:
-   the merge (the development session's), and Jacob's questions 4-6 below. `--card` changed nothing there: no stage of
-   `track,report` runs on the card, so the plants are not yet the card's customer; a beat pass (`flicker`'s shake pass)
-   would be the first place it does something (question 6).
-3. **The error models** (ROADMAP 0.6 objective 3's last item; question 3): nothing until he says what he means.
-4. **Parked or his:** G2 (Find's search on the card: "not now", 2026-11-16), G9's robust decisions, a Mac's card (G4),
-   `stabilize` (G7, CPU by his choice), Slurm's shared-GPU shards (G8: no change). With these, the card's path is as
-   complete as ROADMAP 0.6 objective 3 asks, but for the error models.
+**Jacob's answers, 2026-11-17** (asked as multiple choices; the questions as they were are in session 27's section below):
+1. *0.5.8:* **wait for more GPU work** (not the recommendation). Main stays local until then.
+2. *The window and the dense field:* **an option under Advanced** on the `layers` step ("Map where each layer of the
+   background is"), off by default.
+3. *"The error models":* he did not remember the phrase. It was a session's example of 2026-10-16, written down with his
+   decision that the GPU be used to the full, never defined. **Dropped** from ROADMAP (2026-11-17).
+4. *The batch's 40-frame rule:* **keep 40.**
+5. *Plants into the whole catalog:* **not now** -- these 8 videos for now; all 144 later.
+6. *Planted beats through the batch:* **yes, on the 80 planted videos.**
 
-**To put to Jacob** (plain words; each a choice with a recommendation; 4-6 from the plants):
-1. *Release 0.5.8 now, with Find sooner (G11, G12) and the dense field (A14)?* (a) Yes: version, Mac and Windows runs,
-   then push and tag, all on his word -- **recommended**: every suite and golden passes on Cannon and on the card, and
-   nothing a report says changes; (b) wait for the plants at scale; (c) wait for more GPU work.
-2. *Should the window offer the dense field?* (a) Not yet: a reading for the command line, like `noise` and `rank` --
-   **recommended**: it changes no report, and what a person would do with a map of layers in the window is not yet
-   designed; (b) a choice on the `layers` step under Advanced ("Map where each layer of the background is"), off by
-   default; (c) on by itself in the one press where there is a graphics card.
-3. *What are "the error models" of ROADMAP 0.6 objective 3?* (a) Each reported number's error found by measuring
-   again many times with its inputs shaken (the marks, the templates, k), on the card -- the reading the roadmap's
-   sentence suggests; (b) a model of each sensor's noise (`mcdonald noise` began this, objective 6); (c) the errors of
-   the steps already measured, put together into one error for each number the report gives; (d) something else.
-4. *How many frames must a spot be seen on before the batch counts it as an object?* (a) Keep 40 -- **recommended**:
-   most planted objects are lost before the rule (59 % never on Find's list), lowering it adds mostly faint points and
-   group members while the catalog's table grows by 39-62 %, and no null here can set it; (b) 20 frames: 28 % of planted
-   objects followed instead of 21 %, 2,786 catalog rows against 1,715; (c) 40 frames from first to last sight, gaps
-   included: 24 %, 2,386 rows; (d) 60 frames: 15 %, 1,168 rows.
-5. *Plant into every video of the catalog?* (a) One stretch of each of the 144 videos, 3 seeds: about 330 CPU-hours,
-   some 7 hours on 48 of arthur's CPUs, a completeness line for every video good to about 7 points -- **recommended**;
-   (b) 10 seeds: about 910 CPU-hours, better on Cannon (over the 100 CPU-hour line: his yes); (c) stop at these 8.
-6. *Measure planted beats through the batch* (`--only track,flicker,report`; the one place in the plants where the card
-   computes)? (a) Yes, on the 80 planted videos -- **recommended**; its cost not yet measured; (b) no: the pilot's beat
-   numbers stand.
-And for the development session: merge `plants-scale` (it fixes a defect of `plant`, below).
+**The open GPU work, in order.**
+1. **The dense field's Advanced option in the window** (answer 2): session 27, after his answers.
+2. **Planted beats through the batch** (answer 6): the plants agent, on branch `plants-scale`, resumed 2026-11-17.
+3. **0.5.8** when he says the GPU work is far enough (answer 1).
+4. **Parked or his:** G2 (Find's search on the card: "not now", 2026-11-16), the plants into all 144 videos (answer 5),
+   G9's robust decisions, a Mac's card (G4), `stabilize` (G7, CPU by his choice), Slurm's shared-GPU shards (G8: no change).
+
 ## Session 27, Monday (2026-11-16): A14 built as `mcdonald layers --dense`; G11 and G12 on main; the plants at scale
 
 From the section below, with Jacob's yes to all four recommendations. Files: `/scratch/mcdonald/a14-build-2026-11-16`
@@ -123,6 +103,18 @@ on G2) and ROADMAP in the scratch folder, to apply at the merge.
   frames, silently: `contrast_after` was missing for 2,892 of 3,856 objects and the truth pictures were blank. Fixed on
   the branch (passes of 64 frames; the 964 values that existed came out identical). Not fixed: `batch.resources` sizes an
   `--only track,report` unit as if every stage ran (12 h, 4.5 GB where the peak was 2.2 GB).
+
+**The six questions put to Jacob** (2026-11-16; his answers are in the top section):
+1. Release 0.5.8 now with G11, G12 and A14? (a) yes, recommended; (b) wait for the plants; (c) wait for more GPU work.
+2. The window and the dense field? (a) not yet, CLI only, recommended; (b) an option under Advanced on the `layers`
+   step, off by default; (c) on in the one press where there is a card.
+3. What are "the error models"? (a) each number measured again with its inputs shaken, on the card; (b) sensor noise
+   models; (c) one error budget a number from the steps' errors. Then, once he had said he did not remember: drop it
+   (recommended), the package's drawn nulls on the card, or shaken re-measurement as a new design.
+4. The batch's object rule: (a) keep 40 frames, recommended; (b) 20; (c) 40 from first to last sight; (d) 60.
+5. Plant into the whole catalog? (a) 144 videos, 3 seeds, ~330 CPU-hours, recommended; (b) 10 seeds, ~910, Cannon; (c)
+   stop at these 8.
+6. Planted beats through the batch? (a) yes, on the 80, recommended; (b) no.
 
 ## The next GPU session's start as written after session 26 (2026-11-15 evening), kept as the record
 
