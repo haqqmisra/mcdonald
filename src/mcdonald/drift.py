@@ -551,11 +551,20 @@ def test_wind(line, heading_deg, winds, speeds=(10.0, 25.0, 50.0), air_min_kn=No
 # bearings-only problem), and the bootstrap says so. AARO's Puerto Rico lanterns (2026-10-21) are the known answer.
 WGS_A, WGS_E2 = 6378137.0, 6.69437999014e-3
 FLIER_MIN = 10.0        # m/s: T2 here fails only when the airspeed it needs is this much beyond the winds and the fit
-MODEL_WIND_ERR = 3.0    # m/s: how far a model's wind may miss the air's own motion at the object's height. Measured on the
-#                         Galileo Project's Las Vegas clouds, triangulated from three sites 2-5 km up (2026-11-13; the uap
-#                         repository's galileo/nevada/README.md): against Open-Meteo's hourly pressure levels they need 3-4
-#                         m/s through the air (median; 90th percentile 5-9), so T2 passed 36-54 % of them on the winds'
-#                         hour-to-hour spread alone. With 3 m/s added it passes 80-94 % and none of 44 ADS-B aircraft.
+MODEL_WIND_ERR = 2.0    # m/s: what T2 from the lines of sight allows a model's wind for missing the air's own motion at the
+#                         object's height, beyond its hours' spread. The maintainer's choice of 2026-11-17; 3.0 from
+#                         2026-11-13 until then, chosen on the Galileo Project's clouds, which need 3-4 m/s (median).
+#                         What 2 m/s is worth, measured against weather balloons (method section 68;
+#                         `tools/wind_model_igra.py`; 29,303 drawn drifters at 17 radiosonde stations, the model read
+#                         at the hours either side): a model's wind misses a balloon's by 2.1-2.2 m/s 1-6 km up
+#                         (median), and the part of a balloon's need this constant must cover (its largest need less
+#                         the hours' spread and two errors of the fit) is under 2 m/s 91 times in 100 (3 covered 96-97).
+#                         With 2 m/s a true drifter passes 80.4 % of the time (89 % where the wind blows 10 m/s or more:
+#                         the hold-still rule takes the rest), a body flying 5 m/s through the air 20 %, 7.5 m/s 2.9 %,
+#                         10 m/s 0.4 %; at 3 m/s they passed 84.1, 33.4, 6.3 and 0.8 %. The clouds need more: 3.8 m/s
+#                         (median) on 1,687 of them, and Las Vegas's own radiosonde on their days puts the same model
+#                         2.3 m/s from the balloon, so that is the clouds (some stand in a wave, some are two clouds
+#                         matched as one) and not the model. T2 passes fewer of them for it: see section 68
 VELOCITY_FIX = 5.0      # m/s: two errors of the fitted velocity over this, and T2 cannot tell a drifter from a slow flier
 NEAR_LEVEL = 4.0        # a single level (observed, or a model file's outermost) within this factor of the object's height
                         # (above the ground; a model's, above its own ground) counts
@@ -1257,8 +1266,8 @@ def test_wind_track(path, winds, readings=None):
     """T2 from the aircraft's own track: a drifter moves over the ground at the wind's velocity at its height, so the
     airspeed it would need against each wind that counts is |V - W|. The tolerance is the winds' own spread plus two
     errors of the fitted velocity, plus MODEL_WIND_ERR where a model's wind is among those counted (`source` "model",
-    as `track_winds` marks it; since 2026-11-13, from the Galileo Project's clouds: a model's wind misses the air's own
-    motion by 3-4 m/s, more than its hour-to-hour spread). Passes when every one is within the tolerance and drifting
+    as `track_winds` marks it; since 2026-11-13: a model's wind misses the air's own motion by more than its
+    hour-to-hour spread; 2 m/s since 2026-11-17, what a weather balloon needs nine times in ten). Passes when every one is within the tolerance and drifting
     fits better than holding still: a body holding still over the ground needs the wind's own speed through the air,
     and every drifter's airspeed must be under the weakest wind's (since 2026-11-13, IDEAS.md N2; else cannot say:
     in a light wind the two are not told apart, as a hovering body was not before); fails when

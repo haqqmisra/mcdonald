@@ -283,9 +283,10 @@ def test_t2_from_the_ranges_against_soundings():
 
     bands = [row("wind", -1, "all", 1000, 3000), row("wind", -1, "all", 3000, 6000)]
     check(all(b and 1.9 < b["p50"] < 2.4 and 4.0 < b["p90"] < 4.9 and 0.65 < b["under_3"] < 0.78
-              and b["p50"] < drift.MODEL_WIND_ERR < b["p90"] for b in bands),
+              and abs(b["p50"] - drift.MODEL_WIND_ERR) < 0.3 for b in bands),
           "a model's wind against a balloon, 1-6 km above the station at the hour before the sounding: about 2.1 m/s off "
-          "(median), 4.3-4.6 at the 90th percentile; MODEL_WIND_ERR, 3 m/s, covers about seven in ten as a vector",
+          "(median), 4.3-4.6 at the 90th percentile; MODEL_WIND_ERR, 2 m/s since 2026-11-17 (3 before), is that median "
+          "miss as a vector (and what a balloon needs beyond the hours' spread and the fit's errors 91 times in 100)",
           ", ".join(f"{b['p50']} / {b['p90']} / {b['under_3']}" for b in bands if b))
     clip = row("difference", -1, "yemen", 3793)
     least, largest = 5.2 * drift.KN, 18.4 * drift.KN                 # the Yemen clip's T2: its shortfall across the heading
@@ -575,39 +576,43 @@ def test_track_t2_a_drifter_fits_the_winds_and_a_flier_does_not():
 
 
 def test_track_t2_a_models_own_error():
-    print("\nT2 from the aircraft's own track: a model's winds carry their own error (2026-11-13)")
-    # The Galileo Project's clouds, triangulated from three sites 2-5 km up, needed 3-4 m/s through the air against
-    # Open-Meteo's winds: more than the winds' hour-to-hour spread. So a model's winds now carry MODEL_WIND_ERR as well.
+    """A model's winds carry their own error, `MODEL_WIND_ERR` (2026-11-13). It was 3 m/s, chosen on the Galileo
+    Project's clouds, which need 3-4 m/s through the air against Open-Meteo's winds. Since 2026-11-17 it is 2 m/s, the
+    maintainer's choice after it was measured against weather balloons (method section 68): 2 m/s covers what a
+    drifting balloon needs 91 times in 100, and a body flying 5 m/s through the air then passes 20 times in 100 where
+    it passed 33 at 3 m/s. So the cloud of this test that is 3.5 m/s off the model's winds, which passed until then,
+    cannot be said now; one 2.2 m/s off passes."""
+    print("\nT2 from the aircraft's own track: a model's winds carry their own error (2026-11-13; 2 m/s since 2026-11-17)")
     wind = np.array([-6.0, -3.5])
     rng = np.random.default_rng(7)
     winds = [dict(label=f"model {i}", w=wind + rng.normal(0, 0.3, 2), counts=True, note="model", source="model")
              for i in range(2)]
     obs = [dict(w, source="observed", note="observed") for w in winds]
-    off = wind + 3.5 * np.array([0.6, 0.8])                   # a cloud that drifts, 3.5 m/s off the model's wind
-    platform, los, _ = orbit(v_obj=tuple(off))
+    check(drift.MODEL_WIND_ERR == 2.0, "MODEL_WIND_ERR is 2 m/s", f"{drift.MODEL_WIND_ERR:g}")
+    near = wind + 2.2 * np.array([0.6, 0.8])                  # a cloud that drifts, 2.2 m/s off the model's wind
+    platform, los, _ = orbit(v_obj=tuple(near))
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     out = drift.test_wind_track(p, winds)
     check(out["outcome"] == drift.PASS and out["model_wind_err_m_s"] == drift.MODEL_WIND_ERR
-          and "a model's own error" in out["reading"],
-          "3.5 m/s off a model's winds: within the model's own error, passes", out["reading"][:120])
-    out = drift.test_wind_track(p, obs)
-    check(out["outcome"] == drift.CANNOT and out["model_wind_err_m_s"] == 0.0,
+          and "a model's own error (2)" in out["reading"] and out["tolerance_m_s"] - out["winds_spread_m_s"] - 2 * out["velocity_err_m_s"] < 2.05,
+          "2.2 m/s off a model's winds: within their spread, the fit's errors and the model's own error (2), passes",
+          out["reading"][:150])
+    lone = drift.test_wind_track(p, obs)
+    check(lone["outcome"] == drift.CANNOT and lone["model_wind_err_m_s"] == 0.0 and abs(out["tolerance_m_s"] - lone["tolerance_m_s"] - 2.0) < 0.011,
           "the same off observed winds: no model's error allowed, cannot say (the rule before 2026-11-13)",
-          out["reading"][:120])
+          lone["reading"][:120])
+    off = wind + 3.5 * np.array([0.6, 0.8])                   # 3.5 m/s off: inside 3 m/s of allowance, outside 2
+    platform, los, _ = orbit(v_obj=tuple(off))
+    p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
+    out = drift.test_wind_track(p, winds)
+    check(out["outcome"] == drift.CANNOT and out["needs_m_s"][1] > out["tolerance_m_s"] > out["needs_m_s"][1] - 1.0
+          and "not by a flier's" in out["reading"],
+          "3.5 m/s off a model's winds: beyond the tolerance by under 1 m/s, cannot say (it passed until 2026-11-17, "
+          "when the model's own error was 3 m/s)", f"needs {out['needs_m_s']}, tolerance {out['tolerance_m_s']}")
     flier = wind + 25.0 * np.array([0.5, -0.866])
     platform, los, _ = orbit(v_obj=tuple(flier))
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     check(drift.test_wind_track(p, winds)["outcome"] == drift.FAIL, "a flier at 25 m/s through the air still fails")
-    f = Path(tempfile.mkdtemp()) / "w.json"
-    f.write_text(json.dumps(dict(elevation=0.0, hourly=dict(
-        time=["2026-01-01T00:00"], wind_speed_850hPa=[10.0], wind_direction_850hPa=[270.0],
-        geopotential_height_850hPa=[1500.0], wind_speed_700hPa=[20.0], wind_direction_700hPa=[270.0],
-        geopotential_height_700hPa=[3000.0]))))
-    tw = drift.track_winds(2000.0, model=[str(f)],
-                           observed=[dict(source="sonde", height_m=1800.0, from_deg=270.0, speed_m_s=10.0),
-                                     dict(source="sonde", height_m=2500.0, from_deg=270.0, speed_m_s=12.0)])
-    check([w["source"] for w in tw] == ["model", "observed"], "each wind says where it came from",
-          str([w["source"] for w in tw]))
 
 
 def test_track_t2_a_flier_fails_whatever_its_velocitys_error():
@@ -679,24 +684,32 @@ def test_track_t2_a_flier_fails_whatever_its_velocitys_error():
 
 
 def test_track_t2_holding_still_against_drifting():
+    """A body holding still over the ground needs the wind's own speed through the air. In a wind lighter than T2's
+    tolerance that fits, and it passed as a drifter (IDEAS.md N2, 2026-11-13). The comparative rule asks every
+    drifter's airspeed to be under the weakest wind's: the Puerto Rico lanterns (1.4-3.6 m/s against 4.5-9.5) keep
+    their pass. The winds here are a model's, so the tolerance holds `MODEL_WIND_ERR`, and since that went from 3 to
+    2 m/s (2026-11-17) the wind in which holding still "fits as well" is a 2 m/s one: in the 3 m/s wind this test
+    used until then, a body holding still is now beyond the tolerance, and cannot be said for that reason."""
     print("\nT2 from the aircraft's own track: drifting must fit better than holding still (2026-11-13)")
-    # A body holding still over the ground needs the wind's own speed through the air. In a light wind that is within
-    # T2's tolerance, and it passed as a drifter (IDEAS.md N2). The comparative rule asks every drifter's airspeed to be
-    # under the weakest wind's: the Puerto Rico lanterns (1.4-3.6 m/s against 4.5-9.5) keep their pass.
-    light = np.array([2.4, -1.8])                             # 3 m/s
+    light = np.array([1.6, -1.2])                             # 2 m/s
     winds = [dict(label=f"model {i}", w=light + d, counts=True, note="model", source="model")
              for i, d in enumerate((np.zeros(2), np.array([0.3, 0.2])))]
     platform, los, _ = orbit(v_obj=(0.0, 0.0), climb=0.0)
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     out = drift.test_wind_track(p, winds)
     check(out["outcome"] == drift.CANNOT and "holding still fits as well" in out["reading"] and not out["drift_beats_hold"],
-          "a body holding still in a 3 m/s wind: cannot say, where it passed before", out["reading"][:110])
+          "a body holding still in a 2 m/s wind: cannot say, where it passed before", out["reading"][:110])
+    three = [dict(w, w=w["w"] * 1.5) for w in winds]         # 3 m/s
+    out = drift.test_wind_track(p, three)
+    check(out["outcome"] == drift.CANNOT and "not by a flier's" in out["reading"] and out["needs_m_s"][0] > out["tolerance_m_s"],
+          "holding still in a 3 m/s wind: beyond a model's 2 m/s of allowance, so cannot say for that (until 2026-11-17, "
+          "at 3 m/s, it was within it, and this rule spoke)", f"needs {out['needs_m_s']}, tolerance {out['tolerance_m_s']}")
     platform, los, _ = orbit(v_obj=tuple(light), climb=0.0)
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     out = drift.test_wind_track(p, winds)
     check(out["outcome"] == drift.PASS and out["drift_beats_hold"],
-          "a drifter in that light wind still passes: it needs well under the 3 m/s holding still would", out["reading"][-90:])
-    strong = [dict(w, w=w["w"] * 6.0) for w in winds]       # 18 m/s
+          "a drifter in that light wind still passes: it needs well under the 2 m/s holding still would", out["reading"][-90:])
+    strong = [dict(w, w=w["w"] * 9.0) for w in winds]       # 18 m/s
     platform, los, _ = orbit(v_obj=tuple(strong[0]["w"]), climb=0.0)
     p = drift.fit_track(drift.rays(platform, los, FPS), (0.1, 0.03), nboot=200)
     out = drift.test_wind_track(p, strong)

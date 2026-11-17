@@ -3976,16 +3976,32 @@ depression below the horizontal.
   of a flier's margin nothing moves: the gate answers in the words and with the fields it had, an error that is not
   finite or no wind that counts leaves the fail rule nothing to ask with, and T2 still never passes a body whose
   velocity the rays do not fix. The four known answers' files are the same to the byte.
-- *A model's own error* (`MODEL_WIND_ERR`, 3 m/s; 2026-11-13). The spread of a model's hours says how much its wind
-  changes from hour to hour, not how far it misses the air's own motion. The Galileo Project's three camera sites near
-  Las Vegas triangulate clouds 2-5 km up, so their motion over the ground is known (the uap repository's
-  `galileo/nevada/README.md`). Against Open-Meteo's hourly winds, those clouds need 3-4 m/s through the air (median;
-  90th percentile 5-9), more than the hours' spread of about 1-2 m/s. On the spread alone T2 passed 36-54 % of them.
-  With 3 m/s added it passes 80-94 %, and none of 44 aircraft with known tracks (ADS-B). The price is said in the
-  reading: with a model's winds, a body flying a few metres a second through the air is not told from a drifter.
-  Observed winds (a sounding, a weather report, the aircraft's own) keep the rule before, since nothing here has
-  measured their error. Two things the clouds also showed: on windy days clouds lag the wind (0.6-0.7 of its speed,
-  as standing wave clouds do), so a cloud is not always a drifter.
+- *A model's own error* (`MODEL_WIND_ERR`; 3 m/s from 2026-11-13, 2 m/s since 2026-11-17). The spread of a model's
+  hours says how much its wind changes from hour to hour, not how far it misses the air's own motion. So where a
+  model's wind is among those counted, T2's tolerance takes a constant for that miss. It was first set at 3 m/s on the
+  Galileo Project's clouds (section 53), triangulated 2-5 km up, which need 3-4 m/s through the air against
+  Open-Meteo's hourly winds (median), more than the hours' spread of about 1-2 m/s; on the spread alone T2 passed
+  36-54 % of them. Section 68 then measured it against known drifters it was not chosen on, weather balloons at 17
+  radiosonde stations, and the maintainer set it at 2 m/s on those numbers:
+  - a model's wind misses a balloon's by 2.1-2.2 m/s 1-6 km up (median, the hour before the sounding; 4.3-4.6 at the
+    90th percentile);
+  - the part of a drifting balloon's need that the constant must cover (its largest need less the two hours' spread
+    and two errors of the fit) is under 2 m/s 91 times in 100 (91.1 on the stations a constant would be set on,
+    91.4 on the others; 1.9 m/s covers 90); 3 m/s covered 96-97;
+  - through the whole rule, the hold-still condition included, a true drifter passes 80.4 % of 29,303 drawn cases at
+    2 m/s (84.1 % at 3; 89 % and 95 % where the wind blows 10 m/s or more, the hold-still rule taking the rest); a
+    body flying 5 m/s through the air passes 20.0 % (33.4 % at 3), one at 7.5 m/s 2.9 % (6.3), one at 10 m/s 0.4 %
+    (0.8); it fails 55 % at 15 m/s, 98 % at 20 and 99.9 % at 25 (34, 96 and 99.8 at 3). No drifter fails at either;
+  - the clouds need more than a balloon does: 3.8 m/s (median) on 1,687 clean clouds of the Galileo catalog, 10 m/s
+    and more for one in ten. Las Vegas's own radiosonde, on the clouds' days and 8 km from the wind files' cell,
+    puts the same model 2.3 m/s from the balloon (median; 4.9 at the 90th percentile). So the clouds' excess is the
+    clouds', not the model's: some stand in a wave (on windy days they move at 0.6-0.7 of the wind's speed), and some
+    are two clouds matched as one. A cloud is not always a drifter, and the constant is not set to pass them all.
+  What 2 m/s does on the Galileo sample is in section 68's notes of that day. (A sentence here until 2026-11-17, that
+  3 m/s "passes 80-94 %" of the clouds, was the run of 2026-11-13, before the hold-still rule below; at v0.5.7 T2
+  passed 64 of the 119.) The price is said in the reading: with a model's winds, a body flying a few metres a second
+  through the air is not told from a drifter. Observed winds (a sounding, a weather report, the aircraft's own) keep
+  the rule before, since nothing here has measured their error.
 - *Drifting against holding still* (2026-11-13, IDEAS.md N2). A body holding still over the ground needs the wind's own
   speed through the air. Wherever the wind is weaker than T2's tolerance, that fit as well, and a hovering body passed
   as a drifter. T2 now passes only where every airspeed drifting needs is under the weakest counted wind's speed, so
@@ -4082,7 +4098,7 @@ depression below the horizontal.
   misfit, never down: a rounded heading leaves errors that run on from reading to reading, and the positions' own
   scatter understated them (two such errors held the true wind 74-87 times in 100 on drawn turns of 157°; with the
   error given, 99-100). The wind's error now enters T2: the tolerance takes the largest of the counted winds' own
-  errors, a model's 3 m/s or two errors of the aircraft's own wind. And a turn too short to tell the wind from the
+  errors, a model's own (2 m/s; 3 until 2026-11-17) or two errors of the aircraft's own wind. And a turn too short to tell the wind from the
   offset and the airspeed gives no wind that counts: two errors over 5 m/s (`VELOCITY_FIX`), which a 41° turn of ten
   readings does not meet and PR051's 52° turn of 23 readings just does (4.4). The Puerto Rico turn asks for no offset
   (-0.23 +- 0.15°, p 0.12): its wind is 9.51 m/s from 70.6° as before, its error 0.55 where it was 0.25. What this
@@ -6776,9 +6792,10 @@ and they triangulate to the pipeline's positions within 0.5 %.
 
 **What it found** (IDEAS.md N1-N7), each built into this version:
 - *Drift, T2* (section 34). Clouds 2-5 km up need 3-4 m/s through the air against a model's winds, more than the
-  winds' hour-to-hour spread. T2 now allows a model's own error, 3 m/s (`MODEL_WIND_ERR`). With lines of sight from two
-  or three sites, `drift` finds the clouds' height to 0.3-2.5 % and their speed to 0.1 m/s; from one camera it says it
-  cannot range them, every time, as it should. No aircraft was called a drifter.
+  winds' hour-to-hour spread. T2 now allows a model's own error (`MODEL_WIND_ERR`: 3 m/s then, 2 m/s since
+  2026-11-17, sections 34 and 68). With lines of sight from two or three sites, `drift` finds the clouds' height to
+  0.3-2.5 % and their speed to 0.1 m/s; from one camera it says it cannot range them, every time, as it should. No
+  aircraft was called a drifter.
 - *Drift, T3* (sections 13 and 34). The rule for a beat that comes back took two windows apart on any track. On a long
   track chance gives two: 14 of the 16 beats on clouds and aircraft were no more than chance. Windows apart now count
   only beyond chance (chance from the clip's own background windows since the revision, §13), and a beat seen from
@@ -9210,25 +9227,28 @@ the route from the ranges, for which planting is not built.
    table does).
 
 **On AARO's Puerto Rico lanterns** (the known drifter of section 34; `tests/golden/puerto_rico_drift/`; 39 lines of
-sight, 14 winds counted, tolerance 10.5 m/s). The lanterns pass T2, so the plants ride their own path: 7.37 m/s toward
-240 deg. Passes / cannot say / fails, of 32 plants at each airspeed (8 of the old script's, which had 35 m/s where
-this has 30, 40 and 50):
+sight, 14 winds counted; tolerance 9.5 m/s with a model's own error at 2 m/s, as it is since 2026-11-17, and 10.5 m/s
+at the 3 m/s this section was first measured with). The lanterns pass T2, so the plants ride their own path: 7.37 m/s
+toward 240 deg. Passes / cannot say / fails, of 32 plants at each airspeed (8 of the old script's, which had 35 m/s
+where this has 30, 40 and 50). The two columns "as built" were made again on 2026-11-17 with the rules as they stand
+that evening (a model's own error 2 m/s, the fail rule before the velocity's gate); at 3 m/s the row at 20 m/s read
+0 / 32 / 0 in both and the row at 25 m/s 0 / 7 / 25 in the winds, and no other row differed:
 
-| airspeed, m/s | 0.4.3 (the drift paper's Fig. 3d) | now, the lanterns' own air | now, the 14 winds in turn |
+| airspeed, m/s | 0.4.3 (the drift paper's Fig. 3d) | as built, the lanterns' own air | as built, the 14 winds in turn |
 |---|---|---|---|
 | 0 | 1 / 0 / 0 | 32 / 0 / 0 | 2 / 30 / 0 |
 | 5 | 2 / 6 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
 | 10 | 0 / 8 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
 | 15 | 0 / 8 / 0 | 0 / 32 / 0 | 0 / 32 / 0 |
-| 20 | 0 / 3 / 5 | 0 / 32 / 0 | 0 / 32 / 0 |
-| 25 | 0 / 0 / 8 | 0 / 0 / 32 | 0 / 7 / 25 |
+| 20 | 0 / 3 / 5 | 0 / 31 / 1 | 0 / 27 / 5 |
+| 25 | 0 / 0 / 8 | 0 / 0 / 32 | 0 / 3 / 29 |
 | 30 | (35: 0 / 0 / 8) | 0 / 0 / 32 | 0 / 0 / 32 |
 | 40, 50 | | 0 / 0 / 32 | 0 / 0 / 32 |
 
 In the lanterns' own air a body flying 25 m/s or more through it fails whichever way it flies; from 5 to 20 m/s T2
-cannot say; no flier passes as a drifter, down to 5 m/s; and a drifter passes 32 times in 32 (64 in 64 with 8 draws;
-every draw of an airspeed and direction came out alike, so on this case the outcome is the geometry's and the winds',
-not the errors'). What moved since 0.4.3, and why, rule by rule: the old script's 49 plants were put through today's
+cannot say (but for one plant of 32 at 20 m/s, which fails by 0.04 m/s); no flier passes as a drifter, down to 5 m/s;
+and a drifter passes 32 times in 32 (at 3 m/s, 64 in 64 with 8 draws, every draw of an airspeed and direction coming
+out alike: on this case the outcome is the geometry's and the winds', not the errors'). What moved since 0.4.3, and why, rule by rule: the old script's 49 plants were put through today's
 `drift` with 0.4.3's rules put back (no model error, the azimuth reference taken as exact, no wind's own error, no
 hold-still rule), and came out as the paper's file has them, 49 of 49, the airspeeds needed to 0.01 m/s. Then the
 rules were put on one at a time:
@@ -9239,9 +9259,11 @@ rules were put on one at a time:
 | 20 | 0 / 3 / 5 | 0 / 4 / 4 | 0 / 8 / 0 | 0 / 8 / 0 |
 
 (0, 10, 15, 25 and 35 m/s did not move; the aircraft's own wind's error, 2 x 0.55 m/s, is under the model's 3 and adds
-nothing.) The tolerance went from 7.2 m/s to 10.5: the fails at 20 m/s need 10 m/s beyond it and are gone, and 25 m/s
-is now the slowest that fails in every direction, and one of its 32 plants by 0.2 m/s only (they need 21.0 m/s or
-more, against tolerances of 10.0-11.1 plus a flier's 10; at 20 m/s the nearest plant is 1.0 short).
+nothing; the step table is as measured at 3 m/s.) The tolerance went from 7.2 m/s to 10.5: the fails at 20 m/s need
+10 m/s beyond it and were gone, and 25 m/s was the slowest that failed in every direction, one of its 32 plants by
+0.2 m/s only. With the model's own error at 2 m/s the tolerance is 9.5 (the plants' own, 9.0-10.1), a metre a second
+tighter: at 25 m/s every plant fails by 1.2 m/s or more (they need 21.0 m/s or more), and at 20 m/s one of 32 just
+fails and the others are up to 3.9 m/s short of it.
 At 5 m/s the wider tolerance alone would pass all eight directions as drifters; the hold-still rule takes every one
 back, since a body flying 5 m/s through the lanterns' air needs more against the farthest wind than the weakest wind
 blows (4.5 m/s). So with today's rules the paper's sentences become: every flier at 25 m/s or more fails, 5 to 20 m/s
@@ -9250,7 +9272,11 @@ plants riding the 14 winds in turn the row at zero says what judgement call 1 sa
 fits as well".
 
 **On 40 of the Galileo Project's triangulated clouds** (section 53's objects; aggregate numbers only, the rays are
-theirs). The sample's rule was fixed before any plant was run: of the clouds whose T2 passed in the runs of 2026-11-17
+theirs). **Measured before the rules of 2026-11-17's evening**: with a model's own error at 3 m/s (2 since) and the
+40 clouds given through one shared azimuth reference (each camera its own since, section 66). The table is to be
+made again on the rules as built and through `--rays`; until then it says what T2 did that morning. A tolerance a
+metre a second tighter moves each edge down by about that much, as it did on the lanterns above.
+The sample's rule was fixed before any plant was run: of the clouds whose T2 passed in the runs of 2026-11-17
 at v0.5.7 (37 of the 59 seen from three sites, 27 of the 60 seen from two), 20 from each group, the dates gone through
 in turn so that the sample spreads over them: 13 days, no more than 3 clouds of a group from one. Each went through
 the command line as its run of that morning had (section 53's workaround: the sites written as one aircraft, one shared
