@@ -8871,6 +8871,12 @@ third and cannot judge the rest; at 10 m/s and under it fails none, and passes 1
 as drifters. The range where birds and small drones fly is the range where T2 cannot say, and under 15 m/s a flier is
 more often passed than failed.
 
+The same 40 clouds with the plants riding the model's two hourly winds in turn (`--plant-air winds`: the air as the
+model says, so the model's miss of the real air, 3.3 m/s here at the median, is not in the plants), passes / cannot
+say / fails: at 0, 1.00 / 0.00 / 0; at 5 m/s, 0.41 +- 0.10 / 0.59 +- 0.10 / 0; at 10, 0 / 1.00 / 0; at 15, 0 / 0.75 +-
+0.08 / 0.25 +- 0.08; at 20, 0 / 0.06 +- 0.03 / 0.94 +- 0.03; from 25, every plant fails. The two airs give one
+picture; the model's miss, where it is in the plants, lets 1 in 20 pass at 10 m/s and fails a few more at 15.
+
 **What it costs.** One plant is one fit: 0.15-0.3 s without the bootstrap and 6.0-6.3 s with its 2,000 resamples, on
 39 rays as on 200 (one thread of arthur with its core to itself; 11-15 s where two workers share a core). The default
 is 289 fits (9 airspeeds x 32, and the case again): 3 min 30 s for the lanterns on 16 CPUs and 10-12 min for a cloud of
