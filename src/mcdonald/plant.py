@@ -1117,6 +1117,7 @@ def _fields(pl):
                 diameter=pl.get("diameter"), speed=pl.get("speed_px_per_frame"),
                 speed_scene=pl.get("speed_against_scene"), dark=bool(pl.get("dark")),
                 light=(pl.get("light") or {}).get("kind"), hz=(pl.get("light") or {}).get("hz"),
+                depth=(pl.get("light") or {}).get("depth"),
                 frames=pl.get("frames_on", len(pl.get("track") or {})) - pl.get("frames_hidden", 0),
                 clipped=pl.get("frames_clipped", 0))
 
@@ -1204,7 +1205,8 @@ def batch_unit(folder):
     keep -- the rows a window kept --, windows -- [dict(name, n0, n1, rows: Find's rows as `Proposal.to_dict` gives them,
     each with its `rank`)] --, objects -- the batch's own list, each with its sources `windows` ("w00:3") and `object`,
     the number of the folder it was measured in, or None --, followed -- {object number: the link's track {frame: (x, y)},
-    empty where the link found none}). None where the unit has made no record yet."""
+    empty where the link found none} --, beats -- {object number: what `flicker` said of it (`beat_of`), or None where
+    it did not run}). None where the unit has made no record yet."""
     from . import several
     from .forensics import read_track
     folder = Path(folder)
@@ -1217,17 +1219,50 @@ def batch_unit(folder):
         f = folder / "find" / f"{name}.json"
         d = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
         windows.append(dict(name=name, n0=a, n1=b, rows=d.get("proposals") or [], error=d.get("error")))
-    followed = {}
+    followed, beats = {}, {}
     for t in several.things(folder):
         p = Path(f"{t.prefix}_autotrack.csv")
         try:
             followed[t.k] = read_track(p) if p.exists() else {}
         except (OSError, ValueError, KeyError, StopIteration):
             followed[t.k] = {}
+        beats[t.k] = beat_of(t.case_json)
     make = rec.get("make") or {}
     return dict(folder=str(folder), tag=recs[0].name[:-len("_batch.json")], frames=rec.get("frames"), outcome=rec.get("outcome"),
                 keep=(make.get("rule") or {}).get("keep"), most=make.get("most"), windows=windows, objects=rec.get("objects") or [],
-                followed=followed)
+                followed=followed, beats=beats)
+
+
+def beat_of(case_json):
+    """What `flicker` said of one object, from its case: dict(beats -- True, False, or None where it could not tell --,
+    hz -- the strongest beat's, among the members that beat where the object is a group --, lines -- [(hz, double_hz,
+    resolution_hz)] of each member that beats, or of every beat where none does --, frames). None where `flicker` did not
+    run (a batch with `--only track,report`) or the case cannot be read."""
+    try:
+        d = json.loads(Path(case_json).read_text(encoding="utf-8")) if case_json else None
+    except (OSError, ValueError):
+        d = None
+    st = ((d or {}).get("stages") or {}).get("flicker")
+    if not st or not st.get("fields"):
+        return None
+    F = st["fields"]
+    beat = {n: b for n, b in (F.get("beat") or {}).items() if isinstance(b, dict) and b.get("hz")}
+    strong = [n for n in F.get("strong") or [] if n in beat] or list(beat)
+    top = max(strong, key=lambda n: float(beat[n].get("amplitude") or 0.0), default=None)
+    return dict(beats=F.get("beats"), hz=beat[top]["hz"] if top else None, frames=F.get("frames"),
+                lines=[(beat[n]["hz"], beat[n].get("double_hz"), beat[n].get("resolution_hz") or F.get("resolution_hz")) for n in strong])
+
+
+def beat_right(hz, said):
+    """Is a planted beat at `hz` the beat `flicker` called (`beat_of`'s)? Where one of its lines lies within two
+    resolutions of `hz`, or of its double, or its own double does: the pilot's rule (method section 62)."""
+    if not hz or not said or said.get("beats") is not True:
+        return False
+    for f, dbl, res in said.get("lines") or ():
+        tol = 2.0 * float(res or 0.5)
+        if min(abs(f - hz), abs(f - 2.0 * hz), abs((dbl or 1e9) - hz)) <= tol:
+            return True
+    return False
 
 
 def _track(row, shift=0):
@@ -1291,7 +1326,11 @@ def recovered_batch(truth, unit, keep=None, seen=None, round_=None, on=None):
                   round it, not a scrolling tape): the batch makes an object of it;
       why      -- where it is no object: "not listed", "past the rows kept", or the rule's reasons for its longest row;
       measured -- the folder the run measured its object in (None: not measured, past the run's own cap);
-      followed -- that object's link lies within FOLLOW_PX of it on FOLLOW_SHARE of its frames or more.
+      followed -- that object's link lies within FOLLOW_PX of it on FOLLOW_SHARE of its frames or more;
+      beat     -- what `flicker` said of that object (the one whose link lies on it most, where two do): True, False,
+                  or None where it could not tell; `flickered` is False where `flicker` did not run on it;
+      beat_hz, beat_right -- the strongest beat called, and whether a planted beat is called at its frequency
+                  (`beat_right`).
     `followed` reads the run's own links: asked at other settings than the run's, an object the run did not make has no
     link, and is not followed. `on` is `on_rows`', where made already.
 
@@ -1326,7 +1365,9 @@ def recovered_batch(truth, unit, keep=None, seen=None, round_=None, on=None):
         kept = [h for h in hits if h[2] <= keep]
         took = [h for h in kept if not B.refusals(h[3], seen, round_)]
         ks = sorted({measured_as.get((h[0], h[1])) for h in took} - {None})
-        covered = max((_covered(unit["followed"].get(k) or {}, path_) for k in ks), default=0.0)
+        cov = {k: _covered(unit["followed"].get(k) or {}, path_) for k in ks}
+        covered = max(cov.values(), default=0.0)
+        said = (unit.get("beats") or {}).get(max(cov, key=cov.get)) if cov else None
         why = None
         if not took:
             why = ("not listed" if not hits else "past the rows kept" if not kept
@@ -1335,7 +1376,10 @@ def recovered_batch(truth, unit, keep=None, seen=None, round_=None, on=None):
         rows.append(dict(_fields(pl), listed=bool(hits), rank=best[2] if best else None, kept=bool(kept), object=bool(took),
                          seen=max((h[3]["seen_in"] for h in hits), default=0), why=why,
                          strength=best[3].get("strength") if best else None, measured=ks[0] if ks else None,
-                         covered=round(covered, 3), followed=bool(took) and covered >= FOLLOW_SHARE))
+                         covered=round(covered, 3), followed=bool(took) and covered >= FOLLOW_SHARE,
+                         flickered=said is not None, beat=None if said is None else said.get("beats"),
+                         beat_hz=None if said is None or said.get("hz") is None else round(float(said["hz"]), 3),
+                         beat_right=beat_right((pl.get("light") or {}).get("hz"), said)))
     return dict(plants=rows, others=batch_objects(rest, keep, seen, round_), keep=keep, seen=seen, round=round_)
 
 
@@ -1430,12 +1474,15 @@ def completeness(planted, control=None, keep=None, seen=None, round_=None, say=l
                           control_strengths={s_: sum(o["strength"] == s_ for o in cobs) for s_ in ("strong", "fair", "weak")},
                           chance_listed=len(ids), chance_object=len(taken),
                           others_in_control=sum(any(same_object(o, c) for c in cobs) for o in res["others"]))
+                un.update(control_beats=beats_said(cun))
                 orig = originals.get((truth["source"]["video"], truth["stretch"]["n0"], truth["stretch"]["n1"]))
                 if orig is not None:
                     oun, oobs = objects_of(orig, shift=truth["stretch"]["n0"] - 1)
                     if oun is not None:
                         un.update(original_objects=len(oobs), original_in_control=sum(any(same_object(o, c) for c in cobs) for o in oobs),
-                                  control_in_original=sum(any(same_object(c, o) for o in oobs) for c in cobs))
+                                  control_in_original=sum(any(same_object(c, o) for o in oobs) for c in cobs),
+                                  original_beats=beats_said(oun),
+                                  control_beats_in_original=beating_in(cun, oun, shift=truth["stretch"]["n0"] - 1))
         units.append(un)
     videos = {}
     for name in ["all"] + sorted({r["video"] for r in rows}):
@@ -1443,6 +1490,23 @@ def completeness(planted, control=None, keep=None, seen=None, round_=None, say=l
         videos[name] = dict(tables=tables(part), units=[x for x in units if name == "all" or x["video"] == name])
     return dict(rows=rows, units=units, videos=videos,
                 rule=dict(keep=int(keep or B.KEEP), seen=B.SEEN if seen is None else seen, round=B.ROUND if round_ is None else round_))
+
+
+def beats_said(unit):
+    """What `flicker` said of a unit's measured objects (`batch_unit`'s `beats`): dict(measured, flickered, called --
+    a beat said to be the object's own --, unsure -- could not tell)."""
+    b = list((unit.get("beats") or {}).values())
+    fl = [v for v in b if v is not None]
+    return dict(measured=len(b), flickered=len(fl), called=sum(v.get("beats") is True for v in fl),
+                unsure=sum(v.get("beats") is None for v in fl))
+
+
+def beating_in(a, b, shift=0):
+    """How many of unit `a`'s objects that beat lie on an object of unit `b` that beats too (their links, by `on_path`
+    either way round; `b`'s frames moved back by `shift`, a stretch of the video against its control)."""
+    beat = lambda u: [(t, k) for k, t in (u.get("followed") or {}).items() if t and ((u.get("beats") or {}).get(k) or {}).get("beats") is True]
+    B = [{n - shift: xy for n, xy in t.items()} for t, _ in beat(b)]
+    return sum(1 for t, _ in beat(a) if any(on_path(t, o) or on_path(o, t) for o in B))
 
 
 def tables(rows):
@@ -1471,7 +1535,37 @@ def tables(rows):
                          cell(r.get("speed_scene") if r.get("speed_scene") is not None else r.get("speed"), CELLS["speed_scene"])), []).append(r)
     out["contrast_by_speed"] = [dict(cell=list(k), n=len(v), **{lv: _share(v, lv) for lv in LEVELS})
                                 for k, v in sorted(grid.items(), key=lambda kv: (_lead(kv[0][0]), _lead(kv[0][1])))]
+    out["beat"] = beat_tables(rows)
     return out
+
+
+LIGHTS_SAID = dict(constant="constant (no beat: a beat called is a false one)", beat="a steady beat",
+                   wander="a beat that wanders (birds, flocks)", twinkle="a twinkle with the scene", strobe="a strobe")
+HZ_CELLS = (0, 6, 9)                                        # Hz: a drawn beat is 3 to 12 Hz (at most 0.4 of the frame rate)
+
+
+def beat_tables(rows):
+    """What `flicker` said of the planted objects the batch followed (`completeness`'s rows with `followed` and
+    `flickered`): {light: [dict(cell, n, called, unsure, right)]} by the light planted, and for the beating ones (steady
+    and wandering) by depth, by frequency and by contrast as written -- each share with Wilson's interval. `called` is a
+    beat said to be the object's own; `unsure`, how many `flicker` could not tell; `right`, a planted beat called at its
+    frequency."""
+    rows = [r for r in rows if r.get("followed") and r.get("flickered")]
+    if not rows:
+        return {}
+
+    def by(part, key, edges=None, order=None):
+        cells = {}
+        for r in part:
+            v = r.get(key) if edges is None else cell(r.get(key), edges)
+            cells.setdefault(v, []).append(r)
+        keys = (list(order) + [k for k in cells if k not in order]) if order else sorted(cells, key=lambda v: (v is None, _lead(v)))
+        return [dict(cell=v, n=len(cells[v]), unsure=sum(r.get("beat") is None for r in cells[v]),
+                     called=_share([dict(x=r.get("beat") is True) for r in cells[v]], "x"),
+                     right=_share(cells[v], "beat_right")) for v in keys if v in cells]
+    beating = [r for r in rows if r.get("light") in ("beat", "wander")]
+    return dict(light=by(rows, "light", order=list(LIGHTS_SAID)), depth=by(beating, "depth"),
+                hz=by(beating, "hz", HZ_CELLS), contrast=by(beating, "contrast_written", CELLS["contrast_written"]))
 
 
 def _lead(v):
@@ -1534,6 +1628,19 @@ def table_said(res):
             L += [f"| {c['cell']} | " + " | ".join(_said(c[k]) for k in LEVELS) + " |" for c in t[key]] + [""]
         if t["why"]:
             L += ["**Why a planted object is no object of the batch**: " + "; ".join(f"{c['cell']} {c['n']}" for c in t["why"]), ""]
+        if t.get("beat"):
+            B = t["beat"]
+            L += ["**The beat**: `flicker` on each planted object the batch followed over half its frames. *A beat called*: "
+                  "one it says is the object's own; *at its frequency*: within two resolutions of the planted beat (or of its "
+                  "double); *could not tell*: how many it left undecided (counted in the cell, not as called).", "",
+                  "| light planted | followed and measured | a beat called | could not tell | at its frequency |", "|---|---|---|---|---|"]
+            L += [f"| {LIGHTS_SAID.get(c['cell'], c['cell'])} | {c['n']} | {_said(c['called'])} | {c['unsure']} | "
+                  + (_said(c["right"]) if c["cell"] in ("beat", "wander") else "-") + " |" for c in B["light"]] + [""]
+            for key, title in (("depth", "The beating ones, by depth (the share of their brightness that beats)"),
+                               ("hz", "The beating ones, by frequency (Hz)"),
+                               ("contrast", "The beating ones, by contrast as written (grey levels)")):
+                L += [f"**{title}**", "", "| cell | followed and measured | a beat called | at its frequency |", "|---|---|---|---|"]
+                L += [f"| {c['cell']} | {c['n']} | {_said(c['called'])} | {_said(c['right'])} |" for c in B[key]] + [""]
         withc = [u for u in us if u.get("control")]
         if withc:
             cf = {u["control"]: u for u in withc}
@@ -1547,12 +1654,22 @@ def table_said(res):
                   f"- Planted paths that lie on a row of the control's list, by chance: {sum(u['chance_listed'] for u in withc)} of "
                   f"{pl}; on an object of the rule there: {sum(u['chance_object'] for u in withc)}.",
                   f"- In the planted videos the rule makes {sum(u['others'] for u in withc)} objects on no planted path, "
-                  f"{sum(u['others_in_control'] for u in withc)} of them objects of the control too.", ""]
+                  f"{sum(u['others_in_control'] for u in withc)} of them objects of the control too."]
             orig = [u for u in cf.values() if u.get("original_objects") is not None]
             if orig:
                 L += [f"- The second encode alone: of the video's own {sum(u['original_objects'] for u in orig)} objects in these "
                       f"stretches, {sum(u['original_in_control'] for u in orig)} are objects of the control too; of the control's "
-                      f"{sum(u['control_objects'] for u in orig)}, {sum(u['control_in_original'] for u in orig)} are the video's.", ""]
+                      f"{sum(u['control_objects'] for u in orig)}, {sum(u['control_in_original'] for u in orig)} are the video's."]
+            fl = [u for u in cf.values() if (u.get("control_beats") or {}).get("flickered")]
+            if fl:
+                cb = {k: sum(u["control_beats"][k] for u in fl) for k in ("measured", "flickered", "called", "unsure")}
+                ob = [u for u in fl if u.get("original_beats")]
+                L += [f"- The beat where nothing was planted: `flicker` calls a beat on {cb['called']} of the controls' {cb['flickered']} "
+                      f"measured objects (could not tell on {cb['unsure']})"
+                      + (f"; on {sum(u['original_beats']['called'] for u in ob)} of the {sum(u['original_beats']['flickered'] for u in ob)} "
+                         f"measured objects of the videos' own stretches; {sum(u.get('control_beats_in_original') or 0 for u in ob)} of the controls' "
+                         "beating objects beat in the video's own stretch too" if ob else "") + "."]
+            L.append("")
         cap = sum(u.get("past_cap") or 0 for u in us)
         if cap:
             L += [f"{cap} objects of the rule on a planted path were past the run's own cap and not measured: not followed here.", ""]
@@ -1561,7 +1678,7 @@ def table_said(res):
 
 TSV = ["video", "file", "seed", "id", "kind", "group", "dark", "light", "hz", "contrast", "contrast_written", "contrast_after",
        "sigma", "diameter", "speed", "speed_scene", "frames", "clipped", "listed", "rank", "kept", "object", "seen", "why",
-       "strength", "measured", "covered", "followed"]
+       "strength", "measured", "covered", "followed", "depth", "flickered", "beat", "beat_hz", "beat_right"]
 
 
 def write_table(res, stem):

@@ -522,6 +522,58 @@ def test_what_the_batch_takes():
           "a planted file's control: the truth table's, or the one another seed of the stretch wrote")
 
 
+def test_the_beat_through_the_batch(tmp):
+    """What `flicker` said of the objects the batch followed, held against the light planted (`beat_of`, `beat_right`,
+    `recovered_batch`'s beat, `beat_tables`, and the controls' `beats_said` and `beating_in`)."""
+    line = lambda x0, y0, a=1, b=100: {n: (x0 + 1.0 * (n - a), y0) for n in range(a, b + 1)}
+    paths = {1: line(100, 100), 2: line(400, 300), 3: line(100, 500)}
+    lights = {1: dict(kind="beat", hz=6.0, depth=0.3), 2: dict(kind="beat", hz=6.0, depth=0.3), 3: dict(kind="constant")}
+    truth = dict(plants=[dict(id=i, kind="dot", contrast=60.0, light=lights[i], track={str(n): list(xy) for n, xy in t.items()},
+                              frames_on=len(t)) for i, t in paths.items()])
+    rows = [_row(1, {n: xy for n, xy in paths[1].items() if n <= 60}, score=12.0),
+            _row(2, {n: xy for n, xy in paths[2].items() if n <= 60}, score=11.0),
+            _row(3, {n: xy for n, xy in paths[3].items() if n <= 60}, score=10.0)]
+    said = lambda hz, beats=True, res=0.25: dict(beats=beats, hz=hz, lines=[(hz, None, res)], frames=60)
+    unit = dict(keep=400, windows=[dict(name="w00", n0=1, n1=100, rows=rows)],
+                objects=[dict(object=k, windows=[f"w00:{k}"]) for k in (1, 2, 3)],
+                followed={1: dict(paths[1]), 2: {n: (x + 10.0, y) for n, (x, y) in paths[2].items()}, 3: dict(paths[3])},
+                beats={1: said(6.1), 2: said(6.0), 3: said(4.2)})
+    got = lambda u: {r["id"]: r for r in plant.recovered_batch(truth, u)["plants"]}
+    g = got(unit)
+    check(g[1]["flickered"] and g[1]["beat"] is True and g[1]["beat_hz"] == 6.1 and g[1]["beat_right"],
+          "a planted beat at 6 Hz called at 6.1 (resolution 0.25 Hz) is recovered at its frequency", str({k: g[1][k] for k in ("beat", "beat_hz", "beat_right")}))
+    check(g[3]["beat"] is True and not g[3]["beat_right"], "a beat called on a constant object is a beat called, and at no planted frequency")
+    check(not got(dict(unit, beats={**unit["beats"], 1: said(9.0)}))[1]["beat_right"]
+          and got(dict(unit, beats={**unit["beats"], 1: said(12.1)}))[1]["beat_right"]
+          and not got(dict(unit, beats={**unit["beats"], 1: said(6.0, beats=None)}))[1]["beat_right"],
+          "at 9 Hz it is not recovered; at its double, 12.1 Hz, it is; one flicker could not tell is not")
+    check(not got(dict(unit, beats={}))[1]["flickered"] and got(dict(unit, beats={}))[1]["beat"] is None,
+          "where flicker did not run (a batch with --only track,report), nothing is said of the beat")
+    B = plant.beat_tables(list(g.values()))
+    light = {c["cell"]: c for c in B["light"]}
+    check(set(light) == {"beat", "constant"} and light["beat"]["n"] == 1 and light["beat"]["right"]["k"] == 1
+          and light["constant"]["called"]["k"] == 1 and light["constant"]["n"] == 1 and B["depth"][0]["cell"] == 0.3,
+          "the beat's table: only what the batch followed is counted (object 2, its link 10 px off, is not); "
+          "the constant one's beat is a false one", str({k: (c["n"], c["called"]["k"], c["right"]["k"]) for k, c in light.items()}))
+    case = tmp / "x_case.json"
+    case.write_text(json.dumps(dict(stages=dict(flicker=dict(fields=dict(
+        beats=True, frames=90, resolution_hz=0.3, strong=["member 2", "member 3"],
+        beat={"member 1": dict(hz=3.0, amplitude=0.5), "member 2": dict(hz=7.0, amplitude=0.1, double_hz=14.0, resolution_hz=0.4),
+              "member 3": dict(hz=7.5, amplitude=0.2)}))))))
+    b = plant.beat_of(case)
+    (tmp / "y_case.json").write_text(json.dumps(dict(stages=dict(track=dict(fields={})))))
+    check(b["beats"] is True and b["hz"] == 7.5 and sorted(b["lines"]) == [(7.0, 14.0, 0.4), (7.5, None, 0.3)]
+          and plant.beat_of(tmp / "y_case.json") is None and plant.beat_of(tmp / "no_case.json") is None,
+          "a case's beat: the strongest of the members that beat, each member's line; no flicker stage, or no case, says nothing",
+          str(b))
+    a = dict(followed={1: dict(paths[1]), 2: dict(paths[3])}, beats={1: said(6.0), 2: said(6.0, beats=False)})
+    o = dict(followed={7: {n + 300: xy for n, xy in paths[1].items()}}, beats={7: said(6.0)})
+    check(plant.beats_said(a) == dict(measured=2, flickered=2, called=1, unsure=0) and plant.beating_in(a, o, shift=300) == 1
+          and plant.beating_in(a, o) == 0,
+          "the controls: how many of their objects beat, and how many of those beat in the video's own stretch too (its frames "
+          "moved back to the control's)")
+
+
 def _env(tmp):
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parent.parent / "src"), MCDONALD_HOME=str(tmp / "home"), MCDONALD_GPU="none")
     for k in ("MCDONALD_CATALOG", "MCDONALD_CASES", "MCDONALD_DATA", "MCDONALD_CPUS", "SLURM_JOB_ID", "SLURM_ARRAY_JOB_ID"):
@@ -530,11 +582,11 @@ def _env(tmp):
 
 
 def test_through_the_batch(tmp, made):
-    """The drawn planted video and its control through `mcdonald batch` as the plants at scale go (`--only track,report`,
-    `--keep`; the control `--most 0`), then `mcdonald plant --table`."""
+    """The drawn planted video and its control through `mcdonald batch` as the plants at scale go (`--only
+    track,flicker,report`, `--keep`; the control `--most 0`), then `mcdonald plant --table`."""
     run = lambda *a: subprocess.run([sys.executable, "-m", "mcdonald.cli", *map(str, a)], capture_output=True, encoding="utf-8",
                                     errors="replace", env=_env(tmp))
-    r1 = run("batch", made["planted"], "--out", tmp / "bp", "--only", "track,report", "--keep", "60", "--most", "10")
+    r1 = run("batch", made["planted"], "--out", tmp / "bp", "--only", "track,flicker,report", "--keep", "60", "--most", "10")
     r2 = run("batch", made["none"], tmp / "drawn.mp4", "--out", tmp / "bc", "--most", "0", "--keep", "60")
     check(r1.returncode == 0 and r2.returncode == 0, "the planted video and its control go through `mcdonald batch`",
           (r1.stderr or "")[-300:] + (r2.stderr or "")[-300:])
@@ -556,6 +608,9 @@ def test_through_the_batch(tmp, made):
           "the three planted objects that move against the scene are objects of the batch, and followed",
           "; ".join(f"{i}: {x.get('object')}/{x.get('followed')} ({x.get('why')}, seen {x.get('seen')})" for i, x in zip((1, 2, 3), moving)))
     check(rows.get(6, {}).get("object") == "False", "the one planted with the scene is not", str({k: rows.get(6, {}).get(k) for k in ("listed", "why")}))
+    check(all(x.get("flickered") == "True" and x.get("beat") != "True" for x in moving),
+          "`flicker` ran on each of them in the batch, and called no beat on these constant points",
+          "; ".join(f"{i}: {x.get('flickered')}, {x.get('beat')}" for i, x in zip((1, 2, 3), moving)))
     u = (res.get("units") or [{}])[0]
     check(u.get("control") == Path(made["none"]).name and u.get("chance_object") == 0 and u.get("planted") == len(PLANTS),
           "its control is found by name, and no planted path is an object there", str({k: u.get(k) for k in ("control", "chance_listed", "chance_object", "control_objects")}))
