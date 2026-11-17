@@ -6285,7 +6285,7 @@ def test_zz_propose_spots_seen_all_round_are_read_as_before():
 
 
 
-def _drawn_clip(td, name, vx_of, size=704, frames=24, seed=20261116):
+def _drawn_layers_clip(td, name, vx_of, size=704, frames=24, seed=20261116):
     """A drawn clip `size` px square whose row y moves vx_of(y) px a frame across the picture, from its own RNG: the
     texture is smoothed noise, sampled at each row's place frame by frame, with a little new noise in every frame."""
     import subprocess
@@ -6321,7 +6321,7 @@ def test_zz_scene_dense_field_maps_two_layers_and_the_change_across_one():
         return
     vx = lambda y: np.where(y < 400, 3.0 + 0.5 * y / 100.0, -2.0)
     with tempfile.TemporaryDirectory() as td:
-        clip = _drawn_clip(td, "two", vx)
+        clip = _drawn_layers_clip(td, "two", vx)
         none = np.zeros((clip.H, clip.W), bool)
         masks = dict(blocks=none, graphics=none, colour=True, tinted=False)
         quiet = lambda *a: None
