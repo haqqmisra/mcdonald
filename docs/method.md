@@ -8990,7 +8990,61 @@ Window by window (each window that passed, fitted on its own): 380 of 458 window
 most windows that pass on a cloud under a detector's box are the box's, and the reading could be put before the windows
 are counted (IDEAS). It is not: that changes how many windows every bird's finding quotes.
 
-**What it changed, and how that is held.** XXHOLDXX
+**Where the clouds' jitter comes from.** The cadence study of the same day found every Galileo clip coded I P P P P, the
+box about a slow cloud a copy of the frame before on 55-63 % of P frames, and the detector's centroid stepping when the I
+frame renews the picture. The tracks show it: on the seven clouds the steps on one frame of five are 2.8-4.3 times the
+least (0.17-1.19 px, rms, against 0.06-0.50); a near airliner's 1.1, the flyers' 1.0-1.5. It is no rhythm in the band: within
+0.25 Hz of 12 Hz the track holds 0-1 % of its power above 1.5 Hz (a hop of either sign at each renewal), and the stage's
+5-frame mean has its null there at 60 frames a second. What reaches the disc is the hops from one renewal to the next, 12 a
+second, broad under 6 Hz. The disc's path has its strongest 8-26 times the band's median at 1.8-3.2 Hz, and on six of the
+seven the false beat sits there; the seventh quotes its clearest window's 4.16 Hz and beats over its whole track at 2.85 Hz,
+where its path's strongest is. So the renewal sets when the box may move, and the beat's frequency is the wander's own. A
+flyer's path has a line at its wingbeat instead (69-110 times the median): the bob.
+
+**What it changed, and how that is held.**
+- *The labelled set* (432 tracks, both rules, judged again from the saved curves with no video, `summarise.py --rejudge`: the
+  curves hold the aperture's path, so the harness holds the reading). Two rows move, no bird's. IR_HELICOPTER_043, the
+  set's false alarm of record (2.09 Hz, 21 %, named a bird under both rules, put down to a fence line and poles behind
+  it), has no beat of its own: kept 0.27, the fit taking 86 % of the window's variance, its label's box hopping 0.62 px
+  over a body wider than the disc. Checked apart from the fit: with the brightness read again on the track smoothed over
+  a third of a second the beat keeps 27 %, and the stage finds none there. IR_DRONE_011, refused under the paper's rule
+  (the encoder may make its beat), has no beat of its own (kept 0.42). Non-birds called a bird: 16 to 15 of 307 (stage)
+  and 23 to 22 (paper); named: 2 to 1 under either, HELICOPTER_024 the one left (section 44's tables are the run of
+  2026-11-07 and 13). Birds called: 31 and 30 of 125, named 30 and 27, as they were, each at its frequency.
+  `tests/test_controls.py`: 118 checks, 115 as they were and three that held the helicopter to its false alarm, now held to
+  a non-bird's silence; its record (`RECORD`, `tests/golden/controls.csv`) and the data folder's table moved with it.
+- *The report's weights follow the record* (`controls_beat.csv`, made again; section 47). A bird named is 74 times as
+  common on birds as on the rest at the 7 % floor (at least 21; it was 37) under the stage's rule and 66 (at least 18; it
+  was 33) under the paper's. And a beat between 7.9 % and 21 % of the brightness now reads "None of the 288 others the
+  test could judge beat so strongly, so on this test they are screened out, though up to 1.0 in 100 might be", where it
+  read "the others are not screened out by it": the helicopter's 21 % was the one that reached. Where no other gave an
+  answer `controls.said` now says so ("29 of 125 birds ... and none of the 307"); it wrote "about inf times".
+- *The fourteen reference case files* measured again before and after on one machine (31 objects, by the commands their
+  reports record): every conclusion is the same, 28 objects differ by one field, the reading added to the beat (kept 0.86
+  to 1.03), and three with no beat record differ by nothing. Of the 31 reports 9 are the same to the letter; 22 change in
+  the weights' and the screening's sentences above, and nowhere else.
+- *The controls* (`test_controls`' sample): the five flyers, PR135's six and the labelled birds keep their beats at their
+  frequencies; PR23, the balloon, PR055, PR071, the drones, airplanes and helicopters stay silent.
+- *The Galileo clips* (the 513 through `mcdonald flicker` again as the release ran them; 494 with power and 19 without,
+  the same 19). Clip by clip: of 303 cloud clips, the 7 whose beat came back (4 over the whole track, 3 by windows
+  apart) are all the track's now (kept 0.08-0.32, the fit taking 66-95 % of the stretch's variance, jitter 0.17-1.13
+  px), 287 have no beat as before and 9 no power. Of 210 aircraft clips, one beat in one stretch that the stage kept
+  is the track's (a Boeing 737 passing 0.9 km from the camera: 2.34 Hz at 3.0 %, kept 0.33), one whole-track beat
+  stays (the block-grid 737, kept 1.00), 198 have no beat and 10 no power. On the other 505 clips every field the
+  reading does not own is the same; on those eight, what follows from "no beat" moves with it (the light's route to
+  tau opens, the encoding control is not asked). The reading was made on 488 clips (six apertures are re-centred) and
+  reads under a half on 47, most of them the strongest peak of a clip with no beat. `drift` then (the released 0.5.7,
+  every camera's envelope): **T3 fails 0 of 119 clouds, where it failed 5** (under 2.5 % at 95 % were the clouds
+  independent, under 17 % by their 16 days), and 0 of 80 aircraft as before; "not drifting" is said of 3 clouds of
+  119 (2.5 %; 0.0-6.8 % by day), where it was said of 8, the three by T1 and T2; "drifting" of 64, where 62; the
+  aircraft's verdicts and every T1, T2 and T4 are the same (0 of 717 differ). The smoothing diagnostic gave the same 0
+  of 119, and a beat to an aircraft that had none; this reading cannot give one.
+- *On drawn data* (`tests/test_beat.py`): a steady ragged patch under a track that hops half a pixel beats at 2.55 Hz
+  with 36 % of its brightness over its whole track without the reading, and is the track's with it (11 % left); a spot
+  beating 20 % under the same hop, and a bird whose track bobs with its wings, keep theirs; drawn curves made by where the
+  disc sits are the track's 40 times in 40, a beat beside an unrelated jitter is kept 40 in 40, and a jitter in time with
+  the beat at the beat's frequency only is kept 40 in 40 where a fit with the beat left in keeps 0. Each of the three was
+  made to fail once: the reading deciding nothing, the beat left in the fit, the line at 1.2.
 
 **Every track, or only one read from a file?** Every track whose aperture rides it. On mcDonald's own tracker's tracks of
 known objects (the labelled set's 299, the flyers') no beat moves: 30 held bird beats keep 0.79 at least, and the nine held
