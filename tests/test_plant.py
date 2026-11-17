@@ -519,7 +519,7 @@ def test_through_the_batch(tmp, made):
     run = lambda *a: subprocess.run([sys.executable, "-m", "mcdonald.cli", *map(str, a)], capture_output=True, encoding="utf-8",
                                     errors="replace", env=_env(tmp))
     r1 = run("batch", made["planted"], "--out", tmp / "bp", "--only", "track,report", "--keep", "60", "--most", "10")
-    r2 = run("batch", made["none"], "--out", tmp / "bc", "--most", "0", "--keep", "60")
+    r2 = run("batch", made["none"], tmp / "drawn.mp4", "--out", tmp / "bc", "--most", "0", "--keep", "60")
     check(r1.returncode == 0 and r2.returncode == 0, "the planted video and its control go through `mcdonald batch`",
           (r1.stderr or "")[-300:] + (r2.stderr or "")[-300:])
     r = run("plant", "--table", tmp / "bp", "--control", tmp / "bc", "--json")
@@ -543,6 +543,9 @@ def test_through_the_batch(tmp, made):
     u = (res.get("units") or [{}])[0]
     check(u.get("control") == Path(made["none"]).name and u.get("chance_object") == 0 and u.get("planted") == len(PLANTS),
           "its control is found by name, and no planted path is an object there", str({k: u.get(k) for k in ("control", "chance_listed", "chance_object", "control_objects")}))
+    check(u.get("original_objects") == 0 and u.get("original_in_control") == 0 and u.get("control_in_original") == 0,
+          "and the stretch of the video itself, run beside the controls (here the whole drawn video), is found by its frames: "
+          "nothing in it lasts, as in the control", str({k: u.get(k) for k in ("original_objects", "original_in_control", "control_in_original")}))
     md = Path(next((f for f in d.get("files") or [] if f.endswith(".md")), tmp / "none.md"))
     check(md.exists() and "## drawn" in md.read_text() and "Where nothing was planted" in md.read_text(),
           "the table has a section for the video, with what the control gave")

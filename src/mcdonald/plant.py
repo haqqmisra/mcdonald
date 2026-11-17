@@ -1359,7 +1359,7 @@ def completeness(planted, control=None, keep=None, seen=None, round_=None, say=l
     pp = B.read_plan(planted)
     cp = B.read_plan(control) if control else None
     cunits = {} if cp is None else {u["file"]: u for u in cp["units"]}
-    originals = {} if cp is None else {(u["file"], u.get("n0"), u.get("n1")): u for u in cp["units"] if u.get("n0") is not None}
+    originals = {} if cp is None else {(u["file"], u.get("n0") or 1, u.get("n1") or u.get("frames")): u for u in cp["units"]}
     cache, rows, units = {}, [], []
 
     def objects_of(u, shift=0):
