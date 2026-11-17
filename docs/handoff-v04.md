@@ -1,6 +1,130 @@
-# Handoff: ROADMAP 0.4 to 0.6 -- the next GPU session's start on top (after session 26, 2026-11-15 evening: Find's chaining and its search of a frame sooner to the bit on branch g11, A14 measured, four questions for Jacob), then session 26, then the start as written after 0.5.7, then session 25 (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
+# Handoff: ROADMAP 0.4 to 0.6 -- the next GPU session's start on top (after session 27, 2026-11-16: A14 built as `mcdonald layers --dense`, G11 and G12 on main, the plants at scale on a branch, three questions for Jacob), then session 27, then the start as written after session 26, then session 26 (2026-11-15 evening: Find's chaining and its search of a frame sooner to the bit), then the start as written after 0.5.7, then session 25 (2026-11-14/15 night: the window's Find makes its list every few seconds, merged for 0.5.7 after 0.5.6 went out on 2026-11-15); session 24 under it (2026-11-14 evening: Find several times sooner on long videos, a batch's videos sharing the card, `stabilize` on the card measured and not built, the card's effect on reports measured; local, not pushed); 0.5.5 released 2026-11-14 (0.5.4 the same morning); session 22 under it (2026-11-13: `rerun`'s slash rule fixed, a long track in two thirds of the time, two more passes on the card, the add-on installed from the window; nothing versioned or pushed), its brief under it, then 0.5.3 released (2026-11-12), then session 21 (2026-11-12): the graphics card's arithmetic built (ROADMAP 0.6, objective 3), `layers` and `integrity`'s passes on it and held to the CPU's, not versioned, not pushed; session 20 (2026-11-10): 0.5.2 built, `tether`'s four defects, its companion gate set against a null and its swing held to a slow wander, its version commit made and `main` pushed on the maintainer's word once the Mac and Windows runs had passed on it, the tag still to come; session 19 (what comes after 0.5.1, measured on PURSUE, nothing built), session 18 (the 0.5.0 cut and the 0.4.x additions built by ten agents), session 17 (sciencespeak, and every figure in Jacob's house style) and sessions 16 to 1 below as the record
 
-## Start here: the next GPU session (written 2026-11-15 evening, after session 26)
+## Start here: the next GPU session (written 2026-11-16, after session 27)
+
+Jacob, 2026-11-16: "All four of the recommendations from the last GPU session are fine with me. Keep going with
+finishing the GPU development work, spawn agents as needed, use arthur and merlin if needed, all jobs through /slurm".
+So A14 was built as recommended (the layers' map and the parallax first; 128-px templates every 16 px; today's keep
+rule with two empty pairs setting the floor), G2 (Find's own search on the card) is not to be built now, and G11 and
+G12 go out in the next 0.5.x.
+
+**Where things stand.** `main` is fa0aef8, local, not pushed: 0.5.7 (9d742b4, pushed) + session 26's G11 and G12 +
+session 27's A14 (`mcdonald layers --dense`, `mcdonald.dense`, method section 65). Held at fa0aef8 two ways: all suites
+with the goldens on Cannon (run 20261116-225511-a14-fa0aef8: test_measurement 702, test_gui 691 + 4 skips, test_gpu 137,
+golden 266, every suite 0 FAIL) and on arthur's card (job 3511, every suite 0 FAIL, test_measurement 704, test_gpu 168,
+test_gui 793 + 1 skip; the goldens in job 3584 with MCDONALD_DATA set: 266 PASS, 0 SKIP). The CHANGELOG's "Unreleased"
+holds all three. Not versioned: 0.5.8 is Jacob's word (question 1). The plants at scale are on branch `plants-scale` (worktree `/hugespace/models/mcdonald-plants`, 7ce21c9, from 133deba;
+5 commits touching only `plant.py`, `batch.py`, their tests and method section 62.1), **not merged**: `plant` and `batch`
+are the development session's, which decides the merge with Jacob.
+
+**How the last sessions worked (keep to it).** As in "The GPU session's start as written after 0.5.7" below, with
+session 26's two additions, and three of session 27's:
+- `tools/suites.sbatch golden` run from a snapshot skips the goldens unless `MCDONALD_DATA=/models/data/mcdonald` is
+  exported (52 skips in job 3511: "no case files"); read each suite's counts, not "ALL SUITES PASS".
+- test_measurement is one namespace of ~6,300 lines: a helper named like an existing one (`_drawn_clip`) silently
+  replaces it and breaks an older test. grep `^def name` before adding a helper.
+- A drawn clip cannot test an error's size (the dense field's overlap factor passed every test at 1 and at 8):
+  calibrate an error on real adjacent pairs, and give a clip's numbers errors from the pairs' own scatter. And a flag
+  with an optional number (`nargs="?"`) swallows the next word, a video's name among them: a flag plus `--...-pairs N`.
+
+**The open GPU work, in order.**
+1. **Jacob's answers** to the questions below.
+2. **The plants at scale** (ROADMAP 0.6 objective 4): done as a measurement, on branch `plants-scale` (session 27 below): 80 planted videos (8 PURSUE videos x 10
+   seeds x 1,000 frames, 3,856 objects) through `mcdonald batch --only track,report`, the completeness table per video
+   (`mcdonald plant --table BATCH --control BATCH`), the 40-frame rule measured at other settings and not changed. Left:
+   the merge (the development session's), and Jacob's questions 4-6 below. `--card` changed nothing there: no stage of
+   `track,report` runs on the card, so the plants are not yet the card's customer; a beat pass (`flicker`'s shake pass)
+   would be the first place it does something (question 6).
+3. **The error models** (ROADMAP 0.6 objective 3's last item; question 3): nothing until he says what he means.
+4. **Parked or his:** G2 (Find's search on the card: "not now", 2026-11-16), G9's robust decisions, a Mac's card (G4),
+   `stabilize` (G7, CPU by his choice), Slurm's shared-GPU shards (G8: no change). With these, the card's path is as
+   complete as ROADMAP 0.6 objective 3 asks, but for the error models.
+
+**To put to Jacob** (plain words; each a choice with a recommendation; 4-6 from the plants):
+1. *Release 0.5.8 now, with Find sooner (G11, G12) and the dense field (A14)?* (a) Yes: version, Mac and Windows runs,
+   then push and tag, all on his word -- **recommended**: every suite and golden passes on Cannon and on the card, and
+   nothing a report says changes; (b) wait for the plants at scale; (c) wait for more GPU work.
+2. *Should the window offer the dense field?* (a) Not yet: a reading for the command line, like `noise` and `rank` --
+   **recommended**: it changes no report, and what a person would do with a map of layers in the window is not yet
+   designed; (b) a choice on the `layers` step under Advanced ("Map where each layer of the background is"), off by
+   default; (c) on by itself in the one press where there is a graphics card.
+3. *What are "the error models" of ROADMAP 0.6 objective 3?* (a) Each reported number's error found by measuring
+   again many times with its inputs shaken (the marks, the templates, k), on the card -- the reading the roadmap's
+   sentence suggests; (b) a model of each sensor's noise (`mcdonald noise` began this, objective 6); (c) the errors of
+   the steps already measured, put together into one error for each number the report gives; (d) something else.
+4. *How many frames must a spot be seen on before the batch counts it as an object?* (a) Keep 40 -- **recommended**:
+   most planted objects are lost before the rule (59 % never on Find's list), lowering it adds mostly faint points and
+   group members while the catalog's table grows by 39-62 %, and no null here can set it; (b) 20 frames: 28 % of planted
+   objects followed instead of 21 %, 2,786 catalog rows against 1,715; (c) 40 frames from first to last sight, gaps
+   included: 24 %, 2,386 rows; (d) 60 frames: 15 %, 1,168 rows.
+5. *Plant into every video of the catalog?* (a) One stretch of each of the 144 videos, 3 seeds: about 330 CPU-hours,
+   some 7 hours on 48 of arthur's CPUs, a completeness line for every video good to about 7 points -- **recommended**;
+   (b) 10 seeds: about 910 CPU-hours, better on Cannon (over the 100 CPU-hour line: his yes); (c) stop at these 8.
+6. *Measure planted beats through the batch* (`--only track,flicker,report`; the one place in the plants where the card
+   computes)? (a) Yes, on the 80 planted videos -- **recommended**; its cost not yet measured; (b) no: the pilot's beat
+   numbers stand.
+And for the development session: merge `plants-scale` (it fixes a defect of `plant`, below).
+## Session 27, Monday (2026-11-16): A14 built as `mcdonald layers --dense`; G11 and G12 on main; the plants at scale
+
+From the section below, with Jacob's yes to all four recommendations. Files: `/scratch/mcdonald/a14-build-2026-11-16`
+(`smoke.py`, `real.py`/`real.sbatch` on PR144, PR135, PR113, PR051; `census.py`/`census.sbatch` on the 14 reference
+clips; `mutants.sh`; `cmp_rows.py`; `method65_draft.md`; `logs/`).
+
+**G11 and G12 on main.** Branch g11 fast-forwarded onto main (133deba); its worktree and branch removed.
+
+**A14: `mcdonald layers --dense [--dense-pairs N] [--null-from VIDEO]`** (`mcdonald.dense`; method section 65; IDEAS
+A14 shipped). 24 of the pairs `layers` read MOVED with a consensus; `shift_field` at stride 16, the search 24 px past the
+pair's own groups; each pair's first frame also matched against two empty frames, its second turned half a turn and that
+frame with its phases scrambled (`scrambled`; or another video's middle frame); the floor the lowest of 0.50-0.99 at which
+neither keeps over 1 %. A layer: 288 kept rows or more on one affine motion (seeded by `consensus`, grown about the fit);
+a second among the rest, 12 px or more from the first where it lies; with two, each refitted on its rows that do not
+straddle the other (a drawn shear beside a second layer read 3.5 % low without that). Two layers named by speed, the
+faster and the slower (which has more rows flips along PR144), with where each lies; the larger layer's spreading,
+turning and stretching (its affine change in four parts), the clip's errors from the pairs' own scatter. Its own cache,
+`<tag>_dense.csv`, `<tag>_dense_map.csv`, `<tag>_dense.png`; nothing else `layers` gives changes (held to the byte).
+- *Census, 14 reference clips, 300 middle frames, on the card:* a second layer only on PR144 (7 of 24 pairs, 94 px/s
+  apart against `layers`' 97; frames 585-834: 5 of 24, 91 against 91, the sea above and the cloud tops below), none in
+  73 mapped pairs on the other clips; the half-turn set every raised floor (PR113 0.74, PR077 0.54); the scrambled
+  frame kept at most 0.1 %, another clip's 0.3 %; six clips held still in their middle 300 frames (nothing to map).
+  9-24 s for a 1080p clip's 24 pairs and their 48 empty pairs on the card.
+- *Card and CPU:* on PR144 (24 pairs) and PR113 (8) the same pairs and templates; 1 of 104,812 rows more than 0.01 px
+  apart; floors, layers and counts the same, numbers within a part in a million.
+- *Errors:* a pair's error from its rows' scatter times 8 (their overlap) is still a floor: adjacent PR144 pairs differ
+  by 1.5-3.4 times it. So the clip's numbers take the pairs' scatter (`median_error`).
+- *Tests:* test_measurement `test_zz_scene_dense_field_maps_two_layers_and_the_change_across_one` and
+  `test_zz_scene_dense_floor_and_the_scrambled_frame` (sorted after the propose tests); each check fails under a small
+  mutant (refit off, the floor's min, no half turn, the neighbour count, the turn's sign, flat power, the separation, the
+  gap rule); the overlap factor at 1 passes them (see the lesson in the top section). test_gpu
+  `test_the_dense_field_on_the_card_is_the_cpus`.
+
+**The plants at scale.** An agent, on branch `plants-scale` (worktree `/hugespace/models/mcdonald-plants`; files
+`/scratch/mcdonald/plants-2026-11-16`, its NOTES.md the jobs table). Not merged: `plant` and `batch` are the development
+session's (none was running to ask). Commits 90638bc (planted videos through the batch, held against their truth tables:
+`plant.batch_unit`, `on_rows`, `recovered_batch`, `batch_objects`, `completeness`, `tables`, `write_table`, `mcdonald
+plant --table BATCH --control BATCH`; `batch.refusals`/`long_lived` take the rule's numbers as parameters, defaults
+unchanged), 573824f, 60fbb1f, 1ebaf30 (the defect below), 7ce21c9 (method section 62.1). test_plant 75, test_batch 72,
+test_cli 140, 0 FAIL (job 3590); ten deliberate breaks each failed a check. Drafts for CHANGELOG, IDEAS (PL5-PL7, a note
+on G2) and ROADMAP in the scratch folder, to apply at the merge.
+- *The run:* 8 PURSUE videos x 10 seeds x 1,000 frames (PR144 837): 80 planted videos, 3,856 objects; the planted batch
+  `--keep 400 --only track,report --most 40`, the controls (seed 1's `_none` and the video's own stretch) `--most 0`.
+  About 51 CPU-hours, 1 h 40 min at 36-48 CPUs (0.58 CPU-hours a planted 1,000-frame video).
+- *The table* (`out/batch-planted/plants.md`, `.tsv`, `.json`; `out/headline.md`): Find lists 41 % of the planted
+  objects, the batch's rule makes objects of 21 %, and 19 % are followed over half their frames; plain bright points
+  that move and stay 80 frames or more: 170 of 255 (67 %). By video, followed: PR051 8 %, PR113 15 %, PR141 15 %, PR149
+  21 %, PR44 21 %, PR144 24 %, PR088 25 %, PR135 26 %. 59 % never on Find's list in any window; 626 listed but seen on
+  under 40 frames (a median of 19 of the 41 they were on screen). The controls: 25 objects in 7,900 frames, 21 of them
+  the videos' own; 1 planted path in 3,856 on a control object by chance.
+- *The rule at other settings* (nothing changed): rows kept a window make no difference (12-400 rows: 795-799 objects);
+  20 frames 1,067 objects (+34 %) and 2,786 catalog rows, 40 from first to last sight 910 and 2,386, 60 frames 587 and
+  1,168, against today's 798 and 1,715 (the catalog's own Find files give its 1,715 rows exactly).
+- *`--card` changed nothing:* two planted videos in one `--slurm --card 2` job gave byte-identical Find files and tracks,
+  `computed_on: null`, the same times within noise.
+- *Defects:* `plant._luma_frames` asked ffmpeg for every frame in one `select`, which returns nothing past about 100
+  frames, silently: `contrast_after` was missing for 2,892 of 3,856 objects and the truth pictures were blank. Fixed on
+  the branch (passes of 64 frames; the 964 values that existed came out identical). Not fixed: `batch.resources` sizes an
+  `--only track,report` unit as if every stage ran (12 h, 4.5 GB where the peak was 2.2 GB).
+
+## The next GPU session's start as written after session 26 (2026-11-15 evening), kept as the record
 
 Jacob is still on science work (his word of 2026-11-15, "we can keep going with GPU development in the meantime"; in
 session 26, "Feel free to spawn agents if needed, use /slurm on arthur"). Four questions wait for him (below), each a
