@@ -30,7 +30,8 @@ The judgement calls (docs/method.md, section 67, argues each):
     the fit     each plant's fit resamples its readings as often as the case's did (`boots_of`), since the number of
                 resamples is itself one of the fit's gates (`drift.BOOT_MIN`); 6 to 15 s a plant at 2,000. Measured on
                 the lanterns and on a cloud at T2's edge: with 400 or 200 no plant of 864 came out differently.
-    the check   the case's own rays, planted again as they are, must come out as the case did (`case_again`).
+    the check   the case's own rays, planted again as they are, must come out as the case did (`case_again`): the same
+                outcome, and the airspeeds needed to within AGAIN.
 
 The table and the sentence are made from rows of one form (`summary`), so the route from the ranges (`drift.fit_line`,
 `drift.test_wind`) can be planted by a function of its own that returns such rows.
@@ -49,6 +50,10 @@ DRAWS = 4               # draws of the rays' errors for each airspeed and direct
 BETWEEN, HOLD, FAR, OPEN, UNFIXED, NO_WIND = ("beyond the winds, not by a flier's margin", "holding still fits as well",
                                               "no wind near its height", "the velocity is not fixed",
                                               "the rays fix no path", "no wind at its height")
+AGAIN = 0.05            # m/s: the case planted again must need the case's own airspeeds to within this. The two fits start
+#                         from rays that differ in their last bits and stop where the least squares stops; on 41 cases
+#                         (the lanterns, 40 clouds) they came apart by 0.01 m/s at the most, on 2. A swapped axis or a
+#                         misplaced reading moves them by metres a second. A judgement
 AIRS = ("path", "winds")
 WHY = {BETWEEN: "the winds leave it beyond the test's tolerance, but not by a flier's margin",
        HOLD: "holding still over the ground fits as well as drifting",
@@ -132,6 +137,14 @@ def _one(job):
                    velocity_err_m_s=round(ev, 2) if ev is not None and math.isfinite(ev) else None,
                    height_m=round(fit["height_m"], 0))
     return row
+
+
+def _as(again, t2):
+    """Did the case planted again come out as the case: the same outcome, and the airspeeds needed within AGAIN."""
+    a, b = again.get("needs_m_s"), t2.get("needs_m_s")
+    if again["outcome"] != t2["outcome"] or (a is None) != (b is None):
+        return False
+    return bool(a is None or max(abs(x - y) for x, y in zip(a, b)) <= AGAIN)
 
 
 def plan(speeds, directions, draws, airs, seed):
@@ -243,8 +256,7 @@ def plant_track(R, path, winds, fit=None, case_t2=None, speeds=SPEEDS, direction
                   what=f"planting {len(jobs) - 1} bodies, each through the fit and the wind test", pixels=1)
     again, rows = rows[0], rows[1:]
     again = dict(outcome=again["outcome"], needs_m_s=again["needs_m_s"], tolerance_m_s=again["tolerance_m_s"],
-                 as_the_case=None if case_t2 is None else bool(again["outcome"] == case_t2["outcome"]
-                                                              and again["needs_m_s"] == case_t2.get("needs_m_s")))
+                 as_the_case=None if case_t2 is None else _as(again, case_t2))
     out = dict(route="lines of sight", air=air, air_chosen_by=chosen,
                airs=[dict(a, w=[round(x, 2) for x in a["w"]]) for a in airs], speeds_m_s=speeds, directions_deg=[360.0 * i / directions for i in range(directions)], draws=draws,
                plants=len(rows), plants_each_speed=directions * draws, resamples=nboot, seed=seed, case_again=again)

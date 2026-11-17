@@ -772,7 +772,8 @@ def test_fliers_planted_on_a_drawn_orbit():
           "the case passes T2, so the plants ride its own path's velocity: 16 at each of 10 and 40 m/s, and 16 at zero, "
           "which is added", f"air {f['air']}, {f['plants']} plants at {sorted(T)}")
     c = f["case_again"]
-    check(c["as_the_case"] is True and c["outcome"] == t2["outcome"] and c["needs_m_s"] == t2["needs_m_s"],
+    check(c["as_the_case"] is True and c["outcome"] == t2["outcome"] and np.allclose(c["needs_m_s"], t2["needs_m_s"], atol=fliers.AGAIN)
+          and not fliers._as(dict(c, needs_m_s=[c["needs_m_s"][0] + 0.1, c["needs_m_s"][1]]), t2) and not fliers._as(dict(c, outcome=drift.FAIL), t2),
           "the check: the case's own rays, planted again as they are, come out as the case did",
           f"T2 {c['outcome']}, needs {c['needs_m_s']} of {t2['needs_m_s']} m/s")
     z = f["drifter"]
@@ -903,7 +904,7 @@ def test_fliers_by_the_command_line_on_the_lanterns():
     f = d["results"].get("planted_fliers") or {}
     T = {t["airspeed_m_s"]: t for t in f.get("table", [])}
     check(f.get("air") == "path" and f.get("resamples") == 2000 and f["case_again"]["as_the_case"] is True
-          and f["case_again"]["needs_m_s"] == [1.37, 3.64],
+          and np.allclose(f["case_again"]["needs_m_s"], [1.37, 3.64], atol=0.011),
           "the lanterns pass T2, so the plants ride their own path; each fit resamples 2,000 times, as the case's did; "
           "the case planted again needs 1.37-3.64 m/s, as the case", f"{f.get('case_again')}")
     check(T[0.0]["passes"] == 8 and T[40.0]["fails"] == 8 and f["fails_from_m_s"] == 40.0

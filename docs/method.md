@@ -8773,8 +8773,11 @@ the route from the ranges, for which planting is not built.
    given the same table: with 400 or 200 resamples none of 576 plants came out differently, the tolerance moving by
    at most 0.09 and 0.17 m/s.
 5. *The check* (`case_again`). The case's own rays are planted again as they are, misses unchanged and the fit seeded
-   as the stage seeds the case's; they must come out as the case did (the same outcome, the same airspeeds needed). A
-   mismatch is printed as a warning that the plants are not to be trusted.
+   as the stage seeds the case's; they must come out as the case did: the same outcome, and the airspeeds needed to
+   within 0.05 m/s (`AGAIN`). A mismatch is printed as a warning that the plants are not to be trusted. The allowance
+   is for the fit's own stopping: the two fits start from rays that differ in their last bits, and on the lanterns
+   and the 40 clouds below they came apart by 0.01 m/s on two cases and by nothing on 39; a swapped axis moves them
+   by metres a second (the tests).
 6. *The summary's two numbers* are read over the airspeeds tried, so they are as fine as that grid: `fails_from_m_s`
    asks every plant at that airspeed and at every faster one to fail; `passes_up_to_m_s` asks one plant to pass.
 7. *The plants' climb and place* are the fitted path's. T1 is not run on them.
