@@ -28,6 +28,7 @@ line with no video; and the aircraft's route untouched.
 
 No video data needed but for the command-line runs on the three clips (the video gives the frame rate).
 """
+import contextlib
 import json
 import math
 import subprocess
@@ -55,6 +56,19 @@ def check(cond, label, detail=""):
     if not cond:
         FAIL.append(label)
     return cond
+
+
+@contextlib.contextmanager
+def resamples(n):
+    """`drift.fit_track` with n resamples wherever its caller names no count (the stage, `measure`, names none and so
+    takes 2,000, about 6 s a fit). For a test that goes through the stage or the command's own `main` and whose checks
+    do not turn on the count: the known answers, and the command-line runs on them, keep the 2,000."""
+    real = drift.fit_track
+    drift.fit_track = lambda *a, **k: real(*a, **dict(dict(nboot=n), **k))
+    try:
+        yield
+    finally:
+        drift.fit_track = real
 
 
 # ---------------------------------------------------------------- scenes
@@ -1104,7 +1118,7 @@ def test_fliers_planted_on_a_drawn_orbit():
     check(0.02 < np.sqrt((v ** 2).mean()) < 0.5 and all(len(r["needs_m_s"]) == 2 for r in f["runs"]),
           "each plant's fit finds the velocity it was given, to the rays' errors (a typical miss under 0.5 m/s, and not none)",
           f"rms {np.sqrt((v ** 2).mean()):.2f} m/s over {len(v)} plants")
-    few = dict(opts, speeds=(40.0,), draws=1)                    # 16 plants: 8 at zero, 8 at 40 m/s
+    few = dict(opts, speeds=(40.0,), directions=2, draws=1)      # 4 plants: 2 at zero, 2 at 40 m/s
     once, again = fliers.plant_track(R, path, winds, **few), fliers.plant_track(R, path, winds, **few)
     other = fliers.plant_track(R, path, winds, **dict(few, seed=7))
     check(json.dumps(again, sort_keys=True) == json.dumps(once, sort_keys=True)
@@ -1172,17 +1186,19 @@ def test_fliers_through_the_stage_change_nothing_else():
     platform, los, _ = orbit()
     obs = [dict(source="mast", height_m=h, from_deg=59.7, speed_m_s=s) for h, s in ((100.0, 6.5), (400.0, 7.4))]
     kw = dict(platform=platform, los=los, los_sigma=(0.1, 0.03), observed_winds=obs, ground_m=70.0)
-    plain = drift.measure(FPS, **kw)
-    asked = drift.measure(FPS, plant=dict(speeds=(40.0,), directions=1, draws=1, procs=0), **kw)
+    with resamples(60):                                       # the case's own count here; the lanterns' run holds 2,000
+        plain = drift.measure(FPS, **kw)
+        asked = drift.measure(FPS, plant=dict(speeds=(40.0,), directions=1, draws=1, procs=0), **kw)
     f = asked.fields.get("planted_fliers") or {}
     rest = {k: v for k, v in asked.fields.items() if k != "planted_fliers"}
     dump = lambda d: json.dumps(d, sort_keys=True, default=lambda o: o.tolist())            # noqa: E731
     check("planted_fliers" not in plain.fields and dump(rest) == dump(plain.fields) and asked.result == plain.result,
           "without `plant` there is no such field; with it every other field and every printed result is the same")
-    check(f.get("plants") == 2 and f["case_again"]["as_the_case"] is True and f["resamples"] == 2000 and f["fails_from_m_s"] == 40.0
+    check(f.get("plants") == 2 and f["case_again"]["as_the_case"] is True and f["resamples"] == asked.fields["ground_path"]["boots_of"] == 60
+          and f["fails_from_m_s"] == 40.0
           and f["sentence"] in "\n".join(drift.said(asked.fields)) and "planted fliers" not in "\n".join(drift.said(plain.fields)),
-          "the field holds the plants (2, each fitted with the case's own 2,000 resamples, and the case again, which comes "
-          "out as the case), and the stage prints their sentence after the verdict",
+          "the field holds the plants (2, each fitted with as many resamples as the case's own fit, and the case again, "
+          "which comes out as the case), and the stage prints their sentence after the verdict",
           f.get("sentence", "")[:150])
     g = golden()
     ranges = drift.measure(FPS, slant=g["slant"], horiz=g["horiz"], own=g["own"], bearings=g["bearings"], heading_deg=144.9,
@@ -1280,7 +1296,8 @@ def test_cameras_a_drifter_and_a_flier_from_three_cameras():
           and all(k in R for k in ("frames", "t", "A", "az", "dep", "platform", "rot")),
           "363 readings, three at each of 121 instants, each with its camera; the times kept from their own clock",
           f"{len(R['t'])} readings, cameras {R['cameras']}")
-    found = drift.measure(None, sight=R, observed_winds=_soundings(truth["v"]), ground_m=600.0)
+    with resamples(200):
+        found = drift.measure(None, sight=R, observed_winds=_soundings(truth["v"]), ground_m=600.0)
     T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
     p = found.fields["ground_path"]
     miss = float(np.hypot(*(np.array(p["v_m_s"]) - truth["v"])))
@@ -1299,7 +1316,8 @@ def test_cameras_a_drifter_and_a_flier_from_three_cameras():
           "the drifter: T1 and T2 pass against winds that bracket its height, and no aircraft's own wind is looked for",
           T["T2"]["reading"][:110])
     rd, tr = cameras_scene(v=(8.0 + 20.0, 3.0 - 15.0), climb=1.5)
-    found = drift.measure(None, sight=sightlines.rays(rd), observed_winds=_soundings(truth["v"]), ground_m=600.0)
+    with resamples(200):
+        found = drift.measure(None, sight=sightlines.rays(rd), observed_winds=_soundings(truth["v"]), ground_m=600.0)
     T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
     check(T["T2"]["outcome"] == drift.FAIL and found.fields["verdict"] == "not drifting" and "it flies" in T["T2"]["reading"],
           "a flier at 25 m/s through the same air: T2 fails, not drifting", T["T2"]["reading"][:110])
@@ -1321,7 +1339,8 @@ def test_cameras_one_camera_cannot_range_what_it_sees():
     rd, truth = cameras_scene()
     winds = _soundings(truth["v"])
     one = sightlines.rays([r for r in rd if r["camera"] == "camera A"])
-    found = drift.measure(None, sight=one, observed_winds=winds)
+    with resamples(200):                                      # refused either way; on a path the gate refuses each
+        found = drift.measure(None, sight=one, observed_winds=winds)      # resample is slow (IDEAS.md N14)
     T = {t["test"]: t for t in drift.flat(found.fields["tests"])}
     p = found.fields["ground_path"]
     check(T["T1"]["outcome"] == drift.CANNOT and T["T2"]["outcome"] == drift.CANNOT and found.fields["verdict"] == "cannot say"
@@ -1332,7 +1351,8 @@ def test_cameras_one_camera_cannot_range_what_it_sees():
     check("aircraft" not in text and "flew" not in text and "all from one place" in text,
           "in words that fit a camera on a roof: no aircraft, no flight")
     near = sightlines.rays(cameras_scene(sites=((0.0, 0.0, 700.0), (25.0, 0.0, 700.0)))[0])
-    found = drift.measure(None, sight=near, observed_winds=winds)
+    with resamples(200):
+        found = drift.measure(None, sight=near, observed_winds=winds)
     t2, p = found.fields["tests"][1], found.fields["ground_path"]
     check(t2["outcome"] == drift.CANNOT and "so nearly one place" in t2["reading"] and p["places"] == 2 and 12 < p["path_off_line_m"] < 13,
           "two cameras 25 m apart: within the path gate's 20 m of one place, refused", t2["reading"][:130])
@@ -1639,13 +1659,6 @@ def test_cameras_the_aircrafts_route_is_untouched():
           f"{old['los_turn_deg']:.0f} deg; {cam['los_turn_deg']:.1f} deg, crossing at {cam['los_cross_deg']:.0f} deg")
 
 
-def _few_resamples(nboot=60):
-    """`drift.fit_track` with `nboot` resamples where the caller names no count, for a test that goes through `measure`
-    or the command line and does not need the case's own 2,000: returns (the wrapped fit, the real one to put back)."""
-    real = drift.fit_track
-    return (lambda *a, **k: real(*a, **dict(dict(nboot=nboot), **k))), real
-
-
 def test_fliers_planted_from_cameras_of_their_own():
     """`--plant` where the case came through `--rays` (method sections 66 and 67; the two were built on branches apart,
     and the planted fliers had never been run on cameras until they met, 2026-11-17). Three drawn cameras, one of them
@@ -1728,14 +1741,11 @@ def test_fliers_planted_from_cameras_of_their_own():
           "and it is carried there: cameras whose pointing is known to a degree widen a plant's velocity error and move no "
           "fitted number", f"{usual['velocity_err_m_s']} -> {wide['velocity_err_m_s']} m/s")
     # through the stage and through the command line, with no video (60 resamples a fit: nothing here needs the 2,000)
-    few, real = _few_resamples()
-    drift.fit_track = few
-    try:
+    with resamples(60):
         kw = dict(sight=R, observed_winds=_soundings(truth["v"]), ground_m=600.0, pointing_err=(0.05, 0.05))
         plain = drift.measure(None, **kw)
         asked = drift.measure(None, plant=dict(speeds=(40.0,), directions=2, draws=1, procs=0), **kw)
         with tempfile.TemporaryDirectory() as td:
-            import contextlib
             import io
             rays, cams = _write_rays(td, rd)
             obs = Path(td) / "obs.csv"
@@ -1751,8 +1761,6 @@ def test_fliers_planted_from_cameras_of_their_own():
                     rc = drift.main()
             finally:
                 sys.argv = argv
-    finally:
-        drift.fit_track = real
     g = asked.fields.get("planted_fliers") or {}
     rest = {k: v for k, v in asked.fields.items() if k != "planted_fliers"}
     dump = lambda d: json.dumps(d, sort_keys=True, default=lambda o: o.tolist())            # noqa: E731
@@ -1892,6 +1900,22 @@ def test_t3_two_cameras():
           "another camera too noisy to see a third of it (the Galileo cloud at 5 % and 0.8 %, floor 2 %): fails as before",
           out["reading"][-80:])
     check(drift.test_beat_cameras([a])["outcome"] == drift.test_beat(a)["outcome"], "one envelope: test_beat's own answer")
+    # The other camera's floor is compared as the envelope gives it, not rounded to whole per cents (2026-11-17, IDEAS.md
+    # N11: `smallest_beat_seen` is rounded for the reading, and the lines the Galileo clouds' cameras were held to are
+    # 1.3-1.8 %). A held beat of 4 %: a third of it is 1.33 %. A camera whose floor is 1.4 % could not have seen that
+    # (rounded, its floor read 1 % and it took the beat back); one whose floor is 1.3 % could.
+    b = env(3.0, 0.04, 0.01, video="one.mp4")
+    blind = drift.test_beat_cameras([b, env(3.0, 0.002, 0.014, held=False, beats=False, video="two.mp4")])
+    sees = drift.test_beat_cameras([b, env(3.0, 0.002, 0.013, held=False, beats=False, video="two.mp4")])
+    check(blind["outcome"] == drift.FAIL and "no other camera could have seen a beat a third as strong" in blind["reading"]
+          and sees["outcome"] == drift.PASS and "a beat of 1.3% would have shown" in sees["reading"],
+          "a 4 % beat and another camera whose floor is 1.4 %: it could not have seen a third of it (1.33 %), so the beat "
+          "stays and T3 fails; at 1.3 % it could, and takes it back", blind["reading"][-70:])
+    c = env(3.0, 0.046, 0.01, video="one.mp4")                # a third of it is 1.53 %
+    near = drift.test_beat_cameras([c, env(3.0, 0.002, 0.0152, held=False, beats=False, video="two.mp4")])
+    check(near["outcome"] == drift.PASS and drift.test_beat(env(3.0, 0.002, 0.0152, held=False, beats=False))["smallest_beat_seen"] == 0.02,
+          "a 4.6 % beat and a floor of 1.52 %: it could have seen a third (1.53 %) and takes the beat back; rounded for "
+          "the reading that floor is 2 %, which until then kept the beat", near["reading"][:120])
 
 
 # ---------------------------------------------------------------- T4, other evidence: T4a, a tracer

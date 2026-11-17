@@ -4159,7 +4159,11 @@ depression below the horizontal.
   or more), or if it could not have seen a beat a third as strong. Where it could have and does not, the beat is the first
   camera's view, and T3 passes on it. On the Galileo clouds, Hideout's 7 % beat at 1.94 Hz went where Sphere, able to see
   1 %, saw none; a 5 % beat at 2.44 Hz stayed, the other camera seeing 0.8 % where only 2 % would have shown. The
-  envelopes must be of the same moments; nothing here can check it. No beat passes, with the smallest beat the clip could have shown. That is the injections' floor
+  envelopes must be of the same moments; nothing here can check it. Whether the other camera could have seen a third
+  of the beat is asked of its floor as its envelope gives it (`drift.beat_floor`; since 2026-11-17, IDEAS.md N11):
+  until then the comparison read `smallest_beat_seen`, which is rounded to a whole per cent for the reading, so a
+  floor of 1.49 % counted as 1 % and one of 1.51 % as 2 %, where the lines the Galileo clouds' other cameras were
+  held to are 1.3-1.8 %. No outcome of the 239 Galileo objects turned on it. No beat passes, with the smallest beat the clip could have shown. That is the injections' floor
   where `mcdonald flicker` ran them. A result out of `mcdonald run` or a case file has none, and there it is the track's
   own closed-form floor (§13, `flicker.analytic`'s `with_floor`: what a beat needs in the track's own noise and over the
   background's flicker), which the stage records for every object and the report's beat row already reads (2026-11-13,
@@ -4298,11 +4302,12 @@ T5 (and T3 on 2026-10-28). The six-test version is kept, uncommitted, in the uap
 - From the aircraft's own track, the rays rest on the display's position block and its ground point, each rounded (1
   arcsecond, about 30 m; Puerto Rico's fit, 0.26° rms in azimuth); an altitude that is a GPS height above the
   ellipsoid rather than above the sea moves the height, not the velocity. Its power is set by the winds' own
-  disagreement. On the Puerto Rico geometry and winds (objects planted in the lanterns' own air, seen from the real
-  aircraft positions with the real fit's ray errors, eight directions each; the uap repository's
-  `pr_drift_planted.py`): a flier at 25 m/s or more through the air fails in every direction, at 20 m/s in 5 of 8,
-  at 10-15 m/s it cannot say, and at 5 m/s, slower than the winds' 6-m/s spread, 2 of 8 pass. A bird's 10-15 m/s is
-  not told from drift there.
+  disagreement. On the Puerto Rico geometry and winds (bodies planted in the lanterns' own air, seen from the real
+  aircraft positions with the real fit's ray errors, eight directions each; `mcdonald drift --plant`, section 67,
+  with the rules as built on 2026-11-17): a flier at 25 m/s or more through the air fails in every direction; from
+  5 to 20 m/s T2 cannot say (one planted body of 32 fails at 20 m/s); none passes as a drifter. (Under 0.4.3's
+  rules, by the script `--plant` replaces: 5 of 8 failed at 20 m/s and 2 of 8 passed at 5 m/s.) A bird's 10-15 m/s
+  is not told from drift there.
 - A flame beats: a sky lantern's 3-10-cm fuel cell puffs at 4.7-8.7 Hz (`flicker`'s look-alike band). A flame that
   burns steadily through the video would hold its beat, and T3 would then fail a drifter.
 - A rotorcraft hovering in calm air has no airspeed, so T1, T2 and T4 cannot tell it from a drifter. Only T3 can, and

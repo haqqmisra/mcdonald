@@ -1501,18 +1501,12 @@ def held_beat(r):
     return "that is one stretch" not in (r.get("finding") or ""), None
 
 
-def test_beat(env):
-    """T3, from the envelope `mcdonald flicker --json` printed. A beat fails only where it holds across the video
-    (`held_beat`): a rotorcraft hovering in calm air has no airspeed, and only its rotor's steady beat tells it from a
-    drifter (the Santa Barbara hoist, 2026-10-21). A beat in one stretch of many is not counted, since a lantern's or a
-    candle's flame, or chance over many windows, can make one, and the test passes on the whole stretch (AARO's Puerto
-    Rico lanterns: 3.0 Hz in one 2-s window of 109, the background's own windows beating in 2 of 436; until 2026-10-22
-    such a beat could not say)."""
-    out = dict(test="T3", question="is its brightness free of a beat at a wingbeat's or a rotor's rate?")
-    if env is None:
-        return dict(out, outcome=CANNOT, reading="no `mcdonald flicker` result given")
+def beat_floor(env):
+    """The smallest beat a clip could have shown, as a share of the object's brightness, from its `mcdonald flicker`
+    envelope, unrounded; None where the envelope gives none. In order: the injections' floor where `flicker` ran them;
+    the track's own closed-form floor (`flicker.analytic`'s `with_floor`); the rule's own threshold, three times the
+    background's beat."""
     r = env.get("results", env)
-    beats = r.get("beats")
     floor = None
     inj = r.get("injection") or {}
     if isinstance(inj, dict) and isinstance(inj.get("analytic"), dict):
@@ -1529,6 +1523,22 @@ def test_beat(env):
     if floor is None and r.get("noise_floor"):          # neither: the rule's own threshold, three times the background's
         from .flicker import ABOVE
         floor = ABOVE * float(r["noise_floor"])
+    return floor
+
+
+def test_beat(env):
+    """T3, from the envelope `mcdonald flicker --json` printed. A beat fails only where it holds across the video
+    (`held_beat`): a rotorcraft hovering in calm air has no airspeed, and only its rotor's steady beat tells it from a
+    drifter (the Santa Barbara hoist, 2026-10-21). A beat in one stretch of many is not counted, since a lantern's or a
+    candle's flame, or chance over many windows, can make one, and the test passes on the whole stretch (AARO's Puerto
+    Rico lanterns: 3.0 Hz in one 2-s window of 109, the background's own windows beating in 2 of 436; until 2026-10-22
+    such a beat could not say)."""
+    out = dict(test="T3", question="is its brightness free of a beat at a wingbeat's or a rotor's rate?")
+    if env is None:
+        return dict(out, outcome=CANNOT, reading="no `mcdonald flicker` result given")
+    r = env.get("results", env)
+    beats = r.get("beats")
+    floor = beat_floor(env)
     out.update(beats=beats, finding=r.get("finding"), smallest_beat_seen=round(floor, 2) if floor else None)
     seen = f"; only a beat over {100 * floor:.0f}% of its brightness would have shown" if floor else ""
     if beats is True:
@@ -1580,7 +1590,11 @@ def test_beat_cameras(envs):
     or where no other camera could have seen a beat 1/AGREE as strong (its smallest beat seen). Where another camera
     could have and does not, the beat is the first camera's view, not the object's, and T3 passes on it. On the Galileo
     Project's clouds: 2.44 Hz at 5 % of the brightness in one camera, 0.8 % in another watching at the same time.
-    That the envelopes are of the same moments is the caller's to make sure of: nothing here can check it."""
+    That the envelopes are of the same moments is the caller's to make sure of: nothing here can check it.
+    Whether another camera could have seen a third of the beat is asked of its floor as the envelope gives it
+    (`beat_floor`), not of `smallest_beat_seen`, which `test_beat` rounds to whole per cents for the reading: the lines
+    the Galileo clouds' other cameras were held to are 1.3-1.8 %, where 1.49 % read as 1 % and 1.51 % as 2 % (until
+    2026-11-17; IDEAS.md N11; no outcome of the 239 Galileo objects turned on it)."""
     envs = [e for e in envs if e is not None]
     if len(envs) <= 1:
         return test_beat(envs[0] if envs else None)
@@ -1599,7 +1613,7 @@ def test_beat_cameras(envs):
         for j, e in enumerate(envs):
             if j == i:
                 continue
-            o, floor = _strongest(e), each[j].get("smallest_beat_seen")
+            o, floor = _strongest(e), beat_floor(e)
             if o is not None and abs(o["hz"] - b["hz"]) <= HEADLINE_NEAR and o["amplitude"] >= b["amplitude"] / AGREE:
                 agree.append(f"{names[j]} sees {o['hz']:.2f} Hz at {o['amplitude']:.0%}")
             elif floor is not None and floor <= b["amplitude"] / AGREE:
