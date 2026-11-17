@@ -159,6 +159,9 @@ def said(w):
     if w["weight"] == "no power":
         return f"{on}, {n} track{'s' if n != 1 else ''} gave this answer: too few to weigh it, so it carries no weight."
     if w["weight"] == "for":
+        if math.isinf(w["lr"]):                       # none of the others gave it: no ratio to say (2026-11-17, at a floor of 8 %)
+            return (f"{on}, {w['birds'][0]} of {w['birds'][1]} birds gave this answer and none of the {w['others'][1]} "
+                    f"{OTHERS} did.")
         upper = "" if w["hi"] is None or math.isinf(w["hi"]) else f" and at most {_times(w['hi'])}"
         return (f"{on}, it was about {_times(w['lr'])} times as common on birds as on {OTHERS} "
                 f"(at least {_times(w['lo'])} times{upper}, at 95 % confidence).")
