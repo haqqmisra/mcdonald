@@ -783,6 +783,7 @@ def test_fliers_planted_on_a_drawn_orbit():
     check(T[40.0]["fails"] == 16 and f["fails_from_m_s"] == 40.0 and "40 m/s or more through the air would have failed" in f["sentence"],
           "plants at 40 m/s fail whichever way they fly, and the sentence says so", f["sentence"])
     check(T[10.0]["cannot_say"] == 16 and T[10.0]["cannot_say_because"] == {fliers.BETWEEN: 16} and f["passes_up_to_m_s"] is None
+          and f["cannot_say_m_s"] == [10.0, 10.0] and "At 10 m/s the wind test could not say." in f["sentence"]
           and "No planted flier passed as a drifter, down to the slowest tried, 10 m/s" in f["sentence"],
           "plants at 10 m/s are beyond the winds but not by a flier's margin: cannot say, 16 of 16, and none passes",
           f"{T[10.0]}")

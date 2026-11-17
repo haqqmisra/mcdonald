@@ -212,7 +212,8 @@ def summary(rows, air="path", airs=1):
     could not; `drifter`, the plants at zero airspeed, whose pass rate is the test's power to recognise a drifter
     here; `passes_up_to_m_s`, the fastest airspeed above zero at which any plant passed (None: none did);
     `fails_from_m_s`, the slowest airspeed from which every plant failed, at it and at every faster one tried (None:
-    not even the fastest); and `sentence`. The route is not in it: rows from the ranges' route sum up the same way."""
+    not even the fastest); `cannot_say_m_s`, the slowest and the fastest airspeed above zero at which any plant could not
+    be judged (None: none); and `sentence`. The route is not in it: rows from the ranges' route sum up the same way."""
     table = []
     for s in sorted({r["airspeed_m_s"] for r in rows}):
         at = [r for r in rows if r["airspeed_m_s"] == s]
@@ -231,9 +232,11 @@ def summary(rows, air="path", airs=1):
         if t["fails"] < t["plants"]:
             break
         fails_from = t["airspeed_m_s"]
+    open_at = [t["airspeed_m_s"] for t in fly if t["cannot_say"]]
     out = dict(table=table, drifter=None if zero is None else dict(
         plants=zero["plants"], passes=zero["passes"], pass_rate=round(zero["passes"] / zero["plants"], 3),
-        cannot_say_because=zero["cannot_say_because"]), passes_up_to_m_s=up_to, fails_from_m_s=fails_from)
+        cannot_say_because=zero["cannot_say_because"]), passes_up_to_m_s=up_to, fails_from_m_s=fails_from,
+        cannot_say_m_s=[min(open_at), max(open_at)] if open_at else None)
     out["sentence"] = sentence(out, air, airs)
     return out
 
@@ -256,6 +259,11 @@ def sentence(s, air="path", airs=1):
     else:
         out.append(f"On this geometry and these winds, no planted speed, up to {fly[-1]['airspeed_m_s']:g} m/s through the "
                    "air, failed the wind test whichever way the body flew.")
+    if s["cannot_say_m_s"] is not None:
+        lo, hi = s["cannot_say_m_s"]
+        whole = all(t["cannot_say"] in (0, t["plants"]) for t in fly)
+        out.append(("At " + (f"{lo:g}" if lo == hi else f"{lo:g} to {hi:g}") + " m/s the wind test could not say"
+                    + ("." if whole else " for some or all of the planted bodies.")))
     z = s["drifter"]
     if fly and s["passes_up_to_m_s"] is not None:
         out.append(f"At {s['passes_up_to_m_s']:g} m/s or less it is not told from a drifter: at least one body planted that "
