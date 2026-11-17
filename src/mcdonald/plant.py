@@ -1544,8 +1544,8 @@ def table_said(res):
                   f"- The batch makes {cobj} objects of the controls' {cframes} frames ({1000 * cobj / max(cframes, 1):.1f} a "
                   f"thousand frames; {sum(u['control_strengths']['strong'] + u['control_strengths']['fair'] for u in cf.values())} "
                   "of them fair or strong). Each would be a row of the batch's table with nothing planted.",
-                  f"- A planted path is on the control's list by chance {sum(u['chance_listed'] for u in withc)} times in {pl}, "
-                  f"and an object of the rule there {sum(u['chance_object'] for u in withc)} times.",
+                  f"- Planted paths that lie on a row of the control's list, by chance: {sum(u['chance_listed'] for u in withc)} of "
+                  f"{pl}; on an object of the rule there: {sum(u['chance_object'] for u in withc)}.",
                   f"- In the planted videos the rule makes {sum(u['others'] for u in withc)} objects on no planted path, "
                   f"{sum(u['others_in_control'] for u in withc)} of them objects of the control too.", ""]
             orig = [u for u in cf.values() if u.get("original_objects") is not None]
