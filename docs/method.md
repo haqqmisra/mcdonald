@@ -8898,3 +8898,115 @@ rotation plus its motion over the layer's range, and neither the parallax betwee
 turns into a distance without the camera's own motion (section 33's unknowns). It does not follow a layer from pair
 to pair; each pair is mapped alone. Smaller templates, a ring about the object and the scene behind a sensor's pattern
 were measured and left out (the design above).
+
+## 69. A beat that follows the track: the track's own jitter read out of the brightness (`flicker.jitter_reading`; ROADMAP 0.5.8; added 2026-11-17)
+
+**What it answers.** `flicker` reads an object's brightness in a small disc that rides the track, smoothed over `SMOOTH` = 5
+frames: a count, not a time, so a twelfth of a second at 60 frames a second, and everything a track does under about 5 Hz
+moves the disc. A detector's box on something wider than the disc hops a fraction of a pixel at 1.5-4 Hz, and each hop puts
+the disc on a brighter or a darker part. On the Galileo Project's triangulated objects (section 53) the released 0.5.7 called
+a beat that comes back on 7 of 303 cloud clips, and `drift`'s T3 then failed 5 of 119 clouds, which have no wingbeat. The sky
+beside them was quiet (their background windows passed 0 of 664 to 8 of 640), so no test of sections 7, 8, 13 or 39 stood in
+the way. Measured by the drift paper's sessions of 2026-11-17: a straight-line fit on the box's centre and size took 24-76 %
+of those seven clips' brightness variance (4 %, the median, on the other cloud clips), and with each track point replaced by a
+line fitted over a second no cloud beat was left. The reading here asks of a beat the stage would call the object's own: is
+it the track's?
+
+**Measured before anything was built.** Every known bird and known non-bird a track could be had for went through the stage
+once more with what `judge` was given kept (the harness's `Capture`, section 44), and the same apertures were read again on
+the track with its jitter out, six ways, in one more pass over the frames: the labelled infrared set's 432 label tracks
+(section 44; both rules), 299 of the same objects as mcDonald's own tracker followed them (the controls of section 64), the
+five Galileo flyers on the paper's tracks and on mcDonald's own, PR135's six as members, PR23, PR055, PR071, the WA9ONY-5
+balloon and the two strobe helicopters, 28 objects of the fourteen reference case files by the commands their reports
+record (the paper's rule, a fixed aperture), 13 of AARO's resolved objects, and the 75 Galileo clips with a window or a
+whole track that passed: 864 measurements, 449 objects under a rule with something that passed, 147 of them held beats of
+known birds (38 and 36 on the labelled set's label tracks under the stage's rule and the paper's, 26 on mcDonald's own
+tracks of that set, 5, 5 and 4 flyers, PR135's six under each rule, 21 reference objects). Three designs, in the order
+they were tried:
+
+1. **The brightness read again on a smoothed track** (the diagnostic that cleared the clouds), each second reading put
+   through the whole judging. Held beats of known birds that stay held at the same frequency, with the track smoothed over
+   0.33 / 0.67 / 1 / 2 s: reference birds 18 / 15 / 7 / 4 of 19 (NO POWER on 0 / 1 / 8 / 12: the disc is off the bird);
+   labelled birds on label tracks 35 / 32 / 29 / 26 of 38; PR135's six 6 / 6 / 6 / 0; flyer 4 lost at 0.67 s under the
+   stage's rule. A track holds the camera's own shake and the object's real path as well as a detector's noise (PR135's
+   object 3 leaves a 0.67-s smoothing by 2.3 px, rms; flyer 4 by 0.9), and a smoothed track leaves the object. It works on
+   the Galileo cameras because they do not move and a cloud is slow. A second pass through every test is also fragile of
+   itself: flyer 4, with a second curve that kept 101 % of its beat, still lost "comes back" (its whole-track test is
+   marginal). Not built.
+2. **A straight-line fit of the brightness's deviation on the track's own jitter, taken out, and the share of the beat's
+   amplitude left** (no second look at the frames). The seven cloud beats keep 0.08-0.23; the 147 bird beats 0.28 at
+   least: flyer 2 keeps 0.34, IR_BIRD_035's object 2 0.30, flyer 1 on mcDonald's own track 0.40. A bird's body rises and
+   falls with its wings, so its track and its brightness keep time at the wingbeat (section 59.1), and the fit takes that
+   for the track's doing. Second-order terms took more from the birds (0.23) and no more from the clouds. A gap of 0.23 to
+   0.28 is nothing to build on.
+3. **The same fit, its coefficients learned away from the beat**: a cosine and a sine at the beat's own frequency are
+   taken out of the brightness and of the jitter before the fit, and the fitted coefficients applied to the jitter whole. A
+   disc hopping over texture makes the brightness a function of where the disc sits at every frequency, so what is learned
+   off the beat accounts for the beat; a bird's bob keeps time with its brightness at the wingbeat and nowhere else. The
+   seven cloud beats keep **0.08-0.32**; the 147 bird beats **0.70 at least** (10th centile 0.90, median 1.00; by set, the
+   least: label tracks 0.70, mcDonald's own tracks 0.79, flyers 0.79 and 0.83, reference objects 0.86, PR135's six 1.00).
+   Taking out a resolution either side as well: 0.13-0.37 against 0.68; the harmonics too: the two overlap (0.55, 0.47).
+
+Also measured and not built: the jitter taken against a smoothing of 0.67, 1 or 2 s in place of the running mean the
+brightness itself is taken against (the clouds keep more: to 0.45, 0.55, 0.67 with the beat left in); what is left held to
+the stage's own line, `ABOVE` times the background, with no new constant (clouds 0.17-0.43 of the line, but flyer 1 0.99 and
+0.72: a known bird lost); the object's own centroid in the disc as the regressor (clouds keep 0.33-0.89). The box's size
+moved with five of the seven clouds' brightness, but a track given to `flicker` is positions only.
+
+**The reading** (`track_jitter`, `unjittered`, `jitter_reading`; each beat's `jitter`). The jitter is the aperture's path
+(`smoothed`: the track as given, its gaps filled, its 5-frame mean) against its own running mean over `DETREND_S`, in x and
+y: exactly what `deviation` does to the brightness, so the two are in one band and no new time is chosen. Over the stretch
+the beat is reported from (its clearest window, or the whole track), the deviation is fitted on (jx, jy) by least squares
+in blocks of `WINDOW_S`, half overlapping and Hann-weighted (one block for a window): how the brightness answers a hop
+changes as the disc crosses the texture, and one fit over a long track sees little (0.07 of the variance on the cloud whose
+whole track beat, where its windows give 0.8-0.95). In each block the beat's frequency is taken out of both sides before
+the coefficients are fitted. `kept` is the residual's amplitude at the beat's strongest frequency over the curve's own;
+`share` the share of the curve's variance the fit took; `px` the jitter's size. A beat with `kept` under `JITTER_KEEP` is
+the track's: the object is taken out of `strong` and named in `fields["jittered"]`, as a beat in one stretch is in
+`unheld` (section 13), the finding says "follows the track's own jitter ... the beat is the track's, not the object's: no
+beat of its own", and a note says what would show a beat of its own. It is read for every object whose aperture rides the
+track, and not for one whose aperture is re-centred each frame on its own light (`recentred`). It decides only of a beat
+that would otherwise be the object's own, after the one-stretch rule: it takes a beat away and never gives one, so no
+silent object can gain one by it. `drift`'s T3 reads `beats` and `comes_back` as before and needs no change: a beat given
+to the track is "no beat of its own". It costs a few least-squares fits: no frame is read again.
+
+**The line, and its rates.** `JITTER_KEEP` = 0.5. Set on one half of the videos and days and scored on the other (the unit
+a video for the labelled set and the reference files, a day for the Galileo clips; halves by a hash of the unit's name): on
+the first half the clouds' beats keep 0.32 at most (4 beats, 3 days) and the birds' 0.75 at least (65 beats, 25 videos),
+the middle of the gap 0.49; scored on the second, 3 of 3 cloud beats go to the track and 0 of 82 bird beats are lost. The
+other way: 0.27 and 0.70, the middle 0.44; 4 of 4 and 0 of 65. Any line from 0.33 to 0.70 gives the same calls on every
+object measured, and 0.5 is `BLINK_KEEP`'s value for the same question asked of a light's flashes (section 19): a judgement
+inside a measured gap. At 0.7 two bird beats of 147 would go, at 0.8 five. The null for a beat that has nothing to do with
+its track: the same fit with the jitter of another video's track (the same frame rate, a stretch at random), 500 draws an
+object: under 0.5 in 194 of 224,500 draws (0.09 %) over every object with a window that passed, 0.03 % over the held beats,
+0.02 % over the birds'; the worst single object 2.0 %. With no bird beat lost in 147, the rate at which a known bird's
+beat is given to the track is under 2.0 % (exact, one-sided 95 %) if the beats were independent, and under 5.8 % over the
+50 videos they come from. With 7 of 7 cloud beats given to the track, the share caught is over 65 % by clips and over 47 %
+by their 4 days: seven is a small number.
+
+Window by window (each window that passed, fitted on its own): 380 of 458 windows on 56 cloud clips keep under half, and
+25 of 55 on 19 aircraft clips; of 2,018 windows of known birds, 8 (0.4 %); of 752 on the labelled set's non-birds, 18. So
+most windows that pass on a cloud under a detector's box are the box's, and the reading could be put before the windows
+are counted (IDEAS). It is not: that changes how many windows every bird's finding quotes.
+
+**What it changed, and how that is held.** XXHOLDXX
+
+**Every track, or only one read from a file?** Every track whose aperture rides it. On mcDonald's own tracker's tracks of
+known objects (the labelled set's 299, the flyers') no beat moves: 31 held bird beats keep 0.79 at least, and the nine held
+on non-birds 0.52 at least. The cause is not a file's: a 4-px disc on anything wider, under any tracker that hops. And the
+reading costs nothing to make.
+
+**What it does not do, and its traps.**
+- It does not look for a beat under the one it gives to the track. A cloud drawn with a 12 % beat of its own at 4.3 Hz under
+  a hop that makes 36 % at 2.6 Hz has "no beat of its own": the stage reports its strongest, and the strongest was the
+  track's. The note says what would show one: a steadier track, or a disc as wide as the object (`--aperture`).
+- A hop with one pure frequency and nothing else would be taken out with the beat and teach the fit nothing. A detector's
+  jitter is broad (the seven clouds' boxes have no line of their own), and the drawn hop of `tests/test_beat.py` wanders.
+- The jitter is taken against a running mean whose ends are one-sided, as the brightness's is: on the first and last
+  quarter second of a fast track it holds a ramp, which the fit can use there.
+- It says a beat follows where the disc was put, not why the track moved: a camera's shake that the track follows moves
+  the disc with the object, changes no brightness and is not this (section 39's shake reading is for that).
+- A second cause the same clouds showed is untouched: a spot of two or three pixels crossing the encoder's 4-pixel
+  blocks beats at its speed over 4 px (a Boeing 737 at 9 km: 11.58 px/s, 2.91 Hz, 43 % in its clearest window). Its
+  brightness does not follow its track's jitter (kept 1.00), and only a second camera took it back.
+- The seven clouds, the helicopter and the birds are what was measured. A cloud whose beat keeps 0.5 or more stays a beat.

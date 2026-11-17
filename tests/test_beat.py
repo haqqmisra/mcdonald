@@ -15,6 +15,13 @@ K2, T2, E11 and the row "uap PR089"), each on drawn data with a known answer:
   beats has, and a point has no power;
 - **the look-alike mark's base rate** (`flicker.marked_share`): 70 % of the band at 30 frames a second, all of it at 60.
 
+And one reading that decides (method section 69, 2026-11-17), held here because its scenes are these:
+
+- **the track's own jitter** (`flicker.jitter_reading`): a steady, ragged cloud under a track that hops half a pixel is
+  heard as a beat without the reading and given to the track with it; a spot that beats, and a bird whose track bobs
+  with its wings, keep their beats; on drawn curves, a brightness made by where the aperture sits is the track's, and a
+  beat beside an unrelated jitter is kept.
+
     python3 tests/test_beat.py        # or: pytest tests/
 
 No video data needed.
@@ -529,6 +536,149 @@ def test_the_marks_base_rate():
           and abs(found.fields["lookalike_share"]["share"] - 0.695) < 0.005,
           "a planted 6-Hz beat, marked with the lantern's band: the finding says how much of the band carries such a mark",
           found.fields["finding"][-150:])
+
+
+# ---- the track's own jitter (method section 69) ---------------------------------------------------------------------
+class _Cloud:
+    """A steady, ragged bright patch drifting slowly over a plain sky, and a track that hops about its true place as a
+    detector's box does: `hop` px of a rhythm near `hop_hz` that never keeps time, and `grain` px of scatter with no
+    rhythm. Its brightness does not change, unless `beat` (a share, at `beat_hz`). `lumps`: how ragged it is (0: smooth);
+    `width`: its half-width, px. It sits where the stage reads no size for it (the frame's edge is nearer than the size's
+    far ring), so the aperture is the point's and rides the track, as on the Galileo Project's clouds. At module level,
+    as a class a process pool pickles must be."""
+    n0, n1, W, H, fps = 1, 600, 320, 240, 60.0
+
+    def __init__(self, hop=0.5, grain=0.25, hop_hz=2.6, beat=0.0, beat_hz=4.3, width=9.0, lumps=0.9, seed=11, speed=(0.14, 0.05)):
+        from scipy import ndimage
+        rng = np.random.default_rng(seed)
+        self.cache, self.beat, self.beat_hz, self.speed, self.x0, self.y0 = {}, beat, beat_hz, speed, 150.0, 60.0
+        yy, xx = np.mgrid[0:self.H, 0:self.W].astype(float)
+        tex = ndimage.gaussian_filter(rng.normal(0, 1, (self.H, self.W)), 1.6)
+        self.body = (70.0 * np.exp(-(np.hypot(xx - self.x0, yy - self.y0) / width) ** 4)
+                     * np.clip(1 + lumps * tex / tex.std(), 0.05, None)).astype(np.float32)
+        n = self.n1 + 1
+        t = np.arange(n) / self.fps
+        tone = hop * np.sin(2 * np.pi * hop_hz * t + np.cumsum(rng.normal(0, 0.12, n)))
+        ang = rng.uniform(0, np.pi)
+        scatter = lambda: ndimage.gaussian_filter1d(rng.normal(0, 1, n), 2.0) * grain * 2.66
+        self.hx, self.hy = tone * np.cos(ang) + scatter(), tone * np.sin(ang) + scatter()
+
+    def at(self, j, n):
+        return self.x0 + self.speed[0] * n + self.hx[n], self.y0 + self.speed[1] * n + self.hy[n]
+
+    def rgb(self, n):
+        if n not in self.cache:
+            from mcdonald.flicker import _fshift
+            g = 60 + np.random.default_rng(n).normal(0, 1.5, (self.H, self.W))
+            g = g + (1 + self.beat * np.sin(2 * np.pi * self.beat_hz * n / self.fps)) * _fshift(self.body, self.speed[1] * n, self.speed[0] * n)
+            self.cache[n] = np.clip(g, 0, 255)[..., None].repeat(3, 2).astype(np.uint8)
+        return self.cache[n]
+
+
+def _tracked(clip, keep=None):
+    """`flicker.measure` on the clip's own track; `keep`: JITTER_KEEP for this measurement (0: the reading decides nothing)."""
+    was = flicker.JITTER_KEEP
+    if keep is not None:
+        flicker.JITTER_KEEP = keep
+    try:
+        return flicker.measure(clip, {"object": {n: clip.at(0, n) for n in range(clip.n0, clip.n1 + 1)}}, say=lambda *a: None, procs=0)
+    finally:
+        flicker.JITTER_KEEP = was
+
+
+def test_a_steady_cloud_under_a_hopping_track_has_no_beat_of_its_own():
+    """A ragged patch of steady brightness, wider than the aperture, under a track that hops half a pixel: without the
+    reading the stage hears a beat that comes back along the whole track; with it the beat is the track's, and the
+    stage's own numbers for the beat are as they were."""
+    print("\nthe track's own jitter: a steady cloud under a hopping track")
+    cloud = _Cloud()
+    off, on = _tracked(cloud, keep=0.0), _tracked(cloud)
+    b0, b1 = off.fields["beat"]["object"], on.fields["beat"]["object"]
+    check(off.fields["beats"] is True and b0["comes_back"] and off.fields["recentred"] == [],
+          "without the reading, the hop is heard as a beat of the object's own that comes back",
+          f"{b0['hz']:.2f} Hz, {b0['amplitude']:.0%}, {b0['windows_passing']} of {b0['windows']} windows; its brightness is steady")
+    j = b1.get("jitter") or {}
+    check(on.fields["beats"] is False and on.fields.get("jittered") == ["object"] and on.fields["strong"] == []
+          and j.get("holds") is False and j["kept"] < 0.3,
+          "with it, the beat is the track's: no beat of its own", f"{j.get('kept', 0):.0%} of the beat left; the fit took "
+          f"{j.get('share', 0):.0%} of the curve's variance; jitter {j.get('px', 0):.2f} px")
+    check("follows the track's own jitter" in on.fields["finding"] and "the beat is the track's, not the object's" in on.fields["finding"]
+          and any(m.startswith("A beat at") and "follows the track's jitter" in m for m in on.notes),
+          "the finding and a note say so", on.fields["finding"][:150])
+    same = all(b0[k] == b1[k] for k in ("hz", "amplitude", "first", "last", "comes_back", "whole_passes", "windows_passing"))
+    check(same and any("the track's own jitter" in line and "the track's, not the object's" in line for line in flicker.said(on.fields)),
+          "the beat's own numbers are as they were, and `mcdonald flicker` prints the reading")
+    still = _tracked(_Cloud(hop=0.0, grain=0.0))
+    check(still.fields["beats"] is False and not still.fields.get("jittered"),
+          "the same cloud under a track that does not hop: no beat, and nothing given to the track", (still.fields["finding"] or "")[:90])
+
+
+def test_a_beating_spot_keeps_its_beat_under_a_hopping_track():
+    """A spot whose own brightness beats, under the same hop; and a bird that bobs as it beats, its track following the
+    bob (the paper's flyers: method section 59.1): each keeps its beat."""
+    print("\nthe track's own jitter: a spot that beats keeps its beat")
+    spot = _tracked(_Cloud(width=1.7, lumps=0.0, beat=0.2))
+    b = spot.fields["beat"]["object"]
+    j = b.get("jitter") or {}
+    check(spot.fields["beats"] is True and abs(b["hz"] - 4.3) < 0.2 and j.get("holds") is True and j["kept"] > 0.8
+          and not spot.fields.get("jittered"),
+          "a spot beating 20 % at 4.3 Hz under a hop of half a pixel: the beat is its own",
+          f"{b['hz']:.2f} Hz, {b['amplitude']:.0%}; {j.get('kept', 0):.0%} of it left with what follows the jitter out")
+    bird = _measure(_Scene([(60.0, 80.0, 0.5, 6.3, 0.2)], texture=False))
+    bb = bird.fields["beat"]["object"]
+    jb = bb.get("jitter") or {}
+    check(bird.fields["beats"] is True and jb.get("holds") is True and jb["kept"] > 0.7 and jb["px"] > 0.05,
+          "a bird that bobs half a pixel at its own beat, its track bobbing with it: the beat is its own",
+          f"{bb['hz']:.2f} Hz; {jb.get('kept', 0):.0%} left; the track's jitter {jb.get('px', 0):.2f} px")
+
+
+def test_the_jitter_reading_on_drawn_curves():
+    """`flicker.jitter_reading` on curves drawn with a known answer: a brightness that is a function of where the
+    aperture sits is the track's; a beat beside a jitter that has nothing to do with it is kept; a jitter that keeps
+    time with the beat at the beat's frequency only (a bird's bob) is kept, because the fit is learned away from it."""
+    print("\nthe track's own jitter: the reading on drawn curves")
+    from scipy import ndimage
+    fps, n = 30.0, 60
+    t = np.arange(n) / fps
+    red = lambda rng, k=n: ndimage.gaussian_filter1d(rng.normal(0, 1, k), 1.5)
+    follows, beside, bobs, plain = [], [], [], []
+    for seed in range(40):
+        rng = np.random.default_rng(100 + seed)
+        jx, jy = 0.3 * red(rng), 0.3 * red(rng)
+        made = 0.2 * jx - 0.15 * jy + rng.normal(0, 0.004, n)                # the brightness follows the aperture's place
+        hz = flicker._peak(made - made.mean(), fps)["hz"]
+        follows.append(flicker.jitter_reading(made - made.mean(), jx, jy, fps, hz)["kept"])
+        own = 0.1 * np.sin(2 * np.pi * 4.0 * t + rng.uniform(0, 6.28)) + rng.normal(0, 0.01, n)
+        beside.append(flicker.jitter_reading(own - own.mean(), jx, jy, fps, 4.0)["kept"])
+        ph = rng.uniform(0, 6.28)
+        bx, by = 0.1 * np.sin(2 * np.pi * 4.0 * t + ph) + 0.05 * red(rng), 0.4 * np.sin(2 * np.pi * 4.0 * t + ph + 1.0) + 0.05 * red(rng)
+        wing = 0.1 * np.sin(2 * np.pi * 4.0 * t + ph + 0.4) + rng.normal(0, 0.01, n)
+        bobs.append(flicker.jitter_reading(wing - wing.mean(), bx, by, fps, 4.0)["kept"])
+        A = np.c_[bx - bx.mean(), by - by.mean()]                             # the same fit with the beat left in
+        res = (wing - wing.mean()) - A @ np.linalg.lstsq(A, wing - wing.mean(), rcond=None)[0]
+        fr, F0, _, _, _ = flicker._spec(wing - wing.mean(), fps)
+        k = int(np.argmin(np.abs(fr - 4.0)))
+        plain.append(float(np.abs(flicker._spec(res, fps)[1][k]) / np.abs(F0[k])))
+    check(max(follows) < flicker.JITTER_KEEP, "a brightness made by where the aperture sits: the track's, 40 times in 40",
+          f"kept {min(follows):.2f}-{max(follows):.2f}")
+    k = sum(v >= flicker.JITTER_KEEP for v in beside)
+    traffic.rate(check, "a beat beside a jitter that has nothing to do with it is given to the track 1 time in 100 at most", 40 - k, 40, 0.01,
+                 f"kept {min(beside):.2f}-{max(beside):.2f}")
+    k = sum(v >= flicker.JITTER_KEEP for v in bobs)
+    check(k >= 38 and float(np.median(plain)) < flicker.JITTER_KEEP,
+          "a track that bobs in time with the beat, at the beat's frequency only: kept, where a fit with the beat left in takes it",
+          f"{k} of 40 kept (kept {min(bobs):.2f}-{max(bobs):.2f}); with the beat left in, the median kept {np.median(plain):.2f}")
+    z = flicker.jitter_reading(own - own.mean(), np.zeros(n), np.zeros(n), fps, 4.0)
+    check(z["kept"] == 1.0 and z["holds"] and z["px"] == 0.0, "a track with no jitter has nothing to follow: the beat is kept whole")
+    # a long curve whose answer to the hop turns over along the track: one fit for the whole of it sees nothing, blocks do
+    fps2, n2 = 60.0, 900
+    rng = np.random.default_rng(7)
+    jx, jy = 0.3 * red(rng, n2), 0.3 * red(rng, n2)
+    made = np.sin(2 * np.pi * np.arange(n2) / n2 * 2) * 0.3 * jx + rng.normal(0, 0.004, n2)
+    hz = flicker._peak(made - made.mean(), fps2)["hz"]
+    got = flicker.jitter_reading(made - made.mean(), jx, jy, fps2, hz)
+    check(got["blocks"] > 1 and not got["holds"], "a hop whose effect changes sign along the track is still the track's, block by block",
+          f"{got['blocks']} blocks, kept {got['kept']:.2f}")
 
 
 def main():
