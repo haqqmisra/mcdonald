@@ -26,6 +26,40 @@ moved by more than 0.01 pixel on PR144. In the window it is an option under Adva
 layers check, "Also map where each layer of the background is", off until ticked (the maintainer's choice). On the
 command line, `mcdonald run --dense` asks the same of the layers step.
 
+**Planted objects through `mcdonald batch`: what the batch finds, video by video** (2026-11-16; ROADMAP 0.6
+objective 4; method section 62.1). `mcdonald plant` writes synthetic objects into a stretch of a real video, with a
+table of where each one is on every frame. A planted video now goes through `mcdonald batch` like any other video.
+Then `mcdonald plant --table PLANTED --control CONTROLS` holds the batch's folders against those tables. For each
+planted object it says three things: whether Find listed it, whether the batch's own rule made an object of it, and
+whether the batch then followed it. Beside each video it gives what the batch makes of the same stretch with
+nothing planted in it. The batch itself is not changed.
+
+The first run planted 3,856 objects in 80 copies of stretches of 8 PURSUE videos. The batch followed 19 % of them
+over half their frames, from 8 % on PR051 to 26 % on PR135. Of the plain bright points that move and stay on screen,
+it followed 67 %. Most of the rest were never on Find's list. Of those Find listed and the batch did not take, nearly
+all were seen on fewer than 40 frames. Find sees a slow or faint object on some frames and not on others, and the
+batch's rule counts only the frames it was seen on. Where nothing was planted, the batch found 25 objects in 7,900 frames, and 21 of
+them are in the videos themselves.
+
+**The planted beats through the batch** (2026-11-17; method section 62.2). The same planted videos went through the
+batch again, with `flicker` measuring each object the batch followed. Of the planted objects whose brightness beats,
+`flicker` found the beat at its planted frequency on 56 % of those the batch followed. It found 74 % of the deep beats
+and 37 % of the shallow ones. On objects of constant brightness it called a beat on 3 of 473. Where nothing was
+planted it called 4 beats, and all 4 are in the videos themselves: the second encoding makes none. With a graphics
+card, `flicker` measures a beating object about three times faster, and every beat it reports is the same.
+
+**Fixed: most objects of a long planted stretch had no "contrast after the second encoding".** `mcdonald plant` reads back
+the frames each object is on. It uses them to say how much of the object's contrast the second encoding left, and to
+draw the table's picture of the objects. It asked for all those frames at once, and past about 100 the video tool
+refused without a word. A stretch of 1000 frames with fifty objects asks for about 300. So 2,892 of the run's 3,856
+objects had no such contrast, and the pictures showed none of their frames. The frames are now read 64 at a time.
+
+**`mcdonald batch --slurm` asks for the time a video needs when it measures only some steps** (2026-11-17). The batch
+asked the scheduler for the same time an object whatever it measured: the time of every step. A run that only follows
+each object (`--only track,report`) takes about a twentieth of that, and its jobs asked for 12 hours where they ran in
+3 to 11 minutes. Each step's share of an object's time is now taken from the catalog run of 2026-11-13: the two long
+steps, `layers` and `integrity`, are four fifths of it. The memory asked for is as before.
+
 **Find sooner, with the same list to the bit** (2026-11-15; IDEAS.md G11 and G12). Two changes, and nothing Find
 gives is changed by either: every row, field and sentence of its list is as it was, and so are
 `tools/find_rank.py --link --keep`'s table and kept files.

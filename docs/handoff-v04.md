@@ -42,11 +42,18 @@ session 26's two additions, and three of session 27's:
    layers check, "Also map where each layer of the background is, and how its motion changes across the picture", off
    at first, greyed while layers is unticked; `mcdonald run --dense` the same; all suites on Cannon and arthur (run
    20261117-081932-a14-window-8143773: test_gui 695 + 4 skips and 797 + 1, every suite 0 FAIL).
-2. **Planted beats through the batch** (answer 6): the plants agent, on branch `plants-scale`, resumed 2026-11-17. The
-   development session (session 23) closed on 2026-11-17 and left the branch's review and merge to this session or a
-   new one: review it, then ask Jacob before merging (`plant` and `batch` were that session's).
-3. **0.5.8** when he says the GPU work is far enough (answer 1).
-4. **Parked or his:** G2 (Find's search on the card: "not now", 2026-11-16), the plants into all 144 videos (answer 5),
+2. **Planted beats through the batch** (answer 6): **done** by the plants agent (method section 62.2): of the beating
+   objects the batch followed, 56 % (50-62) called at their planted frequency; a beat on 3 of 473 constant objects; the
+   controls' 4 beats all in the videos themselves; the card takes `flicker`'s shake pass on objects that beat, about
+   three times faster, every call and beat the same. **`plants-scale` merged onto main** (5827c89) on Jacob's word of
+   2026-11-17, after this session's review and all suites on Cannon and arthur on its merge candidate (run
+   20261117-092800-plants-merge-413ea81); CHANGELOG and IDEAS (PL5-PL9, G2's note) from the agent's drafts.
+3. **0.5.8:** Jacob, 2026-11-17 (to the wind-drift finalization session): "Once the current GPU session finishes, then
+   that is enough for the release." That session cuts it, with the drift paper's items; this session's work is on main.
+4. **Why planted beats of 9-12 Hz are found less** (42 % against 62-66 % below 9 Hz): Jacob, 2026-11-17, "measure why"
+   -- a reading on the 80 planted videos' cases (the frames per cycle; `flicker`'s ceiling of 0.8 of the frame rate's
+   highest frequency), nothing changed. Files: /scratch/mcdonald/plants-2026-11-16/out/batch-beats.
+5. **Parked or his:** G2 (Find's search on the card: "not now", 2026-11-16), the plants into all 144 videos (answer 5),
    G9's robust decisions, a Mac's card (G4), `stabilize` (G7, CPU by his choice), Slurm's shared-GPU shards (G8: no change).
 
 ## Session 27, Monday (2026-11-16): A14 built as `mcdonald layers --dense`; G11 and G12 on main; the plants at scale

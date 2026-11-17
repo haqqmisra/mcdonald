@@ -21,8 +21,8 @@ goes to the Journal of Open Source Software (JOSS), which accepts the repository
   Most of what the old 0.6 asked for is built and released too: `batch` (all 144 PURSUE videos run once: 786 rows,
   696 objects), the graphics card under `layers`, `integrity` and `flicker`, `plant`, `rank` and `noise`. Not begun:
   finding without a hand (old 0.7), most of the displays (old 0.8), the walkthrough (old 0.9).
-- **Unreleased on `main`:** Find sooner with the same list, and `layers --dense`. On a branch: the planted objects
-  through `batch`.
+- **Unreleased on `main`:** Find sooner with the same list; `layers --dense` and its option in the window; the planted
+  objects through `batch`, with a table of what was found and of the beats, video by video.
 - **Known answers in hand.** The Yemen clip, AARO's Puerto Rico lanterns and the Santa Barbara helicopter (the drift
   paper's three); AARO's fourteen resolved cases; the labelled infrared set (432 tracks of birds, drones, airplanes
   and helicopters); the five Galileo Project flyers; and since 2026-11-12 the Galileo Project's triangulated objects
