@@ -9052,7 +9052,8 @@ note of 2026-11-17; aggregate numbers only, the data are the Galileo Project's).
 - So the default, each camera's pointing as well known as one of its readings is given to be (`--los-sigma`, 0.3 and
   0.1 deg), is the median object's in azimuth and half of it in elevation. **It is section 34's judgement carried
   over, not this measurement**, and which number the Galileo runs should be given is the maintainer's to say (the
-  runs below give three).
+  runs below give three). He said, that evening: 0.7 deg in azimuth and 0.4 in elevation for the paper's Galileo
+  runs (`--pointing-err 0.7,0.4`), each ring camera a camera of its own; the package's default stays 0.3 and 0.1.
 
 **Held on drawn cameras** (cameras standing as the three sites do, about 10 and 2 km apart, watching a drawn drifter
 2.5-5.5 km up for 40-80 s; each camera's rays with a white error and a constant offset of its own in each angle; 400
@@ -9135,7 +9136,11 @@ same selection of rays, the same winds and flicker envelopes):
   (`VELOCITY_FIX`), before it asks whether the body is a flier's 10 m/s beyond the whole tolerance, which already
   holds those two errors. Asked in the other order, as the far-wind rule already is, T2 fails 80 of the 80 aircraft
   in every column (54 at v0.5.7), and one to three "clouds" that move at 19-64 m/s. The least clear aircraft moves at
-  60 m/s with two errors of 8-13 and needs 58 m/s against a tolerance of 12-18.
+  60 m/s with two errors of 8-13 and needs 58 m/s against a tolerance of 12-18. **Decided and built that evening**
+  (section 34, "The fail rule before the velocity's gate"): the fail rule is asked first, and T2 fails the 80
+  aircraft in each column of this section's tables. With a model's own error then set at 2 m/s (section 68), T2
+  passes 55 of the 119 clouds in the column of the default pointing error where the table above has 68, and 45 where
+  it has 53 at 0.7 and 0.4 deg. The tables above are as measured that morning, before both.
 
 **Judgements** (each for the maintainer to confirm): the default for what is known of a camera's pointing (above);
 the path gate's 20 m kept for cameras; the bootstrap by camera; the range's bound from the worst camera with the
@@ -9544,7 +9549,8 @@ and 2-7 times likelier for a drifter than for a body at 25-50 m/s. What they exc
 heading. They do not tell drift from slow flight, and say nothing of flight along the heading: a drifter needs the
 aircraft at 179-191 kn, and any airspeed of the object along the heading moves that figure inside 0-240 kn.
 
-**A rule with the error in it** (a draft; not built). In words: T2 passes when, at some hour and cell given, the
+**A rule with the error in it** (a draft when this was written; built that evening, with its scores as built
+under "Decided 2026-11-17" below). In words: T2 passes when, at some hour and cell given, the
 model winds' difference across the heading is within the model's own error of the measured sideways motion, and the
 airspeed a drifter needs of the aircraft is in the range given; it fails when even the nearest hour and cell leaves
 the object 10 m/s or more beyond that; else it cannot say. In arithmetic: with s the measured sideways motion, d_i
@@ -9586,7 +9592,7 @@ north. The hour and the place of the strike are not known to the stage, which is
 can only fare worse. The model behind Open-Meteo's product is not named in its files and may differ by place and
 year. The aircraft's own airspeed is not on the display.
 
-**Left to the maintainer** (nothing here was built on either). For `MODEL_WIND_ERR`: keep 3 m/s and say what it
+**Left to the maintainer** (as it was put to him; nothing here had been built on either; his answers follow). For `MODEL_WIND_ERR`: keep 3 m/s and say what it
 covers (96-97 % of a balloon's need at radiosonde stations; 66 % of the clouds', 41 % on days it was not chosen on;
 a body flying 5 m/s passes one time in three), or move it and take the table's column. For T2 from the ranges:
 keep the rule and state these rates; add the model's error to it (the draft); stop counting it among the strong
