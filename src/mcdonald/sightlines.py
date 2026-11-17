@@ -342,12 +342,12 @@ def shared(R, p, plane, tm):
 
 # ---- the words ------------------------------------------------------------------------------------
 def _known(path):
+    """How well each camera's pointing is taken as known, as a clause."""
     k = path.get("pointing_known_deg")
     if not k:
         return ""
-    if not all(math.isfinite(x) for x in k):
-        return "nothing is taken as known of each camera's pointing beforehand"
-    return f"each camera's pointing is taken as known to {k[0]:g} deg in azimuth and {k[1]:g} deg in elevation"
+    one = lambda x, angle: f"to {x:g} deg in {angle}" if math.isfinite(x) else f"not at all in {angle}"   # noqa: E731
+    return f"each camera's pointing is taken as known {one(k[0], 'azimuth')} and {one(k[1], 'elevation')}"
 
 
 def one_place(path):
@@ -394,10 +394,11 @@ def said(g):
     cams = g["cameras"]
     above = f", {g['above_ground_m']:.0f} m above the ground" if g.get("above_ground_m") is not None else ""
     names = ", ".join(f"{c['name']} {c['readings']}" for c in cams)
-    at = f" (mean time {g['time_utc']} UTC)" if g.get("time_utc") else ""
+    apart = (f"; standing {g['baseline_m']:.0f} m apart at most, their lines of sight crossing at "
+             f"{g['los_cross_deg']:.1f} deg" if g.get("places", 1) > 1 else "; all from one place")
+    at = f", mean time {g['time_utc']} UTC" if g.get("time_utc") else ""
     L.append(f"\nthe path from {g['readings']} lines of sight of {len(cams)} camera{'s' if len(cams) != 1 else ''} "
-             f"({names}; standing {g['baseline_m']:.0f} m apart at most, their lines of sight crossing at "
-             f"{g['los_cross_deg']:.1f} deg){at}: "
+             f"({names}{apart}{at}): "
              f"{g['speed_m_s']:.2f} m/s toward {g['toward_deg']:.1f} deg (two errors {2 * g['velocity_err_m_s']:.2f}), "
              f"climb {g['climb_m_s']:+.2f} +- {g['climb_err_m_s']:.2f} m/s, {g['height_m']:.0f} m above the sea{above}; "
              f"reduced chi-square {g['chi2_dof']:.2f}, rms {g['rms_az_deg']:.2f} deg azimuth, {g['rms_dep_deg']:.2f} "
@@ -421,11 +422,11 @@ def said(g):
                  f"{_one_in(max(c['chi2_p_low'] or 0.0 for c in tight))} would, by chance), so their errors come from their own "
                  "scatter about the path")
     if g.get("velocity_err_pointing_m_s") is None:
-        L.append(f"\neach camera's own pointing: {_known(g)}, and the lines of sight cannot read it, so the velocity "
-                 "and the climb are open")
+        L.append(f"\n{_known(g)} beforehand, and the lines of sight cannot read it themselves, so the velocity and "
+                 "the climb are open")
         return L
-    L.append(f"\neach camera's own pointing: {_known(g)} beforehand, a constant error of its own in each angle. The "
-             f"errors above carry it: from the lines of sight's scatter alone, two errors of the velocity are "
+    L.append(f"\n{_known(g)} beforehand: a constant error of its own in each angle, which all of its lines of sight "
+             f"share. The errors above carry it: from the lines of sight's scatter alone, two errors of the velocity are "
              f"{2 * g['velocity_err_rays_m_s']:.2f} m/s and the climb's error is {g['climb_err_rays_m_s']:.2f} m/s")
     if cams[0].get("pointing_fitted_deg") is not None:
         L.append("the lines of sight themselves, held to that, read each camera's pointing as: " + "; ".join(

@@ -26,6 +26,8 @@ of sight) and the object's brightness, so they can run on any video whose displa
 
 Where the display shows the aircraft's own position and its line of sight's ground point rather than ranges to the
 object, T1 and T2 run from the aircraft's own track instead (`--platform`, `--los`).
+Where cameras standing on the ground saw it from places apart, T1 and T2 run from their lines of sight, each with its
+own time and camera and no video (`--rays`, `--cameras`; `mcdonald.sightlines`).
 
 The fourth test weighs evidence that only some videos hold -- something the object sheds, cloud at its depth, a strike
 -- and runs whichever of its parts the inputs allow. It fails when a part fails, passes when a part passes and none
@@ -1752,7 +1754,7 @@ def main():
                     help="with --rays: how well each camera's pointing is known, deg in azimuth and in elevation: a "
                          "constant error of its own, which its lines of sight share. By default the errors of "
                          "--los-sigma; inf leaves an angle to the lines of sight themselves")
-    ap.add_argument("--reference", choices=["camera", "shared"], default="camera",
+    ap.add_argument("--reference", choices=["camera", "shared"],
                     help="with --rays: camera (the default), each camera has its own pointing error; shared, every "
                          "camera's azimuth rests on one reference (--az-ref-err), as an aircraft's display's does")
     ap.add_argument("--obs-winds", help="T2 from the track: observed winds (source,height_m above the sea,from_deg,"
@@ -1811,14 +1813,14 @@ def _main(args):
     if args.rays and (args.platform or args.slant or args.horizontal):
         raise SystemExit("T1/T2 come from the ranges, from the aircraft's own track or from cameras' lines of sight "
                          "(--rays): one of the three")
-    if (args.cameras or args.pointing_err) and not args.rays:
-        raise SystemExit("--cameras and --pointing-err go with --rays")
+    if (args.cameras or args.pointing_err or args.reference) and not args.rays:
+        raise SystemExit("--cameras, --pointing-err and --reference go with --rays")
     sight = pointing = None
     if args.rays:
         from . import sightlines
         try:
             sight = sightlines.rays(sightlines.read_sightlines(
-                args.rays, sightlines.read_cameras(args.cameras) if args.cameras else None), args.reference)
+                args.rays, sightlines.read_cameras(args.cameras) if args.cameras else None), args.reference or "camera")
         except (KeyError, ValueError) as ex:
             raise SystemExit(f"--rays: {ex}")
         if args.pointing_err:
