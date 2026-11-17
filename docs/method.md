@@ -8769,7 +8769,9 @@ the route from the ranges, for which planting is not built.
    which has no direction, as many: a rate over 32 plants is known to 0.09 at the worst.
 4. *The bootstrap inside each plant's fit:* as many resamples as the case's (`boots_of`, 2,000). The number of
    resamples is itself one of the fit's gates (a fit needs 20 resamples kept, and 9 readings keep 69 of 2,000 but 14
-   of 400), so a plant fitted with fewer would not be judged as the case was.
+   of 400), so a plant fitted with fewer would not be judged as the case was. On the lanterns fewer would have
+   given the same table: with 400 or 200 resamples none of 576 plants came out differently, the tolerance moving by
+   at most 0.09 and 0.17 m/s.
 5. *The check* (`case_again`). The case's own rays are planted again as they are, misses unchanged and the fit seeded
    as the stage seeds the case's; they must come out as the case did (the same outcome, the same airspeeds needed). A
    mismatch is printed as a warning that the plants are not to be trusted.
@@ -8808,7 +8810,8 @@ rules were put on one at a time:
 
 (0, 10, 15, 25 and 35 m/s did not move; the aircraft's own wind's error, 2 x 0.55 m/s, is under the model's 3 and adds
 nothing.) The tolerance went from 7.2 m/s to 10.5: the fails at 20 m/s need 10 m/s beyond it and are gone, and 25 m/s
-is now the slowest that fails in every direction, by under 1 m/s (it needs 21.4 at the least, against 10.0-11.0 + 10).
+is now the slowest that fails in every direction, and one of its 32 plants by 0.2 m/s only (they need 21.0 m/s or
+more, against tolerances of 10.0-11.1 plus a flier's 10; at 20 m/s the nearest plant is 1.0 short).
 At 5 m/s the wider tolerance alone would pass all eight directions as drifters; the hold-still rule takes every one
 back, since a body flying 5 m/s through the lanterns' air needs more against the farthest wind than the weakest wind
 blows (4.5 m/s). So with today's rules the paper's sentences become: every flier at 25 m/s or more fails, 5 to 20 m/s
