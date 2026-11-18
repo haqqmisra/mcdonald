@@ -97,7 +97,26 @@ differs other than T3's reading and its new fields, and eight readings that now 
 
 ## The final holds (the last pass, on the branch's last commit, from a snapshot, with the overlay)
 
-(To be written when the holds are in: the next commit, which changes this file only.)
+All on snapshots of **cae6ac6**, the last commit that changes any code or any word a suite reads (the commit after it
+fills this section and nothing else), with `MCDONALD_DATA` set to the overlay that holds the new table of record. Logs
+and scripts: `/scratch/mcdonald/drift-paper-2026-11-17/finish/` (`notes.md` has every job).
+
+| what | job | result |
+|---|---|---|
+| every suite with the goldens, arthur's CPUs (`tools/suites.sbatch golden`) | 6443 | ALL SUITES PASS: 29 suites, 4,328 PASS, 0 FAIL, 1 SKIP. test_golden 266 / 0 / 0, test_gui 797 / 0 / 1 (the Wx backend: no wx module, as always), test_drift 361, test_controls 118, test_reduction 734, test_measurement 711, test_beat 72, test_cli 140, test_gpu 137; the other 20 suites pass with no FAIL and no SKIP |
+| the same with the graphics card (`--gres=gpu:1`; RTX 5070 Ti, CuPy 14.2.0, CUDA 13.2) | 6444 | ALL SUITES PASS: the same counts, test_gpu 168 (4,359 PASS, 0 FAIL, 1 SKIP) |
+| the exercise pages, a page a job (`tests/test_golden.py --exercises NN`) | 6446 | 01: 4 PASS; 02: 5; 03: 5; 04: 16; no FAIL, no SKIP |
+| the fourteen reference case files against `main` 1061757 (31 objects) | 6445, against 5615 | 0 objects whose conclusion, bottom line, answers, grade or reasons but for their numbers moved; 0 differences of a kind not listed in `words-for-jacob.md`; every measured number the same. Fields: the jitter reading added to 28 beats' records, a "no beat" finding grown by its band on 7 objects. Reports: 3 the same to the letter, 28 changed in the weights' sentences (21), the screening sentence (21) and the band's rows (7 objects) |
+| `drift`'s four known answers (five files) against the branch before the last pass | 6447, against 6431 | byte-identical |
+| the 239 Galileo objects before and after decision 13 was built | 6436, 6437 | no field differs but T3's reading and its new fields; no outcome or verdict moves; 8 readings say a beat was set aside |
+| fifteen deliberate breaks of decision 13's code | 6448 | each fails the check meant for it |
+
+Not run: Cannon (its copy of the data folder has the old table), Mac and Windows (they wait for the version commit).
+Nothing an earlier agent reported as passing failed at the merge. An earlier run of every suite on the last code
+commit but one (d134502, job 6439) gave the same counts.
+
+One thing found on the way and left as it was (IDEAS.md N26): the report's sentence for a rotor's look quotes "6 of 8
+helicopters", a count of 2026-10-25 that the record had already left behind.
 
 ## What is left for the release (all on Jacob's word)
 
