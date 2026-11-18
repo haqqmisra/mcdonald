@@ -212,6 +212,13 @@ Project's):
 | 17 | the Yemen clip's T2, no longer a strong test | left as it is, with section 68's measured rates; no sourced airspeed band, no plants on that route before the paper (DR10, FL2 stay open) |
 | 18 | the Galileo cameras' pointing error | 0.7 and 0.4 deg only; no row at the default, no per-object error before the paper (C3 stays for 0.6) |
 
+**Cannon's copy of the data folder is synced (2026-11-18).** 1,021 files, 355 MB: `winds_igra/model/` (594 files),
+the labelled set's new table (the same sum as here), the visible tracks, the case files. All 7,711 lines of
+`SHA256SUMS` were checked there in a job on `test`; one fails, `svanstrom2021/README.md`, and it fails here too: the
+file was edited on 2026-11-18 for the visible tracks and its line was not made again (Cannon's copy is the same as
+this one to the byte), and `svanstrom2021/tracks_visible/` (406 files) has no lines yet. So `mcdonald-test` may run on
+Cannon again; the two "still open" notes on Cannon's copy above are done.
+
 ## What the paper's session needs
 
 The manuscript is Jacob's: the tool's sessions report what the tool shows and give no revision advice.
