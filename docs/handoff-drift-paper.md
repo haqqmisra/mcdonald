@@ -129,6 +129,23 @@ helicopters", a count of 2026-10-25 that the record had already left behind.
   folder still has the old table and lacks `winds_igra/model/`: sync both before `mcdonald-test` runs there.
 - Steps 2, 3, 4 and 7 below are done; 5 is running; 1, 6 and 8 are Jacob's or wait for the release.
 
+## Released as 0.5.8 on 2026-11-17 (Jacob: "go ahead and push and tag 0.5.8")
+
+- **The holds on the version commit 46dd395, all green before the push:** every suite with the goldens on arthur
+  against the real data folder with the swapped table, on the CPUs (job 6469: golden 266 / 0 / 0) and on the card (job
+  6470: 29 suites, 1 SKIP, the Wx backend; drift 361, controls 118, gui 797); Mac run 124 and Windows run 125. The
+  Windows run took about 95 minutes of its job's 120 (test_measurement 1,783 s, test_drift 437 s): trim test_drift's
+  slowest command-line runs or raise that limit before the next release of this size.
+- **Out:** `main` and tag `v0.5.8` pushed, the GitHub release made from the CHANGELOG entry, the site published, PyPI
+  by the tag's workflow. Zenodo's version DOI is 10.5281/zenodo.24329905 (CITATION.cff).
+- **Housekeeping done:** the worktrees and branches `dp-cams`, `dp-fliers`, `dp-winds`, `dp-jitter`, `dp-band` and
+  `drift-paper` removed (all merged). The scratch folder `/scratch/mcdonald/drift-paper-2026-11-17` stays: it holds the
+  paper's tables (`table/README.md`), every agent's record and `words-for-jacob.md`.
+- **Still open:** Cannon's copy of the data folder (the labelled set's new table, `winds_igra/model/`) before
+  `mcdonald-test` runs there again; the fresh-install check of 0.5.8 from PyPI; and "What comes after 0.5.8", below.
+- The sections below this one were written before the release and are kept as the record. Some of their headings and
+  the agents' brief say "2026-11-18": all of it was 2026-11-17.
+
 ## What is left for the release (all on Jacob's word)
 
 1. **Read `/scratch/mcdonald/drift-paper-2026-11-17/words-for-jacob.md`:** every sentence a person reads differently
