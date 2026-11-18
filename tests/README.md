@@ -320,6 +320,15 @@ Since 2026-11-17 (the drift paper's release; method §66-68):
   band); several cameras: one band, differing bands with what each other camera's own test said, every camera cut
   short, a camera without power or without a record, and a beat taken back from above another camera's band. Nothing
   but the readings differs with the band recorded.
+- *T3 says where a beat was seen and given to the track* (drawn envelopes as `flicker` writes them with its control
+  against the track's own jitter, each judged with `jittered` and without; method sections 34 and 69): one camera's
+  pass names the beat, its strength and the share it kept, and does not quote a floor beside it; the outcome and every
+  number are the envelope's; a band cut short is still said; a record given to the track does not hold where another
+  object of the envelope beats. Several cameras: every camera whose beat went to its track is said, whichever camera
+  leads, jitter defined once, and the list of bands gives no floor for it. The rule: such a record does not agree
+  with another camera's held beat, and its camera takes one back only where that beat is three times as strong as
+  the one it set aside. Without the field every reading and outcome is as before. Fifteen deliberate breaks, each
+  caught by the check meant for it.
 342 checks, about four and a half minutes on four CPUs of arthur (2026-11-17; 276 s with the machine busy). Most of
 that is the runs that keep the stage's own 2,000 resamples a fit, about 6 s each: the lanterns' planted fliers by the
 command line (17 fits, about 55 s), the cameras' command-line runs (30 s), PR051's two fits and the lanterns' two.
@@ -595,8 +604,9 @@ size and track, the planted dots of the encoding control), kept in the reference
 is and what it must give: birds keep their beats (the Galileo flyers, PR135's flock, a distant, a
 medium and a close bird of the labelled infrared set), non-birds get none (a drone, an airplane and a
 helicopter of the set, a distant one of each; the WA9ONY-5 balloon, PR23, PR055, PR071), the strobe
-helicopters keep their trains, the two false alarms of record stay as they are, NO POWER stays NO
-POWER. Every replay must also give the outcome its video gave, the hertz to a thousandth.
+helicopters keep their trains, the one false alarm of record stays as it is (HELICOPTER_024; until
+2026-11-17 there were two: HELICOPTER_043's beat follows its track's own jitter and is held to a
+non-bird's silence since, method section 69), NO POWER stays NO POWER. Every replay must also give the outcome its video gave, the hertz to a thousandth.
 
 Beside each control, the exact bound its outcome gives (B28): a silent negative control bounds the
 false-alarm rate only under 97.5 %, four under 60 %. So the sample is a regression, and the rates come
@@ -648,6 +658,13 @@ outside a fixed core where a planted change of width shows, one whose width beat
 NO POWER. **The mark's base rate**: 70 % of the band at 30 frames a second, all of it at 60. And **the call is as it was
 without them**: three drawn clips measured with the readings and with them taken out give the same call, the same
 fields, notes and result lines, the readings only adding.
+
+**And one reading that does decide: the track's own jitter** (2026-11-17; method section 69). A steady ragged patch under
+a track that hops half a pixel beats over its whole track without the reading, and with it the beat is the track's
+(`jittered`, "no beat of its own", a note saying what would show one). A spot that beats under the same hop keeps its
+beat, and so does a bird whose track bobs with its wings. Drawn curves made by where the disc sits are the track's 40
+times in 40; a beat beside an unrelated jitter is kept 40 in 40; a jitter in time with the beat at the beat's frequency
+only is kept 40 in 40, where a fit with the beat left in keeps none. Each was made to fail once.
 
 ```bash
 python3 tests/test_beat.py        # about two minutes; no video data

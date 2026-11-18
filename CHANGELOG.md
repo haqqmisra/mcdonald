@@ -6,10 +6,15 @@ Every version that went out, newest first. The version is written in one place,
 ## Unreleased
 
 **The wind-drift tests, made ready for the drift paper** (2026-11-17; ROADMAP 0.5.8; method sections 34 and 66 to
-68). `mcdonald drift` asks whether an object moved with the wind. Its second test, T2, compares the object's motion
+69). `mcdonald drift` asks whether an object moved with the wind. Its second test, T2, compares the object's motion
 with the winds. This release gives T2 a new input, a way to say how slow a flier it would have caught, and three
-changed rules. Each rule was decided by the maintainer on measurements made that day. Two of the four known answers
-change in their numbers or words, as listed below. None changes its verdict.
+changed rules. Its third test, T3, asks whether the object's brightness beats. T3 gains a control against a beat that
+only follows the track, and it now says what it covered. Each rule was decided by the maintainer on measurements made
+that day. Three of the four known answers change in their numbers or words, as listed below. None changes its verdict.
+- *AARO's Puerto Rico lanterns:* T2's tolerance and one number in its reading.
+- *The Yemen video:* T2's reading, seven fields added to it, and the verdict's reason.
+- *PR051's second leg:* the verdict's reason, and T3's reading, which now names its band.
+- *The Santa Barbara helicopter:* nothing.
 
 *Three rules of the wind test changed.*
 - **A fast flier fails, however poorly its velocity is known.** From lines of sight, T2 fails a body that needs
@@ -77,7 +82,22 @@ mcdonald drift --rays rays.csv --cameras cameras.csv --winds model.json --ground
 On the Galileo Project's 239 triangulated objects, with each camera's own pointing at the default and the three
 rules above: no aircraft is called drifting, and T2 fails all 80. T2 passes 55 of the 119 clouds. Against the
 aircraft's own transponder speeds, two stated errors hold the truth on 66 % of aircraft, where one shared reference
-gave 50 %. The table for the paper, with the larger pointing error, is still to be made.
+gave 50 %.
+
+For the paper the same 239 objects were run as the maintainer decided. Each ring camera is a camera of its own, and
+each camera's pointing is taken as known to 0.7 and 0.4 degrees. The beat test reads brightness records made with
+its new control against a tracker's jitter (below). The verdicts, as drifting, cannot say and not drifting:
+
+| group | objects | drifting | cannot say | not drifting |
+|---|---|---|---|---|
+| aircraft with known tracks | 80 | 0 | 0 | 80 |
+| clouds | 119 | 44 | 74 | 1 |
+| pairs of clouds matched by mistake | 40 | 11 | 29 | 0 |
+
+- All 80 aircraft are called not drifting, each by T2. The one nearest its tolerance is 41.5 m/s beyond it.
+- The one cloud called not drifting is two different things matched as one object. Its lines of sight miss the
+  fitted path by 3.6 degrees. Nothing in `drift` yet refuses such a fit (IDEAS.md TB1, after this release).
+- Without the jitter control, five more clouds failed the beat test.
 
 *`mcdonald drift --plant`: how slow a flier the wind test would have caught* (method section 67). How fast a flier
 T2 catches differs from one video to the next. Asked with `--plant`, `drift` now measures it on the video's own
@@ -95,12 +115,15 @@ They also say whether any flier passed as a drifter, and how often a planted dri
   a drifter, and a planted drifter passes 32 times in 32. The drift paper's figure was made under 0.4.3, when the
   tolerance was 7.2 m/s; it is 9.5 now. Then, five of eight fliers at 20 m/s failed and two of eight at 5 m/s
   passed.
-- *Forty of the Galileo Project's triangulated clouds,* measured that morning, before the three rules changed and
-  with one shared reference. The wind test failed 99 in 100 of the planted fliers at 25 m/s and every one from
-  30 m/s. It failed 86 in 100 at 20 m/s and 36 in 100 at 15 m/s. At 10 m/s and under it failed none: there it mostly
-  could not say. One planted flier in three passed as a drifter at 5 m/s, and one in twenty at 10 m/s. So the test
-  catches a fast flier and cannot tell a slow one, such as a bird, from a drifter. This table is to be made again
-  with the rules as they now stand.
+- *Forty of the Galileo Project's triangulated clouds,* with the rules above, each ring camera a camera of its own
+  and its pointing known to 0.7 and 0.4 degrees. 27 of the 40 pass the wind test and are planted in their own air.
+  On those 27 a planted drifter passes 98 times in 100. The test fails 42 in 100 of the planted fliers at 15 m/s, 82
+  at 20 m/s, 96 at 25 m/s and 99 at 30 m/s. From 40 m/s it fails every one. At 10 m/s and under it fails none: there
+  it mostly cannot say. A planted flier passes as a drifter 23 times in 100 at 5 m/s and 2 times in 100 at 10 m/s.
+  So the test catches a fast flier and cannot tell a slow one, such as a bird, from a drifter. On the other 13
+  clouds the lines of sight do not fix the velocity at this pointing error, or the cloud is beyond the tolerance.
+  The same clouds measured that morning, before the rules changed and with one shared reference, gave 33 and 5 in
+  100 passing at 5 and 10 m/s, and every flier failing from 30 m/s.
 Nothing changes for a call that does not ask. It takes minutes: 289 fits, each as long as the video's own.
 
 *How far a weather model's wind is from the air's own motion* (method section 68; `tools/wind_model_igra.py`). The
@@ -110,6 +133,74 @@ it is more than 4.3 to 4.6 m/s off. Balloons are fed into the models, so a model
 model's error on the difference between the winds at the Yemen video's two heights is about 3 m/s across a heading.
 The video's least shortfall is 2.7 m/s, so it fits drift, and it fits a body flying 5 to 10 m/s as well. The tool
 repeats the measurement from public data and scores the new rule; two tables hold its numbers, and a test holds them.
+
+*A beat that only follows the track is no longer called the object's own* (method section 69; IDEAS.md N8).
+`mcdonald flicker` reads an object's brightness in a small disc that rides the track. A track has jitter, the small
+scatter of the object's measured position from frame to frame. Over an object wider than the disc, each small jump
+puts the disc on a brighter or a darker part. The brightness then rises and falls with the track, and the stage heard
+that as a beat. On the Galileo Project's cameras it called such a beat on 7 of 303 videos of clouds, and `mcdonald
+drift` then failed 5 of 119 clouds on its beat test. A cloud has no wingbeat.
+- *What is new.* For every beat it would call the object's own, the stage now asks how much of it follows the
+  track's jitter. It learns how the brightness follows the jitter at rates away from the beat, and takes that part
+  out. A beat that keeps under half its strength is the track's. The finding then reads "the beat is the track's,
+  not the object's: no beat of its own", and a note says what would show a beat of the object's own. The reading
+  can take a beat away. It never gives one, so no object that was silent can gain a beat.
+- *What it was held to first.* It was measured before it was built, on every known bird a track could be had for.
+  That is 147 beats of known birds, on hand-labelled tracks, on the papers' tracks and on mcDonald's own. Every one
+  keeps 70 % or more of its strength. The seven cloud beats keep 8 to 32 %. The line of one half sits in the gap
+  between them. Unrelated jitter from another video takes a beat under half 9 times in 10,000.
+- *What changes in a report.* No reference case changes its conclusion, and no known bird loses its beat. The
+  fourteen reference case files were measured again: all 31 objects conclude as before. Each beat gains its reading,
+  and no other measured number moves.
+- *One false alarm of record is gone.* A helicopter of the labelled infrared set (IR_HELICOPTER_043) was named a
+  bird at 2.09 Hz. Its beat follows its track, and it now has no beat of its own. A drone that the paper's rule
+  refused (IR_DRONE_011) now has no beat of its own either. No labelled bird's answer moves.
+- *The report's weights follow the record.* The report says how much more common an answer was on labelled birds
+  than on labelled aircraft, drones and helicopters. With one false alarm fewer, a named bird is 74 times as common
+  on birds, where it was 37. Under the paper's rule it is 66, where it was 33. Both now rest on one helicopter.
+- *The screening sentence.* For a beat between 7.9 % and 21 % of the brightness, the report now says: "None of the
+  288 others the test could judge beat so strongly, so on this test they are screened out, though up to 1.0 in 100
+  might be". It said before that the others were not screened out by it. 22 of the 31 reference reports change in
+  these two sentences and nowhere else.
+- *The labelled set's table of record* (`controls/svanstrom_tracks.csv` in the reference-data folder) is made again
+  with it. Two of its 432 rows differ. The suites need the new table.
+- *On the Galileo Project's videos.* All 513 were measured again. The seven cloud beats are now the track's, and
+  the beat test of `mcdonald drift` fails 0 of 119 clouds, where it failed 5. It fails 0 of 80 aircraft, as before.
+  One aircraft's beat in one stretch is also the track's. Another aircraft keeps a beat that the reading does not
+  explain: a small spot crossing the 4-pixel blocks the video is compressed in. No video that had no beat gains one.
+- *What was tried and not built.* Reading the brightness again on a smoothed track cleared the clouds. It also cost
+  known birds their beats: 13 of 21 reference birds at one second of smoothing. A track holds the camera's own shake
+  and the object's real path, and a smoothed track leaves the object.
+- *Each beat records the reading* in `beat.<name>.jitter`. It holds the share kept, the share of the curve the fit
+  took, and the jitter's size. The objects whose beat went to the track are named in `fields.jittered`.
+- *Not done.* The reading is made on the reported beat, not window by window. It does not look for a weaker beat of
+  the object's own under the one it gives to the track. Both are measured first, after this release (IDEAS.md N21,
+  N22).
+
+*The beat test of `mcdonald drift` says where a beat was seen and given to the track* (method section 34; IDEAS.md
+TB5, TB6). With the control above, a brightness record can say "no beat of its own" of a video on which a beat was
+seen and set aside. T3 read only the answer. On one cloud it said "only a beat over 5% of its brightness would have
+shown", beside a beat of 21 % that the control had given to the track.
+- *One camera.* The pass now names that beat, its strength and the share it kept:
+
+  > no beat of its own between 1.5 and 24.0 Hz. A beat was seen at 1.72 Hz, 21% of its brightness, but it follows the
+  > track's own jitter. Jitter is the small scatter of the object's measured position from frame to frame. With the
+  > jitter's share taken out, 8% of the beat is left, where a beat of the object's own keeps 50% or more. So it is
+  > counted as the track's, not the object's. A weaker beat of the object's own could be hidden under it, and only a
+  > stronger one would have shown.
+
+  It no longer quotes the smallest beat that would have shown. Under a beat given to the track, a weaker beat of
+  the object's own is not judged.
+- *Several cameras.* The reading leads with the first camera that passes. It now also names every camera whose
+  beat went to its track, whichever camera leads. Until now it said nothing of another camera's.
+- *The rule for several cameras.* A beat one camera holds fails T3 unless another camera, able to see it, does not.
+  A record given to the track is not a beat of the object's, and no longer counts as one that agrees. Its camera
+  takes another camera's beat back only where that beat is three times as strong as the one it set aside. That
+  last part is a judgement, for the maintainer to confirm.
+- *What moves.* Nothing but words, and three new fields that record the beat set aside. A record made before the
+  control reads exactly as before, so the four known answers are the same to the byte. On the Galileo Project's 239
+  objects no outcome and no verdict moves. Eight readings now say that a beat was set aside: seven clouds and one
+  aircraft. Five lead with the camera whose beat it was. Three lead with another camera.
 
 *The beat test now says which frequencies it listened in* (method sections 34, 35 and 53; IDEAS.md N10, N18). A beat
 is a regular rise and fall in the object's brightness. `mcdonald flicker` listens for one between 1.5 times a second

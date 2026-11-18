@@ -252,6 +252,10 @@ mcdonald flicker CLIP.mp4 --track bird_A.csv --aperture 4,7,10 --beat-rule paper
 # rhythm of its brightness? --scene-shift takes the camera's motion out), a line in a look-alike band that the strongest
 # peak hides, the shape of a beat that sits where the sensor chain can make one, and how much of the band carries a mark
 mcdonald flicker CLIP.mp4 --track track.csv --scene-shift --json
+# a beat that only follows the track is the track's, not the object's (docs/method.md section 69): the brightness is
+# read in a small disc that rides the track, and over an object wider than the disc the track's own jitter becomes a
+# beat. A beat that keeps under half its strength once what follows the jitter is out reads "no beat of its own", and
+# the result records it (`jittered`, each beat's `jitter`). It can take a beat away and never gives one
 
 # What does the sound track record? The codec, a supply's hum (a clock), a propeller (the platform), and where
 # each folds through the frame rate (no track needed; a sound file works with --fps)
@@ -412,6 +416,10 @@ mcdonald drift CLIP.mp4 --platform platform.csv --los los.csv --winds era5.json 
 # within the fit's errors and a model's own error (4.8 m/s) of the sideways motion, and fails 10 m/s beyond; a slow
 # flier passes it nearly as often as a drifter, so there the verdict needs T4a. From lines of sight a model's wind is
 # allowed 2 m/s of error, and a body 10 m/s beyond the whole tolerance fails however well its velocity is known
+# T3 passes where flicker finds no beat of the object's own, and says what it covered: the band it listened in, why
+# where that band was cut short, and any beat that was seen and given to the track (its frequency, its strength, the
+# share it kept). With several cameras' envelopes a beat one camera holds must be seen by another that could have
+# seen it; a beat a camera gave to its own track is not counted as one
 ```
 
 `drift` takes no video where its inputs carry their own times (`--rays`, `--flicker`); the inputs timed by a video's

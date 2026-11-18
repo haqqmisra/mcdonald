@@ -4200,6 +4200,38 @@ depression below the horizontal.
   (IDEAS.md N20): a camera counts as one that could have seen another's beat by its floor alone, also where the beat's
   rate is above the band that camera listened in. The reading says so where it happens ("but that rate is above the
   4.8 Hz this camera listened to, where no beat could have shown"); the outcome is the rule's, as before.
+  *A beat given to the track* (`drift.given_to_track`, `given_said`, `shown_floor`; since 2026-11-17, the maintainer's
+  decision of that day; IDEAS.md TB5, TB6). Since `flicker` reads a beat against the track's own jitter (§69), an
+  envelope can say `beats: false` of a clip on which a beat was seen and set aside: `jittered` names the object, and
+  its beat record keeps the frequency, the amplitude and the reading (`jitter`: the share kept). T3 read none of it.
+  Its pass there said "no beat of its own; only a beat over 5% of its brightness would have shown", on one Galileo
+  cloud beside a 21 % beat at 1.72 Hz given to the track; with several cameras it quoted its first passing camera and
+  said nothing of another's; and the two-camera rule read any camera's beat record, the object's or not (a record
+  given to the track keeps `comes_back: true` on 7 of the 8 Galileo clips that have one), so such a record could still
+  agree with another camera's held beat. Now the pass says what was seen: "no beat of its own between 1.5 and 24.0
+  Hz. A beat was seen at 1.72 Hz, 21% of its brightness, but it follows the track's own jitter. Jitter is the small
+  scatter of the object's measured position from frame to frame. With the jitter's share taken out, 8% of the beat is
+  left, where a beat of the object's own keeps 50% or more. So it is counted as the track's, not the object's. A
+  weaker beat of the object's own could be hidden under it, and only a stronger one would have shown". The floor is
+  not quoted for such a clip: the stage judges a curve's strongest beat, and under one it gave to the track a weaker
+  beat of the object's own is not judged (§69, "What it does not do"). The beat is recorded in the test's
+  `given_to_track` (hz, amplitude, kept, jitter_px, frames); `smallest_beat_seen` stays the track's own floor, as the
+  envelope gives it. With several cameras every camera whose beat went to its track is said, whichever camera the
+  reading leads with ("Camera 2 (...) saw a beat at 3.06 Hz, 5% of its brightness, but it follows the jitter of that
+  camera's own track ..."), the list of bands says of it "it passes too: the beat it saw was given to its track" in
+  place of a floor, and the answer lists them (`cameras_given_to_track`). In the rule, a record given to the track is
+  not a beat of the object's: it never agrees with another camera's held beat, and its camera takes such a beat back
+  only where the held beat is three times as strong as the one it set aside, and as its floor; where it saw the held
+  beat's own rate and does neither, the reading says so. A record that `jittered` names does not hold across the
+  video either, whatever its `comes_back` (an envelope of several objects whose first went to its track while another
+  beats). An envelope without `jittered` reads as it did in every word and field: the four known answers below are
+  byte-identical. On the 239 Galileo objects (§66, the run as decided, made again before and after): no field but
+  T3's reading and the new ones differs, no outcome or verdict moves, and eight readings now say a beat was set aside
+  (seven clouds and one aircraft; the beats at 1.7-4.2 Hz, 3-21 % of the brightness, 8-33 % kept). Five of them lead
+  with the camera whose beat it was and no longer quote its floor; three lead with another camera and until now said
+  nothing of it. Fifteen deliberate breaks of the code each fail the drawn check meant for them
+  (`test_t3_a_beat_given_to_the_track`). Not asked: whether a weaker beat lies under the one set aside (IDEAS.md N22,
+  after 0.5.8).
 - *T4, other evidence.* Does other evidence in the video, where there is any, agree with drift? Few videos show a strike
   or anything shed, so this test runs only on whichever of its parts the inputs allow. It fails when a part fails,
   passes when a part passes and none fails, and cannot say otherwise; only its tracer part bears on the airspeed.
@@ -5386,6 +5418,14 @@ POWER is not shown to carry the class (refused birds over refused non-birds 1.9,
 within strata of contrast; the diagnostic-accuracy survey), but helicopters are refused far more often. Every clip here
 runs at 30 frames a second.
 
+*Corrected 2026-11-17 (section 69).* The counts above are the run of 2026-11-07. Two of its three named non-birds are
+gone since: drone 059 on 2026-11-13 (its held pictures read as a cadence in blocks, section 35), and helicopter 043 on
+2026-11-17. Its 2.09-Hz beat at 21 % was put down here to a fence line and poles passing behind it. Read against the
+track's own jitter it keeps 27 % of its amplitude and is the track's: the label's box hops 0.62 px over a body wider
+than the disc. The record of 2026-11-17 names 1 of 307 non-birds under either rule (0.3 %; the one-sided 95 % bound
+1.5 %), helicopter 024, and calls 15 (stage) and 22 (paper) a bird where it called 16 and 23. No bird's row moved, and
+the floor is as it was.
+
 **The cost of a false bird (B24).** A receiver sets its criterion by the odds and the costs (Wiley 2006): with
 equal-variance normal evidence, the likelihood ratio at the criterion, beta = exp(d' c), equals (1 - pi) / pi times
 C(false alarm) / C(miss) where the criterion is best. In this tool "bird" closes a case: a false bird explains something
@@ -5535,6 +5575,19 @@ Until 2026-11-13 there was a third, DRONE_059 (10.0 Hz, 15 %, stage only): its h
 top since its cadence is read in blocks (section 35). Read as a test, a name is 37 times likelier on a bird track than on
 any other (24.0 % against 0.65 %; 33 under the paper's rule, 21.6 % against 0.65 %). By clip, 2 of 286 non-bird clips are
 named, under either rule.
+*Corrected 2026-11-17 (section 69; the tables and rates above are the runs of 2026-11-07 and 2026-11-13, kept as their
+record).* The labelled set was judged again from its saved curves with the reading of the track's own jitter. Two rows
+moved, no bird's. IR_HELICOPTER_043, one of the two named above, has no beat of its own: its beat keeps 27 % once what
+follows its track's jitter is out. IR_DRONE_011, refused under the paper's rule, has none either (kept 42 %). The record
+since: non-birds called a bird 15 of 307 under the stage's rule (16 above) and 22 under the paper's (23); helicopters 7
+of 57 and 6 of 57 (8 and 7); named non-birds 1 of 307 under either rule (2 above; 0.3 %, under 1.5 % at the one-sided
+95 % bound), HELICOPTER_024 the one left; among the non-birds answered, 1 of 288 under either rule (the paper's
+answers one more now, IR_DRONE_011). Of the 31 tracks the report names a bird under the stage's rule, 1 is not a bird (32 and 2 above).
+Read as a test, a name is **74 times** as common on a bird track as on any other under the stage's rule (at least 21;
+24.0 % against 0.33 %; 37 above) and **66** under the paper's (at least 18; 33 above). The two numbers doubled because
+one of two false names went, not because a bird gained one: the ratio rests on a single helicopter. Birds called: 31
+and 30 of 125, named 30 and 27, as they were. The data folder's `controls/svanstrom_tracks.csv` is the new table;
+`tests/test_controls.py` holds it (118 checks).
 Among the tracks already called (bird or once), the beat's amplitude separates the calls on birds from those on everything
 else with an AUC of 0.95 (stage) and 0.96 (paper) -- the 2026-10-19 figure's definition. Over every track with a measured
 amplitude (400) it is 0.90 and 0.91, and among the tracks with no beat of their own still 0.88 and 0.89: most of the
@@ -5660,6 +5713,10 @@ controls, each of a kind that says what it must give, under both rules:
 | false alarm | held as the record has it, with its cause: non-birds the report names a bird on the whole set | HELICOPTER_043 (a 2.09-Hz beat at 21 % under both rules: a fence line and poles passing behind it, which background apertures 25 px away do not see), HELICOPTER_024 (3.53 Hz at 7.8 %: named since the floor went to 7 %) |
 | miss | measured, and no bird named | a distant bird with no beat where one would show (gliding, most likely) |
 | no power | NO POWER | a distant dark bird the stage cannot decide on |
+
+*Corrected 2026-11-17 (section 69).* HELICOPTER_043 is no longer a false alarm of record: its beat follows its track's
+own jitter (the "fence line and poles" of the row above was the cause given until then), and the harness now holds it
+to a non-bird's silence. HELICOPTER_024 is the one false alarm the record holds.
 
 Each is also held, rule by rule, to the outcome the manifest records (its call, its train, its beat's frequency to a
 thousandth of a hertz). After a change to the judging -- a gate, a floor, a rule -- `save_controls.py --record` judges the
@@ -6028,6 +6085,17 @@ at 7 %; too noisy for a bird's beat 4.62 (2.68-8.51; 32 v 17), 4.77, 4.54; a ref
 named fewer is IR_DRONE_059, whose 10-Hz beat was its source's held pictures. On the fourteen reference case files the
 quoted weight of a named bird is unchanged ("about 33 times", the rule they were measured by), and the noisy track's moves
 from 4.5 to 4.7 times on five objects and 4.4 to 4.5 on one.
+
+*Since the record was made again once more (2026-11-17: the track's own jitter, section 69)* the package's own table
+gives: a bird named **74 times** as common on birds as on the rest at the 7 % floor under the stage's rule (at least 21;
+30 v 1; it was 37, 30 v 2) and **66** under the paper's (at least 18; it was 33). The non-bird named fewer is
+IR_HELICOPTER_043, whose 2.09-Hz beat followed its track's jitter. The screening sentence for a beat between 7.9 % and
+21 % of the brightness now reads "None of the 288 others the test could judge beat so strongly, so on this test they are
+screened out, though up to 1.0 in 100 might be", where it read "the others are not screened out by it": the helicopter's
+21 % was the one that reached. Where none of the others gave an answer, `controls.said` says so ("29 of 125 birds gave
+this answer and none of the 307 ...") where it wrote "about inf times". On the fourteen reference case files 22 of the
+31 reports change in these two sentences and nowhere else ("about 66 times" where they read "about 33 times"); every
+conclusion, answer and number is the same.
 
 **Four fixes to the checklist** (`Case.checklist`, `Case.placed`, `Case.beat_power`; `stages.track_placed`).
 
@@ -6891,6 +6959,9 @@ and they triangulate to the pipeline's positions within 0.5 %.
   track chance gives two: 14 of the 16 beats on clouds and aircraft were no more than chance. Windows apart now count
   only beyond chance (chance from the clip's own background windows since the revision, §13), and a beat seen from
   two cameras at once is held to the second camera too.
+  *Since 2026-11-17:* a beat that follows a detector's box as it jitters over a ragged cloud is the track's (section
+  69), T3 says where one was set aside (section 34), and the table of the 239 objects on the rules as they now stand
+  is in section 66 ("As decided").
 - *Size* (`report.extent`). With a track file and no size, the report turned the tracker's default 9-pixel spot into
   metres. In place of that default it now uses the object's length at half its peak brightness, measured on every
   tracked frame by the camera stage, and never turns the default into a size. A spot the marks or `--size` set is what
@@ -9221,6 +9292,42 @@ same selection of rays, the same winds and flicker envelopes):
   aircraft in each column of this section's tables. With a model's own error then set at 2 m/s (section 68), T2
   passes 55 of the 119 clouds in the column of the default pointing error where the table above has 68, and 45 where
   it has 53 at 0.7 and 0.4 deg. The tables above are as measured that morning, before both.
+- *As decided, on the rules as built* (2026-11-17, a working note; aggregate numbers only). The table the drift paper
+  quotes. Each ring camera a camera of its own (2 to 7 an object: 156 objects with 2, 62 with 3, 21 with 4 to 7), each
+  camera's pointing known to 0.7 and 0.4 deg (`--pointing-err 0.7,0.4`), T3 on the envelopes `flicker` makes with its
+  control against the track's own jitter (section 69). Verdicts as drifting (tentative) / cannot say / not drifting,
+  then each test as passes / cannot say / fails:
+
+| group | n | verdict | T1 | T2 | T3 |
+|---|---|---|---|---|---|
+| aircraft below 3 km | 60 | 0 / 0 / 60 | 44 / 15 / 1 | 0 / 0 / 60 | 59 / 1 / 0 |
+| aircraft above 8 km | 20 | 0 / 0 / 20 | 7 / 13 / 0 | 0 / 0 / 20 | 20 / 0 / 0 |
+| clouds, three sites | 59 | 20 / 38 / 1 | 55 / 3 / 1 | 20 / 38 / 1 | 59 / 0 / 0 |
+| clouds, two sites | 60 | 24 / 36 / 0 | 57 / 3 / 0 | 24 / 36 / 0 | 60 / 0 / 0 |
+| mismatched pairs | 40 | 11 / 29 / 0 | 40 / 0 / 0 | 11 / 29 / 0 | no envelope |
+| all aircraft | 80 | 0 / 0 / 80 | 51 / 28 / 1 | 0 / 0 / 80 | 79 / 1 / 0 |
+| all clouds | 119 | 44 / 74 / 1 | 112 / 6 / 1 | 44 / 74 / 1 | 119 / 0 / 0 |
+
+  Without the jitter control the clouds read 19 / 37 / 3 and 24 / 33 / 3: T3 failed five, which the control gives to
+  the track, and every field of the fitted path and of T1, T2 and T4 is the same in the two runs on 239 of 239. T2
+  fails 80 of 80 aircraft (the slowest needs 53.4 m/s through the air; the nearest to its tolerance is 41.5 m/s beyond
+  it, where a fail needs 10) and passes 44 of 119 clouds; on 51 clouds the lines of sight do not fix the velocity at
+  this pointing error (two errors over 5 m/s), on 18 the cloud is beyond the tolerance but short of a flier's margin,
+  on 5 holding still fits as well. Rates, with errors from a bootstrap over the observing sessions (the local day; the
+  clouds lie on 13, the aircraft on 17, the mismatched pairs on 10): "drifting" said of a cloud 37.0 +- 4.3 %, "not
+  drifting" 0.8 +- 0.8 % (5.0 +- 2.2 % without the jitter control); "drifting" said of an aircraft 0 of 80 (under
+  3.7 % at 95 % over objects, under 16 % over the 17 sessions); of a mismatched pair 27.5 +- 11.3 %. The one cloud
+  called not drifting fails T1 and T2: two different things matched as one object, whose rays miss the fitted path
+  by 3.6 deg (reduced chi-square 66, where the clouds' median is 1.6 and their 90th percentile 6.7). Nothing in the
+  stage refuses a path its rays do not follow; a gate set from a null is for after 0.5.8 (IDEAS.md TB1; the
+  maintainer's decision of 2026-11-17). The ring cameras change the path's errors on 24 objects (smaller on 16, larger
+  on 8) and one verdict (a cloud, drifting to cannot say: two errors of its velocity 4.8 to 16.6 m/s, a camera with 31
+  readings at one end of its track). A rule for clean clouds stated before any outcome was read (unnamed, tracked 10
+  s with no gap over 2 s, 2-6 km up, not the 2-km pair alone, under 60 m/s, climb within 8 m/s) keeps 91 of the 119:
+  37 / 53 / 1. The same to the byte at the commit before the jitter control's merge and after it (the control changes
+  `flicker.py` only). Made once more on the release's tree, before and after T3 was given its words for a beat set
+  aside (section 34): on 239 of 239 objects no field differs but T3's reading and its new fields, and the table above
+  is the same; eight readings now say a beat was seen and given to the track.
 
 **Judgements** (each for the maintainer to confirm): the default for what is known of a camera's pointing (above);
 the path gate's 20 m kept for cameras; the bootstrap by camera; the range's bound from the worst camera with the
@@ -9385,11 +9492,46 @@ cannot be said, and none passes. The heading offset moved nothing here (the lant
 plants riding the 14 winds in turn the row at zero says what judgement call 1 says: 2 of 32 pass, 30 "holding still
 fits as well".
 
-**On 40 of the Galileo Project's triangulated clouds** (section 53's objects; aggregate numbers only, the rays are
-theirs). **Measured before the rules of 2026-11-17's evening**: with a model's own error at 3 m/s (2 since) and the
-40 clouds given through one shared azimuth reference (each camera its own since, section 66). The table is to be
-made again on the rules as built and through `--rays`; until then it says what T2 did that morning. A tolerance a
-metre a second tighter moves each edge down by about that much, as it did on the lanterns above.
+**On 40 of the Galileo Project's triangulated clouds, on the rules as built** (2026-11-17, a working note; section
+53's objects; aggregate numbers only, the rays are theirs). The same 40 clouds as the earlier table below, each
+through `--rays` with each ring camera a camera of its own and each camera's pointing known to 0.7 and 0.4 deg,
+`--plant` in the air the stage chooses. 27 of the 40 pass T2 as built (9 of 20 from three sites, 18 of 20 from two)
+and are planted in their own path's air. On 11 the lines of sight no longer fix the velocity with the pointing
+carried (two errors of 5.9 to 16.6 m/s), and 2 are beyond the tolerance at 2 m/s; those 13 are planted in the model's
+two winds, and are given apart. **The table to quote is the 27's**: the share of plants T2 passed, could not judge
+and failed, of 864 at each airspeed (32 a cloud), errors from a bootstrap over the 10 observing sessions they lie on:
+
+| airspeed, m/s | passes | cannot say | fails |
+|---|---|---|---|
+| 0 | 0.98 +- 0.01 | 0.02 +- 0.01 | 0 |
+| 5 | 0.23 +- 0.05 | 0.77 +- 0.05 | 0 |
+| 10 | 0.02 +- 0.02 | 0.98 +- 0.02 | 0 |
+| 15 | 0 | 0.58 +- 0.07 | 0.42 +- 0.07 |
+| 20 | 0 | 0.18 +- 0.05 | 0.82 +- 0.05 |
+| 25 | 0 | 0.04 +- 0.03 | 0.96 +- 0.03 |
+| 30 | 0 | 0.01 +- 0.01 | 0.99 +- 0.01 |
+| 40, 50 | 0 | 0 | 1 |
+
+Cloud by cloud the slowest airspeed from which every plant fails is 15 m/s on 2, 20 on 13, 25 on 8, 30 on 3 and 40 on
+1; the fastest at which any plant passes is 5 m/s on 14 clouds and 10 m/s on 4, and on 9 no flier passes; a planted
+drifter passes on every one of its 32 plants on 23 of the 27 (the least, 20 of 32). By group, at 5 m/s 0.28 +- 0.07 of
+the plants pass from three sites (9 clouds) and 0.20 +- 0.06 from two (18); at 15 m/s 0.50 +- 0.07 and 0.38 +- 0.08
+fail. Against the earlier table: fewer slow fliers pass (the tolerance is a metre a second tighter), and the fast end
+fails a little later, because with each camera's pointing carried the error of a fitted velocity grows with the
+body's speed. A pointing error moves the range, and the velocity scales with it: on one cloud two errors are 2.2 m/s
+for a plant at rest in the air, 5-10 at 20 m/s and 10-17 at 40 m/s, and T2's tolerance holds those two errors. So
+"the slowest airspeed from which every plant fails" depends on the pointing error taken as known, which is a
+judgement (0.7 and 0.4 deg here; IDEAS.md TB7). On the 11 clouds whose velocity is not fixed no plant passes, not
+even a drifter, and every plant fails only from 25 m/s (4 clouds), 30 (3) or 40 (4); the two beyond the tolerance pass
+a planted drifter every time and fail every plant from 15 m/s. All 40 together, each in the air the stage chose, mix
+the two airs (a drifter passes 0.71 +- 0.10) and are not the table to quote. Held: on 40 of 40 every field of the
+stage's file but `planted_fliers` and the printed lines is the same as the run without `--plant`, and the case
+planted again comes out as the case. The same four clouds on two machines (arthur, merlin): 0 of 1,152 plants come
+out differently, a plant's fitted velocity differing by at most 0.014 m/s.
+
+**The earlier table, kept as history: the same 40 clouds on the morning of 2026-11-17, before the rules changed.**
+Measured with a model's own error at 3 m/s (2 since) and the 40 clouds given through one shared azimuth reference
+(each camera its own since, section 66). It says what T2 did that morning; the table above replaces it.
 The sample's rule was fixed before any plant was run: of the clouds whose T2 passed in the runs of 2026-11-17
 at v0.5.7 (37 of the 59 seen from three sites, 27 of the 60 seen from two), 20 from each group, the dates gone through
 in turn so that the sample spreads over them: 13 days, no more than 3 clouds of a group from one. Each went through
@@ -9901,3 +10043,13 @@ reading costs nothing to make.
   blocks beats at its speed over 4 px (a Boeing 737 at 9 km: 11.58 px/s, 2.91 Hz, 43 % in its clearest window). Its
   brightness does not follow its track's jitter (kept 1.00), and only a second camera took it back.
 - The seven clouds, the helicopter and the birds are what was measured. A cloud whose beat keeps 0.5 or more stays a beat.
+
+**Decided 2026-11-17** (the maintainer, on this section's numbers, each asked as a multiple choice).
+- *The control as built:* the labelled set's record without IR_HELICOPTER_043's false bird, the report's weights 37 to
+  74 and 33 to 66, and `JITTER_KEEP` at 0.5. The data folder's table of record is the one judged again here. Sections
+  43, 44 and 47 carry a dated correction each; their tables stay the runs of 2026-11-07 and 13.
+- *In 0.5.8:* `drift`'s T3 says where a beat was seen and given to the track, and its several-camera rule does not
+  count such a record as a beat (section 34, "A beat given to the track"). This stage needed no change for it.
+- *After 0.5.8, each measured first:* the reading made window by window, before the windows are counted (IDEAS.md
+  N21: it would change how many windows every bird's finding quotes); and a weaker beat of the object's own under one
+  given to the track (IDEAS.md N22: the first trap above).
