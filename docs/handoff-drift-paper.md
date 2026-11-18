@@ -177,6 +177,26 @@ helicopters", a count of 2026-10-25 that the record had already left behind.
 8. Housekeeping after the release: the worktrees `mcdonald-dp-cams`, `-dp-fliers`, `-dp-winds`, `-dp-jitter`,
    `-dp-band` and their branches are merged and can go; the scratch folder holds the paper's tables and stays.
 
+## The table from the release itself (2026-11-18, a check; nothing built)
+
+The paper's table was made at a50bdc3, before the version commit. On 2026-11-18 the same 239 rays files and envelopes
+went through the release (`/scratch/mcdonald/drift-final-2026-11-18/README.md`; scratch only, the rays are the Galileo
+Project's):
+
+- **The tag's code (46dd395) under the table's own libraries** (NumPy 2.4.1, SciPy 1.17.1; job 10530): every number
+  the same on 239 of 239 objects; only T3's words differ (the band, a beat set aside), as said below.
+- **The PyPI install of 0.5.8** (a fresh venv, NumPy 2.5.5, SciPy 1.18.1; job 10528): every count the same (aircraft
+  0 / 0 / 80, clouds 44 / 74 / 1, mismatched pairs 11 / 29 / 0), no test's outcome moved. The fitted numbers differ in
+  late digits: at most 0.006 m/s in a speed, 0.06 m/s in T2's tolerance and in two errors of the velocity, 0.01 m/s in
+  an airspeed needed. So the libraries, not the code, move the late digits (the table agent saw the same between
+  arthur and merlin). One cloud sits 0.02 m/s from T2's tolerance and one 0.09; a count could move by one on another
+  install, though none did here.
+- **The paper's three videos at the tag** (the research repository's `paper_check`, job 10529, against what the paper
+  reads, made under 0.4.3): the three verdicts stand. What moved is what "What the paper's session needs" lists, and
+  two things more: the lanterns' climb error reads 0.05 m/s where 0.04 (the azimuth reference's error is carried), and
+  the case file of the Yemen remains answers "Does anything move along with it?" with Yes (a bright feature 2.1 object
+  widths away, beside it) where it answered No. The speed band, zoom, `layers --k 1` and `slew` are unchanged.
+
 ## What the paper's session needs
 
 The manuscript is Jacob's: the tool's sessions report what the tool shows and give no revision advice.
