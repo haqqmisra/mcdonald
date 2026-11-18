@@ -6094,8 +6094,9 @@ IR_HELICOPTER_043, whose 2.09-Hz beat followed its track's jitter. The screening
 screened out, though up to 1.0 in 100 might be", where it read "the others are not screened out by it": the helicopter's
 21 % was the one that reached. Where none of the others gave an answer, `controls.said` says so ("29 of 125 birds gave
 this answer and none of the 307 ...") where it wrote "about inf times". On the fourteen reference case files 22 of the
-31 reports change in these two sentences and nowhere else ("about 66 times" where they read "about 33 times"); every
-conclusion, answer and number is the same.
+31 reports change in these sentences and nowhere else: 20 read "about 66 times" where they read "about 33 times" (the
+paper's rule, which they were measured by), 21 change the screening sentence, and one moves the weight of "no rhythm
+of its own" from 2.6 to 2.7 times. Every conclusion, answer and measured number is the same.
 
 **Four fixes to the checklist** (`Case.checklist`, `Case.placed`, `Case.beat_power`; `stages.track_placed`).
 

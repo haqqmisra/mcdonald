@@ -160,8 +160,9 @@ drift` then failed 5 of 119 clouds on its beat test. A cloud has no wingbeat.
   on birds, where it was 37. Under the paper's rule it is 66, where it was 33. Both now rest on one helicopter.
 - *The screening sentence.* For a beat between 7.9 % and 21 % of the brightness, the report now says: "None of the
   288 others the test could judge beat so strongly, so on this test they are screened out, though up to 1.0 in 100
-  might be". It said before that the others were not screened out by it. 22 of the 31 reference reports change in
-  these two sentences and nowhere else.
+  might be". It said before that the others were not screened out by it.
+- *The reference reports.* 22 of the 31 change in these sentences and nowhere else. In one of them the weight of
+  "no rhythm of its own" also moves, from 2.6 to 2.7 times.
 - *The labelled set's table of record* (`controls/svanstrom_tracks.csv` in the reference-data folder) is made again
   with it. Two of its 432 rows differ. The suites need the new table.
 - *On the Galileo Project's videos.* All 513 were measured again. The seven cloud beats are now the track's, and

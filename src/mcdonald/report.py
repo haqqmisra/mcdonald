@@ -63,6 +63,9 @@ BIRD = "Beats like a bird"             # the conclusion's label for a beat in th
 # other half 45-47 % of the time (`tools/sweep/pbo.py`, E9) -- but a floor beats none out of sample on every half. Tested
 # once, frozen, on the set's visible-band clips, which it was not set on: 2 of 190 non-bird tracks named (1.1 %, bound
 # 3.3 %), not shown above its rate. A fainter beat is still said, as one, with the rate.
+# Since then two of the three named non-birds have gone, and the floor is as it was set: drone 059 on 2026-11-13 (its
+# held pictures read as a cadence in blocks; method section 35) and helicopter 043 on 2026-11-17 (its beat follows its
+# track's own jitter, not a fence line; section 69). The record names 1 of the 307 under either rule (0.3 %; bound 1.5 %).
 BIRD_FLOOR = 0.07
 BIRD_FLOOR_RATE = 0.01   # ... the share of known aircraft, drones and helicopters the floor lets be named a bird: the words say it
 # A thing of known size in the picture gives the speed across the line of sight at that thing's distance: no faster

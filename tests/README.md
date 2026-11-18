@@ -329,7 +329,7 @@ Since 2026-11-17 (the drift paper's release; method §66-68):
   with another camera's held beat, and its camera takes one back only where that beat is three times as strong as
   the one it set aside. Without the field every reading and outcome is as before. Fifteen deliberate breaks, each
   caught by the check meant for it.
-342 checks, about four and a half minutes on four CPUs of arthur (2026-11-17; 276 s with the machine busy). Most of
+361 checks, about four and a half minutes on four CPUs of arthur (2026-11-17; 276 s with the machine busy). Most of
 that is the runs that keep the stage's own 2,000 resamples a fit, about 6 s each: the lanterns' planted fliers by the
 command line (17 fits, about 55 s), the cameras' command-line runs (30 s), PR051's two fits and the lanterns' two.
 The tests that go through the stage without checking that count take 60 or 200 resamples (`resamples(n)`).

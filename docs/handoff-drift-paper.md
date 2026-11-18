@@ -1,230 +1,196 @@
-# Handoff: the drift paper's release, 0.5.8 (session "wind-drift finalization", from 2026-11-17)
+# Handoff: the drift paper's release, mcDonald 0.5.8 (session "wind-drift finalization", 2026-11-17)
 
 **Jacob, 2026-11-17:** "My first immediate goal is the wind-drift paper. The GP triangulation calculations can serve as
 a control. I want to make sure that mcdonald has all features needed to finalize the wind-drift calculations and paper.
-If more development is needed, we should prioritize this." And, on the regroup's four questions: build items 1, 2, 4
-and 5 ("Yes"); item 3, measure first, then he decides ("Yes" to the recommendation); 0.5.8 "once the current GPU
-session finishes, then that is enough for the release"; the ROADMAP rewrite, "Take it". "Feel free to spawn as many
-agents as needed... Use arthur, merlin, and cannon as needed, through /slurm."
+If more development is needed, we should prioritize this."
 
-`docs/handoff-v04.md` stays the usual handoff (the GPU session writes it). This file is this strand's record.
+`docs/handoff-v04.md` stays the usual handoff (the GPU session writes it). This file is this strand's record, made one
+document on 2026-11-17 by the last integration pass. Its history is below the line at the end, shortened.
 
-## What the regroup found (2026-11-17, nothing built)
+## Where things stand
 
-The paper (the PURSUE analyses' drift manuscript) cites 0.4.3 and has no text on the Galileo Project's triangulated
-objects. Their known-answer table in the paper's brief was made with 0.5.3-era code. Run again at the v0.5.7 tag
-(`/scratch/mcdonald/regroup-2026-11-17`, its README; job 3684; T3 on the old flicker envelopes):
+- **Branch `drift-paper`** (worktree `/hugespace/models/mcdonald-drift-paper`) carries `main` 1061757 with everything
+  0.5.8 holds for the paper. **Not merged into `main`, not pushed, no version set.** `main` is at 1061757, clean.
+- **Every suite passes on the branch's last commit, with the overlay of the data folder** (see "The final holds").
+- **One thing in the data folder waits for the merge:** the labelled set's table of record (see "What is left").
+- The agents' folders are under `/scratch/mcdonald/drift-paper-2026-11-17/` (arthur's disk, not backed up); the common
+  brief with Jacob's decisions word for word is `BRIEF-common.md` there.
 
-| group | n | drifting (tentative) | cannot say | not drifting |
-|---|---|---|---|---|
-| ADS-B aircraft below 3 km | 60 | 0 | 9 | 51 |
-| ADS-B aircraft above 8 km | 20 | 0 | 7 | 13 |
-| clouds, three sites | 59 | 37 | 21 | 1 |
-| clouds, two sites | 60 | 27 | 28 | 5 |
-| mismatched low pairs | 40 | 21 | 19 | 0 |
+## What 0.5.8 holds (the drift paper's part; CHANGELOG "Unreleased" says it for a reader)
 
-The slowest aircraft whose velocity is fixed needs 53 m/s through the air. 108 of the 119 clouds are from nine days of
-late May 2026.
+| what | where | method |
+|---|---|---|
+| Cameras on the ground as an input of `drift` of their own: `--rays`, each camera its own time, scatter and pointing error (`--pointing-err`), no video needed | `sightlines.py`, `drift.py` | §66 |
+| Planted fliers: `--plant`, the slowest flier T2 would have caught on a case's own geometry and winds, from an aircraft's lines of sight or from cameras' | `fliers.py` | §67 |
+| T2 from the lines of sight: the fail rule before the velocity's gate; a model's own wind error 2 m/s (was 3) | `drift.test_wind_track`, `MODEL_WIND_ERR` | §34, §68 |
+| T2 from the ranges (the Yemen clip's route): a rule with the model's error in it (`WIND_DIFF_ERR` 4.8 m/s), a fail it lacked, and no longer a strong test | `drift.test_wind`, `drift.strong` | §34, §68 |
+| A model's wind against weather balloons, and the rule's scores on stations it was not set on | `tools/wind_model_igra.py`, two golden tables | §68 |
+| `flicker`'s control against a beat that is the track's own jitter (`JITTER_KEEP` 0.5); the labelled set's record and the report's weights made again | `flicker.jitter_reading`, `controls_beat.csv` | §69; §43, §44, §47 corrected |
+| The band a beat was listened for in, said in words by `flicker`, T3 and the report | `flicker.listened_in`, `drift.beat_band`, `report.Case.beat_band` | §34, §35, §53 |
+| T3 says where a beat was seen and given to the track; the several-camera rule does not count such a record | `drift.given_to_track`, `given_said`, `shown_floor` | §34 |
+| T3 from several cameras compares another camera's floor as measured, not rounded | `drift.beat_floor` | §34 |
 
-## The five items (ROADMAP.md, "0.5.8")
+The GPU session's part of 0.5.8 was on `main` before this strand branched (`layers --dense`, the plants through
+`batch`, Find sooner): its records are in the CHANGELOG below this block and in `docs/handoff-v04.md`.
 
-| | item | who | branch / folder |
-|---|---|---|---|
-| 1 | fixed cameras as an input of `drift` of their own (no placeholder video, each camera its own pointing reference) | agent "cams" | `dp-cams`, `/hugespace/models/mcdonald-dp-cams`; method section 66 |
-| 2 | planted fliers in the package (`--plant`): the slowest flier T2 would have caught on a case's own geometry and winds | agent "fliers" | `dp-fliers`, `/hugespace/models/mcdonald-dp-fliers`; section 67 |
-| 3 | T2 from the ranges (the Yemen clip's own route) has no model-error term and no measured rate: **measured, not built; Jacob decides** | agent "winds", Part B | `dp-winds`, `/hugespace/models/mcdonald-dp-winds`; section 68 |
-| 4 | `MODEL_WIND_ERR` (3 m/s) held on days it was not set on, and against weather balloons elsewhere | agent "winds", Part A | the same |
-| 5 | `flicker` made again at v0.5.7 on every camera's clip, and the Galileo table with it | agent "flicker" | no branch; `/scratch/mcdonald/drift-paper-2026-11-17/flicker` |
-
-The agents' common brief is `/scratch/mcdonald/drift-paper-2026-11-17/BRIEF-common.md`; each keeps `notes.md` in its
-folder there, with its drafts for CHANGELOG and IDEAS.md. The coordinator merges the branches into `drift-paper`
-(worktree `/hugespace/models/mcdonald-drift-paper`), applies those drafts, runs every suite, and then asks Jacob.
-
-## The GPU session's part is in (2026-11-17)
-
-Its message that day: all its code for 0.5.8 is on local `main`, 725df75 (not pushed, not versioned): the planted
-objects through `batch` merged at Jacob's word (5827c89; every suite on Cannon and arthur on the merge candidate), the
-CHANGELOG and IDEAS records, and one bullet of ROADMAP.md. Nothing more of its goes onto `main` before the release.
-So 0.5.8 waits only on this strand. `drift-paper` carries `main` 725df75.
-
-## Still to do after the agents report (as written that morning; what became of each is in the evening's section below)
-
-- Merge `dp-cams`, `dp-fliers`, `dp-winds` into `drift-paper`; wire `--plant` to the fixed-camera input; CHANGELOG,
-  IDEAS.md, a pointer from method section 34 to sections 66-68.
-- The Galileo table once more on the merged tree, through the new input, with item 5's envelopes: the table the
-  paper quotes. Its driver must not live only in the private repository.
-- Every suite with the goldens (arthur; Cannon if its login is open), Mac and Windows runs before a tag.
-- Item 3's choice, and every judgement call the agents name, to Jacob as multiple choices.
-- 0.5.8's version commit, push and tag are Jacob's word, after the GPU session's work is on `main`.
-- The paper itself (re-run of its three videos at 0.5.8, the Galileo section, the planted-flier figure) is the paper
-  session's; manuscripts are Jacob's.
-
-## 2026-11-17, evening: the four agents reported, Jacob decided, and the branches were integrated
-
-### Jacob's decisions (asked as multiple choices; the common brief's last section has them word for word)
+## Jacob's fourteen decisions (2026-11-17; each asked as a multiple choice)
 
 | | question | his answer | state |
 |---|---|---|---|
-| 1 | T2 from the ranges (the Yemen clip's route) | build the drafted rule with the model's error in it, AND stop counting this route's T2 as a strong test | built (commit "drift T2 from the ranges ...") |
-| 2 | `MODEL_WIND_ERR` | lower to 2 m/s (the recommendation was to keep 3) | built |
+| 1 | T2 from the ranges (the Yemen clip's route) | build the drafted rule with the model's error in it, AND stop counting this route's T2 as a strong test | built |
+| 2 | `MODEL_WIND_ERR` | 2 m/s (the recommendation was to keep 3) | built |
 | 3 | T2 from the lines of sight | the fail rule before the velocity's gate | built |
-| 4 | the pointing error in the paper's Galileo runs | 0.7 deg in azimuth, 0.4 in elevation (`--pointing-err 0.7,0.4`); the package's default stays 0.3 and 0.1 | for the table's agent |
-| 5 | what is a camera in those runs | each ring camera, not each site | for the table's agent |
-| 6 | the model wind files of section 68 | into the data folder | done by the coordinator (`winds_igra/model/`, 594 files) |
-| 7 | the tracker's jitter that `flicker` reads as a beat (5 of 119 clouds) | a jitter control IS built for 0.5.8 | a new strand, branch `dp-jitter`, method section 69; it touches `flicker.py`, not `drift.py` |
-| 8 | the held pictures on the Galileo clips (98 of 494 heard only to about 5 Hz) | studied first | a "cadence" strand, scratch only, section 70 if it earns one; section 53's sentence is left as it is until then; T3 saying the band it covered stays unbuilt |
-| 9 | the hold-still rule where the winds disagree | a rule against the winds' middle is measured after 0.5.8; nothing changes now | IDEAS.md FL1 |
+| 4 | the pointing error in the paper's Galileo runs | 0.7 deg in azimuth, 0.4 in elevation (`--pointing-err 0.7,0.4`); the package's default stays 0.3 and 0.1 | the table is made so |
+| 5 | what is a camera in those runs | each ring camera, not each site | the table is made so |
+| 6 | the model wind files of section 68 | into the data folder | done (`winds_igra/model/`, 594 files) |
+| 7 | the tracker's jitter that `flicker` read as a beat (5 of 119 clouds failed T3) | a jitter control is built for 0.5.8, measured first on the labelled birds | built (§69) |
+| 8 | the held pictures on the Galileo clips (98 of 494 heard only to about 5 Hz) | study the cadence first | studied (`cadence/`) |
+| 9 | the hold-still rule where the winds disagree | a rule against the winds' middle, measured after 0.5.8; nothing changes now | open (IDEAS FL1) |
+| 10 | the band, after the cadence study | for 0.5.8, say the band in words; no number moves | built |
+| 11 | `flicker.pictures` asking the object's own frames before it lowers the band | after 0.5.8, measured first | open (IDEAS N16) |
+| 12 | the jitter control | as built: the record without IR_HELICOPTER_043's false bird, the weights 37 -> 74 and 33 -> 66, `JITTER_KEEP` 0.5 | built; the table swap waits for the merge |
+| 13 | T3 and a beat given to the track | in 0.5.8: T3 says where one was seen, and the several-camera rule skips such a record | built |
+| 14 | a misfit gate in `drift` ("no single straight path fits these lines of sight") | after 0.5.8, from a null | open (IDEAS TB1) |
 
-### What the integration did (agent "integrate", on `drift-paper` itself; nothing merged into main, nothing pushed)
+## What each agent measured, and the folder that holds it
 
-In order, each its own commit, each measured before and after (the agent's notes:
-`/scratch/mcdonald/drift-paper-2026-11-17/integrate/notes.md`, with every job id and every moved field):
+Each folder has `notes.md` (the log, job ids, judgement calls) and what is named here.
 
-1. **`dp-fliers` merged** (the planted fliers, section 67), and `--plant` wired to the cameras' input: it ran on
-   `--rays` at the first try and is held there by a drawn test that catches the rays handed to every fit. One change
-   to `fliers`: the case planted again must also have the case's tolerance (a fit not handed the cameras' pointing
-   error passed the old check).
-2. **The fail rule before the velocity's gate** (decision 3). T2 fails all 80 Galileo aircraft, where it failed 30
-   (each site a camera, the default pointing error), 2 (0.7 and 0.4 deg) and 54 (one shared reference, v0.5.7's
-   numbers). Three of 119 clouds fail too, at 19-122 m/s over the ground. No known answer's file moves.
-3. **`MODEL_WIND_ERR` 3 -> 2 m/s** (decision 2). T2 passes 55 of the 119 clouds where it passed 68 (default
-   pointing), 45 where 53 (0.7 and 0.4), 52 where 64 (v0.5.7's); of the 40 mismatched pairs 11, 11 and 13 where 20,
-   20 and 21. The Puerto Rico lanterns' tolerance 10.5 -> 9.5 m/s and "(3)" -> "(2)" in the reading; outcome unmoved.
-4. **T2 from the ranges** (decision 1): `drift.test_wind` is section 68's draft A with `WIND_DIFF_ERR` 4.8 m/s, a
-   fail 10 m/s beyond, and `drift.strong` counts T2 only from lines of sight. Scored by `tools/wind_model_igra.py` on
-   the stations the allowance was not set on: drifters pass 96.8 %, bodies at 5/10/25/50 m/s pass 94.8/82.9/29.8/13.8
-   and fail 0/0/22.7/72.2 % (three cells x 24 h; the draft's 96.9; 95/84/30/14; 22/72, and why they differ by up to a
-   point is in section 68's "Decided"). The Yemen clip: T2 passes (2.67 m/s against 6.31), the verdict is unchanged
-   and rests on T4a ("passed T4a and failed none"); PR051's verdict reason changes its words.
-5. **T3 from several cameras** compares another camera's floor unrounded (the flicker agent's finding). T3 of the 239
-   Galileo objects, made again from the new envelopes before and after: see the notes.
-6. **The records:** CHANGELOG "Unreleased" (one entry for the strand), IDEAS.md rows C1-C5, FL1-FL5, DR7-DR14, N8-N15
-   with what became of each, README-technical and tests/README, method sections 34 (the rules as built), 67 (the
-   lanterns' table made again at 2 m/s) and 68 ("Decided 2026-11-17").
-
-The four known answers after all of it: the Yemen clip, consistent with wind-borne drift (tentative), as before, by
-T4a; the Puerto Rico lanterns, the same, by T2 from lines of sight; the Santa Barbara helicopter, not drifting (its
-file the same to the byte through every step); PR051's second leg, cannot say.
-
-### The suites, on the integration's last code commit (ce298f0; the two commits after it change words in docs only)
-
-Every suite with the goldens, each from a snapshot of that commit, `MCDONALD_DATA` exported:
-
-| where | job | result |
+| agent | what | folder under `/scratch/mcdonald/drift-paper-2026-11-17/` |
 |---|---|---|
-| arthur, CPU (`tools/suites.sbatch golden`) | 5709 | ALL SUITES PASS: test_golden 266 PASS / 0 FAIL / 0 SKIP, test_gui 797 / 0 / 1 (the Wx backend, as always), test_drift 325 / 0 / 0, test_measurement 704, test_reduction 732, test_cli 140, test_gpu 137, the other 22 suites all PASS with no FAIL and no SKIP |
-| arthur, the graphics card (`--gres=gpu:1`) | 5710 | ALL SUITES PASS: the same counts, test_gpu 168 |
-| Cannon (`mcdonald-test --golden`, run 20261117-144352-drift-paper-ce298f0) | 61600543 | ALL SUITES PASS: test_golden 266 / 0 / 0, test_drift 325 / 0 / 0, test_gui 695 / 0 / 4 and test_cli 137 (Cannon's usual counts: no installed menu entry, no GTK or Wx there), test_measurement 702, test_reduction 732 |
+| cams | `--rays` built and held to the 239 Galileo runs: the same fit to the last bit by `--reference shared`; each camera's own pointing; the stated errors against transponder speeds (two errors hold the truth on 50 % with one shared reference, 66 % at the default, 78 % at 0.7 and 0.4 deg) | `cams/` (`drafts.md`, `runs/`) |
+| fliers | `--plant` built; the lanterns' table; 40 Galileo clouds by the workaround; the hold-still rule asked wind by wind (decision 9) | `fliers/` |
+| winds | a model's wind against 8,129 balloon flights at 18 stations; `MODEL_WIND_ERR` out of sample; T2 from the ranges scored (the old rule passed a drifter 27 times in 100) and a rule drafted | `winds/` |
+| flicker | `flicker` v0.5.7 on all 513 Galileo clips; found the seven cloud beats to be the detector's box jittering; the floor's rounding | `flicker/` (`README.md`, `mcd/`) |
+| integrate | merged cams, winds, fliers; built decisions 1-3 and the floor; every moved field of the known answers; the first final suites | `integrate/` (`known/`, `out/`) |
+| jitter | the jitter control: three designs measured on 864 measurements before one was built; the labelled set judged again; the 513 clips again (`mcd_jit/`); the fourteen cases before and after (`gate/`) | `jitter/` (`drafts/`, `staged/`, `gate/md_diff.txt`) |
+| cadence | the 12 pictures a second is the encoder's group of pictures (every file I P P P P); a fast object's picture is new on every frame, a slow cloud's is not; planted beats of 6-23 Hz found 0 times of 576 | `cadence/README.md` |
+| band | the band said in words; `words-for-jacob.md` of its own; the fourteen cases before and after (`gate/cmp_band.md`) | `band/` |
+| table | **the tables the paper quotes** (`README.md`, 851 lines: the 239 objects as decided, the rates with errors by observing session, every cloud called not drifting looked at, the clean-cloud rule, the planted fliers through `--rays`); its scripts make every table again | `table/` (`scripts/`, `runs/cam_0.7_0.4__jit/`, `plants/`) |
+| finish | decision 13 built and held; the records brought together; the final holds; `words-for-jacob.md` | `finish/` and `words-for-jacob.md` beside the folders |
 
-test_drift takes about four and a half minutes on four CPUs of arthur (it took five before, with 293 checks of
-today's 325): its stage runs take 60 or 200 resamples where no check turns on the count. Under two minutes would mean
-dropping one of the command-line runs that keep the stage's 2,000 resamples (the lanterns' planted fliers alone are
-a minute), which was not done.
+The Galileo Project's data are theirs and unpublished. Nothing of theirs is in the repository or the data folder: the
+rays, the per-object files and every reading that names an object stay in scratch. The repository quotes counts and
+medians only.
 
-Deliberate breaks: 21, of the plants on cameras, the three rules, the soundings tool and T3's floor; each fails the
-check meant for it (one did not at first, and a check was added for it).
+## The four known answers of `drift`, as 0.5.8 gives them
 
-### Still to do
+| known answer | verdict | what moved since 0.5.7 |
+|---|---|---|
+| the Yemen clip | consistent with wind-borne drift (tentative), by T4a | T2's reading is new and seven fields are added (the shortfall 2.67 m/s against 6.31 allowed); T2 is no longer a strong test, so the reason reads "passed T4a and failed none" where it read "passed T2, T4a" |
+| AARO's Puerto Rico lanterns | consistent with wind-borne drift (tentative), by T2 from lines of sight | T2's tolerance 10.5 -> 9.5 m/s; "a model's own error (2)" where "(3)" |
+| the Santa Barbara helicopter | not drifting, by T3 | nothing: the file is the same to the byte through every step |
+| PR051's second leg | cannot say | the verdict's reason names "T2 from lines of sight"; T3's reading names its band, 1.5 to 12.0 Hz, and why it stops there |
 
-- **The Galileo table for the paper** (another agent, scratch folder `table/`): the 239 objects through `--rays`
-  with `--pointing-err 0.7,0.4`, each ring camera a camera of its own, the envelopes `flicker` made at v0.5.7 (or
-  with the jitter control once `dp-jitter` is in), on the rules as built. Its driver must not live only in the
-  private repository. Expected from the recomputation above (each site a camera, T3 as recorded then): aircraft T2
-  fails 80 of 80; clouds T2 passes about 45 of 119.
-- **The 40 clouds with `--plant`** were measured before these rules and through one shared reference: section 67
-  says so above its table. To be made again through `--rays` (10-12 min a cloud on 6 CPUs).
-- **`dp-jitter`** (section 69) and the **cadence** study (section 70, if any) are other strands; `flicker.py` is
-  theirs this week. When `dp-jitter` merges, the IDEAS row N8 and the CHANGELOG want its line.
-- **Section 53**: its sentence on held pictures is corrected (the "band" strand's section below; IDEAS N10). Its
-  counts of T3 are the 0.5.2 envelopes'; with `flicker` 0.5.7 T3 fails on 5 of 119 clouds and no aircraft (the
-  flicker agent's README).
-- **Open, for Jacob** (IDEAS.md): FL1 (hold-still against the winds' middle, after 0.5.8), DR10 (a sourced airspeed
-  band for the Yemen aircraft), DR12 (`tools/shear_igra.py`'s sort and its dropped levels: the shear law's constants
-  may move), DR13 (`WIND_DIFF_ERR` by separation), N12, N13, N14 (T3's quoted window; cameras that overlap in part; a
-  one-camera run's 2,000 resamples on a refused path), FL2 (plants on the range route).
-- Every suite on Mac and Windows before a tag; 0.5.8's version commit, push and tag are Jacob's word.
-- The paper itself (its three videos again at 0.5.8, the Galileo section, the planted-flier figure) is the paper
-  session's; manuscripts are Jacob's. What moves for it: the Yemen clip's T2 is no longer a strong test and its
-  verdict rests on the shed pieces; the lanterns' tolerance is 9.5 m/s; the planted-flier figure's numbers are in
-  section 67.
+Decision 13 moved none of the four (no golden envelope has a beat given to the track).
 
-## 2026-11-18: the jitter control merged; the cadence study; what waits
+## The Galileo table (the paper's control populations; aggregates only)
 
-- **`dp-jitter` is merged** (ef56bd3): `flicker` reads a beat against the track's own jitter and calls it the track's
-  where it keeps under half its amplitude (method section 69). Jacob took it as built: the labelled set's record
-  without IR_HELICOPTER_043's false bird, the weights 37 -> 74 and 33 -> 66, the line at 0.5. **The data folder's
-  `controls/svanstrom_tracks.csv` is NOT yet swapped** (2 lines differ; the new one is
-  `/scratch/mcdonald/drift-paper-2026-11-17/jitter/staged/d2/svanstrom_tracks.csv`): `main` and any branch without
-  the control still need the old table. Swap it, with its SHA256SUMS line, when this branch reaches `main`. Until
-  then run the suites with `MCDONALD_DATA=/scratch/mcdonald/drift-paper-2026-11-17/jitter/staged/data` (an overlay
-  of the data folder with the new table). Its CHANGELOG and IDEAS drafts (`jitter/drafts/`) are not applied yet, and
-  method sections 43, 44 and 47 still quote the old rates.
-- **The cadence study** (`cadence/README.md`; nothing built): the Galileo clips' 12 pictures a second is the encoder's
-  group of pictures. Jacob: for 0.5.8 the beat test, `flicker`'s finding and the report's beat row say the band
-  listened in (agent "band", branch `dp-band`, running); after 0.5.8, measured first, `pictures` asks the object's
-  own frames before lowering the band.
-- **The table** (agent "table", scratch `table/`): all 239 Galileo objects through `--rays`, each ring camera its
-  own at 0.7/0.4 deg, once with v0.5.7's envelopes and once with the jitter control's (`jitter/mcd_jit/`); the planted
-  fliers on the 40-cloud sample.
-- **Then:** merge `dp-band`; apply the jitter drafts; every suite with the goldens on the final tree (overlay); Mac and
-  Windows; Jacob reads `band/words-for-jacob.md`; his word for main, the table swap, the version, push and tag.
-- **After 0.5.8** (his decisions): a hold-still rule against the winds' middle, measured; `pictures` on the object's
-  own frames; `tools/shear_igra.py`'s sort and dropped levels; the jitter reading window by window.
+All 239 objects through `drift --rays`, each ring camera its own, `--pointing-err 0.7,0.4`, T3 on the envelopes made
+with the jitter control. Verdicts as drifting (tentative) / cannot say / not drifting: **aircraft 0 / 0 / 80; clouds
+44 / 74 / 1; mismatched pairs 11 / 29 / 0.** T2 fails 80 of 80 aircraft. T3 fails no cloud and no aircraft. The one
+cloud called not drifting is two things matched as one. The planted fliers on the 27 of 40 sample clouds that pass T2:
+a drifter passes 98 in 100; fliers at 15 / 20 / 25 / 30 m/s fail 42 / 82 / 96 / 99 in 100; at 5 and 10 m/s 23 and 2 in
+100 pass as drifters. Method sections 66 and 67 have the tables; `table/README.md` has everything behind them.
+Made again by the last pass before and after decision 13 was built: the same table, 0 of 239 objects with a field that
+differs other than T3's reading and its new fields, and eight readings that now say a beat was set aside.
 
-## 2026-11-17, later: the cadence study's two answers, and the band said in words (agent "band", branch `dp-band`)
+## The final holds (the last pass, on the branch's last commit, from a snapshot, with the overlay)
 
-**The cadence study** (agent "cadence", scratch only: `/scratch/mcdonald/drift-paper-2026-11-17/cadence/README.md`). The
-12-13 pictures a second `flicker.pictures` reads on 98 of the 494 Galileo clips with power is the encoder's group of
-pictures: every file stores one frame in five whole and copies what has hardly changed into the four between. The
-stage then listens to about 5 Hz of the 24 the frame rate carries. A fast object's own picture is new on every frame
-all the same (the 34 aircraft clips); a slow cloud's is not (the 64 cloud clips). Beats planted at 6-23 Hz are found
-0 times of 576 with the band as set. On the clips as they are no call moves. Jacob's two answers (the common brief's
-decisions 10 and 11): **for 0.5.8, say the band in words**; **after 0.5.8, measured first, `pictures` asks the
-object's own frames before it lowers the band** (IDEAS N16).
+(To be written when the holds are in: the next commit, which changes this file only.)
 
-**What `dp-band` built** (from `drift-paper` a50bdc3; words only):
+## What is left for the release (all on Jacob's word)
 
-- `flicker`: every "no beat" finding ends with the band it covers, and where the frames were read as a cadence, that
-  the band stops short, what was measured that cut it, and the two things that make such frames (a source that
-  delivers pictures at that rate; compression that copies a still scene, where the object's own picture may still be
-  new), which the stage cannot tell apart. The stage's own line for a cadence no longer says the video "holds
-  pictures". New functions `listened_in`, `listened_why`, `listened_said`, `with_band` and the constant `MAKERS`;
-  `said_pictures` reworded; in `_judge` one line before the fields are written (`with_band`) and the sentence of the
-  branch for a peak above the top. Nothing that decides. The jitter strand's hunks in `_judge` are 8 and 16 lines from
-  these, and its new "no beat" gets its band from that one line.
-- `drift`: T3 names its band on every pass (`beat_band`, `_beat`, `test_beat`). With several cameras
-  (`cameras_bands`, `test_beat_cameras`) the reading names its first passing camera's band, as it names that camera's
-  floor, then each camera's where they differ with what that camera's own test said, and why for one cut short.
-- `report`: the checklist's beat row (kinds none and deaf) and the measurements' row say the band
-  (`Case.beat_band`). The window's card reads the same row.
-- An envelope or a case that does not record its band (`top_hz`, and `pictures` with `cadence`) reads as it did.
-- Method sections 34 (T3), 35 (a closing paragraph) and 53 (the *Pictures* item, corrected from the study's aggregate
-  numbers); IDEAS N10 replaced, N16-N20 added; CHANGELOG "Unreleased".
+1. **Read `/scratch/mcdonald/drift-paper-2026-11-17/words-for-jacob.md`:** every sentence a person reads differently
+   in 0.5.8, old beside new, by where it appears.
+2. **Merge into `main`:** `main` has not moved since this branch left it (1061757), so it is a fast-forward:
+   `git -C /hugespace/models/mcdonald merge --ff-only drift-paper`. Ask Jacob before merging. No Slurm job may be
+   importing the checkout at that moment.
+3. **Swap the table in the data folder, at the same moment as the merge.** `main` and any branch without the jitter
+   control need the old `controls/svanstrom_tracks.csv`; this branch needs the new one. Until the swap, `test_controls`
+   fails 10 checks and `test_reduction` 1 on this branch against the plain data folder, by design.
+   - new table: `/scratch/mcdonald/drift-paper-2026-11-17/jitter/staged/d2/svanstrom_tracks.csv` (432 rows; 2 lines
+     differ: IR_DRONE_011 and IR_HELICOPTER_043) -> `/models/data/mcdonald/controls/svanstrom_tracks.csv`;
+   - its line in `/models/data/mcdonald/SHA256SUMS`; a paragraph in `controls/README.md` ("Judged again on 2026-11-17
+     with the reading of the track's own jitter, method section 69"); `staged/d2/rates.json` and `summarise.txt` are
+     its rates;
+   - Cannon's copy of the data folder has the old table too: copy the new one there before `mcdonald-test` runs on
+     Cannon again.
+   - Until then: `export MCDONALD_DATA=/scratch/mcdonald/drift-paper-2026-11-17/jitter/staged/data` (the data folder
+     as links, with the new table).
+4. **The version commit** (the date is the push day): `src/mcdonald/__init__.py` 0.5.7 -> 0.5.8; CHANGELOG's
+   "Unreleased" heading -> "0.5.8 (date)"; `CITATION.cff`; the version strings in `README.md` and
+   `README-technical.md`. `test_reduction` holds these to one another and says which is off.
+5. **Every suite once more on the version commit** (`tools/suites.sbatch golden` on arthur, CPU and card; Cannon after
+   its table is swapped), **then Mac and Windows** (push to `macos-ci` and `windows-ci`, watch by sha, read the logs
+   from `ci-logs`).
+6. **Push and tag `v0.5.8`:** Jacob runs these himself (the classifier refuses a tag and a public push). PyPI and the
+   website publish on the tag; the Zenodo DOI follows.
+7. **ROADMAP.md's status line** for 0.5.8, and a line in `docs/handoff-v04.md`'s top pointing here.
+8. Housekeeping after the release: the worktrees `mcdonald-dp-cams`, `-dp-fliers`, `-dp-winds`, `-dp-jitter`,
+   `-dp-band` and their branches are merged and can go; the scratch folder holds the paper's tables and stays.
 
-**Held.** `drift`'s four known answers: the Yemen clip's, the lanterns' and the Santa Barbara helicopter's JSON are
-byte-identical (their golden envelopes are cut down and record no band); PR051's second leg differs in one field, T3's
-reading, which now says "between 1.5 and 12.0 Hz" and why (a 29.97-a-second source doubled onto 59.94 frames). T3 of
-the 239 Galileo objects from the flicker agent's 0.5.7 envelopes: no field but a reading differs; 193 passes gain
-their band; 184 objects have a camera heard to 24 Hz; 14 (10 clouds, 4 aircraft) say that a faster beat may have gone
-unheard; on 36 the reading leads with a camera cut short while another passing camera listened to 24 Hz, which the
-list of bands now shows. The fourteen reference case files measured again with the code before and after (31
-objects): every number, answer, conclusion, bottom line, reason and grade the same; the seven objects with no beat
-gain the band in two sentences each (all seven 1.5 to 12.0 Hz). Twenty-one deliberate breaks, each caught by the check
-meant for it. The sentences that changed, old and new, are listed for Jacob in the strand's scratch folder
-(`band/words-for-jacob.md`).
+## What the paper's session needs
 
-**The suites, on the branch's last code commit** (cb3bac6, arthur's CPUs, one job a suite from a snapshot; the commit
-after it changes this file only): test_drift 342 PASS, test_reduction 734, test_cli 140, test_measurement 711,
-test_beat 60, test_controls 118 (no held line of the table of record gained the band), test_gui 797 and 1 skip (no
-wx module, as ever), test_golden 266, and the four exercise pages 4, 5, 5 and 16; no check fails and none is skipped
-but that one. Three held lines changed with the words, all in `test_measurement`'s drawn checks of the stage's line
-and of the finding for a peak above the top; no exercise page's quoted line changed. A trial merge with `dp-jitter`
-(c9d818f, nothing written) leaves `flicker.py` without a conflict.
+The manuscript is Jacob's: the tool's sessions report what the tool shows and give no revision advice.
 
-**For the table of the paper.** T3's reading now carries each camera's band. The table can count the 14 objects no
-camera heard above about 5 Hz from the readings ("may have gone unheard"), or from each envelope's `top_hz`.
+- **The tables:** `table/README.md` in the scratch folder (section 1 the 239 objects as decided with rates and their
+  errors by observing session; section 2 every cloud called not drifting, and the tables over clean clouds only;
+  section 3 the planted fliers through `--rays`; section 5 its judgement calls; section 6 three questions it left
+  for Jacob: how the paper counts the one mismatched "cloud", which planted-flier table is quoted, and T3's words,
+  which decision 13 has answered). The scripts in `table/scripts/` make every table again from a snapshot of the code
+  and a folder of envelopes; the exact command for one object is in its section 0.
+- **The commit to cite:** the release's tag. The table was made at a50bdc3 and is the same to the byte after the
+  jitter control's merge; it was made again before and after decision 13 with the same outcomes (`finish/gal/`). A run
+  at the tag will differ from `table/runs/cam_0.7_0.4__jit` only in T3's words (the band, a beat set aside).
+- **The paper's three videos, what moved against the version it cites (0.4.3):**
+  - *the Yemen clip:* T2 passes by the new rule (2.7 m/s short of the nearest hour and place, 6.3 allowed) and is no
+    longer a strong test; the verdict is unchanged and rests on the shed pieces (T4a). A body flying 5 to 10 m/s
+    would pass that T2 as well (95 and 83 times in 100 on balloons), which the reading now says.
+  - *the Puerto Rico lanterns:* the tolerance is 9.5 m/s (7.2 under 0.4.3, 10.5 under 0.5.7); they need 1.4 to 3.6 m/s
+    and pass. The planted-flier figure was made under 0.4.3; its numbers under 0.5.8 are in method section 67 (every
+    plant fails from 25 m/s; from 5 to 20 m/s the test cannot say, but for one body of 32 at 20 m/s).
+  - *the Santa Barbara helicopter:* nothing moved.
+- **The control populations:** the Galileo table above; its rates with errors are in method section 66 ("As decided").
+- **What the tests cannot say, measured:** T2 cannot tell a flier under about 15 m/s from a drifter (section 67); T3's
+  band stops near 5 Hz on one Galileo clip in five, and 14 of 198 objects were heard no higher by any camera (section
+  34); a model's wind is 2.1 m/s from a balloon's at the median (section 68).
 
-**Open, for Jacob** (IDEAS.md): N16 (the object's own frames, after 0.5.8); N20 (a camera counts as able to see a
-beat above its own band: on none of the 239 objects); which camera a several-camera reading leads with (the first that
-passes, as before, or the one that listened furthest: that would move `smallest_beat_seen` in T3's JSON); and whether
-the checklist's "No" should stand where the band stops under most of a wingbeat's range (2 to 25 times a second).
+## What comes after 0.5.8 (IDEAS.md has each row)
+
+Set by Jacob on 2026-11-17, each to be measured first:
+- a hold-still rule against the winds' middle (FL1);
+- `flicker.pictures` asking the object's own frames before it lowers the band (N16);
+- the jitter reading window by window (N21), and a weaker beat of the object's own under one given to the track (N22);
+- a misfit gate in `drift`, from a null (TB1).
+
+Open, waiting for him: which camera a several-camera T3 reading leads with (the first that passes, as now, or the one
+that listened furthest); N20 (a camera counts as able to see a beat above its own band); whether a camera that set a
+beat aside may take another camera's beat back at all (TB6's judgement); whether the checklist's "No" should stand
+where the band stops under most of a wingbeat's range; DR10 (a sourced airspeed band for the Yemen aircraft), DR12
+(`tools/shear_igra.py`'s sort and dropped levels), DR13 (`WIND_DIFF_ERR` by separation), N12-N14, N26 (the report's
+count of helicopters with a rotor's look, stale since before this release), FL2 (plants on the range route), TB2-TB4 (a camera with one to four readings; cameras of one ring sharing an error; T1's words between
+its two thresholds).
+
+---
+
+## History (shortened; the agents' notes have every job)
+
+- **Morning, the regroup** (`/scratch/mcdonald/regroup-2026-11-17`, nothing built). The paper cites 0.4.3 and had no
+  text on the Galileo objects; its known-answer table was of 0.5.3-era code. The 239 objects run again at the v0.5.7
+  tag by the workaround (one shared azimuth reference): aircraft 0 / 16 / 64, clouds 64 / 49 / 6, mismatched pairs 21
+  / 19 / 0. Five items went into ROADMAP's "0.5.8", and Jacob said yes to building 1, 2, 4 and 5 and to measuring
+  item 3 first.
+- **Four agents** (cams, fliers, winds, flicker) built and measured; Jacob answered decisions 1-6.
+- **The integration** merged `dp-cams`, `dp-winds` and `dp-fliers`, wired `--plant` to `--rays`, and built decisions
+  1-3 one commit each, each measured before and after. T2 failed all 80 aircraft where it had failed 30 (each site a
+  camera, the default pointing error), 2 (0.7 and 0.4 deg) and 54 (v0.5.7). With 2 m/s T2 passed 55 of 119 clouds
+  where 68, and 45 where 53 at 0.7 and 0.4 deg. Suites on ce298f0: arthur CPU job 5709, the card job 5710, Cannon job
+  61600543, all passing (test_drift 325).
+- **Decisions 7-9**, then three more strands. *jitter* (branch `dp-jitter`, merged ef56bd3): suites on e64aa6e, job
+  5813, 4,158 checks passing. *cadence* (scratch only): decisions 10 and 11 followed. *band* (branch `dp-band`, merged
+  0a91028): suites on cb3bac6, jobs 6416 and 6425 (test_drift 342).
+- **The table** (scratch only): jobs 6392 and 6393, and the plants' arrays 6077, 6095, 6061, 6366.
+- **Decisions 12-14, and the last pass** (this document's "final holds").
+- Deliberate breaks through the day, each failing the check meant for it: 21 (the integration), 3 (the jitter
+  control), 21 (the band), 15 (decision 13).
