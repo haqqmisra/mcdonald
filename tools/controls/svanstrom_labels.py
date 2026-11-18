@@ -1,8 +1,14 @@
 """The labelled infrared set's boxes as tracks: Svanström et al. (2021), converted once (ROADMAP.md 0.5, the controls harness).
 
     python3 tools/controls/svanstrom_labels.py                 # writes $MCDONALD_DATA/svanstrom2021/tracks/
+    python3 tools/controls/svanstrom_labels.py --visible       # the visible clips: .../svanstrom2021/tracks_visible/
     python3 tools/controls/svanstrom_labels.py --out DIR       # somewhere else
     python3 tools/controls/svanstrom_labels.py --show FILE.mat # what a label file holds
+
+--visible (2026-11-18, for the C-TAP intercomparison in the uap repository) does the same for the set's 285 visible clips
+(`Data/Video_V/V_*`, 640x512 at 30 frames a second; 59 airplane, 51 bird, 114 drone and 61 helicopter clips), labelled
+the same way: the tracks go to `tracks_visible/` with an index of the same columns, the distance bins from the
+spreadsheet's "V" rows. The frame size is read from each clip, so the infrared tracks are written exactly as before.
 
 The set (the reference-data folder's svanstrom2021/: 365 thermal clips, 320x256 at exactly 30 frames a second, about 10 s
 each; 79 bird, 74 airplane, 157 drone and 55 helicopter clips) keeps its labels as MATLAB `groundTruth` objects (Video
@@ -68,7 +74,7 @@ MIN_FRAMES = 60      # flicker's own floor (2 s at 30 frames a second): a shorte
 CENTRE = 1.5         # px taken from x + w/2 (and y + h/2): 1-based first pixel to the package's centre (the docstring)
 RING_PX = 4          # px: the ring the polarity is read against, round the box
 EVERY = 5            # the polarity is read on every this-many-th labelled frame
-W, H = 320, 256      # the infrared clips' frames
+SETS = {False: ("Video_IR", "IR", "tracks"), True: ("Video_V", "V", "tracks_visible")}   # --visible: folder, prefix, out
 
 
 def dataset(root=None):
@@ -100,7 +106,18 @@ def label_data(path):
     gt = next(c for c in arr if getattr(c, "dtype", None) is not None and c.dtype.names
               and "LabelData" in c.dtype.names)[0, 0]
     ld = gt["LabelData"].ravel()
-    return {c: [np.asarray(r[c], float).reshape(-1, 4) for r in ld] for c in CLASSES if c in ld.dtype.names}
+    return {c: [boxes(r[c]) for r in ld] for c in CLASSES if c in ld.dtype.names}
+
+
+def boxes(v):
+    """One frame's boxes of a class, (k, 4) [x y w h]. Video Labeler keeps them as a plain array, or -- in one of the 285
+    visible files (V_AIRPLANE_002, from frame 263) and none of the infrared -- as a struct with `Position` (the box) and
+    `LabelUIDs` (an id for each box)."""
+    v = np.asarray(v)
+    if v.dtype.names and "Position" in v.dtype.names:
+        parts = [np.asarray(q, float).reshape(-1, 4) for q in v["Position"].ravel() if np.size(q)]
+        return np.concatenate(parts) if parts else np.zeros((0, 4))
+    return np.asarray(v, float).reshape(-1, 4)
 
 
 def link(boxes):
@@ -125,14 +142,15 @@ def link(boxes):
     return objs
 
 
-def bins(data):
-    """{clip: distance bin} for the infrared clips, from the set's Video_dataset_description.xlsx."""
+def bins(data, prefix="IR"):
+    """{clip: distance bin} for the infrared clips (or, with prefix "V", the visible ones), from the set's
+    Video_dataset_description.xlsx."""
     import openpyxl
     ws = openpyxl.load_workbook(data / "Video_dataset_description.xlsx", read_only=True).worksheets[0]
     out = {}
     for row in ws.iter_rows(values_only=True, min_row=2):
-        if row[0] == "IR" and row[2] is not None:
-            out[f"IR_{row[1]}_{int(row[2]):03d}"] = (row[3] or "").strip()
+        if row[0] == prefix and row[2] is not None:
+            out[f"{prefix}_{row[1]}_{int(row[2]):03d}"] = (row[3] or "").strip()
     return out
 
 
@@ -145,11 +163,20 @@ def probe(video):
     return int(n), rate
 
 
+def size(video):
+    """(width, height) of a clip's frames: 320x256 for the infrared clips, 640x512 for the visible ones."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                        "-of", "csv=p=0", str(video)], capture_output=True, text=True, check=True)
+    w, h = r.stdout.strip().split(",")[:2]
+    return int(w), int(h)
+
+
 def frames(video):
-    """Every frame of an infrared clip as grey levels, (n, H, W)."""
+    """Every frame of a clip as grey levels, (n, H, W)."""
+    w, h = size(video)
     r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-f", "rawvideo", "-pix_fmt", "gray", "-"],
                        capture_output=True, check=True)
-    return np.frombuffer(r.stdout, np.uint8).reshape(-1, H, W).astype(float)
+    return np.frombuffer(r.stdout, np.uint8).reshape(-1, h, w).astype(float)
 
 
 def bright_share(F, rows):
@@ -171,7 +198,7 @@ def bright_share(F, rows):
     return float(np.mean(np.array(signs) > 0)) if signs else 1.0
 
 
-def clip_rows(mat, data, dist):
+def clip_rows(mat, data, dist, sub="tracks"):
     """The index rows and the tracks of one clip: ([row], {track name: [(frame, x, y, w, h)]})."""
     clip = mat.name.replace("_LABELS.mat", "")
     cls = clip.split("_")[1]
@@ -194,7 +221,7 @@ def clip_rows(mat, data, dist):
         if len(fr) >= MIN_FRAMES:
             name = f"{clip}_o{k}"
             tracks[name] = [(n + 1, o[n][0] + o[n][2] / 2 - CENTRE, o[n][1] + o[n][3] / 2 - CENTRE, o[n][2], o[n][3]) for n in fr]
-            row["track"] = f"tracks/{name}.csv"
+            row["track"] = f"{sub}/{name}.csv"
         rows.append(row)
     if tracks:
         F = frames(video)
@@ -219,6 +246,7 @@ def write_track(path, clip, cls, obj, mat, rows):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", help="where tracks/ goes (default: the reference-data folder's svanstrom2021/)")
+    ap.add_argument("--visible", action="store_true", help="the visible clips (Video_V), into tracks_visible/")
     ap.add_argument("--show", metavar="MAT", help="print what one label file's FileWrapper holds, and stop")
     a = ap.parse_args(argv)
     if a.show:
@@ -232,24 +260,25 @@ def main(argv=None):
         return 0
     data = dataset()
     out = Path(a.out) if a.out else data.parent.parent
-    (out / "tracks").mkdir(parents=True, exist_ok=True)
-    dist = bins(data)
+    folder, prefix, sub = SETS[a.visible]
+    (out / sub).mkdir(parents=True, exist_ok=True)
+    dist = bins(data, prefix)
     rows = []
-    for mat in sorted((data / "Video_IR").glob("IR_*_LABELS.mat")):
-        got, tracks = clip_rows(mat, data, dist)
+    for mat in sorted((data / folder).glob(f"{prefix}_*_LABELS.mat")):
+        got, tracks = clip_rows(mat, data, dist, sub)
         for r in got:
             if r["track"]:
                 write_track(out / r["track"], r["clip"], r["cls"], r["object"], mat.name, tracks[Path(r["track"]).stem])
         rows += got
         print(got[0]["clip"], got[0]["cls"], got[0]["distance"], got[0]["frames"], "objects", len(got),
               "tracks", sum(bool(r["track"]) for r in got), file=sys.stderr, flush=True)
-    with open(out / "tracks" / "index.tsv", "w", newline="", encoding="utf-8") as f:
+    with open(out / sub / "index.tsv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]), delimiter="\t")
         w.writeheader()
         w.writerows(rows)
     n = sum(bool(r["track"]) for r in rows)
     print(f"{len(rows)} labelled objects in {len({r['clip'] for r in rows})} clips; {n} tracks of {MIN_FRAMES} frames or more "
-          f"written to {out / 'tracks'}", flush=True)
+          f"written to {out / sub}", flush=True)
     return 0
 
 
