@@ -197,6 +197,21 @@ Project's):
   the case file of the Yemen remains answers "Does anything move along with it?" with Yes (a bright feature 2.1 object
   widths away, beside it) where it answered No. The speed band, zoom, `layers --k 1` and `slew` are unchanged.
 
+- **At the package's default pointing error** (0.3 and 0.1 deg; job 10531), to size what a better pointing model could
+  gain: clouds 54 / 61 / 4 where 44 / 74 / 1, aircraft and mismatched pairs the same. Of the 31 clouds whose velocity
+  the tighter error fixes, 10 pass T2, 18 are beyond the tolerance but short of a flier and 3 fail. So "drifting" said
+  of a cloud tops out near 45 in 100: the rest is the clouds, which lag the wind on some days (section 68's Las Vegas
+  soundings), not the pointing.
+
+**Jacob's four decisions, 2026-11-18 (each asked as a multiple choice): the result is final at 0.5.8.**
+
+| | question | his answer |
+|---|---|---|
+| 15 | the one cloud called not drifting, two things matched as one | left in the table and explained; no misfit gate before the paper (TB1 stays for after) |
+| 16 | which planted-flier table the paper quotes | the 27 clouds that pass T2 as decided |
+| 17 | the Yemen clip's T2, no longer a strong test | left as it is, with section 68's measured rates; no sourced airspeed band, no plants on that route before the paper (DR10, FL2 stay open) |
+| 18 | the Galileo cameras' pointing error | 0.7 and 0.4 deg only; no row at the default, no per-object error before the paper (C3 stays for 0.6) |
+
 ## What the paper's session needs
 
 The manuscript is Jacob's: the tool's sessions report what the tool shows and give no revision advice.
