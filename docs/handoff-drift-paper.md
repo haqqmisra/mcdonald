@@ -118,6 +118,17 @@ commit but one (d134502, job 6439) gave the same counts.
 One thing found on the way and left as it was (IDEAS.md N26): the report's sentence for a rotor's look quotes "6 of 8
 helicopters", a count of 2026-10-25 that the record had already left behind.
 
+## Done on 2026-11-17, 21:30, at Jacob's word ("Yes, merge and swap now"; "Version commit + Mac/Windows runs")
+
+- `main` fast-forwarded to this branch (9627524), then the version commit 0.5.8 on it (dated 2026-11-17; if the push
+  is on a later day, the date moves in `__init__.py`, CITATION.cff and the CHANGELOG heading, and test_reduction runs
+  again).
+- The data folder's `controls/svanstrom_tracks.csv` swapped, its README paragraph and both checksum lines (the table
+  before it: `/scratch/mcdonald/drift-paper-2026-11-17/coord/svanstrom_tracks.before-2026-11-18.csv`). **A checkout of
+  0.5.7 or older now fails 10 checks of test_controls against the data folder**, by design. Cannon's copy of the data
+  folder still has the old table and lacks `winds_igra/model/`: sync both before `mcdonald-test` runs there.
+- Steps 2, 3, 4 and 7 below are done; 5 is running; 1, 6 and 8 are Jacob's or wait for the release.
+
 ## What is left for the release (all on Jacob's word)
 
 1. **Read `/scratch/mcdonald/drift-paper-2026-11-17/words-for-jacob.md`:** every sentence a person reads differently

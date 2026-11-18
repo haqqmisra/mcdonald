@@ -21,8 +21,9 @@ goes to the Journal of Open Source Software (JOSS), which accepts the repository
   Most of what the old 0.6 asked for is built and released too: `batch` (all 144 PURSUE videos run once: 786 rows,
   696 objects), the graphics card under `layers`, `integrity` and `flicker`, `plant`, `rank` and `noise`. Not begun:
   finding without a hand (old 0.7), most of the displays (old 0.8), the walkthrough (old 0.9).
-- **Unreleased on `main`:** Find sooner with the same list; `layers --dense` and its option in the window; the planted
-  objects through `batch`, with a table of what was found and of the beats, video by video.
+- **In 0.5.8 (2026-11-17), since this was written:** Find sooner with the same list; `layers --dense` and its option in
+  the window; the planted objects through `batch`, with a table of what was found and of the beats, video by video;
+  and the drift paper's release, below.
 - **Known answers in hand.** The Yemen clip, AARO's Puerto Rico lanterns and the Santa Barbara helicopter (the drift
   paper's three); AARO's fourteen resolved cases; the labelled infrared set (432 tracks of birds, drones, airplanes
   and helicopters); the five Galileo Project flyers; and since 2026-11-12 the Galileo Project's triangulated objects
@@ -117,7 +118,17 @@ through the air, so nothing in the set flies between a cloud and that.
 release goes out when these are done and the graphics-card session then running has finished, which is enough card
 work for it.
 
-**What the package still lacks for it:**
+**Built on 2026-11-17 and released as 0.5.8** (CHANGELOG.md; method sections 34 and 66 to 69). All five items below,
+and from what they found: the wind test from the lines of sight fails a body 10 m/s beyond its whole tolerance before
+it asks how well the velocity is fixed, and takes a model's wind error as 2 m/s; the wind test from the ranges has a
+rule with the model's error in it and is no longer a strong test; `flicker` reads a beat against the track's own
+jitter; and the beat test says the band it listened in. The table as the paper will quote it, with each ring camera
+a camera of its own and its pointing known to 0.7 and 0.4 degrees: no aircraft of 80 called drifting and all 80 not
+drifting; 44 of 119 clouds drifting, 74 cannot say, 1 not drifting (two things matched as one). Set for after it,
+each measured first: a gate for a path that misses its lines of sight, a hold-still rule against the winds' middle,
+`flicker`'s held pictures asked of the object's own frames, the jitter read window by window.
+
+**What the package lacked for it, as written before the work:**
 
 1. **Fixed cameras as an input of their own.** The lines of sight of several sites go into `mcdonald drift` today by
    a workaround kept outside the package: the sites are written as one aircraft that jumps between them on frames

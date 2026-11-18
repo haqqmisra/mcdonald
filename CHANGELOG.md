@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.8 (2026-11-17)
 
 **The wind-drift tests, made ready for the drift paper** (2026-11-17; ROADMAP 0.5.8; method sections 34 and 66 to
 69). `mcdonald drift` asks whether an object moved with the wind. Its second test, T2, compares the object's motion
