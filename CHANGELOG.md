@@ -111,6 +111,44 @@ model's error on the difference between the winds at the Yemen video's two heigh
 The video's least shortfall is 2.7 m/s, so it fits drift, and it fits a body flying 5 to 10 m/s as well. The tool
 repeats the measurement from public data and scores the new rule; two tables hold its numbers, and a test holds them.
 
+*The beat test now says which frequencies it listened in* (method sections 34, 35 and 53; IDEAS.md N10, N18). A beat
+is a regular rise and fall in the object's brightness. `mcdonald flicker` listens for one between 1.5 times a second
+(1.5 Hz) and a top frequency, which depends on how often the video's picture is new. On most videos that is every
+frame. On some, most frames nearly repeat the one before in a steady pattern, and the stage then stops at a lower
+top. Until now "no beat" read the same in both cases. It now names its band in three places:
+- *`mcdonald flicker`:* every "no beat" ends with the band it covers: "a beat was listened for between 1.5 and 12.0
+  Hz".
+- *`mcdonald drift`:* the beat test, T3, names the band on every pass: "no beat of its own between 1.5 and 24.0 Hz".
+  With several cameras it gives each camera's band where they differ, and says whether the other cameras pass too.
+- *The report:* the checklist's row reads "no rhythm of its own between 1.5 and 12.0 times a second stands out above
+  the background beside it". The row under Measurements gains the same band.
+
+Where the band stops short of what the frame rate could carry, each of the three also says why:
+
+> Faster beats, up to the 24.0 Hz this frame rate could carry, were not listened for. 78% of the frames nearly repeat
+> the one before in a steady pattern, so the picture is new only 12.1 times a second. A source that delivers pictures
+> at that rate does this. So does compression that copies a still scene from frame to frame, and then the object's
+> own picture may still be new on every frame. This test cannot tell which, so a beat faster than 4.8 Hz may have
+> gone unheard.
+
+- *Why it matters.* On the Galileo Project's cameras this is one video in five, 98 of 494. Their files store one
+  frame in five whole and copy what has hardly changed into the four between. On those videos the stage listened up
+  to about 5 Hz, where the frame rate carries 24. Beats of 6 to 23 Hz planted in those videos' own brightness were
+  found 0 times in 576. For 184 of the 198 objects another camera listened up to 24 Hz. For 14 no camera did, and
+  their readings now say that a faster beat may have gone unheard.
+- *The stage's own line is corrected.* It said "the video holds pictures in a cadence ..., so it carries 12.1
+  pictures a second". That is true of a source that delivers 12 pictures a second. It is false of a camera that
+  delivers 60, where the compression copies a still sky. The line now says what was measured and both things that
+  make it.
+- *Nothing else changes.* No band, number, answer or verdict moves. A result that does not record its band reads as
+  it did, and a band is never guessed. Of the four known answers of `drift`, only PR051's second leg records one. Its
+  video shows 30 pictures a second on 60 frames, and its T3 now reads "no beat of its own between 1.5 and 12.0 Hz",
+  with why. The fourteen reference case files were measured again. Every number, answer and conclusion is the same.
+  On each of their seven objects with no beat, two sentences grew: the row under Measurements and the checklist's
+  row. All seven were listened to over the whole band, 1.5 to 12.0 Hz.
+- *Not done.* The stage does not yet ask the object's own frames before it lowers the top. That would give a fast
+  object on a still sky its whole band back. It is measured first, after this release (IDEAS.md N16).
+
 *Smaller.*
 - With several cameras' brightness records (`--flicker a.json,b.json`), the beat test asks whether another camera
   could have seen a third of a beat. It compared with that camera's smallest visible beat rounded to a whole per

@@ -1920,6 +1920,137 @@ def test_t3_two_cameras():
           "the reading that floor is 2 %, which until then kept the beat", near["reading"][:120])
 
 
+def _heard(top, rate=None, held=0.0, fps=60.0, every=None, blocks=None, beats=False, floor=0.01, video=None, **more):
+    """A drawn `flicker` envelope that records the band it listened in, as every one since 0.4.0 does: `top_hz`, and
+    `pictures` with whether its frames were read as a cadence. `rate`: the pictures a second of a cadence (the band's
+    top is then `top`, under the frame rate's); None for a video whose clock is its frame rate."""
+    pic = dict(rate=fps if rate is None else rate, held=held, top_hz=top, holds="cadence" if rate else "none",
+               cadence=rate is not None, slope=None if rate is None else 1 - rate / fps, every=every)
+    if blocks:                                           # a cadence by most of its blocks: the rate from their slope
+        pic.update(slope=0.9 * (1 - rate / fps), blocks=dict(of=blocks[1], cadence=blocks[0], slope=1 - rate / fps))
+    r = dict(beats=beats, finding="no beat reaches 3 times what the background beside it does", noise_floor=floor / 3.0,
+             top_hz=top, pictures=pic, **more)
+    return dict(results=r, **({"clip": {"video": video}} if video else {}))
+
+
+def test_t3_says_the_band_it_listened_in():
+    """The maintainer's decision of 2026-11-17, "say the band in words". `flicker` listens for a beat between 1.5 Hz and
+    0.8 of the Nyquist frequency of the frame rate -- or of the picture rate, where the frames were read as a cadence.
+    On 98 of the Galileo Project's 494 clips with power that is about 5 Hz of the 24 the frame rate carries, and T3 said
+    "passes: no beat of its own" of them as of the rest. Every pass now names its band; a band cut short says how far,
+    that faster beats were not listened for, what was measured that cut it and the two things that make it. An envelope
+    that does not record the band reads as it did. No outcome and no number reads the band: drawn envelopes here, each
+    judged with the record and without."""
+    print("\nT3 says the band it listened in (2026-11-17)")
+    bare = lambda e: {"results": {k: v for k, v in e["results"].items() if k not in ("top_hz", "pictures")}}
+    same = lambda a, b: {k: v for k, v in a.items() if k != "reading"} == {k: v for k, v in b.items() if k != "reading"}
+    full, cut = _heard(24.0), _heard(4.84, rate=12.1, held=0.78)
+    t, was = drift.test_beat(full), drift.test_beat(bare(full))
+    check(t["reading"] == "no beat of its own between 1.5 and 24.0 Hz; only a beat over 1% of its brightness would have shown"
+          and was["reading"] == "no beat of its own; only a beat over 1% of its brightness would have shown" and same(t, was),
+          "a video whose clock is its frame rate: the pass names the whole band, 1.5 to 24.0 Hz, and nothing else moves",
+          t["reading"])
+    t, was = drift.test_beat(cut), drift.test_beat(bare(cut))
+    check(t["reading"].startswith("no beat of its own between 1.5 and 4.8 Hz; only a beat over 1% of its brightness would have "
+                                  "shown. Faster beats, up to the 24.0 Hz this frame rate could carry, were not listened for. "
+                                  "78% of the frames nearly repeat the one before in a steady pattern, so the picture is new "
+                                  "only 12.1 times a second. A source that delivers pictures at that rate does this. So does "
+                                  "compression that copies a still scene from frame to frame")
+          and t["reading"].endswith("This test cannot tell which, so a beat faster than 4.8 Hz may have gone unheard")
+          and t["outcome"] == drift.PASS and same(t, was),
+          "frames read as a cadence of 12.1 pictures a second on 60: the pass covers 1.5 to 4.8 Hz and says so, that beats up "
+          "to 24.0 Hz were not listened for, what was measured, and both things that make it", t["reading"])
+    check(was["reading"] == "no beat of its own; only a beat over 1% of its brightness would have shown"
+          and drift.beat_band(bare(cut)) is None and drift.beat_band(None) is None
+          and drift.beat_band({"results": dict(cut["results"], pictures={k: v for k, v in cut["results"]["pictures"].items()
+                                                                         if k != "cadence"})}) is None,
+          "an envelope that records no band (no top_hz, or no word for how its pictures fall) reads as it did: none is guessed",
+          was["reading"])
+    t = drift.test_beat(_heard(8.0, rate=20.0, held=0.39, fps=30.0, blocks=(4, 5)))
+    two = drift.test_beat(_heard(11.99, rate=29.97, held=0.5, fps=59.94, every=[1, 2]))
+    check("up to the 12.0 Hz this frame rate could carry" in t["reading"]
+          and "in a steady pattern over most of the track (4 of its 5 stretches of about 60 frames)" in t["reading"]
+          and "between 1.5 and 12.0 Hz;" in two["reading"] and "up to the 24.0 Hz this frame rate could carry" in two["reading"]
+          and "in a steady pattern (1 of every 2), so the picture is new only 30.0 times a second" in two["reading"],
+          "a cadence by most of its blocks says where it holds, and one with a period names it (PR051's doubled source)",
+          two["reading"][70:260])
+    one = dict(whole_passes=False, comes_back=False, windows_passing=1, windows=109, windows_apart=1)
+    stretch = _heard(4.84, rate=12.1, held=0.78, beats=True, beat={"object": one})
+    stretch["results"]["finding"] = "it beats at 3.00 Hz; that is one stretch: the whole track does not beat"
+    t, was = drift.test_beat(stretch), drift.test_beat(bare(stretch))
+    check(t["reading"].startswith("no beat across the video between 1.5 and 4.8 Hz: a beat in one stretch only (1 of 109 windows)")
+          and t["reading"].endswith("so a beat faster than 4.8 Hz may have gone unheard") and same(t, was)
+          and was["reading"].startswith("no beat across the video: a beat in one stretch only"),
+          "a pass on a beat in one stretch says its band too", t["reading"][:90])
+    beat = _heard(24.0, beats=True, beat={"object": dict(one, whole_passes=True, comes_back=True)})
+    t = drift.test_beat(beat)
+    check(t["outcome"] == drift.FAIL and "between" not in t["reading"] and t["reading"] == drift.test_beat(bare(beat))["reading"],
+          "a fail is not a pass: its reading is the beat, as before")
+    refused = _heard(24.0, beats=None)
+    check(drift.test_beat(refused)["reading"] == "the flicker test had no power on this clip", "nor is a test with no power")
+    # several cameras: the reading names its first passing camera's band, as it names its floor, then each camera's
+    # where they differ, and why for one cut short
+    a, b, c = _heard(4.84, rate=12.1, held=0.78, video="hideout-1.mp4"), _heard(24.0, floor=0.02, video="sphere-2.mp4"), \
+        _heard(5.29, rate=13.2, held=0.76, video="wildhorse-5.mp4")
+    t = drift.test_beat_cameras([b, _heard(24.0, video="w.mp4")])
+    check(t["reading"] == "no beat of its own between 1.5 and 24.0 Hz; only a beat over 2% of its brightness would have shown "
+                          "(camera 1 (sphere-2), of 2 cameras). Every camera listened in that band, and every one passes",
+          "two cameras that listened in one band: said once, that it is every camera's, and that every one passes", t["reading"])
+    t = drift.test_beat_cameras([b, _heard(24.0, beats=None, video="refused.mp4")])
+    check(t["reading"].endswith("(camera 1 (sphere-2), of 2 cameras). Every camera listened in that band"),
+          "one band from every camera does not say that every one passes where one could not say", t["reading"][-70:])
+    t = drift.test_beat_cameras([a, b])
+    check(t["outcome"] == drift.PASS and t["reading"] == (
+              "no beat of its own between 1.5 and 4.8 Hz; only a beat over 1% of its brightness would have shown (camera 1 "
+              "(hideout-1), of 2 cameras). The cameras' bands: camera 1 (hideout-1) between 1.5 and 4.8 Hz only, camera 2 "
+              "(sphere-2) between 1.5 and 24.0 Hz (it passes too: only a beat over 2% would have shown). Camera 1 listened no "
+              "higher because 78% of its frames nearly repeat the one before in a steady pattern: its picture is new only 12.1 "
+              "times a second")
+          and [e["reading"] for e in t["each"]] == [drift.test_beat(a)["reading"], drift.test_beat(b)["reading"]],
+          "one camera cut short and one that listened to the frame rate's top: each camera's band, that the other passes too "
+          "and what it could have shown, why the first stops, and no gap claimed; each camera's own reading is whole", t["reading"])
+    t = drift.test_beat_cameras([a, c])
+    check("The cameras' bands: camera 1 (hideout-1) between 1.5 and 4.8 Hz only, camera 2 (wildhorse-5) between 1.5 and 5.3 Hz "
+          "only (it passes too: only a beat over 1% would have shown). Camera 1 and camera 2 listened no higher because 78% and 76% of their frames nearly repeat the one before in a "
+          "steady pattern: their pictures are new only 12.1 and 13.2 times a second. A source that delivers" in t["reading"]
+          and t["reading"].endswith("This test cannot tell which, so a beat faster than 5.3 Hz may have gone unheard"),
+          "every camera cut short: both makers are said, and that a beat faster than the higher top may have gone unheard",
+          t["reading"][-150:])
+    t = drift.test_beat_cameras([b, bare(a)])
+    u = drift.test_beat_cameras([b, {"clip": {"video": "dark.mp4"}, "results": {"beats": None}}])
+    check("The cameras' bands: camera 1 (sphere-2) between 1.5 and 24.0 Hz; camera 2 records none" in t["reading"]
+          and u["reading"].endswith("The cameras' bands: camera 1 (sphere-2) between 1.5 and 24.0 Hz; camera 2 (dark) could not say"),
+          "a camera whose envelope records no band is said to record none, and one without power to say nothing",
+          u["reading"][-100:])
+    old = drift.test_beat_cameras([bare(a), bare(b)])
+    check(old["reading"] == "no beat of its own; only a beat over 1% of its brightness would have shown (camera 1, of 2 cameras)",
+          "and with no band recorded by any camera the reading is as it was", old["reading"])
+    for cams in ([a, b], [a, c], [b, a, c]):
+        t, was = drift.test_beat_cameras(cams), drift.test_beat_cameras([bare(e) for e in cams])
+        strip = lambda t: {k: v for k, v in t.items() if k not in ("reading", "each")}
+        if strip(t) != strip(was) or [e["outcome"] for e in t["each"]] != [e["outcome"] for e in was["each"]]:
+            check(False, "several cameras: nothing but the readings differs with the band recorded", str(strip(t)))
+            break
+    else:
+        check(True, "several cameras: nothing but the readings differs with the band recorded")
+    # a beat one camera holds, taken back by another that could have seen a third of it: the pass says the bands, and
+    # says so where the beat's rate is above the band the other camera listened in (IDEAS.md N20: the rule does not ask)
+    held = dict(hz=3.0, amplitude=0.05, whole_passes=True, comes_back=True, windows_passing=10, windows=40, windows_apart=5)
+    low = _heard(24.0, beats=True, beat={"object": held}, video="one.mp4")
+    high = _heard(24.0, beats=True, beat={"object": dict(held, hz=9.0)}, video="one.mp4")
+    for e in (low, high):
+        e["results"]["finding"] = f"it beats at {e['results']['beat']['object']['hz']:.2f} Hz"
+    other = _heard(4.84, rate=12.1, held=0.78, video="two.mp4")
+    t, u = drift.test_beat_cameras([low, other]), drift.test_beat_cameras([high, other])
+    check(t["outcome"] == u["outcome"] == drift.PASS and "is its own view" in t["reading"] and "above the" not in t["reading"]
+          and "The cameras' bands: camera 1 (one) between 1.5 and 24.0 Hz (its beat is its own view), camera 2 (two) between 1.5 "
+              "and 4.8 Hz only (it passes too: only a beat over 1% would have shown). Camera 2 listened no higher" in t["reading"]
+          and "would have shown (but that rate is above the 4.8 Hz this camera listened to, where no beat could have shown)" in u["reading"]
+          and u["outcome"] == drift.test_beat_cameras([bare(high), bare(other)])["outcome"],
+          "a beat taken back by another camera: the bands are said; where its 9 Hz is above the 4.8 Hz the other listened "
+          "to, the reading says that camera could not have shown it (the outcome is the rule's, as before)", u["reading"][:330])
+
+
 # ---------------------------------------------------------------- T4, other evidence: T4a, a tracer
 def test_t4a_pieces_left_slowly_bound_the_airspeed():
     print("\nT4a: pieces shed, against the remains")
@@ -2138,6 +2269,8 @@ def test_hellfire_yemen_from_its_readings():
           "and what the winds leave the aircraft to fly sideways is to its left, 5-18 kn (their shortfall)",
           f"{min(left)}-{max(left)} kn")
     check(t3["outcome"] == drift.PASS and t3["smallest_beat_seen"] == 0.41, "T3: no beat over 41 %")
+    check(t3["reading"] == "no beat of its own; only a beat over 41% of its brightness would have shown",
+          "T3's words are as they were: this envelope, cut down for the test, records no band, and none is guessed", t3["reading"])
     check(t4a["outcome"] == drift.PASS and abs(t4a["airspeed_bound_L_per_s"] - 1.93) < 0.03,
           "T4a: the two pieces bound its airspeed under 2 lengths/s", f"{t4a.get('airspeed_bound_L_per_s')} L/s")
     bands = t4a.get("pieces_band_L_per_s") or []
@@ -2358,6 +2491,15 @@ def test_pr051_second_leg_from_its_readings():
           T["T2"]["reading"][:110])
     check(T["T3"]["outcome"] == drift.PASS and found.fields["verdict"] == "cannot say",
           "T3 passes on the 4 s of the hold it was given; the verdict is cannot say", found.fields["verdict"])
+    # this envelope records its band (0.5.3): a doubled source, 29.97 pictures a second on 59.94 frames, one frame in
+    # two a repeat, heard to 12.0 Hz of the 24.0 its frame rate carries. The pass says so since 2026-11-17
+    check(T["T3"]["reading"].startswith("no beat of its own between 1.5 and 12.0 Hz; only a beat over 12% of its brightness "
+                                        "would have shown. Faster beats, up to the 24.0 Hz this frame rate could carry, were "
+                                        "not listened for. 50% of the frames nearly repeat the one before in a steady pattern "
+                                        "(1 of every 2), so the picture is new only 30.0 times a second.")
+          and T["T3"]["smallest_beat_seen"] == 0.12,
+          "T3 says the band it listened in, 1.5 to 12.0 Hz, and why it stops there: every second frame repeats the one "
+          "before, a source of 30 pictures a second on 60 frames", T["T3"]["reading"][:120])
     # the readings of the ULTN field alone, the stretch where the scene's motion behind the object is read
     ultn = {f: v for f, v in platform.items() if f <= 3507}
     part = drift.measure(P51_FPS, platform=ultn, los={f: los[f] for f in ultn}, ground_m=525.8)

@@ -313,7 +313,14 @@ Since 2026-11-17 (the drift paper's release; method §66-68):
   reason saying so, and beside a tracer the verdict reads "passed T4a and failed none" (the Yemen clip).
 - *T3 from several cameras* compares another camera's floor as measured, not rounded to a whole per cent (a 4 % beat
   against floors of 1.3 and 1.4 %).
-325 checks, about four and a half minutes on four CPUs of arthur (2026-11-17; 262 s with the machine busy). Most of
+- *T3 says the band it listened in* (drawn envelopes, each judged with the record of its band and without): the whole
+  band of a video whose clock is its frame rate; a band cut short by a cadence, with why; a cadence by most of its
+  blocks and one with a period; a pass on one stretch; a fail and a test without power, as before; an envelope that
+  records no band, as before (the Yemen clip's sentence is held to the letter, and PR051's second leg's with its
+  band); several cameras: one band, differing bands with what each other camera's own test said, every camera cut
+  short, a camera without power or without a record, and a beat taken back from above another camera's band. Nothing
+  but the readings differs with the band recorded.
+342 checks, about four and a half minutes on four CPUs of arthur (2026-11-17; 276 s with the machine busy). Most of
 that is the runs that keep the stage's own 2,000 resamples a fit, about 6 s each: the lanterns' planted fliers by the
 command line (17 fits, about 55 s), the cameras' command-line runs (30 s), PR051's two fits and the lanterns' two.
 The tests that go through the stage without checking that count take 60 or 200 resamples (`resamples(n)`).

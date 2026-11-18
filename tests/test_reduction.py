@@ -4246,6 +4246,49 @@ def test_checklist():
           "no beat on a track that could not have shown a bird's (its power at the floor) is Can't tell, with the amplitude it would need; "
           "one that could is No; a refusal with a peak measured is Can't tell, in the stage's words",
           str([x["beat"]["answer"] for x in (deaf, heard, white, refused)]))
+    # the band the beat test covered, said where the stage recorded it (the maintainer's decision of 2026-11-17, "say the
+    # band in words"): `top_hz`, and `pictures` with whether its frames were read as a cadence. The cases above record
+    # neither, as a case from before does, and their rows are held above to the words they had. With the record: the
+    # whole band of a video whose clock is its frame rate; and for 10 pictures a second shown at 30, the band cut short
+    # at 4.0 Hz, that faster rhythms were not looked for, and why. The answer in a word is the same either way
+    was = "no beat reaches 3 times what the background beside it does"
+
+    def banded(top, pic, **kw):
+        c = case(beat={}, beats=False, **kw)
+        c.stages["flicker"]["fields"].update(top_hz=top, pictures=pic, finding=was)
+        return c
+    slow_pic = dict(rate=10.0, held=2 / 3, top_hz=4.0, holds="cadence", cadence=True, slope=2 / 3, every=[2, 3])
+    whole = banded(12.0, dict(rate=30.0, held=0.0, top_hz=12.0, holds="none", cadence=False))
+    cut, cut_deaf = banded(4.0, slow_pic), banded(4.0, slow_pic, analytic=dict(amplitude=0.05, with_floor=0.12))
+    before = banded(4.0, dict(rate=10.0, held=2 / 3, top_hz=4.0))          # no word for how its pictures fall: before 2026-10-29
+    why = ("Faster rhythms, up to 12.0 times a second at this frame rate, were not looked for. 67% of the frames nearly repeat the "
+           "one before in a steady pattern (2 of every 3), so the picture is new only 10.0 times a second. A source that delivers "
+           "pictures at that rate does this. So does compression that copies a still scene from frame to frame, and then the "
+           "object's own picture may still be new on every frame. The test cannot tell which, so a rhythm faster than 4.0 times "
+           "a second may have gone unseen")
+    check(rows(whole)["beat"]["said"] == "no rhythm of its own between 1.5 and 12.0 times a second stands out above the background beside it"
+          and rows(cut)["beat"]["said"] == "no rhythm of its own between 1.5 and 4.0 times a second stands out above the background "
+                                           "beside it. " + why
+          and rows(cut_deaf)["beat"]["said"] == "no rhythm of its own between 1.5 and 4.0 times a second stands out, but this track is "
+                                                "too noisy to show a bird's: a beat would need 12% of its brightness to be found three "
+                                                f"times in four, and a bird is named from {100 * report.BIRD_FLOOR:g}%. " + why
+          and rows(before)["beat"]["said"] == "no rhythm of its own stands out above the background beside it"
+          and [rows(x)["beat"]["answer"] for x in (whole, cut, cut_deaf, before)] == [NO, NO, CANT, NO]
+          and [rows(x)["beat"]["kind"] for x in (whole, cut, cut_deaf, before)] == ["none", "none", "deaf", "none"]
+          and whole.reasons() == case(beat={}, beats=False).reasons() == cut.reasons(),
+          "the beat row says the band the test covered where the stage recorded it: the whole band; or the band cut short, that "
+          "faster rhythms were not looked for, and why; a case that records none says what it said. The answers do not move",
+          rows(cut)["beat"]["said"][:150])
+    beat_row = lambda c: {r[0]: r[3] for r in c.summary()}["brightness beat"]
+    cut.stages["flicker"]["fields"]["finding"] = beat_row(cut)                # a case measured since: its finding says its band
+    check(beat_row(whole) == was + "; a beat was listened for between 1.5 and 12.0 Hz"
+          and beat_row(cut).startswith(was + "; a beat was listened for between 1.5 and 4.0 Hz only. Faster beats, up to the 12.0 Hz "
+                                             "this frame rate could carry, were not listened for.")
+          and beat_row(cut).endswith("The stage cannot tell which, so a beat faster than 4.0 Hz may have gone unheard")
+          and beat_row(cut).count("a beat was listened for between") == 1 and beat_row(before) == was
+          and f"| {rows(whole)['beat']['said']} |" in whole.markdown(),
+          "and the measurements' row gives the stage's finding its band, once, for a case measured before the finding had one",
+          beat_row(whole))
     # a real speed: what the four unknowns allow
     full = rows(case(k=1884.0, range_m=1000.0, omega_rad_per_s=2.27, relative_speed_m_per_s=2300.0))
     far = rows(case(k=1884.0, omega_rad_per_s=2.27))

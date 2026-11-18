@@ -789,7 +789,11 @@ class Case:
                             if beat.get("shaken") else "")
                          + ". A wingbeat, a tumbling body and a blinking light all beat"))
         elif ff:
-            rows.append(("brightness beat", "f_b", None, ff.get("finding") or next((w for _, w in (self.stages.get("flicker", {}).get("no_power") or [])), "not measured")))
+            # a "no beat" says the band it covers: the finding's own clause, or, for a case measured before the finding
+            # had one (2026-11-17), the same clause made here from the fields it recorded (`flicker.with_band`)
+            from .flicker import with_band
+            none = with_band(ff.get("finding"), ff) if ff.get("beats") is False else ff.get("finding")
+            rows.append(("brightness beat", "f_b", None, none or next((w for _, w in (self.stages.get("flicker", {}).get("no_power") or [])), "not measured")))
         blinks = ff.get("blink") or {}
         for name, k in blinks.items():                     # a light that flashes in a train, its own (flicker's item 13)
             if not k.get("train") or k.get("shared"):
@@ -2332,12 +2336,15 @@ class Case:
                 beat_row("refused", CANT, plainer(npw("flicker")) if npw("flicker") else "the test could not decide on this video")
             elif ff.get("beats") is False or (ff.get("beat") and not beats):
                 need = self.beat_power()
+                # the band the test covered, where the stage recorded it, and why where it stops short of the frame
+                # rate's (`beat_band`; 2026-11-17): a "No" over 1.5-5 Hz is not a "No" over a wingbeat's 2-25
+                within, why = self.beat_band()
                 if need is not None and need > BIRD_FLOOR:   # a "No" only where a bird's beat would have shown (`beat_power`)
-                    beat_row("deaf", CANT, f"no rhythm of its own stands out, but this track is too noisy to show a bird's: a beat "
+                    beat_row("deaf", CANT, f"no rhythm of its own{within} stands out, but this track is too noisy to show a bird's: a beat "
                                                  f"would need {need:.0%} of its brightness to be found three times in four, and a bird is "
-                                                 f"named from {100 * BIRD_FLOOR:g}%")
+                                                 f"named from {100 * BIRD_FLOOR:g}%{why}")
                 else:
-                    beat_row("none", NO, "no rhythm of its own stands out above the background beside it")
+                    beat_row("none", NO, f"no rhythm of its own{within} stands out above the background beside it{why}")
             elif npw("flicker"):
                 beat_row("refused", CANT, plainer(npw("flicker")))
             if own:
@@ -2525,6 +2532,19 @@ class Case:
             return by, (f"the track file says its points were not placed by a hand on the frames ({why})" if why else
                         "the track file says its points were not placed by a hand on the frames")
         return None, f"the track was read from a file, {name}, that does not say who or what placed its points"
+
+    def beat_band(self):
+        """The band the flicker stage looked for a rhythm in, for the checklist's beat row where it found none, in the
+        row's words: (" between 1.5 and 12.0 times a second", why). `why` is "" unless the band stops short of the frame
+        rate's, where it is the sentences that say so and what makes it (`flicker.listened_why`), after a full stop and
+        with none at their end, as a row's line has none. ("", "") where the stage did not record the band
+        (`flicker.listened_in`: a case from before 2026-10-29, or a hand-made one): the row is then as it was."""
+        from .flicker import listened_in, listened_why
+        b = listened_in(self.stages.get("flicker", {}).get("fields") or {})
+        if b is None:
+            return "", ""
+        why = listened_why(b, who="the test", plain=True)
+        return f" between {b['lo']:g} and {b['top']:.1f} times a second", f". {why[:-1]}" if why else ""
 
     def beat_power(self):
         """The faintest beat the flicker stage could have found on this track, as a share of the object's brightness: the

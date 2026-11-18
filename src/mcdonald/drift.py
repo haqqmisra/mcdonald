@@ -1526,21 +1526,52 @@ def beat_floor(env):
     return floor
 
 
+def beat_band(env):
+    """The band of frequencies a clip's beat was listened for in, from its `mcdonald flicker` envelope
+    (`flicker.listened_in`: lo, top, lowered, ...), or None where the envelope does not record it (one made before
+    `flicker` recorded `top_hz` and how the pictures fall, or cut down: the Yemen clip's, the lanterns' and the Santa
+    Barbara helicopter's here). T3's words are then as they were: a band is never guessed."""
+    if not isinstance(env, dict):
+        return None
+    from .flicker import listened_in
+    r = env.get("results", env)
+    return listened_in(r) if isinstance(r, dict) else None
+
+
 def test_beat(env):
     """T3, from the envelope `mcdonald flicker --json` printed. A beat fails only where it holds across the video
     (`held_beat`): a rotorcraft hovering in calm air has no airspeed, and only its rotor's steady beat tells it from a
     drifter (the Santa Barbara hoist, 2026-10-21). A beat in one stretch of many is not counted, since a lantern's or a
     candle's flame, or chance over many windows, can make one, and the test passes on the whole stretch (AARO's Puerto
     Rico lanterns: 3.0 Hz in one 2-s window of 109, the background's own windows beating in 2 of 436; until 2026-10-22
-    such a beat could not say)."""
+    such a beat could not say).
+
+    Every pass says the band it listened in, where the envelope records it (`beat_band`; since 2026-11-17): "no beat
+    of its own between 1.5 and 24.0 Hz". Where `flicker` read the frames as a cadence and listened only under the
+    picture rate's top, the reading says how far, that faster beats were not listened for, and why
+    (`flicker.listened_why`): on 98 of the Galileo Project's 494 clips with power the pass covered 1.5 to about 5 Hz
+    of a band the frame rate carries to 24 Hz, and until then said "no beat of its own" (method sections 35 and 53).
+    Words only: no outcome and no number of T3 reads the band."""
+    t, why = _beat(env)
+    return dict(t, reading=t["reading"] + why)
+
+
+def _beat(env):
+    """`test_beat`'s answer and, apart, the sentences its reading ends with where the band was cut short ("" where it
+    was not): `test_beat_cameras` says those once for all the cameras."""
     out = dict(test="T3", question="is its brightness free of a beat at a wingbeat's or a rotor's rate?")
     if env is None:
-        return dict(out, outcome=CANNOT, reading="no `mcdonald flicker` result given")
+        return dict(out, outcome=CANNOT, reading="no `mcdonald flicker` result given"), ""
     r = env.get("results", env)
     beats = r.get("beats")
     floor = beat_floor(env)
     out.update(beats=beats, finding=r.get("finding"), smallest_beat_seen=round(floor, 2) if floor else None)
     seen = f"; only a beat over {100 * floor:.0f}% of its brightness would have shown" if floor else ""
+    band = beat_band(env)
+    within = f" between {band['lo']:g} and {band['top']:.1f} Hz" if band else ""
+    from .flicker import listened_why
+    why = listened_why(band, who="this test")
+    why = f". {why[:-1]}" if why else ""                 # a reading ends without its full stop
     if beats is True:
         held, b = held_beat(r)
         if b is not None:
@@ -1549,19 +1580,19 @@ def test_beat(env):
                        windows_independent=b.get("windows_independent"), windows_chance_p=b.get("windows_chance_p"))
         out["held"] = held
         if held:
-            return dict(out, outcome=FAIL, reading=f"its brightness beats across the video: {r.get('finding')}")
+            return dict(out, outcome=FAIL, reading=f"its brightness beats across the video: {r.get('finding')}"), ""
         if b and (b.get("windows_apart") or 0) >= 2 and b.get("windows_chance_p") is not None:
             return dict(out, outcome=PASS, reading=(
-                f"no beat across the video: it beats in {b['windows_apart']} windows apart of the "
+                f"no beat across the video{within}: it beats in {b['windows_apart']} windows apart of the "
                 f"{b['windows_independent']} its track holds, as often as chance gives ({b['windows_chance_p']:.0%}), "
-                f"and the whole track does not beat{seen} ({r.get('finding')})"))
+                f"and the whole track does not beat{seen} ({r.get('finding')})")), why
         where = (f" ({b['windows_passing']} of {b['windows']} windows)" if b and b.get("windows") else "")
         return dict(out, outcome=PASS, reading=(
-            f"no beat across the video: a beat in one stretch only{where} is not counted, since a flame or chance over "
-            f"many windows can make one{seen} ({r.get('finding')})"))
+            f"no beat across the video{within}: a beat in one stretch only{where} is not counted, since a flame or chance over "
+            f"many windows can make one{seen} ({r.get('finding')})")), why
     if beats is False:
-        return dict(out, outcome=PASS, reading=f"no beat of its own{seen}")
-    return dict(out, outcome=CANNOT, reading="the flicker test had no power on this clip")
+        return dict(out, outcome=PASS, reading=f"no beat of its own{within}{seen}"), why
+    return dict(out, outcome=CANNOT, reading="the flicker test had no power on this clip"), ""
 
 
 AGREE = 3.0             # another camera agrees with a beat when it sees one within flicker's HEADLINE_NEAR Hz of it, at a
@@ -1582,6 +1613,69 @@ def _camera(env, i):
     return f"camera {i + 1} ({Path(v).stem})" if v else f"camera {i + 1}"
 
 
+def _and(words):
+    words = list(words)
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def cameras_bands(names, bands, outcomes, said=None, floors=None, lead=None):
+    """What a T3 reading from several cameras says of the bands they listened in (2026-11-17), as sentences that follow
+    the reading ("" where no camera's envelope records its band: `beat_band`). One band from every camera: that it is
+    every camera's (`said`: the band the reading has named already, as `(lo, top)` printed), and that every one passes
+    where it does. Otherwise each camera's own, "only" where it was cut short under the frame rate's
+    (`flicker.listened_in`'s `lowered`), with what that camera's own test said: a camera other than the one the
+    reading leads with (`lead`) that passes too, and the smallest beat it could have shown (`floors`, as `beat_floor`
+    gives them); one that could not say; one whose beat was its own view. So a reading that leads with a camera cut
+    short says where another listened to the frame rate's top and at what strength it would have heard. Then, for the
+    cameras cut short, what was measured of their frames that cut it. Where every camera that could say was cut short,
+    the two things that make such frames (`flicker.MAKERS`) and what follows: a beat faster than the highest of their
+    tops may have gone unheard. A camera that listened to the frame rate's top leaves no such gap, and that is not
+    added (each camera's own reading, in `each`, says it of that camera). A camera with no band says so: one without
+    power "could not say", one whose envelope does not record a band "records none"."""
+    from .flicker import MAKERS
+    got = [(n, b, o) for n, b, o in zip(names, bands, outcomes) if b]
+    if not got:
+        return ""
+    key = lambda b: (f"{b['lo']:g}", f"{b['top']:.1f}")
+    rng = lambda b: f"between {b['lo']:g} and {b['top']:.1f} Hz" + (" only" if b["lowered"] else "")
+
+    def its(n, o):
+        i = names.index(n)
+        if o == CANNOT:
+            return " (it could not say)"
+        if o == FAIL:
+            return " (its beat is its own view)"
+        if i == lead:
+            return ""
+        floor = floors[i] if floors else None
+        return f" (it passes too: only a beat over {100 * floor:.0f}% would have shown)" if floor else " (it passes too)"
+    if len(got) == len(names) and len({key(b) for _, b, _ in got}) == 1:
+        out = (". Every camera listened " + ("in that band" if said == key(got[0][1]) else rng(got[0][1]))
+               + (", and every one passes" if all(o == PASS for o in outcomes) else ""))
+    else:
+        dumb = [n for n, b, o in zip(names, bands, outcomes) if not b and o == CANNOT]   # no power: it listened in none
+        none = [n for n, b, o in zip(names, bands, outcomes) if not b and o != CANNOT]
+        out = (". The cameras' bands: " + ", ".join(f"{n} {rng(b)}{its(n, o)}" for n, b, o in got)
+               + (f"; {_and(dumb)} could not say" if dumb else "")
+               + (f"; {_and(none)} record{'s' if len(none) == 1 else ''} none" if none else ""))
+    low = [(n.split(" (")[0], b) for n, b, _ in got if b["lowered"]]      # "camera 2": its file was named above
+    if low:
+        one = len(low) == 1
+        who = _and(n for n, _ in low)
+        if all(b.get("held") is not None and b.get("rate") for _, b in low):
+            shares, rates = _and(format(b["held"], ".0%") for _, b in low), _and(format(b["rate"], ".1f") for _, b in low)
+            seen = (f"{shares} of {'its' if one else 'their'} frames nearly repeat the one before in a steady pattern: "
+                    f"{'its picture is' if one else 'their pictures are'} new only {rates} times a second")
+        else:
+            seen = f"{'its' if one else 'their'} frames nearly repeat the one before in a steady pattern"
+        out += f". {who[0].upper()}{who[1:]} listened no higher because {seen}"
+        passed = [b for _, b, o in got if o != CANNOT]     # a camera whose beat was its own view listened in its band too
+        if passed and all(b["lowered"] for b in passed):   # no camera that could say listened to the frame rate's top
+            out += (f". {MAKERS} This test cannot tell which, so a beat faster than {max(b['top'] for b in passed):.1f} Hz "
+                    "may have gone unheard")
+    return out
+
+
 def test_beat_cameras(envs):
     """T3 from several cameras watching the object at the same time (`--flicker a.json,b.json`; 2026-11-13, IDEAS.md
     N4). A beat that is the object's own (a wingbeat, a rotor) shows from every side, so another camera that could have
@@ -1594,13 +1688,23 @@ def test_beat_cameras(envs):
     Whether another camera could have seen a third of the beat is asked of its floor as the envelope gives it
     (`beat_floor`), not of `smallest_beat_seen`, which `test_beat` rounds to whole per cents for the reading: the lines
     the Galileo clouds' other cameras were held to are 1.3-1.8 %, where 1.49 % read as 1 % and 1.51 % as 2 % (until
-    2026-11-17; IDEAS.md N11; no outcome of the 239 Galileo objects turned on it)."""
+    2026-11-17; IDEAS.md N11; no outcome of the 239 Galileo objects turned on it).
+
+    A pass says the bands the cameras listened in (`cameras_bands`; since 2026-11-17): the one the reading names is
+    its first passing camera's, as before, then every camera's where they differ, and why for a camera whose band was
+    cut short. Words only. One thing the words now show and the rule does not yet ask (IDEAS.md N20): a camera counts
+    as one that could have seen a beat by its floor alone, also where the beat's rate is above the band that camera
+    listened in. The reading says so where it happens; the outcome is as the rule gives it."""
     envs = [e for e in envs if e is not None]
     if len(envs) <= 1:
         return test_beat(envs[0] if envs else None)
     from .flicker import HEADLINE_NEAR
-    each = [test_beat(e) for e in envs]
+    bare = [_beat(e) for e in envs]                      # each camera's answer, and apart what its reading ends with
+    each = [dict(t, reading=t["reading"] + why) for t, why in bare]
     names = [_camera(e, i) for i, e in enumerate(envs)]
+    bands = [beat_band(e) for e in envs]
+    said_bands = lambda said=None, lead=None: cameras_bands(names, bands, [t["outcome"] for t in each], said,
+                                                            floors=[beat_floor(e) for e in envs], lead=lead)
     held, views = [], []
     for i, t in enumerate(each):
         if t["outcome"] != FAIL:
@@ -1619,8 +1723,10 @@ def test_beat_cameras(envs):
             elif floor is not None and floor <= b["amplitude"] / AGREE:
                 at = (f"{o['amplitude']:.1%} at {o['hz']:.2f} Hz" if o is not None and abs(o["hz"] - b["hz"]) <= HEADLINE_NEAR
                       else "no beat at that rate")
+                above = (f" (but that rate is above the {bands[j]['top']:.1f} Hz this camera listened to, where no beat "
+                         "could have shown)" if bands[j] and b["hz"] > bands[j]["top"] else "")
                 refute.append(f"{names[j]}, watching at the same time, sees {at} where a beat of {100 * floor:.1f}% "
-                              "would have shown")
+                              f"would have shown{above}")
         if agree or not refute:
             held.append((i, "; ".join(agree) if agree else "no other camera could have seen a beat a third as strong",
                          refute))
@@ -1634,12 +1740,13 @@ def test_beat_cameras(envs):
         return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]}, outcome=FAIL,
                     reading=f"{each[i]['reading']} ({names[i]}; {why})")
     if views:
-        return dict(base, outcome=PASS, reading="no beat of its own: " + "; ".join(views))
+        return dict(base, outcome=PASS, reading="no beat of its own: " + "; ".join(views) + said_bands())
     passing = [i for i, t in enumerate(each) if t["outcome"] == PASS]
     if passing:
         i = passing[0]
+        named = (f"{bands[i]['lo']:g}", f"{bands[i]['top']:.1f}") if bands[i] else None
         return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]},
-                    reading=f"{each[i]['reading']} ({names[i]}, of {len(envs)} cameras)")
+                    reading=f"{bare[i][0]['reading']} ({names[i]}, of {len(envs)} cameras){said_bands(named, i)}")
     return dict(base, outcome=CANNOT, reading="the flicker test had no power on any camera's clip")
 
 
