@@ -1487,10 +1487,13 @@ def held_beat(r):
     apart more often than chance gives (flicker's headline rule, `comes_back`). An envelope from before 2026-11-13 has
     no `windows_chance_p`: its windows apart are weighed against chance here, from its own windows, as `flicker` now
     does (`flicker.windows_chance`). An envelope without `comes_back`: not where its finding says the beat is one
-    stretch."""
+    stretch. A beat `flicker` gave to the track (the envelope's `jittered`; method section 69) does not hold, whatever
+    its record's `comes_back` says: the record is of the windows, read before the jitter was."""
     from .flicker import CHANCE_P, independent_windows, windows_chance
     for name, b in (r.get("beat") or {}).items():
         if isinstance(b, dict) and "comes_back" in b:
+            if name in (r.get("jittered") or ()):       # `flicker` gave this beat to the track (`given_to_track`): its
+                return False, b                         # record keeps `comes_back` as the windows gave it, and it is no beat
             back = bool(b["comes_back"])
             if back and not b.get("whole_passes") and "windows_chance_p" not in b and (b.get("windows_apart") or 0) >= 2:
                 n = independent_windows((r.get("windows") or {}).get(name) or [])
@@ -1526,6 +1529,60 @@ def beat_floor(env):
     return floor
 
 
+def given_to_track(env):
+    """The beat `mcdonald flicker` saw on a clip and gave to the track, or None (2026-11-17, the maintainer's decision
+    13; method sections 34 and 69). `flicker` reads a beat it would call the object's own against the track's own
+    jitter, and one that keeps under `flicker.JITTER_KEEP` of its amplitude is the track's: the envelope's `beats` is
+    then False, its `jittered` names the object, and the object's beat record keeps its frequency, its amplitude and
+    the reading (`jitter`: kept, px, frames). T3 reads the envelope's first object, as `_strongest` does. {hz,
+    amplitude, kept, jitter_px, frames}. An envelope from before the control has no `jittered`: None, and every
+    word and number of T3 is as it was."""
+    if not isinstance(env, dict):
+        return None
+    r = env.get("results", env)
+    if not isinstance(r, dict) or not r.get("jittered"):
+        return None
+    name, b = next(((n, b) for n, b in (r.get("beat") or {}).items() if isinstance(b, dict)), (None, None))
+    if name is None or name not in r["jittered"] or not b.get("hz") or b.get("amplitude") is None:
+        return None
+    j = b.get("jitter") or {}
+    return dict(hz=float(b["hz"]), amplitude=float(b["amplitude"]), kept=j.get("kept"), jitter_px=j.get("px"),
+                frames=j.get("frames") or [b.get("first"), b.get("last")])
+
+
+def shown_floor(env):
+    """The smallest beat of the object's own that a clip would have shown, for the several-camera rule: `beat_floor`,
+    and where the clip's beat was given to the track (`given_to_track`) no less than that beat's own amplitude.
+    `flicker` judges a curve's strongest beat; under one it gave to the track a weaker beat of the object's own is not
+    judged at all (a drawn cloud with a 12 % beat under a 36 % hop reads "no beat of its own": IDEAS.md N22). So such a
+    camera cannot vouch that a beat weaker than the one it set aside was absent."""
+    floor, g = beat_floor(env), given_to_track(env)
+    return floor if g is None else max(floor or 0.0, g["amplitude"])
+
+
+JITTER_IS = "Jitter is the small scatter of the object's measured position from frame to frame"
+
+
+def given_said(g, camera=None, define=True):
+    """T3's sentences for a beat that was seen and given to the track (`given_to_track`), without the last full stop:
+    its frequency, its strength, why it is the track's, the share it kept against the share a beat of the object's own
+    keeps, and what that leaves unsaid: a weaker beat of the object's own could be hidden under it, so "only a beat
+    over N % would have shown" (the floor of a clip with no beat at all) is not said of this clip. `camera`: the
+    camera's name where several watch; `define`: whether jitter is defined here (once in a reading)."""
+    from .flicker import JITTER_KEEP
+    kept = (f". With the jitter's share taken out, {g['kept']:.0%} of the beat is left, where a beat of the object's own "
+            f"keeps {JITTER_KEEP:.0%} or more" if g.get("kept") is not None else "")
+    what = f"at {g['hz']:.2f} Hz, {g['amplitude']:.0%} of its brightness"
+    if camera is None:
+        return (f"A beat was seen {what}, but it follows the track's own jitter{'. ' + JITTER_IS if define else ''}{kept}. "
+                "So it is counted as the track's, not the object's. A weaker beat of the object's own could be hidden "
+                "under it, and only a stronger one would have shown")
+    return (f"{camera[0].upper()}{camera[1:]} saw a beat {what}, but it follows the jitter of that camera's own track"
+            f"{'. ' + JITTER_IS if define else ''}{kept}. So it is counted as the track's, not the object's. In that "
+            "camera's view a weaker beat of the object's own could be hidden under it, and only a stronger one would "
+            "have shown")
+
+
 def beat_band(env):
     """The band of frequencies a clip's beat was listened for in, from its `mcdonald flicker` envelope
     (`flicker.listened_in`: lo, top, lowered, ...), or None where the envelope does not record it (one made before
@@ -1551,14 +1608,24 @@ def test_beat(env):
     picture rate's top, the reading says how far, that faster beats were not listened for, and why
     (`flicker.listened_why`): on 98 of the Galileo Project's 494 clips with power the pass covered 1.5 to about 5 Hz
     of a band the frame rate carries to 24 Hz, and until then said "no beat of its own" (method sections 35 and 53).
-    Words only: no outcome and no number of T3 reads the band."""
+    Words only: no outcome and no number of T3 reads the band.
+
+    A pass says where a beat was seen and given to the track (`given_to_track`, `given_said`; since 2026-11-17, the
+    maintainer's decision 13). With `flicker`'s control against the track's own jitter (method section 69) an envelope
+    can say `beats: false` of a clip on which a beat of 21 % was seen and set aside, and until then T3 read "no beat of
+    its own; only a beat over 5% of its brightness would have shown" there. The pass now names that beat, its
+    strength and the share it kept, and does not quote the floor: under a beat given to the track a weaker one of the
+    object's own is not judged. The outcome is the envelope's, a pass; the beat is recorded in `given_to_track`."""
     t, why = _beat(env)
-    return dict(t, reading=t["reading"] + why)
+    g = t.get("given_to_track")
+    return dict(t, reading=t["reading"] + (f". {given_said(g)}" if g else "") + why)
 
 
 def _beat(env):
     """`test_beat`'s answer and, apart, the sentences its reading ends with where the band was cut short ("" where it
-    was not): `test_beat_cameras` says those once for all the cameras."""
+    was not): `test_beat_cameras` says those once for all the cameras. Where the clip's beat was given to the track
+    (`given_to_track`) the answer carries it under that name and its reading stops at the band: the caller adds
+    `given_said`'s sentences, with the camera's name where several watch."""
     out = dict(test="T3", question="is its brightness free of a beat at a wingbeat's or a rotor's rate?")
     if env is None:
         return dict(out, outcome=CANNOT, reading="no `mcdonald flicker` result given"), ""
@@ -1572,6 +1639,13 @@ def _beat(env):
     from .flicker import listened_why
     why = listened_why(band, who="this test")
     why = f". {why[:-1]}" if why else ""                 # a reading ends without its full stop
+    given = given_to_track(env)
+    if given is not None and beats is not None:
+        # a beat was seen and `flicker` gave it to the track: no beat of the object's own, and the floor is not quoted
+        # (a weaker beat could be hidden under the track's). `beats` is True here only where the envelope holds another
+        # object that beats: T3 reads the first, whose record keeps `comes_back` as its windows gave it
+        return dict(out, outcome=PASS, given_to_track=given, reading=f"no beat of its own{within}",
+                    **({"held": False} if beats is True else {})), why
     if beats is True:
         held, b = held_beat(r)
         if b is not None:
@@ -1600,11 +1674,14 @@ AGREE = 3.0             # another camera agrees with a beat when it sees one wit
 
 
 def _strongest(env):
-    """The beat a flicker envelope reports for the object (its first object), or None."""
+    """The beat a flicker envelope reports for the object (its first object), or None. A beat `flicker` gave to the
+    track (`given_to_track`) is not the object's and is not returned: its record keeps `hz`, `amplitude` and, on 7 of
+    the 8 Galileo clips that have one, `comes_back: true`, and until 2026-11-17 it could agree with another camera's
+    held beat (IDEAS.md TB6; met on none of the 239 Galileo objects)."""
     r = env.get("results", env)
-    for b in (r.get("beat") or {}).values():
+    for name, b in (r.get("beat") or {}).items():
         if isinstance(b, dict) and b.get("hz") and b.get("amplitude") is not None:
-            return b
+            return None if name in (r.get("jittered") or ()) else b
     return None
 
 
@@ -1618,7 +1695,7 @@ def _and(words):
     return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
 
 
-def cameras_bands(names, bands, outcomes, said=None, floors=None, lead=None):
+def cameras_bands(names, bands, outcomes, said=None, floors=None, lead=None, given=None):
     """What a T3 reading from several cameras says of the bands they listened in (2026-11-17), as sentences that follow
     the reading ("" where no camera's envelope records its band: `beat_band`). One band from every camera: that it is
     every camera's (`said`: the band the reading has named already, as `(lo, top)` printed), and that every one passes
@@ -1631,7 +1708,8 @@ def cameras_bands(names, bands, outcomes, said=None, floors=None, lead=None):
     the two things that make such frames (`flicker.MAKERS`) and what follows: a beat faster than the highest of their
     tops may have gone unheard. A camera that listened to the frame rate's top leaves no such gap, and that is not
     added (each camera's own reading, in `each`, says it of that camera). A camera with no band says so: one without
-    power "could not say", one whose envelope does not record a band "records none"."""
+    power "could not say", one whose envelope does not record a band "records none". A camera other than the lead whose
+    beat was given to its track (`given`: `given_to_track` of each) passes too, and says that in place of a floor."""
     from .flicker import MAKERS
     got = [(n, b, o) for n, b, o in zip(names, bands, outcomes) if b]
     if not got:
@@ -1647,6 +1725,8 @@ def cameras_bands(names, bands, outcomes, said=None, floors=None, lead=None):
             return " (its beat is its own view)"
         if i == lead:
             return ""
+        if given and given[i]:
+            return " (it passes too: the beat it saw was given to its track)"
         floor = floors[i] if floors else None
         return f" (it passes too: only a beat over {100 * floor:.0f}% would have shown)" if floor else " (it passes too)"
     if len(got) == len(names) and len({key(b) for _, b, _ in got}) == 1:
@@ -1694,17 +1774,32 @@ def test_beat_cameras(envs):
     its first passing camera's, as before, then every camera's where they differ, and why for a camera whose band was
     cut short. Words only. One thing the words now show and the rule does not yet ask (IDEAS.md N20): a camera counts
     as one that could have seen a beat by its floor alone, also where the beat's rate is above the band that camera
-    listened in. The reading says so where it happens; the outcome is as the rule gives it."""
+    listened in. The reading says so where it happens; the outcome is as the rule gives it.
+
+    A beat `flicker` gave to a camera's own track (`given_to_track`; since 2026-11-17, the maintainer's decision 13) is
+    not a beat of the object's in this rule. Its camera passes, and the reading says of each such camera what was seen
+    and set aside (`given_said`), whichever camera the reading leads with. Its record does not agree with another
+    camera's held beat (`_strongest`), at any strength. Its camera takes such a beat back only where the held beat is
+    AGREE times as strong as the one it set aside, and as its floor (`shown_floor`): under the beat given to its track
+    a weaker one of the object's own is not judged, at that rate or another. Where it saw the held beat's own rate
+    (within HEADLINE_NEAR) and neither agrees nor takes it back, the reading says so. So such a camera never fails T3
+    by itself, never keeps another's failure, and vouches for no more than it could have shown. An envelope without
+    `jittered` is read as before."""
     envs = [e for e in envs if e is not None]
     if len(envs) <= 1:
         return test_beat(envs[0] if envs else None)
     from .flicker import HEADLINE_NEAR
     bare = [_beat(e) for e in envs]                      # each camera's answer, and apart what its reading ends with
-    each = [dict(t, reading=t["reading"] + why) for t, why in bare]
+    given = [t.get("given_to_track") for t, _ in bare]
+    each = [dict(t, reading=t["reading"] + (f". {given_said(g)}" if g else "") + why) for (t, why), g in zip(bare, given)]
     names = [_camera(e, i) for i, e in enumerate(envs)]
     bands = [beat_band(e) for e in envs]
     said_bands = lambda said=None, lead=None: cameras_bands(names, bands, [t["outcome"] for t in each], said,
-                                                            floors=[beat_floor(e) for e in envs], lead=lead)
+                                                            floors=[beat_floor(e) for e in envs], lead=lead, given=given)
+    aside = [i for i, g in enumerate(given) if g]
+
+    def said_given():                                    # every camera whose beat went to its track, jitter defined once
+        return "".join(f". {given_said(given[i], names[i], define=i == aside[0])}" for i in aside)
     held, views = [], []
     for i, t in enumerate(each):
         if t["outcome"] != FAIL:
@@ -1713,40 +1808,50 @@ def test_beat_cameras(envs):
         if b is None:
             held.append((i, "", []))
             continue
-        agree, refute = [], []
+        agree, refute, silent = [], [], []
         for j, e in enumerate(envs):
             if j == i:
                 continue
-            o, floor = _strongest(e), beat_floor(e)
+            o, floor, g = _strongest(e), shown_floor(e), given[j]
+            near = g is not None and abs(g["hz"] - b["hz"]) <= HEADLINE_NEAR
             if o is not None and abs(o["hz"] - b["hz"]) <= HEADLINE_NEAR and o["amplitude"] >= b["amplitude"] / AGREE:
                 agree.append(f"{names[j]} sees {o['hz']:.2f} Hz at {o['amplitude']:.0%}")
             elif floor is not None and floor <= b["amplitude"] / AGREE:
                 at = (f"{o['amplitude']:.1%} at {o['hz']:.2f} Hz" if o is not None and abs(o["hz"] - b["hz"]) <= HEADLINE_NEAR
+                      else f"{g['amplitude']:.1%} at {g['hz']:.2f} Hz, which follows its own track's jitter," if near
                       else "no beat at that rate")
                 above = (f" (but that rate is above the {bands[j]['top']:.1f} Hz this camera listened to, where no beat "
                          "could have shown)" if bands[j] and b["hz"] > bands[j]["top"] else "")
-                refute.append(f"{names[j]}, watching at the same time, sees {at} where a beat of {100 * floor:.1f}% "
-                              f"would have shown{above}")
+                shown = (f"only a beat over {100 * floor:.1f}%, the strength of the one given to its track, would have shown"
+                         if g is not None and floor == g["amplitude"] else f"a beat of {100 * floor:.1f}% would have shown")
+                refute.append(f"{names[j]}, watching at the same time, sees {at} where {shown}{above}")
+            elif near:                                   # it saw that rate, following its own track, as strongly as a third
+                silent.append(f"{names[j]} saw {g['amplitude']:.1%} at {g['hz']:.2f} Hz, but that beat follows its own "
+                              "track's jitter and is not counted")       # of the beat: it neither agrees nor takes it back
         if agree or not refute:
-            held.append((i, "; ".join(agree) if agree else "no other camera could have seen a beat a third as strong",
-                         refute))
+            held.append((i, "; ".join((agree if agree else ["no other camera could have seen a beat a third as strong"])
+                                      + silent), refute))
         else:
             views.append(f"{names[i]}'s beat at {b['hz']:.2f} Hz ({b['amplitude']:.0%} of its brightness) is its own "
                          f"view: " + "; ".join(refute))
     base = dict(test="T3", question="is its brightness free of a beat at a wingbeat's or a rotor's rate?",
-                cameras=len(envs), each=[dict(camera=n, outcome=t["outcome"], reading=t["reading"]) for n, t in zip(names, each)])
+                cameras=len(envs), each=[dict(camera=n, outcome=t["outcome"], reading=t["reading"],
+                                              **({"given_to_track": g} if g else {}))
+                                         for n, t, g in zip(names, each, given)])
+    if aside:                                            # which cameras' beats went to their tracks, in the top answer too
+        base["cameras_given_to_track"] = [dict(given[i], camera=names[i]) for i in aside]
     if held:
         i, why, _ = held[0]
         return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]}, outcome=FAIL,
                     reading=f"{each[i]['reading']} ({names[i]}; {why})")
     if views:
-        return dict(base, outcome=PASS, reading="no beat of its own: " + "; ".join(views) + said_bands())
+        return dict(base, outcome=PASS, reading="no beat of its own: " + "; ".join(views) + said_given() + said_bands())
     passing = [i for i, t in enumerate(each) if t["outcome"] == PASS]
     if passing:
         i = passing[0]
         named = (f"{bands[i]['lo']:g}", f"{bands[i]['top']:.1f}") if bands[i] else None
         return dict(each[i], **{k: v for k, v in base.items() if k not in each[i]},
-                    reading=f"{bare[i][0]['reading']} ({names[i]}, of {len(envs)} cameras){said_bands(named, i)}")
+                    reading=f"{bare[i][0]['reading']} ({names[i]}, of {len(envs)} cameras){said_given()}{said_bands(named, i)}")
     return dict(base, outcome=CANNOT, reading="the flicker test had no power on any camera's clip")
 
 

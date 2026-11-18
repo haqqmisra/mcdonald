@@ -2051,6 +2051,150 @@ def test_t3_says_the_band_it_listened_in():
           "to, the reading says that camera could not have shown it (the outcome is the rule's, as before)", u["reading"][:330])
 
 
+def _given(hz=1.72, amp=0.21, kept=0.08, top=24.0, floor=0.05, video=None, back=True, whole=False, **more):
+    """A drawn `flicker` envelope whose beat was seen and given to the track (method section 69), as the stage writes
+    one since 2026-11-17: `beats` False, `jittered` naming the object, and the object's beat record with its frequency,
+    its amplitude, the windows' own `comes_back` (true on 7 of the 8 Galileo clips that have one) and the reading."""
+    e = _heard(top, floor=floor, video=video, **more)
+    e["results"].update(
+        jittered=["object"], strong=[],
+        finding=f"what beats at {hz:.2f} Hz, {amp:.0%} of its brightness, over frames 3917–4036 follows the track's own jitter",
+        beat={"object": dict(hz=hz, amplitude=amp, whole_passes=whole, comes_back=back, windows_passing=10, windows=40,
+                             windows_apart=5, first=3917, last=4036,
+                             jitter=dict(kept=kept, share=0.95, px=1.13, blocks=1, hz=hz, holds=False, frames=[3917, 4036]))})
+    return e
+
+
+def test_t3_a_beat_given_to_the_track():
+    """The maintainer's decision 13 of 2026-11-17. With `flicker`'s control against the track's own jitter (method section
+    69) an envelope can say `beats: false` of a clip where a beat was seen and set aside. T3 read "no beat of its own;
+    only a beat over 5% of its brightness would have shown" there, on one Galileo cloud beside a 21 % beat at 1.72 Hz;
+    with several cameras the reading quoted the longest track and said nothing of another camera's; and the
+    several-camera rule read a beat record whether or not it was the object's. Drawn envelopes: no Galileo data."""
+    print("\nT3 says where a beat was seen and given to the track (2026-11-17)")
+    plain = lambda e: {"results": {k: v for k, v in e["results"].items() if k != "jittered"}, **{k: v for k, v in e.items() if k != "results"}}
+    strip = lambda t: {k: v for k, v in t.items() if k not in ("reading", "each", "given_to_track", "cameras_given_to_track")}
+    g = _given()
+    t, was = drift.test_beat(g), drift.test_beat(plain(g))
+    check(t["reading"] == "no beat of its own between 1.5 and 24.0 Hz. A beat was seen at 1.72 Hz, 21% of its brightness, but it "
+                          "follows the track's own jitter. Jitter is the small scatter of the object's measured position from "
+                          "frame to frame. With the jitter's share taken out, 8% of the beat is left, where a beat of the "
+                          "object's own keeps 50% or more. So it is counted as the track's, not the object's. A weaker beat of "
+                          "the object's own could be hidden under it, and only a stronger one would have shown",
+          "one camera: the pass says the beat that was seen, its frequency, its strength and the share it kept, and that it "
+          "is the track's", t["reading"])
+    check("only a beat over" not in t["reading"] and "5%" not in t["reading"],
+          "and does not say that only a beat over 5 % would have shown, beside a beat of 21 % that did", t["reading"][-110:])
+    check(t["outcome"] == drift.PASS and strip(t) == strip(was) and t["smallest_beat_seen"] == 0.05
+          and t["given_to_track"] == dict(hz=1.72, amplitude=0.21, kept=0.08, jitter_px=1.13, frames=[3917, 4036]),
+          "the outcome and every number are as the envelope gives them; the beat set aside is recorded under its own name",
+          str(t.get("given_to_track")))
+    check(was["reading"] == "no beat of its own between 1.5 and 24.0 Hz; only a beat over 5% of its brightness would have shown"
+          and "given_to_track" not in was and drift.given_to_track(plain(g)) is None and drift.given_to_track(None) is None,
+          "an envelope without the new field reads exactly as before, whatever its beat record holds", was["reading"])
+    cut = drift.test_beat(_given(top=4.84, rate=12.1, held=0.78))
+    check(cut["reading"].startswith("no beat of its own between 1.5 and 4.8 Hz. A beat was seen at 1.72 Hz")
+          and "only a stronger one would have shown. Faster beats, up to the 24.0 Hz this frame rate could carry" in cut["reading"]
+          and cut["reading"].endswith("so a beat faster than 4.8 Hz may have gone unheard"),
+          "a band cut short is still said, after the beat that was set aside", cut["reading"][:80])
+    # an envelope of two objects: the first's beat went to its track and the second beats. The envelope's `beats` is
+    # true, and the first's record keeps `comes_back` as its windows gave it; T3 reads the first object
+    two = _given()
+    two["results"].update(beats=True, strong=["object-2"], finding="object-2 beats at 6.10 Hz")
+    two["results"]["beat"]["object-2"] = dict(hz=6.1, amplitude=0.3, whole_passes=True, comes_back=True)
+    t = drift.test_beat(two)
+    check(t["outcome"] == drift.PASS and t["held"] is False and drift.held_beat(two["results"])[0] is False
+          and t["reading"].startswith("no beat of its own between 1.5 and 24.0 Hz. A beat was seen at 1.72 Hz"),
+          "a record given to the track does not hold across the video, though it keeps the windows' own `comes_back`: T3 "
+          "of the first object passes where another object of the envelope beats", f"{t['outcome']}: {t['reading'][:60]}")
+    check(drift.test_beat(plain(two))["outcome"] == drift.FAIL, "(the same record not given to the track holds, and fails)")
+
+    # ---- several cameras
+    quiet = _heard(24.0, floor=0.03, video="hideout-7.mp4")
+    aside = _given(video="sphere-3.mp4")
+    t = drift.test_beat_cameras([quiet, aside])
+    check(t["outcome"] == drift.PASS and t["reading"] == (
+              "no beat of its own between 1.5 and 24.0 Hz; only a beat over 3% of its brightness would have shown (camera 1 "
+              "(hideout-7), of 2 cameras). Camera 2 (sphere-3) saw a beat at 1.72 Hz, 21% of its brightness, but it follows "
+              "the jitter of that camera's own track. Jitter is the small scatter of the object's measured position from "
+              "frame to frame. With the jitter's share taken out, 8% of the beat is left, where a beat of the object's own "
+              "keeps 50% or more. So it is counted as the track's, not the object's. In that camera's view a weaker beat of "
+              "the object's own could be hidden under it, and only a stronger one would have shown. Every camera listened "
+              "in that band, and every one passes"),
+          "two cameras, the reading led by the one with no beat: it says all the same what the other saw and set aside",
+          t["reading"])
+    check(t["cameras_given_to_track"] == [dict(hz=1.72, amplitude=0.21, kept=0.08, jitter_px=1.13, frames=[3917, 4036],
+                                               camera="camera 2 (sphere-3)")]
+          and "given_to_track" not in t and t["each"][1]["given_to_track"]["hz"] == 1.72
+          and t["each"][1]["reading"] == drift.test_beat(aside)["reading"] and t["smallest_beat_seen"] == 0.03,
+          "the answer records which camera's beat went to its track; each camera's own reading is whole")
+    was = drift.test_beat_cameras([quiet, plain(aside)])
+    check(was["reading"] == "no beat of its own between 1.5 and 24.0 Hz; only a beat over 3% of its brightness would have shown "
+                            "(camera 1 (hideout-7), of 2 cameras). Every camera listened in that band, and every one passes"
+          and strip(t) == strip(was) and "cameras_given_to_track" not in was,
+          "without the new field the two cameras read exactly as before, and nothing but the words differs", was["reading"])
+    t = drift.test_beat_cameras([aside, quiet])
+    check(t["reading"].startswith("no beat of its own between 1.5 and 24.0 Hz (camera 1 (sphere-3), of 2 cameras). Camera 1 "
+                                  "(sphere-3) saw a beat at 1.72 Hz, 21% of its brightness")
+          and "only a beat over 5%" not in t["reading"] and t["given_to_track"]["amplitude"] == 0.21,
+          "led by the camera whose beat went to its track: its floor is not quoted", t["reading"][:120])
+    lower = _heard(4.84, rate=12.1, held=0.78, floor=0.03, video="hideout-7.mp4")
+    t = drift.test_beat_cameras([lower, aside, _given(hz=2.44, amp=0.05, kept=0.27, video="wildhorse-1.mp4")])
+    check("camera 2 (sphere-3) between 1.5 and 24.0 Hz (it passes too: the beat it saw was given to its track)" in t["reading"]
+          and "only a beat over 5% would have shown" not in t["reading"] and t["reading"].count("Jitter is the small scatter") == 1
+          and "Camera 3 (wildhorse-1) saw a beat at 2.44 Hz, 5% of its brightness" in t["reading"]
+          and len(t["cameras_given_to_track"]) == 2,
+          "in the list of bands such a camera passes too, without a floor; two such cameras are each said, jitter defined once",
+          t["reading"][-330:-200])
+
+    # ---- the rule: a record given to the track is not a beat that agrees
+    held = dict(hz=2.44, amplitude=0.05, whole_passes=True, comes_back=True, windows_passing=10, windows=40, windows_apart=5)
+    a = _heard(24.0, beats=True, beat={"object": held}, video="hideout-5.mp4")
+    a["results"]["finding"] = "it beats at 2.44 Hz"
+    near = _given(hz=2.47, amp=0.03, kept=0.2, floor=0.04, video="sphere-3.mp4")       # too noisy to take a third back
+    t, was = drift.test_beat_cameras([a, near]), drift.test_beat_cameras([a, plain(near)])
+    check(was["outcome"] == drift.FAIL and "camera 2 (sphere-3) sees 2.47 Hz at 3%" in was["reading"],
+          "(before: another camera's record at the same rate agrees, given to its track or not)", was["reading"][-60:])
+    check(t["outcome"] == drift.FAIL and "sees 2.47 Hz" not in t["reading"]
+          and t["reading"].endswith("(camera 1 (hideout-5); no other camera could have seen a beat a third as strong; camera 2 "
+                                    "(sphere-3) saw 3.0% at 2.47 Hz, but that beat follows its own track's jitter and is not "
+                                    "counted)"),
+          "a held beat and another camera's record at the same rate that was given to its track: the record does not agree, "
+          "and the failure rests on what no other camera could have seen", t["reading"][-150:])
+    quiet = _heard(24.0, floor=0.01, video="wildhorse-5.mp4")
+    t = drift.test_beat_cameras([a, near, quiet])
+    check(t["outcome"] == drift.PASS and "camera 1 (hideout-5)'s beat at 2.44 Hz (5% of its brightness) is its own view: "
+          "camera 3 (wildhorse-5), watching at the same time, sees no beat at that rate where a beat of 1.0% would have shown" in t["reading"]
+          and "camera 2 (sphere-3)," not in t["reading"].split(". Camera 2")[0]
+          and "Camera 2 (sphere-3) saw a beat at 2.47 Hz, 3% of its brightness" in t["reading"],
+          "with a third camera that could have seen it and does not, the beat is taken back as before; the camera that saw "
+          "the same rate follow its track neither agrees nor takes it back, and is said", t["reading"][:200])
+    check(drift.test_beat_cameras([a, plain(near), quiet])["outcome"] == drift.FAIL,
+          "(before, that record agreed and kept the failure against the third camera)")
+    # at the same rate too it vouches for what it could have shown: a beat it set aside at a tenth of the held one's
+    # strength says that no beat a third as strong was there, and takes the held beat back, as its record did before
+    sure = _given(hz=2.47, amp=0.005, kept=0.2, floor=0.004, video="sphere-3.mp4")
+    t, was = drift.test_beat_cameras([a, sure]), drift.test_beat_cameras([a, plain(sure)])
+    check(t["outcome"] == was["outcome"] == drift.PASS and "camera 2 (sphere-3), watching at the same time, sees 0.5% at 2.47 "
+          "Hz, which follows its own track's jitter, where only a beat over 0.5%, the strength of the one given to its track, "
+          "would have shown" in t["reading"],
+          "a camera that saw the same rate at a tenth of the strength, following its own track, still takes the held beat "
+          "back, and the reading says whose that 0.5 % was", t["reading"][:250])
+    # at another rate it vouches only for a beat stronger than the one it set aside, not for its floor
+    far = _given(hz=6.0, amp=0.04, kept=0.2, floor=0.01, video="sphere-3.mp4")       # floor 1 %, a beat of 4 % given away
+    t, was = drift.test_beat_cameras([a, far]), drift.test_beat_cameras([a, plain(far)])
+    check(drift.shown_floor(far) == 0.04 and abs(drift.beat_floor(far) - 0.01) < 1e-12 and t["outcome"] == drift.FAIL
+          and was["outcome"] == drift.PASS and "no other camera could have seen a beat a third as strong" in t["reading"],
+          "a camera that set a 4 % beat aside at another rate cannot vouch that a 1.7 % beat was absent (a third of the "
+          "held 5 %), though its floor is 1 %: the held beat stays", t["reading"][-70:])
+    weak = _given(hz=6.0, amp=0.015, kept=0.2, floor=0.01, video="sphere-3.mp4")     # 1.5 % set aside: under a third of 5 %
+    t = drift.test_beat_cameras([a, weak])
+    check(t["outcome"] == drift.PASS and "sees no beat at that rate where only a beat over 1.5%, the strength of the one given "
+          "to its track, would have shown" in t["reading"] and "Camera 2 (sphere-3) saw a beat at 6.00 Hz" in t["reading"],
+          "where the beat it set aside is under a third of the held one, it takes the held beat back, and the reading "
+          "says what it could have shown", t["reading"][:260])
+
+
 # ---------------------------------------------------------------- T4, other evidence: T4a, a tracer
 def test_t4a_pieces_left_slowly_bound_the_airspeed():
     print("\nT4a: pieces shed, against the remains")
