@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased (branch `misfit`)
+## 0.5.9 (2026-11-19)
 
 **`mcdonald drift` refuses lines of sight that no single straight path passes through** (2026-11-19; method section
 92; IDEAS.md TB1). With cameras on the ground (`--rays`), the stage fits one straight path to every camera's lines of

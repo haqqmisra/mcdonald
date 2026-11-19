@@ -24,6 +24,8 @@ goes to the Journal of Open Source Software (JOSS), which accepts the repository
 - **In 0.5.8 (2026-11-17), since this was written:** Find sooner with the same list; `layers --dense` and its option in
   the window; the planted objects through `batch`, with a table of what was found and of the beats, video by video;
   and the drift paper's release, below.
+- **In 0.5.9 (2026-11-19):** the misfit gate in `drift`, the first of the four things set for after 0.5.8, for the
+  drift paper too (below).
 - **Known answers in hand.** The Yemen clip, AARO's Puerto Rico lanterns and the Santa Barbara helicopter (the drift
   paper's three); AARO's fourteen resolved cases; the labelled infrared set (432 tracks of birds, drones, airplanes
   and helicopters); the five Galileo Project flyers; and since 2026-11-12 the Galileo Project's triangulated objects
@@ -127,6 +129,14 @@ a camera of its own and its pointing known to 0.7 and 0.4 degrees: no aircraft o
 drifting; 44 of 119 clouds drifting, 74 cannot say, 1 not drifting (two things matched as one). Set for after it,
 each measured first: a gate for a path that misses its lines of sight, a hold-still rule against the winds' middle,
 `flicker`'s held pictures asked of the object's own frames, the jitter read window by window.
+
+**The first of those, built on 2026-11-19 as 0.5.9** (the maintainer: "The method should be as good as it can";
+CHANGELOG.md; method section 92; `docs/handoff-misfit.md`). With cameras on the ground, `drift` now asks how far each
+camera's pointing would have to be off for one straight path to pass through every line of sight, and refuses the
+height and wind tests over 19 times what is taken as known. The 19 is from a null of 6,073 transponder-tracked
+aircraft outside the paper's sample. The paper's table with it: no aircraft of 80 called drifting and all 80 not
+drifting; 44 of 119 clouds drifting, 75 cannot say, none not drifting. The cloud of two things matched as one is
+refused. The other three stay set for after.
 
 **What the package lacked for it, as written before the work:**
 

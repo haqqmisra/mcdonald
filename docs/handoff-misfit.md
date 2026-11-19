@@ -10,8 +10,11 @@ a cloud faster than the wind? It is two things matched as one (method section 92
 
 ## Where things stand
 
-- **Branch `misfit`** (worktree `/hugespace/models/mcdonald-misfit`), from `main` 749dc89 (0.5.8 and its handoff
-  commits). **Not merged, not pushed, no version set.** `main` and `dev-0.6` are not touched.
+- **Merged into `main` on 2026-11-19** at Jacob's word ("Great! The false positive is gone. Yes, merge into main and
+  update the paper"), merge commit 168b831, and versioned **0.5.9** in the commit after it. The rate is as built (19).
+  **Not pushed, no tag:** the push, the tag and the Mac and Windows runs before them are his word, as for 0.5.8.
+  `dev-0.6` is not touched: it will meet `drift.py`, `sightlines.py`, `tests/test_drift.py` and method section 92 when
+  it next takes `main`. The branch was made from `main` 749dc89 (0.5.8 and its handoff commits).
 - **Built:** `sightlines.asked` and `sightlines.misfit` (the reading), `sightlines.MISFIT` = 19 and `ASKED_MIN` = 9,
   the refusal in `drift.unfixed`, the words (`sightlines.no_one_path`, a line in `sightlines.said`), the test
   `test_cameras_the_misfit_gate`, method section 92, the CHANGELOG's "Unreleased (branch `misfit`)", IDEAS.md TB1.
@@ -44,11 +47,12 @@ Discussion's "one of 119", Fig. 7's caption and its top bar, Methods): the paper
 
 ## For Jacob to decide
 
-1. **Merge, and where:** into `main` as a 0.5.9 for the paper, or into `dev-0.6` for 0.6. It is a report-changer on
-   one known object. Nothing else waits on it.
+1. **Merge, and where:** DECIDED 2026-11-19: into `main`, as 0.5.9, and the paper updated.
 2. **The rate** (section 92, judgement 1): one single body in a thousand by the null's own law (`MISFIT` 19, as
-   built); or one in 200 (13) or one in 100 (11), which refuse more made mismatches (two clouds: 65 % at 13 where
-   51 %) and more real aircraft (0.5 % and 1 %). The paper's 239 objects come out the same from 9.5 to 29.
+   built, and as merged on his "The false positive is gone"); one in 200 (13) or one in 100 (11) would refuse more
+   made mismatches (two clouds: 57 to 67 % at 12 to 15 where 51 %) and more real aircraft (0.5 % and 1 %). The
+   paper's 239 objects come out the same from 9.5 to 29. Open only if he wants another rate.
+2a. **The release:** the push of `main`, the tag `v0.5.9`, and the Mac and Windows runs before them.
 3. **A name is not a known answer** (found on the way): 1,276 of the 7,423 named aircraft outside the paper's sample
    have no transponder track, and the stage calls 59 of them drifting, at clouds' speeds. The paper's 80 aircraft all
    have a track, so its table stands; the note to the Galileo team could say it.
