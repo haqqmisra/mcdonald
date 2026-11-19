@@ -28,11 +28,16 @@ turn at all. This module is their way in (`--rays`, `--cameras`):
   speed (one place, for a camera standing still) by more than their own error, and the range from every camera must
   be known to better than a factor e with the pointing errors counted.
 
+- The misfit gate (`asked`, `MISFIT`; since 2026-11-19, method section 79): one straight path may pass through
+  every camera's rays only if some camera's pointing is far further off than it is taken as known to be. Then the
+  cameras are not following one body on one straight path, and T1 and T2 are refused ("no single straight path fits
+  these lines of sight") where they used to judge the path fitted all the same.
+
 `rays(..., reference="shared")` keeps the cameras' names and times and fits as the aircraft's route does (one
 azimuth reference for all, one scatter, the plain bootstrap): for cameras that do share one reference, and for
 holding this input to runs made before it existed.
 
-Method: docs/method.md section 66.
+Method: docs/method.md sections 66 and 79.
 """
 import math
 import re
@@ -252,6 +257,79 @@ def pointing(fit, R, sig, scale, known):
     return dict(cov=cov, pull=S, fitted_deg=(q * sign).reshape(K, 2), fitted_err_deg=sd.reshape(K, 2))
 
 
+MISFIT = 15.0           # PROVISIONAL until the null is in (2026-11-19): T1 and T2 are refused where one straight path asks
+#                         a camera's pointing to be off by more than this many times what it is taken as known to
+ASKED_MIN = 9           # a camera with fewer readings than a path is fitted from (`drift.READINGS_MIN`) is not asked: its
+#                         few rays hardly move the path, and an offset fitted to them is their own scatter
+
+
+def asked(fit, R, sig, plane, tm, known):
+    """The pointing that one straight path asks of the cameras. The six-parameter fit takes every camera's pointing
+    as right, and `pointing` carries the error of doing so. Here the same rays are fitted again with each camera's
+    two offsets as parameters too (a constant added to its azimuths and one to its elevations), each offset held to
+    what is taken as known of it (`known`: a Gaussian prior of that size), the rays at the errors given (`sig`, not
+    scaled by their misfit). Lines of sight to one body on one straight path ask for offsets of the size the cameras
+    really have. Lines of sight to two different things matched as one, or to a body that does not move as the model
+    says, can be brought onto one straight path only by offsets many times that size, however small the rays' own
+    scatter. So the size of the largest offset asked, in units of what is taken as known, is read as the misfit: it
+    says in degrees how wrong the cameras would have to be for the fitted path's model to hold.
+
+    The reduced chi-square and the rms about the six-parameter path do not serve: a real aircraft seen by cameras
+    whose clocks and lens models are a little off misses a straight path by more than one cloud matched with a fast
+    object does (method section 79). `drift.model_test`'s p does not either: it is under 0.01 on half the clouds.
+
+    Returns dict(asked_deg, times, rms_deg, params), or None where nothing is taken as known of the pointing (an
+    inf: there is nothing to hold the offsets against) or the fit does not run: `asked_deg` K by 2 (azimuth,
+    elevation: the error each camera's pointing would have, added to its readings to bring them onto the path),
+    `times` each camera's larger offset in units of `known`, `rms_deg` the rays' rms about that path (azimuth,
+    elevation) and `params` its six parameters."""
+    from scipy.optimize import least_squares
+    from .drift import _path_angles, _residuals
+    K, cam = len(R["cameras"]), R["camera"]
+    k = np.tile(np.asarray(known, float), K)
+    if not np.all(np.isfinite(k)) or np.any(k <= 0):
+        return None
+
+    def shifted(q):
+        o = q[6:].reshape(K, 2)
+        return dict(R, az=R["az"] + o[cam, 0], dep=R["dep"] + o[cam, 1])
+
+    def res(q):
+        return np.r_[_residuals(shifted(q), sig, plane, tm)(q[:6]), q[6:] / k]
+    try:
+        g = least_squares(res, np.r_[fit.x, np.zeros(2 * K)], x_scale=[1000, 1000, 100, 10, 10, 1] + [1.0] * (2 * K))
+    except ValueError:
+        return None
+    if not np.all(np.isfinite(g.x)):
+        return None
+    o = g.x[6:].reshape(K, 2)
+    S = shifted(g.x)
+    a, e, _ = _path_angles(g.x[:6], S, plane, tm)
+    rms = [float(np.sqrt(np.mean(((a - S["az"] + 180) % 360 - 180) ** 2))), float(np.sqrt(np.mean((e - S["dep"]) ** 2)))]
+    deg = o * np.array([1.0, -1.0])                        # an elevation offset is minus the depression's
+    return dict(asked_deg=deg, times=np.max(np.abs(o) / np.asarray(known, float), axis=1), rms_deg=rms,
+                params=g.x[:6].tolist())
+
+
+def misfit(ask, R, known):
+    """The misfit's fields from `asked`: the camera that is asked the most (of those with ASKED_MIN readings or
+    more), how many times what is taken as known that is (`misfit`), in which angle and by how many degrees, and
+    whether the gate holds (`misfit_gate`: at or under MISFIT). None for each where nothing was asked."""
+    none = dict(misfit=None, misfit_camera=None, misfit_deg=None, misfit_angle=None, misfit_rms_deg=None,
+                misfit_gate=None)
+    if ask is None:
+        return none
+    n = np.array([int(np.sum(R["camera"] == c)) for c in range(len(R["cameras"]))])
+    ok = np.flatnonzero(n >= ASKED_MIN)
+    if not len(ok):
+        return none
+    c = int(ok[np.argmax(ask["times"][ok])])
+    z = float(ask["times"][c])
+    j = int(np.argmax(np.abs(ask["asked_deg"][c]) / np.asarray(known, float)))
+    return dict(misfit=z, misfit_camera=R["cameras"][c], misfit_deg=float(ask["asked_deg"][c, j]),
+                misfit_angle=("azimuth", "elevation")[j], misfit_rms_deg=ask["rms_deg"], misfit_gate=bool(z <= MISFIT))
+
+
 def geometry(R, p, plane, tm):
     """Where the rays start from, in the words' numbers: how many places (`places`), the farthest two apart
     (`baseline_m`), the largest angle at which two places' lines of sight to the path's point at the mean time cross
@@ -292,6 +370,7 @@ def carried(fit, R, sig, plane, tm, scale, sources, ps, cov, out, known):
     n, K, p = len(R["t"]), len(R["cameras"]), fit.x
     geo = geometry(R, p, plane, tm)
     ref = pointing(fit, R, sig, scale, known) if cov is not None else None
+    ask = asked(fit, R, sig, plane, tm, known)             # the misfit gate: what one straight path asks of the cameras
     a, e, rr = _path_angles(p, R, plane, tm)
     cams = []
     for c in range(K):
@@ -302,14 +381,15 @@ def carried(fit, R, sig, plane, tm, scale, sources, ps, cov, out, known):
             sigma_deg=[float(sig[0] * math.sqrt(scale[i[0]])), float(sig[1] * math.sqrt(scale[n + i[0]]))],
             rms_az_deg=float(np.sqrt(np.mean(((a[i] - R["az"][i] + 180) % 360 - 180) ** 2))),
             rms_dep_deg=float(np.sqrt(np.mean((e[i] - R["dep"][i]) ** 2))),
-            range_m=[float(rr[i].min()), float(rr[i].max())]))
+            range_m=[float(rr[i].min()), float(rr[i].max())],
+            pointing_asked_deg=None if ask is None else [float(x) for x in ask["asked_deg"][c]]))
     one = set(sources)
     new = dict(cameras=cams, reference="camera", pointing_known_deg=[float(known[0]), float(known[1])], **geo,
                errors_from=sources[0] if len(one) == 1 else "each camera's own",
                chi2_p_low=max(ps) if len(one) == 1 and all(x is not None for x in ps) else None,
                sigma_deg=[float(sig[0] * math.sqrt(np.mean(scale[:n]))), float(sig[1] * math.sqrt(np.mean(scale[n:])))],
                velocity_err_rays_m_s=out["velocity_err_m_s"], climb_err_rays_m_s=out["climb_err_m_s"],
-               height_err_rays_m=out["height_err_m"], range_bound_rays=out["range_bound"])
+               height_err_rays_m=out["height_err_m"], range_bound_rays=out["range_bound"], **misfit(ask, R, known))
     if ref is None:
         new.update(velocity_err_pointing_m_s=None, velocity_err_m_s=float("inf"), climb_err_m_s=float("inf"),
                    height_err_m=float("inf"), range_bound=float("inf"))
@@ -361,6 +441,16 @@ def one_place(path):
     return (f"the lines of sight start from places within {path['path_off_line_m']:.0f} m of one straight path at a "
             f"steady speed. That is within their own error ({PATH_GATE:g} x {POSITION_ERR:.0f} m), and lines of sight "
             f"from so nearly one place cannot range what they see")
+
+
+def no_one_path(path):
+    """The misfit gate's words: why these lines of sight are not one body on one straight path."""
+    k = path["pointing_known_deg"][0 if path["misfit_angle"] == "azimuth" else 1]
+    return (f"no single straight path fits these lines of sight. For one to pass through them all, the pointing of "
+            f"{path['misfit_camera']} would have to be {abs(path['misfit_deg']):.1f} deg off in {path['misfit_angle']}. "
+            f"That is {path['misfit']:.0f} times the {k:g} deg it is taken as known to, and more than {MISFIT:g} times "
+            f"is refused. The cameras may be following different objects, or the object did not keep a straight path "
+            f"at a steady speed")
 
 
 def open_range(path):
@@ -432,4 +522,11 @@ def said(g):
         L.append("the lines of sight themselves, held to that, read each camera's pointing as: " + "; ".join(
             f"{c['name']} {c['pointing_fitted_deg'][0]:+.2f} +- {c['pointing_fitted_err_deg'][0]:.2f} deg in azimuth, "
             f"{c['pointing_fitted_deg'][1]:+.2f} +- {c['pointing_fitted_err_deg'][1]:.2f} in elevation" for c in cams))
+    if g.get("misfit") is not None:
+        k = g["pointing_known_deg"][0 if g["misfit_angle"] == "azimuth" else 1]
+        L.append(f"\nDo the lines of sight follow one straight path? For one to pass through them all, the camera asked "
+                 f"the most, {g['misfit_camera']}, would have its pointing {abs(g['misfit_deg']):.2f} deg off in "
+                 f"{g['misfit_angle']}: {g['misfit']:.1f} times the {k:g} deg it is taken as known to. "
+                 + (f"That is within the {MISFIT:g} times allowed" if g["misfit_gate"] else
+                    f"That is over the {MISFIT:g} times allowed, so no path is read from them"))
     return L
