@@ -99,6 +99,7 @@ When you finish one, please
 **mcdonald** is free and open source. To support its development, you can
 [donate to the mcDonald UAP Toolkit](https://www.zeffy.com/en-US/donation-form/project-janus-mcdonald-uap-toolkit)
 through Blue Marble Space, a 501(c)(3) nonprofit. Donations are tax-deductible as allowed by law.
+Supporters are listed, with thanks, on the [Supporters](https://mcdonald.bluemarblespace.org/supporters/) page.
 
 Development of **mcdonald** is supported by a grant from
 [Emergent Ventures](https://www.mercatus.org/emergent-ventures) at the Mercatus Center.
