@@ -75,7 +75,18 @@ The breaks: the gate never shuts; `unfixed` does not read it; the offsets read a
 times tighter; a camera of any number of readings asked; the gate always shuts; an unknown pointing asked all the
 same; cameras that share a reference given the gate.
 
-Not run: arthur and merlin (the queue), Mac and Windows (they wait for a version commit, as for every release).
+**On the version commit c28fda4 (0.5.9), 2026-11-19, from a `git archive` in `/scratch/mcdonald/release-0.5.9/`:**
+
+| what | job | result |
+|---|---|---|
+| the paper's 239 objects on arthur (py314), against the tag's run there | array 15327 | 238 files the tag's but for the gate's fields and the printed lines; the cloud of two things: not drifting -> cannot say. Clouds 44 / 75 / 0, aircraft 0 / 0 / 80, pairs 11 / 29 / 0 |
+| the planted fliers on all 27 sample clouds that pass T2 | array 15337 | the tag's table on 27 of 27; 0 of 7,776 plants differ; every other field the tag's |
+| the drift paper's three videos and the other stages it names | 15328, 15351, 15353 | the three drift files the paper reads: every field the same; the lanterns' planted fliers the same; the other stages' files the same, versions and paths apart |
+| every suite with the footage test on arthur (`tools/suites.sbatch golden`, from the snapshot) | 15336 | ALL SUITES PASS: test_golden 266 / 0 / 0, test_drift 373, test_reduction 734, test_gui 797 and 1 skip (a window opened) |
+| every suite with the footage test on Cannon (`mcdonald-test --golden`) | 62164646 | ALL SUITES PASS: test_golden 266 / 0 / 0, test_drift 373, test_reduction 734 (it holds the version, the date, CITATION.cff and the CHANGELOG's entry) |
+| the null's 7,425 objects through 0.5.9 on Cannon | 62164770 | the 6,073 known aircraft: 0 drifting, 15 cannot say, 6,058 not drifting; 12 refused; the misfit's median 1.91, 99th percentile 10.1, 99.5th 12.4. Verdict, T1, T2, the gate and the misfit itself are the branch's run's on 7,425 of 7,425 |
+
+Not run: merlin, Mac and Windows (the last two before the push, as for every release).
 
 ## How the null was made (to make it again, or larger)
 

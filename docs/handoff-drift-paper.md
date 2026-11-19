@@ -249,17 +249,34 @@ and `galileo/nevada/paper/` (the Galileo numbers the paper quotes, read from the
   a `--time` near what the job uses (the paper's small jobs were planned a day out at 3-4 GB and 40 min, and ran at
   once at 600 MB and 5 min).
 
-## The misfit gate, built on a branch (2026-11-19)
+## The misfit gate: merged, 0.5.9, and the paper brought to it (2026-11-19)
 
 Jacob, 2026-11-19, on the one cloud of 119 called not drifting (two things matched as one): "The method should be as
 good as it can ... Let's implement the misfit gate in drift now", on a branch, tested for wind-drift before it is
-merged. It is on **branch `misfit`** (worktree `/hugespace/models/mcdonald-misfit`, from this branch at 749dc89), and
-its record is that branch's `docs/handoff-misfit.md` and method section 92. In short: the stage asks how far each
-camera's pointing would have to be off for one straight path to pass through every line of sight, and refuses T1 and
-T2 over 19 times what is taken as known, a threshold from a null of 6,073 transponder-tracked aircraft outside the
-paper's sample. On the paper's 239 objects one moves: clouds read 44 / 75 / 0 where 44 / 74 / 1. The release's tag
-on that null calls 0 of 6,073 aircraft drifting. **Not merged**: whether it goes to `main` as a 0.5.9 for the paper
-or to `dev-0.6`, and at which rate, are his to say. TB1 in "What comes after 0.5.8" below is this.
+merged. Then, the same day, on the gate built and held: **"Great! The false positive is gone. Yes, merge into main
+and update the paper."** So:
+
+- **Branch `misfit` is merged into `main`** (168b831) and `main` is versioned **0.5.9** (c28fda4), at the rate as
+  built (`MISFIT` 19). Its record is `docs/handoff-misfit.md` and method section 92. Not pushed, not tagged: the Mac
+  and Windows runs, the push and the tag are his word, as for 0.5.8. `dev-0.6` is not touched.
+- In short: the stage asks how far each camera's pointing would have to be off for one straight path to pass through
+  every line of sight, and refuses T1 and T2 over 19 times what is taken as known, a threshold from a null of 6,073
+  transponder-tracked aircraft outside the paper's sample. That null, through the stage: 0 drifting, 15 cannot say,
+  6,058 not drifting (0.5.8: 0 / 4 / 6,069).
+- **The paper cites 0.5.9 and every output it reads was made again at c28fda4** (a `git archive`,
+  `/scratch/mcdonald/release-0.5.9/snap/`, on arthur). One object moves, the cloud of two things, from not drifting
+  to cannot say: **clouds 44 / 75 / 0** where 44 / 74 / 1; aircraft 0 / 0 / 80 and mismatched pairs 11 / 29 / 0 as
+  they were. The other 238 objects' files are 0.5.8's but for the gate's fields and the printed lines (array 15327);
+  the planted fliers on the 27 sample clouds give the same table, with none of 7,776 plants different (array 15337);
+  the three videos' drift files are the same on every field (job 15328), as are the lanterns' planted fliers
+  (15353) and the other stages on the Yemen clip (15351); Figs. 1 to 6 are the same to the byte and Fig. 7 is
+  redrawn (15367). This supersedes decision 15 (that cloud left in as not drifting and explained).
+- **Where it is written:** the paper folder's README (`~/research/uap/manuscript/hellfire_yemen/README.md`, the
+  section "mcDonald 0.5.9 and the misfit gate"), pushed to Overleaf; `galileo/nevada/paper/README.md` for the
+  numbers (0.5.8's kept as `*_v058.*`); `analysis/cases/hellfire_yemen/paper_check/README.md` for the three videos.
+- **Left for Jacob:** the release of 0.5.9 (then its version DOI goes into the paper at the two places printed in
+  red, and into `refs.bib`); the changed passages of the paper, which he has not read; whether the null's 6,073
+  aircraft belong in the paper's Results as well as its Methods.
 
 ## What the paper's session needs
 
