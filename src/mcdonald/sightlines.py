@@ -28,7 +28,7 @@ turn at all. This module is their way in (`--rays`, `--cameras`):
   speed (one place, for a camera standing still) by more than their own error, and the range from every camera must
   be known to better than a factor e with the pointing errors counted.
 
-- The misfit gate (`asked`, `MISFIT`; since 2026-11-19, method section 79): one straight path may pass through
+- The misfit gate (`asked`, `MISFIT`; since 2026-11-19, method section 92): one straight path may pass through
   every camera's rays only if some camera's pointing is far further off than it is taken as known to be. Then the
   cameras are not following one body on one straight path, and T1 and T2 are refused ("no single straight path fits
   these lines of sight") where they used to judge the path fitted all the same.
@@ -37,7 +37,7 @@ turn at all. This module is their way in (`--rays`, `--cameras`):
 azimuth reference for all, one scatter, the plain bootstrap): for cameras that do share one reference, and for
 holding this input to runs made before it existed.
 
-Method: docs/method.md sections 66 and 79.
+Method: docs/method.md sections 66 and 92.
 """
 import math
 import re
@@ -257,8 +257,15 @@ def pointing(fit, R, sig, scale, known):
     return dict(cov=cov, pull=S, fitted_deg=(q * sign).reshape(K, 2), fitted_err_deg=sd.reshape(K, 2))
 
 
-MISFIT = 15.0           # PROVISIONAL until the null is in (2026-11-19): T1 and T2 are refused where one straight path asks
-#                         a camera's pointing to be off by more than this many times what it is taken as known to
+MISFIT = 19.0           # T1 and T2 are refused where one straight path asks a camera's pointing to be off by more than
+#                         this many times what it is taken as known to. From a null (2026-11-19, method section 92): 6,073
+#                         aircraft of the Galileo catalog, none of them in the drift paper's sample, each with its
+#                         transponder's own track within 1.5 km of the cameras' position, so single bodies by a record the
+#                         cameras did not make. Their misfit is log-normal up to its 99.5th percentile (median 1.9, sigma
+#                         0.75 in the logarithm), and that law puts one single body in a thousand over 19.4. Seen over 19:
+#                         12 of the 6,073 (0.20 %), the excess being cameras that are asked tens of degrees. The three
+#                         objects known to be two things matched as one read 29, 41 and 58. It is in units of what is
+#                         taken as known (0.7 and 0.4 deg for those cameras), so it belongs to that statement of it
 ASKED_MIN = 9           # a camera with fewer readings than a path is fitted from (`drift.READINGS_MIN`) is not asked: its
 #                         few rays hardly move the path, and an offset fitted to them is their own scatter
 
@@ -276,7 +283,7 @@ def asked(fit, R, sig, plane, tm, known):
 
     The reduced chi-square and the rms about the six-parameter path do not serve: a real aircraft seen by cameras
     whose clocks and lens models are a little off misses a straight path by more than one cloud matched with a fast
-    object does (method section 79). `drift.model_test`'s p does not either: it is under 0.01 on half the clouds.
+    object does (method section 92). `drift.model_test`'s p does not either: it is under 0.01 on half the clouds.
 
     Returns dict(asked_deg, times, rms_deg, params), or None where nothing is taken as known of the pointing (an
     inf: there is nothing to hold the offsets against) or the fit does not run: `asked_deg` K by 2 (azimuth,
