@@ -130,7 +130,7 @@ drifting; 44 of 119 clouds drifting, 74 cannot say, 1 not drifting (two things m
 each measured first: a gate for a path that misses its lines of sight, a hold-still rule against the winds' middle,
 `flicker`'s held pictures asked of the object's own frames, the jitter read window by window.
 
-**The first of those, built on 2026-11-19 as 0.5.9** (the maintainer: "The method should be as good as it can";
+**The first of those, built and released on 2026-11-19 as 0.5.9** (the maintainer: "The method should be as good as it can";
 CHANGELOG.md; method section 92; `docs/handoff-misfit.md`). With cameras on the ground, `drift` now asks how far each
 camera's pointing would have to be off for one straight path to pass through every line of sight, and refuses the
 height and wind tests over 19 times what is taken as known. The 19 is from a null of 6,073 transponder-tracked

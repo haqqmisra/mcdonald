@@ -257,8 +257,9 @@ merged. Then, the same day, on the gate built and held: **"Great! The false posi
 and update the paper."** So:
 
 - **Branch `misfit` is merged into `main`** (168b831) and `main` is versioned **0.5.9** (c28fda4), at the rate as
-  built (`MISFIT` 19). Its record is `docs/handoff-misfit.md` and method section 92. Not pushed, not tagged: the Mac
-  and Windows runs, the push and the tag are his word, as for 0.5.8. `dev-0.6` is not touched.
+  built (`MISFIT` 19). Its record is `docs/handoff-misfit.md` and method section 92. **Released as 0.5.9 that evening**
+  on his "go ahead and release": Mac run 126 and Windows run 127 green, `main` and the tag `v0.5.9` (= c28fda4)
+  pushed, PyPI, the site, the GitHub release; version DOI 10.5281/zenodo.24381952. `dev-0.6` is not touched.
 - In short: the stage asks how far each camera's pointing would have to be off for one straight path to pass through
   every line of sight, and refuses T1 and T2 over 19 times what is taken as known, a threshold from a null of 6,073
   transponder-tracked aircraft outside the paper's sample. That null, through the stage: 0 drifting, 15 cannot say,
@@ -274,9 +275,9 @@ and update the paper."** So:
 - **Where it is written:** the paper folder's README (`~/research/uap/manuscript/hellfire_yemen/README.md`, the
   section "mcDonald 0.5.9 and the misfit gate"), pushed to Overleaf; `galileo/nevada/paper/README.md` for the
   numbers (0.5.8's kept as `*_v058.*`); `analysis/cases/hellfire_yemen/paper_check/README.md` for the three videos.
-- **Left for Jacob:** the release of 0.5.9 (then its version DOI goes into the paper at the two places printed in
-  red, and into `refs.bib`); the changed passages of the paper, which he has not read; whether the null's 6,073
-  aircraft belong in the paper's Results as well as its Methods.
+- **Left for Jacob:** the changed passages of the paper, which he has not read; whether the null's 6,073 aircraft
+  belong in the paper's Results as well as its Methods. The version DOI is in the paper (Code availability, the
+  Acknowledgements, `refs.bib`) since the release.
 
 ## What the paper's session needs
 

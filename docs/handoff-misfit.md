@@ -12,7 +12,10 @@ a cloud faster than the wind? It is two things matched as one (method section 92
 
 - **Merged into `main` on 2026-11-19** at Jacob's word ("Great! The false positive is gone. Yes, merge into main and
   update the paper"), merge commit 168b831, and versioned **0.5.9** in the commit after it. The rate is as built (19).
-  **Not pushed, no tag:** the push, the tag and the Mac and Windows runs before them are his word, as for 0.5.8.
+  **Released as 0.5.9 the same evening** (Jacob: "go ahead and release"): Mac run 126 and Windows run 127 green on
+  c28fda4, then `main` pushed (450268e), the tag `v0.5.9` on the version commit c28fda4, the GitHub release from the
+  CHANGELOG entry, PyPI by the tag's workflow (publish run 39), the site (run 31). Zenodo's version DOI is
+  10.5281/zenodo.24381952 (CITATION.cff).
   `dev-0.6` is not touched: it will meet `drift.py`, `sightlines.py`, `tests/test_drift.py` and method section 92 when
   it next takes `main`. The branch was made from `main` 749dc89 (0.5.8 and its handoff commits).
 - **Built:** `sightlines.asked` and `sightlines.misfit` (the reading), `sightlines.MISFIT` = 19 and `ASKED_MIN` = 9,
@@ -52,7 +55,7 @@ Discussion's "one of 119", Fig. 7's caption and its top bar, Methods): the paper
    built, and as merged on his "The false positive is gone"); one in 200 (13) or one in 100 (11) would refuse more
    made mismatches (two clouds: 57 to 67 % at 12 to 15 where 51 %) and more real aircraft (0.5 % and 1 %). The
    paper's 239 objects come out the same from 9.5 to 29. Open only if he wants another rate.
-2a. **The release:** the push of `main`, the tag `v0.5.9`, and the Mac and Windows runs before them.
+2a. **The release:** DONE 2026-11-19 on his "go ahead and release" (above).
 3. **A name is not a known answer** (found on the way): 1,276 of the 7,423 named aircraft outside the paper's sample
    have no transponder track, and the stage calls 59 of them drifting, at clouds' speeds. The paper's 80 aircraft all
    have a track, so its table stands; the note to the Galileo team could say it.
@@ -86,7 +89,11 @@ same; cameras that share a reference given the gate.
 | every suite with the footage test on Cannon (`mcdonald-test --golden`) | 62164646 | ALL SUITES PASS: test_golden 266 / 0 / 0, test_drift 373, test_reduction 734 (it holds the version, the date, CITATION.cff and the CHANGELOG's entry) |
 | the null's 7,425 objects through 0.5.9 on Cannon | 62164770 | the 6,073 known aircraft: 0 drifting, 15 cannot say, 6,058 not drifting; 12 refused; the misfit's median 1.91, 99th percentile 10.1, 99.5th 12.4. Verdict, T1, T2, the gate and the misfit itself are the branch's run's on 7,425 of 7,425 |
 
-Not run: merlin, Mac and Windows (the last two before the push, as for every release).
+| Mac and Windows (`platforms.yml`, pushed to `macos-ci` and `windows-ci`) | runs 126, 127 | both green: every suite passes on each (`ci-logs`, `logs/126-c28fda4`, `logs/127-c28fda4`); the Mac's runner was slow that hour (47 min where 35 at 0.5.8), Windows took 64 min of its 120 |
+| a fresh install of 0.5.9 from PyPI into an empty venv, on merlin (Python 3.12, no AVX2) | 16865 | `mcdonald --version` 0.5.9, `sightlines.MISFIT` 19.0, `setup --no-desktop` and `drift --help` run |
+
+Not run: merlin. The suites on arthur's card (job 16193) were queued behind the dev session's jobs and had not started
+when the release went out; the gate touches no code that the card runs.
 
 ## How the null was made (to make it again, or larger)
 
