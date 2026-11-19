@@ -219,6 +219,36 @@ file was edited on 2026-11-18 for the visible tracks and its line was not made a
 this one to the byte), and `svanstrom2021/tracks_visible/` (406 files) has no lines yet. So `mcdonald-test` may run on
 Cannon again; the two "still open" notes on Cannon's copy above are done.
 
+## The paper's outputs made again from the release, and its Galileo section written (2026-11-18)
+
+Jacob, 2026-11-18: "write the Galileo section and re-make the outputs under 0.5.8 for the wind-drift paper". Nothing
+in this repository's code moved. The record is in the research repository: the paper's `README.md` ("mcDonald 0.5.8
+and the Galileo section": every job, what moved, what is open), `analysis/cases/hellfire_yemen/paper_check/README.md`
+and `galileo/nevada/paper/` (the Galileo numbers the paper quotes, read from the runs at the tag by `collect.py`).
+
+- **The paper cites 0.5.8.** Every output it reads was made again from a `git archive` of the tag (flicker, drift,
+  the band and the other stages on the three videos; the figures), and the text follows them. The three verdicts
+  stand. The Yemen verdict now rests on Test 4a alone, as "What the paper's session needs" foretold, and the paper
+  says that without the strike's evidence it would be "cannot say".
+- **The lanterns' planted fliers in the paper are now `drift --plant`'s** (job 12199: the table of section 67 to the
+  digit: a drifter 32 of 32, every flier failing from 25 m/s, one of 32 at 20 m/s, none passing).
+- **The Galileo section** quotes the table above (aircraft 0 / 0 / 80, clouds 44 / 74 / 1, mismatched pairs
+  11 / 29 / 0) from the run at the tag (job 10530), with a figure of its own, and says in Methods that these objects
+  also shaped the rules. The planted fliers on the 27 clouds were made again at the tag (array 12201,
+  `/scratch/mcdonald/drift-final-2026-11-18/plants_tag/`; 687 s a cloud on 6 CPUs): on 27 of 27 the table, every
+  plant's outcome and its airspeeds needed and tolerance are the same as the plants of 2026-11-17 at a50bdc3, and
+  every other field of each file is that of its case at the tag (`plant_cmp.txt` there).
+- **The Galileo envelopes held to the release** (`/scratch/mcdonald/drift-final-2026-11-18/env_cmp.txt`): the 513
+  envelopes behind the table were made the day before the release, before the band's words were merged into
+  `flicker`. A sample of 24 clips (the 8 whose beat went to the track, 8 other cloud clips, 8 aircraft clips) made
+  again by the tag's `flicker` (array 12211) gives every number and every exit code the same; only `finding` and
+  `said` differ, by the band's clause.
+- **Found on the way, for this repository:** `mcdonald stabilize` on the Yemen clip puts 329 of 691 frames on the
+  display's drawing where 0.4.0 put 21 (and 11 where 18 in the anchored call), still with no power; nothing was
+  looked into. And the queue: low-priority jobs behind a deep queue start only by backfill, which wants a `--mem` and
+  a `--time` near what the job uses (the paper's small jobs were planned a day out at 3-4 GB and 40 min, and ran at
+  once at 600 MB and 5 min).
+
 ## What the paper's session needs
 
 The manuscript is Jacob's: the tool's sessions report what the tool shows and give no revision advice.
