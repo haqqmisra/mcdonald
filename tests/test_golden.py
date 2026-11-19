@@ -462,14 +462,15 @@ def test_checklist_on_the_case_files():
     # the same on every object whose blocks say the background moved, and no other (method section 41's list)
     moved = sorted(k for k, v in seen.items() if "camera" in v and "whole blocks of frames" in v["camera"]["said"] or "blocks of frames read it" in v.get("camera", {}).get("said", ""))
     held = sorted(k for k, v in seen.items() if "camera" in v and "held still on screen" in v["camera"]["said"])
-    check(moved == ["pr077/object-1", "pr077/object-2", "pr079/object-1", "pr085/object-1", "pr088/object-1", "pr088/object-2", "pr099/object-1",
+    check(moved == ["pr077/object-1", "pr077/object-2", "pr079/object-1", "pr085/object-1", "pr088/object-1", "pr088/object-2", "pr089/object-1", "pr099/object-1",
                     "pr099/object-2", "pr099/object-3", "pr135/object-1", "pr135/object-2", "pr135/object-3", "pr135/object-4", "pr135/object-5",
                     "pr135/object-6", "pr41/object-1", "pr44/object-1"]
           and held == ["pr097/object-1", "pr097/object-2", "pr097/object-3", "pr097/object-4", "pr097/object-5", "pr097/object-8", "pr141/object-1",
                        "pr141/object-2"]
           and all(seen[k]["camera"]["answer"] == YES and seen[k]["moves"]["answer"] == CANT for k in moved)
           and all(seen[k]["camera"]["answer"] == CANT for k in held),
-          "the 17 objects whose blocks read the background moving under the sensor's pattern say the camera moved, and the 8 with no such "
+          "the 18 objects whose blocks read the background moving under the sensor's pattern say the camera moved (PR089's, PR088's object 2 "
+          "followed into the second part of its recording, since 2026-11-18), and the 8 with no such "
           "reading that the picture held still on screen (Can't tell), as before", f"moved {len(moved)}, held {len(held)}: {held}")
     # the beat row's "No" only where a bird's beat would have shown, and integrity's agreement (2026-11-07, method section 47)
     beat = {k: v["beat"]["answer"] for k, v in seen.items() if "beat" in v}
@@ -482,7 +483,7 @@ def test_checklist_on_the_case_files():
     check({k for k, a in added.items() if a == "Consistent"} == {"pr113/object-1", "pr144/object-1", "pr149/object-1"}
           and not [a for a in added.values() if a in (YES, NO)],
           "integrity: Consistent on PR113, PR144 and PR149 (0.4.3 said No), Can't tell on the rest, never a bare Yes or No", str(added))
-    # how sure (S17) and what it rests on (E7): none of the 31 has had its track sheet looked at, so the risk of bias is very
+    # how sure (S17) and what it rests on (E7): none of the 32 has had its track sheet looked at, so the risk of bias is very
     # serious on all, and each concluded object has its reasons, a bird's beat first and weighed for a bird
     sure = {k: g["level"] for k, (_, g, _) in graded.items() if g}
     birds = {k: rs for k, (label, _, rs) in graded.items() if label == "Beats like a bird"}
