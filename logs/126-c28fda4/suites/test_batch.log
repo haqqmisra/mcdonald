@@ -1,0 +1,98 @@
+
+how a video is cut, and which of Find's proposals are objects
+  PASS  a video is cut as the beat sweep cut it: PR073's eight windows, a short video one window
+  PASS  every frame is in a window, each window overlapping the next by 30 frames or more  [15 windows]
+  PASS  kept: seen on 40 frames or more, with background all round, not a tape; each of the rest with why not  [[('w00', 3, ('brief',)), ('w00', 4, ('edge',)), ('w00', 5, ('tape',))]]
+  PASS  the rule's two numbers can be asked about (the plants' table does): at 15 frames and 0.05 round, the brief one and the edge are taken, the tape is not  [[('w00', 5, ['tape'])]]
+  PASS  the bright one seen in both windows is one object; the dark one beside it another; one far off a third  [[(1, 60, True, 1), (1, 119, False, 2), (50, 119, False, 1)]]
+  PASS  an object seen in two windows has its marks from both, and the better of its two scores  [[1, 50, 60, 119]]
+  PASS  measured in the order of Find's score, the best first  [[(True, 1), (False, 50), (False, 1)]]
+  PASS  the one press's rule is one function for the window and the command line: the first row, and any other not weak; or the N most likely where a count is given
+
+a list file, and what decides a video's results
+  PASS  a list: one video a line, a segment as two numbers or A-B, comments left out  [[('PR113', 400, 420), ('PR149', 1, 158), ('/some where/a video.mp4', None, None), ('DOD_1.mp4', None, None)]]
+  PASS  a list with named columns (tools/sweep/videos.tsv) is read by them: the video by its file
+  PASS  a video's make: the version and the options that reach the measuring, not where its frames are kept nor its note
+  PASS  a picture that does not change is held to Find's own floor for a candidate, smoothed as Find smooths  [4.0 and 4.0]
+
+the audit's draw, and what a look at it bounds
+  PASS  a frame's weight is half its leverage on a straight-line fit: even in the middle, four times that at the ends  [3.98]
+  PASS  59 draws, the same every time for one object and others for another, numbered in the video's order  [53 frames]
+  PASS  a track of 59 frames or fewer is checked whole
+  PASS  59 draws with none wrong bound the wrong share under 5 %, and 58 do not  [4.95 %]
+  PASS  with some wrong the bound is the exact binomial one: the share at which so few wrong would be seen 1 time in 20  [10.3 % for 2 of 59]
+
+a video's lock, and the job script
+  PASS  one process a video: a second cannot take a lock that is held
+  PASS  and can once it is released
+  PASS  a lock left by a process that is no longer running is taken over at once
+  PASS  one made on another computer only when it has shown no sign of life for ten minutes
+  PASS  the videos in size classes: each in one, a class's memory its largest video's  [[(240, [2, 5]), (240, [0, 1])]]
+  PASS  a segment is sized by its own frames; fewer CPUs by more time and less memory; a larger picture by more memory
+  PASS  an array's tasks as sbatch takes them
+  PASS  a unit's frames are in a folder of its own: not another batch's of the same video, nor another part's
+  PASS  --units and --except take videos by name, record id or number, and a name that is no video's is refused
+  PASS  the job script names no partition and no account; a task of an array is one video, and alone it writes the table
+  PASS  what the person passes for sbatch is on every line; the table's job waits for the arrays; --slurm-print submits nothing
+  PASS  --card: one job given the graphics card in place of the arrays, its videos side by side (no more than there are), each with its CPUs, the memory of them all; the table's job after it  [ -c 16 --mem=15000M --time=03:36:00 --gres=gpu:1 -o /var/fol]
+  PASS  and with videos chosen (--units, --except) it is told which, by number  [h.sbatch --pool 2 --units 1,3)]
+  PASS  the job script run with words after it (the card's job: --pool N) runs them; an array's task is still one video
+  PASS  and does so: the script given --status says how the videos stand  [4 videos: 4 waiting]
+  PASS  a video measured in fewer stages is sized by their share of an object's time (ingest is always run): a planted stretch of 1000 frames with 40 objects followed and reported (--only track,report) is an hour's class, not twelve hours'; its memory is the same  [0.063, 0.192]
+  PASS  and the lines written for a batch take the stages from its plan, for arrays and for the card's job alike  [[60, 49]]
+
+a pool's videos: their CPUs, and how many share the graphics card
+  PASS  three videos side by side: each is told it has a third of the CPUs, and is one of three on the card  [[('1', '3'), ('1', '3'), ('1', '3')]]
+  PASS  a pool of 8 with three videos to do runs three; in a process that is itself one of two on the card, each is one of six
+
+a list of drawn videos through a pool, stopped half way and started again
+  PASS  --status plans and says how each video stands, alone on stdout as JSON, with nothing run  [exit 0]
+  PASS  the plan lists the videos with their frames, and keeps the options
+  PASS  stopped half way: --status says which videos are done, which were stopped and which wait  [{'one': 'stopped', 'two': 'stopped', 'brief': 'waiting', 'still': 'waiting', 'gone': 'waiting'}; last steps seen {'one': 'measuring object 1 of 1', 'two': 'Find, window 1 of 1 (frames 1-70)'}]
+  PASS  started again, it goes on to the end: four videos done and the one that is not there failed; the exit says a video failed  [exit 1; {'brief': 'done', 'gone': 'failed', 'one': 'done', 'still': 'done', 'two': 'done'}; had ['object-1', 'object-2']]
+  PASS  a video stopped half way was taken up a second time
+  PASS  each video says in its log what computes it, and keeps it in its state: the graphics card, or why not  [{'brief': 'CuPy is not installed (`mcdonald setup --install-gpu` installs it)', 'gone': 'CuPy is not installed (`mcdonal]
+  PASS  stopped and started again, the table is the one a run left alone gives: every row, every label and number  [6 and 6 rows; []]
+  PASS  one row an object, and one for each video with none  [[('brief', None), ('gone', None), ('one', 1), ('still', None), ('two', 1), ('two', 2)]; why none: {'brief': ('nothing found', "1 proposals of Find's, none seen on 40 frames or more as a spot (1 seen too briefly, 0 an edge or a line, 0 a scrolling tape)"), 'still': ('still picture', 'The picture is the same at 40 moments, one every 0.038 s. No part of it differs from the first by more than 0.0 grey levels, and Find needs 4 to see a spot. A c'), 'gone': (None, 'at: fetching the video')}; logs: {}]
+  PASS  an object's row: how Find saw it, how far it was followed, its report's label, how sure, its rate, each test's answer  [No physical conclusion, Low, 150.6 px/s]
+  PASS  a video with nothing that lasts is a row that says so, with a picture of what was refused  [1 proposals of Find's, none seen on 40 frames or more as a spot (1 seen too briefly, 0 an edge or a line, 0 a scrolling tape)]
+  PASS  a video whose picture does not change is a row that says so, and is not searched  [The picture is the same at 40 moments, one every 0.038 s. No]
+  PASS  a video that fails is a row with its error, and the others were done  [Stop: gone.mkv: no such file, and no video with that name in the PURSUE catalog.]
+  PASS  the table's counts: videos by what became of them, objects by their report's label  [{'measured': 2, 'failed': 1, 'nothing found': 1, 'still picture': 1}]
+  PASS  batch.tsv has a row an object under one header; batch.md says the reports are provisional and lists each video
+
+what is done is not done twice; other options are another make
+  PASS  run again, the done videos are left as they are, and the failed one is tried again
+  PASS  with another cap the done videos are of another make: left as they are, and --status says so
+  PASS  --again does a video again by the new options, its old folder moved aside; two objects found, one measured, one listed; and the table says which videos are of another make  [1 rows, other make 1]
+
+a video's folder: its objects, its index, its audit, and one case file
+  PASS  the folder holds Find's proposals, each object, the index, the rows and the case file; the frames are gone  [['batch_state.json', 'find', 'object-1', 'object-2', 'two_batch.json', 'two_batch.mcdonald', 'two_objects.json', 'two_objects.md']]
+  PASS  each object's marks are recorded as taken by the batch's rule with nobody looking, never as a person's  [agent: spot 1 of 2 that Find proposed in frames 1–70 (bright, about 11]
+  PASS  and its report says so on its face, and that its numbers are provisional
+  PASS  the case file is a shared file like any other: the video by name and SHA-256, both objects, a note saying how it was made
+  PASS  the case file measures again to its numbers by `mcdonald run` on its marks: what the batch gives is what `run` gives  [[]]
+  PASS  each object has its audit: 59 draws from its track, and a sheet with a tile for each frame drawn  [36 frames of 70]
+  PASS  and the tile is the video's own pixels round the track: the bright disc is in its middle  [frame 3]
+  PASS  --audit says what was drawn, and that nobody has looked yet  [object-1: The audit drew 36 frames of its track's 70, from 59 draws at random (t]
+  PASS  a look with none wrong is recorded with who looked, and bounds the wrong share of the track's weight under 5 %  [ every one. With 95 % confidence, the wrong frames hold under 5.0 % of the track's weight.]
+  PASS  a look that found frames wrong records which, and the bound that follows  [14.8 %]
+  PASS  a number the sheet does not have is refused  [exit 2]
+  PASS  --table writes the table again from the folders as they are now: the look is in the object's row
+
+a scheduler's pause, taken out of the times
+  PASS  the seconds of a unit's run that lie in a pause
+  PASS  with batch_pauses.tsv a unit's time in a pause is taken out (`running_s`), an object's is counted, and batch.md says so  [28.0 s, of it 28.0 paused]
+  PASS  with no pauses given, nothing is taken out and the rows say nothing was said
+
+a named part of a video, and a video given on the command line
+  PASS  with --json a run prints one object alone on stdout, whatever its steps say on the way  [stdout begins '{\n "command": "batch",\n "mcdonald": "0.5.9",\n "inputs": {\n  ']
+  PASS  a part of a video (VIDEO:FIRST-LAST) is searched and measured alone, in its segment's folder  [exit 0; ]
+  PASS  and `mcdonald segments` lists it as it lists any segment
+
+how deep a batch goes: Find only, Find and the link only, and how many of Find's rows are kept
+  PASS  --most 0 stops after Find: the spots that lasted are listed and none is followed or measured  [2 spots that lasted are listed; none was measured, as asked (--most 0)]
+  PASS  --keep says how many of Find's rows each stretch keeps, as `look --propose --json` gives them; it is part of the make  [2 rows]
+  PASS  --only track,report stops after the link: each object is followed, its track kept, and nothing is measured  [stages ['ingest', 'track']; 1.7 s]
+
+ALL PASS

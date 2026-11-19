@@ -1,0 +1,464 @@
+
+T1: the height, from the readouts
+  PASS  the scene gives three readings of each or more  5 slant, 7 horizontal
+  PASS  a body holding its height holds it, to its error: passes  0.11 +- 1.17 m/s
+  PASS  the height difference is the scene's  3801.2 m
+  PASS  and the depression at the end  43.01 of 43.36 deg
+  PASS  a body climbing at 12 m/s, faster than any balloon: fails  12.29 +- 1.18 m/s
+  PASS  no ranges: cannot say
+
+T2: the straight line, from ranges and bearings
+  PASS  its velocity against the aircraft, within 3 m/s  [-67.0, 75.0] of [-67.0, 75.0]
+  PASS  its speed, with a bootstrap error  100.6 +- 0.09 m/s
+
+T2: the winds
+  PASS  a body drifting with the winds: the airspeed it needs is the aircraft's and the nearest sample is within a model's own error of its sideways motion, passes; the reading says the pass is not a strong one  [170.4, 178.5] kn of 175; 0.15 m/s short of 4.8
+  PASS  a drone crossing the heading at 25 m/s: even the nearest sample leaves it over 10 m/s beyond the tolerance, fails (cannot say until 2026-11-17, when the test never failed)  Across its heading the winds' difference is 12-19 kn to the left, and the measured motion 33 kn to the right. Even the nearest of the 6 hours and plac
+  PASS  and the airspeeds a 25-m/s drone would need are given
+  PASS  the edges, with one sample and a fit taken as exact: 4.8 m/s across the heading passes, 14.8 fails, between the two it cannot say  passes, cannot say, cannot say, fails
+  PASS  a body flying 4 m/s across the heading passes as a drifter does (the route's pass is not a strong test); at 10 m/s it cannot say, and says by how much  Across its heading the winds' difference is 16 kn to the left, and the measured motion 35 kn to the left. The one hour and place given leaves it 10.0 m/s throug
+  PASS  the fit's own error across the heading is in the tolerance, twice over: 3 m/s of it, and 10 m/s across passes  tolerance 10.8 m/s
+  PASS  samples whose difference straddles the heading no longer stop a pass (they did until 2026-11-17): the nearest one is asked, and `same_side` is still recorded  [-5.8, 5.8] kn, same_side False
+  PASS  an airspeed beyond the aircraft's range: cannot say, though the sideways motion fits
+  PASS  a pass of T2 from the ranges does not carry the verdict (it did until 2026-11-17): cannot say, and the reason says that it passed and why that is not enough  no strong test (T2 from lines of sight, or T4a with a tracer at the object's depth) passed. T2 passed from the ranges, where it cannot tell a drifter from a slow flier
+
+T2: the archive's winds
+  PASS  an hour's winds per sample  2
+  PASS  a level with no height placed by the hypsometric equation: its wind at that height (from the west, 10 kn)  [5.144, 0.0]
+  PASS  the upper level's (from the north, 30 kn)  [-0.0, -15.433]
+
+T2 from the ranges against soundings: the tool on a drawn station, and its table
+  PASS  the reader: one sounding of 20 wind levels, a level given by pressure alone placed by ln(p) between its neighbours  0.05 m from its true height
+  PASS  the sounding's wind at the object's height, between its levels; none above its top level  [9.37, 0.68]
+  PASS  a model that holds the sounding's own winds: no error at any height, at the hour or the hour before, nor in the difference between two heights (but IGRA's rounding)  0.13 m/s
+  PASS  drawn cases through drift.test_wind, three cells and 24 hours as the Yemen run had (the samples the same as drift.wind_samples'): where the model holds the true winds a drifter passes on every heading  12 of 12
+  PASS  the same case with its sideways motion's sign turned is twice the winds' difference off: it passes where that is under 3 m/s and not where it is over 8.5 (the rule reads a size; the rule before, which read the side, passed it on nearly no heading)  passes 2 of 12, 2 of the 2 near and 0 of the 8 far; the rule before 0
+  PASS  a body crossing the heading at 25 or 50 m/s fails either way, on every heading; by the rule before it passed one way and not the other (a side, not a size), and the tool still gives that rule's answer
+  PASS  crossing at 10 m/s it cannot be said, on every heading; crossing at 5 m/s it passes as a drifter does, on nearly every one: the pass is not a strong test  at 5 m/s 12 and 12 of 12
+  PASS  a body flying 50 m/s along the heading passes wherever the drifter does (nothing of it shows across the heading, and 0-240 kn takes it in); flying the other way from an aircraft over 150 kn it cannot be said, the airspeed it implies being out of the range, and it does not fail; nor did it pass by the rule before, whose answer the tool keeps with the airspeed's range in it
+  PASS  the model's 400-hPa wind 4 m/s off to the east: the 700-400 hPa difference errs by 4 m/s east, the wind at 7.5 km by nearly as much  4.08 and 3.79 m/s
+  PASS  a model's wind against a balloon, 1-6 km above the station at the hour before the sounding: about 2.1 m/s off (median), 4.3-4.6 at the 90th percentile; MODEL_WIND_ERR, 2 m/s since 2026-11-17 (3 before), is that median miss as a vector (and what a balloon needs beyond the hours' spread and the fit's errors 91 times in 100)  2.06 / 4.3 / 0.732, 2.2 / 4.6 / 0.693
+  PASS  the model's wind DIFFERENCE between the Yemen clip's two heights, across a heading: one standard deviation 3.0 m/s, 4.8 nine times in ten; the clip's least shortfall (2.7 m/s) is inside one, its largest (9.5) beyond 95 in 100  sd 2.98, 90th 4.8, 95th 5.97 m/s
+  PASS  WIND_DIFF_ERR (4.8 m/s) is the size that error stays under nine times in ten on the even-numbered stations (4.84), and on the odd-numbered, which it was not set on, the 90th percentile is 4.77  4.84 on 3341 soundings, 4.77 on 4017
+  PASS  three cells and 24 hours, as the Yemen run had: a true drifter passes 96.8 times in 100 (the draft's score: 96.9) and fails under 2 in 10,000  96.8 % of 48288, fails 0.01 %
+  PASS  bodies flying 5, 10, 25 and 50 m/s through the air pass 95, 83, 30 and 14 times in 100 and fail 0, 0, 23 and 72 (the draft's: 95, 84, 30, 14; 22, 72): no strong test, since a slow flier passes nearly as often as a drifter  5: 94.8 / 0.01; 10: 82.9 / 0.04; 25: 29.8 / 22.66; 50: 13.8 / 72.19
+  PASS  with one cell and three hours a drifter passes 98.5 (the draft's: 98.8), 10 m/s passes half the time, and 25 and 50 m/s fail 56 and 75 times in 100  0: 98.5 / 0.01; 5: 89.4 / 0.02; 10: 50.6 / 0.24; 25: 21.0 / 56.16; 50: 14.9 / 75.0
+  PASS  the stations the allowance was set on score the same within half a point (nothing was fitted to them but one percentile), and the soundings' own 700- and 400-hPa levels within 2.5; the same cases with the sideways motion's sign turned pass far less often and fail one time in nine  largest difference 0.3 and 2.0 points; the mirror 63.7 / 11.6
+  PASS  that error stops growing past 1 km of separation, at about the square root of two times one wind's error: the model's errors at two heights a kilometre or more apart are nearly independent  1.34, 1.38, 1.50, 1.43, 1.63, 1.48
+  PASS  at the sounding's own hour the model is nearer the balloon than an hour before (it has just been given the sounding); the station left out of the pooled rows has a tail the others do not  2.59 against 3.17 m/s; 95th pct 16.5 against 5.54
+
+T1/T2 from the aircraft's own track: the path
+  PASS  an orbit fixes the object's velocity over the ground  [-6.1, -3.62] of [-6.0, -3.5], error 0.19
+  PASS  and its height and climb  251 m, -0.50 m/s
+  PASS  height above the ground given; the line of sight turns  181 m, 170 deg
+  PASS  T1: a slow sink holds its height, passes  it holds its height: -0.50 +- 0.02 m/s
+  PASS  the aircraft's own wind and airspeed, from its turn  [-9.03, -2.96] of [-9.0, -3.0], 100.0 m/s
+  PASS  the same rays given as ground points: the same path  [-6.103, -3.623]
+  PASS  a straight-flying aircraft cannot range what it sees: cannot say  the lines of sight do not fix its velocity: the aircraft flew straight: its path leaves a 
+
+T1/T2 from the aircraft's own track: errors from the rays' own scatter where they fit better than the errors given
+  PASS  rays fitted with the scatter they were drawn with: the errors given stand  reduced chi-square 0.79, lower tail 0.10
+  PASS  the same rays with errors given three times too wide: the rays' own scatter takes their place, and it is the scatter they were drawn with  0.080 and 0.028 deg of (0.09, 0.03)
+  PASS  and the path's errors from the rays' scatter are those of the right errors given, not three times them  velocity 0.125 against 0.139 m/s, climb 0.011 against 0.012
+  PASS  the path itself is unchanged (the errors given weigh azimuth against depression as before); only its errors, and the range's bound, are read anew  bound 0.0008 against 0.0009
+  PASS  over 40 drawn orbits two such errors hold the truth as often as two errors should (95 times in 100 over 400 orbits; 85 at the least over these 40)  120 of 120 velocities and climbs, the rays' own scatter used on 40 of 40
+  PASS  errors given three times too tight: scaled up by the misfit, as before  reduced chi-square 7.1, velocity 0.128 m/s
+  PASS  rays with no scatter at all (drawn, not read): their errors are held at a hundredth of those given, not at nothing  [0.003, 0.001]
+  PASS  a straight flight whose rays fit tightly is refused all the same: the refusal reads the aircraft's path, not the errors  the lines of sight do not fix its velocity: the aircraft flew straight: its path
+  PASS  and the command's own words say where the errors came from
+
+T2 from the aircraft's own track: the heading box is not taken as the direction of flight
+  PASS  a box that reads the direction of flight, in whole degrees: no offset is seen, the wind is the true one  [-9.07, -3.05] of [-9.0, -3.0] +- 0.47, the offset's p 0.83
+  PASS  the aircraft flying 14.2 deg right of its box: the offset is seen and read, and the wind is the true one  14.24 +- 0.10 deg, the wind [-8.98, -3.01]
+  PASS  where the box alone would have put the wind 10 m/s or more off (PR051's case)  [-24.9, 9.2], 20.1 m/s from the true wind
+  PASS  an offset inside the box's own step (0.4 deg) is not seen, and the wind's error carries it  the wind 0.68 m/s off, its error 0.47
+  PASS  a drifter, the box true: passes, the wind's own error in the tolerance  1 deg; the 1 winds at its height leave it 0.2-0.2 m/s through the air, within their own spread (0.2 m/s), two errors of the f
+  PASS  a flier at 25 m/s through the air, the box true: fails all the same
+  PASS  a drifter, the box off by 14.2 deg: passes, the wind's own error in the tolerance  1 deg; the 1 winds at its height leave it 0.3-0.3 m/s through the air, within their own spread (0.2 m/s), two errors of the f
+  PASS  which the wind from the box alone failed ("it flies"), as the stage did until now  it moved over the ground at 10 m/s toward 251 deg; even the nearest wind at its height lea
+  PASS  a flier at 25 m/s through the air, the box off: fails all the same
+  PASS  a turn of 41 deg: two errors of the wind are over 5 m/s with the offset open, and the wind is not counted  error 5.4 m/s;  box; the turn does not fix it (two errors 10.8 m/s, over 5)
+  PASS  a turn under 30 deg gives no wind, as before
+
+T1/T2 from the aircraft's own track: a constant error of the display's azimuths is carried
+  PASS  by default the reference is as well known as an azimuth is given to be (0.1 deg here): the velocity's error lies between a reference taken as exact and one left to the rays  0.150 < 0.189 < 0.609 m/s; the rays fix it to 0.43 deg
+  PASS  the path itself does not move with what is known of the reference
+  PASS  every azimuth a degree off: the velocity moves by the pull the fit reports for a degree  1.15 m/s against 1.15
+  PASS  with the reference given as known to a degree, two errors hold the true velocity; the rays' scatter alone would not have  1.19 m/s off, two errors 2.33 (the rays' alone 0.30)
+  PASS  the rays' own reading of the reference is reported beside it (they read the degree they were turned by, to their error), and what is carried is the degree given, not the rays' tighter reading  -1.27 +- 0.44 deg
+  PASS  T1 still passes: the climb is hardly moved  it holds its height: -0.40 +- 0.10 m/s
+  PASS  a velocity the rays' scatter would fix and the reference leaves open: cannot say, naming the reference  the lines of sight do not fix its velocity (7.0 m/s, two errors 6.0): they leave the display's azimuth reference open to 2.5 deg, and a constant error
+  PASS  and the command's own words give the reference, its pull and what the rays alone would give
+
+T2 from the aircraft's own track: the winds
+  PASS  a drifter: every wind leaves it under their spread through the air, passes  it moved over the ground at 7.1 m/s toward 239 deg; the 6 winds at its height leave it 0.6-1.7 m/s t
+  PASS  a flier at 25 m/s through the air: fails  it moved over the ground at 26 m/s toward 166 deg; even the nearest wind at its height leaves it 24 
+  PASS  a passing T2 from the track is a strong test (it says where it came from: lines of sight)
+  PASS  5 m/s through the air: a slow flier's, cannot say
+
+T2 from the aircraft's own track: a model's winds carry their own error (2026-11-13; 2 m/s since 2026-11-17)
+  PASS  MODEL_WIND_ERR is 2 m/s  2
+  PASS  2.2 m/s off a model's winds: within their spread, the fit's errors and the model's own error (2), passes  it moved over the ground at 5.1 m/s toward 249 deg; the 2 winds at its height leave it 2.0-2.3 m/s through the air, within their own spread (0.4 m/s),
+  PASS  the same off observed winds: no model's error allowed, cannot say (the rule before 2026-11-13)  the winds at its height leave it 2.0-2.3 m/s through the air, beyond their own spread (0.4 m/s) and two errors of the fi
+  PASS  3.5 m/s off a model's winds: beyond the tolerance by under 1 m/s, cannot say (it passed until 2026-11-17, when the model's own error was 3 m/s)  needs [3.28, 3.61], tolerance 2.77
+  PASS  a flier at 25 m/s through the air still fails
+
+T2 from the lines of sight: a flier fails whatever its velocity's error (2026-11-17)
+  PASS  a body 110 m/s through the air whose velocity is known to 6 m/s: it fails (cannot say until 2026-11-17), and the reading gives the two errors it was allowed  it moved over the ground at 117 m/s toward 39 deg; even the nearest wind at its height leaves it 110 m/s through the air, 98 beyond their own spread (
+  PASS  the same error on a body 20 m/s through the air, 7.8 beyond the tolerance: not a flier's margin, so the velocity's gate answers as it always did, with its own words and fields  the lines of sight do not fix its velocity (27.6 m/s, two errors 12.0): the line of sight turned 90 deg; a str
+  PASS  and on a drifter: T2 does not pass a body whose velocity the rays do not fix
+  PASS  the edge is the fail rule's own: the whole tolerance (the winds' spread 0.25 and two errors 12) plus a flier's 10 m/s  22.2 m/s cannot say, 22.3 m/s fails
+  PASS  against a model's wind the tolerance holds the model's own error too, and the edge moves out by it
+  PASS  an error that is not finite, or no wind that counts, leaves the fail rule nothing to ask with: the gate answers, as before  the lines of sight do not fix its velocity (117.3 m/s, two errors inf): the line
+  PASS  a fail on a velocity that is not fixed carries the fields of any other fail: the winds, the airspeeds needed, the tolerance
+  PASS  three cameras whose pointing is known to three degrees see an aircraft at 110 m/s through the air: two errors of its velocity are over 5 m/s, and it fails  two errors 28.4 m/s; it moved over the ground at 118 m/s toward 39 deg; even the nearest wind at its height lea
+  PASS  and a body at 15 m/s through the air: cannot say, in the cameras' own words for a velocity left open  two errors 6.1 m/s; the lines of sight do not fix its velocity (23.0 m/s, two errors 6.1). Each camera's pointing is taken as known to 3 deg
+
+T2 from the aircraft's own track: drifting must fit better than holding still (2026-11-13)
+  PASS  a body holding still in a 2 m/s wind: cannot say, where it passed before  holding still fits as well as drifting: the winds at its height are 2.0-2.1 m/s, and drifting leaves it 2.0-2.
+  PASS  holding still in a 3 m/s wind: beyond a model's 2 m/s of allowance, so cannot say for that (until 2026-11-17, at 3 m/s, it was within it, and this rule spoke)  needs [2.99, 3.24], tolerance 2.98
+  PASS  a drifter in that light wind still passes: it needs well under the 2 m/s holding still would  own error (2); holding still would need 2.0-2.1 m/s, more than drifting does at every wind
+  PASS  a drifter in an 18 m/s wind: passes, holding still needing more at every wind  n error (2); holding still would need 18.0-19.3 m/s, more than drifting does at every wind
+  PASS  holding still in that 18 m/s wind: fails, as before
+
+T2 from the aircraft's own track: one wind read far from the object's height
+  PASS  the wind's change with height, nine soundings in ten: 2.8 m/s over 100 m, 6.1 over 400, 12.6 over 1,422  2.77, 6.11, 12.59
+  PASS  the law against the soundings' own table (8,125 soundings at 18 stations): within 15 % of the 90th percentile at every height difference from 50 m to 6.4 km, between the 68th and the 95th  0.90-1.12
+  PASS  one wind read 100 m above a drifter and 2 m/s off its own wind: within the wind's change over 100 m, passes (it could not say until now)  9 deg; the 1 winds at its height leave it 2.2-2.2 m/s through the air, within their own spread (0.2 m/s), two errors of the fit (0.4) and the wind's own change over the 100 m between it
+  PASS  one wind read 650 m above a drifter and 11 m/s off its own wind (one sounding in twenty changes that much): taken as the wind at its height, as until now, T2 fails the drifter  it moved over the ground at 7 m/s toward 239 deg; even the nearest wind at its height leaves it 11 m/s through
+  PASS  with the wind's change over 650 m allowed for: cannot say, and says that no wind was read near its height  no wind was read near its height: the nearest that counts was read 650 m from it. Over that much height the wind changes by more than 8.1 m/s one time in ten (weather balloons), so this test cannot te
+  PASS  the same level with the drifter's own wind on it: cannot say either (a wind that far off cannot pass a body)
+  PASS  a body 40 m/s through the air is failed all the same: beyond that change by a flier's 10 m/s  it moved over the ground at 41 m/s toward 160 deg; even the nearest wind at its height leaves it 40 m/s through the air,
+  PASS  with a second wind at its own height nothing is added: the winds' own spread says how they differ  spread 11.0 m/s
+
+T2 from the aircraft's own track: which winds bear on its height
+  PASS  the model's hours within one of the clip's time  2 of 4
+  PASS  a model held at its top level (100 m above its ground) for an object twice as high: counts, the note saying so  model, levels 60-150 m above the sea, held at its top level, 2.0 times the object's height above the model's ground (50 m)
+  PASS  a sounding that brackets it: interpolated, counts  6.11 m/s
+  PASS  a surface report far below it: read, not counted
+  PASS  between the report below and the aircraft's own wind above: the measured profile, counts  7.55 m/s
+
+T1/T2 from the aircraft's own track: a straight flight fixes nothing, whatever the fit's error says
+  PASS  a straight flight's path leaves a straight line by under 2 m: the path gate shuts  0.00 m
+  PASS  T1 and T2 cannot say, and say why  the lines of sight do not fix its velocity: the aircraft flew straight: its path leaves a straight line by 0 m
+  PASS  the landing the survey found (beside the aircraft, a 0.4 m/s error) is refused all the same: the refusal reads the path, not the error
+  PASS  the orbit: its path leaves a line by hundreds of metres, the range's bound under 0.05, nothing refused  910 m, bound 0.0009, model p 0.01
+  PASS  the gate's null: a straight flight whose positions are rounded to an arcsecond and a foot leaves a line by under 16 m (the gate opens at 20)  11.54-12.23 m
+  PASS  the gate's null: a straight flight whose positions are rounded to a tenth of an arcsecond leaves a line by under 2 m (the gate opens at 20)  1.26-1.58 m
+  PASS  and a 30-deg turn, rounded the same, opens it  300 m
+  PASS  the survey's phantom (trial 122) cannot say: the aircraft flew straight  landed at 2.3 % of the true range with a 1.01 m/s error; VELOCITY_FIX alone passed it; bound 0.343
+
+T1/T2 from the aircraft's own track: too few readings
+  PASS  resamples kept of 2,000: none at 6 or 7, 4.8 at 8, 69 at 9, 306 at 10, 1,210 at 12 (exact; the survey's 4.7, 69.5, 306, 1,257 by simulation)  {6: 0.0, 7: 0.0, 8: 4.8, 9: 69.3, 10: 305.5, 12: 1209.6}
+  PASS  so 9 readings are the least: the first to keep the 20 resamples the errors are read from
+  PASS  5 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 5 readings keep 0 of them, under the 20 the errors are read from
+  PASS  6 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 6 readings keep 0 of them, under the 20 the errors are read from
+  PASS  7 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 7 readings keep 0 of them, under the 20 the errors are read from
+  PASS  8 readings: no crash, T1 and T2 cannot say and say how many are needed and why   ones, and 8 readings keep 5 of them, under the 20 the errors are read from
+  PASS  9 readings: fitted, with about 69 of the 2,000 resamples, T1 speaks  67 resamples
+  PASS  fit_track itself on 7 readings: no error, the covariance's errors alone, and `unfixed` says the bootstrap kept nothing
+
+T2 from the aircraft's own track: a model wind counts only near its levels
+  PASS  a 100-m-only file counts at 100, 250 and 400 m (within a factor of 4 of its level above its ground)
+  PASS  not at 500 or 3,960 m (it counted there until 2026-11-02); the note says which heights the file covers  model, levels 100-100 m above the sea, held at its top level, 39.6 times the object's height above the model's ground (0 m)
+  PASS  the same level as an observed source: not counted either
+  PASS  T2 on a body at 3,960 m moving with that 100-m wind: cannot say, naming the file's levels (it passed until 2026-11-02, and failed a body 30 m/s off it)  none of the winds given bears on its height (3960 m above the sea): only100: model, levels 100-100 m above the sea, held
+
+Planted fliers: on a drawn orbit round a drifter
+  PASS  the case passes T2, so the plants ride its own path's velocity: 16 at each of 10 and 40 m/s, and 16 at zero, which is added  air path, 48 plants at [0.0, 10.0, 40.0]
+  PASS  the check: the case's own rays, planted again as they are, come out as the case did  T2 passes, needs [0.59, 1.68] of [0.59, 1.68] m/s
+  PASS  plants at zero airspeed are the drifter itself: they pass 15 times in 16 or more, and the rate stated is the count  16 of 16, rate 1.0
+  PASS  plants at 40 m/s fail whichever way they fly, and the sentence says so  Bodies were planted in air that moved as the object did. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wind test whichever way it flew. At 10 m/s the wind test could not say. No planted flier passed as a drifter, down to the slowest tried, 10 m/s. A planted body that drifted with the air passed 16 times in 16.
+  PASS  plants at 10 m/s are beyond the winds but not by a flier's margin: cannot say, 16 of 16, and none passes  {'airspeed_m_s': 10.0, 'plants': 16, 'passes': 0, 'cannot_say': 16, 'fails': 0, 'cannot_say_because': {"beyond the winds, not by a flier's margin": 16}}
+  PASS  each plant's fit finds the velocity it was given, to the rays' errors (a typical miss under 0.5 m/s, and not none)  rms 0.11 m/s over 48 plants
+  PASS  the same seed gives the same result, to the last digit; another seed draws other errors
+  PASS  and the same in two worker processes as in one
+  PASS  asked to ride the winds, the 16 plants at each speed take the six winds in turn (2 or 3 each); a drifter in any of them passes, 40 m/s fails  rides [2, 3, 2, 3, 3, 3]; Bodies were planted in air that moved as one of the winds given says. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wind test whichever way it flew. No planted flier passed as a drifter, down to the slowest tried, 40 m/s. A planted body that drifted with the air passed 16 times in 16.
+  PASS  a plant's rays are the case's with the two angles alone replaced, so a camera named for each ray goes with them; and the case planted as it is gives the case's own rays back
+  PASS  the fit's options are handed to each plant's fit as given: an azimuth reference known to 5 deg widens a plant's velocity error and moves no fitted number  0.19 -> 5.75 m/s
+  PASS  the printed lines: the table by airspeed, then the sentence
+
+Planted fliers: no plants where there is no path to plant on, with the reason
+  PASS  a straight flight fixes no path: no plants, and it says why  No bodies were planted: the lines of sight fix no path to plant them on (the aircraft flew straight: its path leaves a straight line by 0 m,
+  PASS  six lines of sight: no path, no plants  6 lines of sight, where at least 9 are needed: the fit's errors come from 2,000 
+  PASS  no wind that counts: no plants  no wind that bears on its height was given, and the wind test judges a body agai
+  PASS  a flier's own motion is not the air's: asked to ride the path of a case that failed T2, no plants  the object itself failed the wind test, so its own motion is not the air's. Plant them in 
+  PASS  left to itself there, it plants in the winds: a drifter in them passes, 40 m/s fails  Bodies were planted in air that moved as one of the winds given says. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wind test whichever way it flew. No planted flier passed as a drifter, down to the slowest tried, 40 m/s. A planted body that drifted with the air passed 8 times in 8.
+
+Planted fliers: through the stage, a field of their own and nothing else moved
+  PASS  without `plant` there is no such field; with it every other field and every printed result is the same
+  PASS  the field holds the plants (2, each fitted with as many resamples as the case's own fit, and the case again, which comes out as the case), and the stage prints their sentence after the verdict  Bodies were planted in air that moved as the object did. On this geometry and these winds, a body flying 40 m/s or more through the air would have fai
+  PASS  from the ranges (the Yemen clip's route) no fliers are planted yet, and it says so  No bodies were planted: fliers are planted only where the wind test runs from lines of sight, and this case's runs from 
+
+Planted fliers: by the command line, on the Puerto Rico lanterns
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/aaro/videos/DOD_110692805-1920x1080-9000k.mp4)
+
+T1/T2 from cameras on the ground: a drifter and a flier seen by three cameras at once
+  PASS  363 readings, three at each of 121 instants, each with its camera; the times kept from their own clock  363 readings, cameras ('camera A', 'camera B', 'camera C')
+  PASS  the rays of three cameras fix the drifter's velocity, its height and its climb  [8.04, 3.0] of [8.0, 3.0], two errors 0.20; 3599 m; climb +0.01 m/s
+  PASS  the path says where the rays came from: three places 10 km apart at most, lines of sight that cross at tens of degrees though none turned, and the rays' own mean time  3 places, 10213 m, crossing at 61 deg, 2026-05-27T21:30:35
+  PASS  the drifter: T1 and T2 pass against winds that bracket its height, and no aircraft's own wind is looked for  it moved over the ground at 8.6 m/s toward 70 deg; the 2 winds at its height leave it 1.2-1.4 m/s through the 
+  PASS  a flier at 25 m/s through the same air: T2 fails, not drifting  it moved over the ground at 31 m/s toward 113 deg; even the nearest wind at its height leaves it 24 m/s throug
+  PASS  the printed lines name the cameras and their readings, and speak of no aircraft and no display
+  PASS  eight readings are too few, as they are from an aircraft  8 lines of sight, where at least 9 are needed: the fit's err
+
+T1/T2 from cameras on the ground: rays from one place fix nothing
+  PASS  one camera standing still: T1 and T2 cannot say, and say why  the lines of sight do not fix its velocity: all 121 lines of sight start from one place. One camera standing still cannot range what it sees (the line of sight turned 1 deg)
+  PASS  in words that fit a camera on a roof: no aircraft, no flight
+  PASS  two cameras 25 m apart: within the path gate's 20 m of one place, refused  the lines of sight do not fix its velocity: the lines of sight start from places within 13 m of one straight path at a steady spee
+  PASS  two cameras 45 m apart: their rays' scatter alone would give a range, each camera's own pointing does not; the range's bound counts it, and T2 cannot say  bound 1.28 (the rays alone 0.026); the lines of sight do not fix its velocity: the lines of sight do not fix its range: it is known to 
+  PASS  the same pair with its pointing known a hundred times better: the range is fixed  bound 0.034
+
+T1/T2 from cameras on the ground: each camera's own pointing error is carried
+  PASS  by default each camera's pointing is as well known as one of its readings is given to be (0.3 and 0.1 deg): the velocity's error lies between pointing taken as exact and pointing known to a degree  0.422 < 0.683 < 4.534 m/s
+  PASS  the path itself does not move with what is known of the pointing
+  PASS  camera B's azimuths 0.5 deg off: the velocity moves by the pull the fit reports for a degree of it  0.73 m/s a degree against 0.76
+  PASS  camera B's elevations 0.3 deg off: the velocity moves by the pull the fit reports for a degree of it  3.65 m/s a degree against 3.34
+  PASS  each camera's pointing off by its own quarter of a degree: the height is 200 m out, and two errors hold it, and the velocity; the rays' scatter alone would not have  209 m out, two errors 292 (the rays' alone 8)
+  PASS  the same rays read with one azimuth reference for both cameras (an aircraft's model): the same path, and two errors that do not hold its height  209 m out, two errors 24
+  PASS  with the errors given equal to the scatter drawn, the velocity too: held with each camera's own pointing, not with one shared reference  1.08 m/s off, two errors 1.68 against 0.91
+  PASS  over 40 drawn pairs two such errors hold the true velocity, climb and height as often as two errors should (85 of 100 at the least over these 40); with one shared reference the height is held on fewer than half  158 of 160; the height on 39 of 40 with each camera's own pointing, 8 with one shared reference
+  PASS  a velocity the rays' scatter would fix and the pointing leaves open: cannot say, naming the camera it hangs on  the lines of sight do not fix its velocity (9.3 m/s, two errors 6.0). Each camera's pointing is taken as known to 0.3 deg in azimuth and to 0.1 deg in elevation. An error
+  PASS  nothing taken as known of two cameras' pointing: their rays cannot read it themselves, and the velocity is open  two errors 27.0 m/s
+  PASS  and the command's own words give what is taken as known, each camera's pull and what the rays alone would give
+
+T1/T2 from cameras on the ground: each camera's rays have their own scatter
+  PASS  two cameras whose rays fit better than the errors given allow: each read with its own scatter, the scatter it was drawn with  A 0.019, 0.019 of (0.02, 0.02); B 0.083, 0.064 of (0.08, 0.06)
+  PASS  a third whose rays fit worse than the errors given: its errors scaled up by its own misfit, the others' not  C 0.473, 0.158 of (0.5, 0.2)
+  PASS  rays drawn with nearly the errors given: they stand, for every camera
+  PASS  over 30 drawn scenes with unlike cameras two such errors hold the truth as often as two errors should (85 of 100 at the least over these 30)  90 of 90
+  PASS  a camera with five readings beside one with 121: every resample keeps five of its readings, and the bootstrap's errors are near the covariance's, not ten and forty times them  velocity 0.42 against 0.19 m/s, height 2.7 against 1.5 m
+
+T1/T2 from cameras on the ground: lines of sight that no single straight path passes through are refused
+  PASS  one body seen by three cameras whose pointing is off by what is taken as known: one straight path asks no more of them than that, and the gate holds  0.81 times what is known, asked of camera B
+  PASS  its T1 and T2 are judged as before  it moved over the ground at 8.4 m/s toward 71 deg; the 2 winds at its height leave it 1.1-1.6 m/s th
+  PASS  the printed lines say what one straight path asks of the cameras, and that it is within the gate
+  PASS  a flier at 25 m/s through the air, seen by all three cameras: the gate holds and T2 still fails it  0.95 times; it moved over the ground at 31 m/s toward 115 deg; even the nearest wi
+  PASS  two cameras on a drifter and a third on a fast object: one straight path would need a camera's pointing far further off than it is taken as known to be  31 times, 22.0 deg in azimuth at camera B
+  PASS  T1 and T2 cannot say, and say why; the verdict is cannot say  the lines of sight do not fix its velocity: no single straight path fits these lines of sight. For one to pass through them all, the pointing of camer
+  PASS  without the gate the same rays were judged as one body's  T1 cannot say, T2 fails: 630 m/s, climb +143 m/s
+  PASS  the printed lines say that no path is read from them
+  PASS  and no fliers are planted on rays that fix no path  the lines of sight fix no path to plant them on (no single straight path fits these lines 
+  PASS  where nothing is taken as known of the pointing there is nothing to hold an offset against: the misfit is not read
+  PASS  a camera with fewer than 9 readings is not the one asked: its few rays hardly move the path  camera A read 5 times; asked of camera C, 16.0 times
+  PASS  cameras that share one reference are fitted as an aircraft's rays, and the gate is not theirs
+
+T1/T2 from cameras on the ground: by the command line, with no video
+  PASS  a rays file with ISO times and elevations, the cameras' places in a file of their own: read back as written
+  PASS  the same with unix times, depressions and each camera's place in its rows; an ISO time with a zone, or with none (taken as UTC), is the same instant
+  PASS  rays with no place for a camera, in the rows or in a cameras file: refused, naming the camera  the camera 'camera A' (lat, lon, alt_m in the rows, or a cameras file)
+  PASS  no video given: one envelope on stdout, the drift file written  exit 0 s 0.1 times the 0.1 deg it is taken as known to. It is within the 19 times allowed
+
+the model winds are read at the hours within one of the lines of sight's own mean time, 2026-05-27T21:30:35 UTC
+
+VERDICT: consistent with wind-borne drift (tentative) -- passed T2 and failed none; it names no object
+
+  PASS  T1 and T2 pass on the drifter; the verdict is tentative drift  it moved over the ground at 8.6 m/s toward 70 deg; the 2 winds at its height leave it 0.0-0.0 m/s th
+  PASS  the model's hours are those within one of the rays' own mean time: two of the file's four, with no --when  2 winds counted, at 2026-05-27T21:30:35
+  PASS  a --when given still decides the hour: against the wind of another hour the same object fails  it moved over the ground at 9 m/s toward 70 deg; even the nearest wind at its he
+  PASS  --reference shared: one azimuth reference for every camera, said as the cameras'
+  PASS  an aircraft's track without its video or --fps: refused, saying which inputs are timed by frames  mcdonald: give the video, or --fps: --platform, --los are timed by its frames
+  PASS  the same track with --fps and no video: the Puerto Rico path, as with the video  7.3668397412329
+  PASS  a flicker envelope alone needs no video: the Huey's held beat, not drifting
+  PASS  --rays beside --platform: refused
+
+T1/T2 from cameras on the ground: the aircraft's route untouched, and the two inputs one fit
+  PASS  an aircraft's rays: no camera in them, one azimuth reference carried, the fields as they were
+  PASS  and its words speak of the aircraft and its display
+  PASS  a straight flight is refused in the aircraft's words, as before  the lines of sight do not fix its velocity: the aircraft fle
+  PASS  cameras written as one jumping aircraft, and the same rays by --rays with one shared reference: every number of the path the same  45 of 45 fields
+  PASS  with each reading at its own time, not a third or two of a step late: the path moves, by under a hundredth of a m/s here  0.00379 m/s
+  PASS  what the old way could not say: its "turn" of the line of sight is the jump between cameras; by --rays it is the most one camera's own line of sight turned, and the angle the cameras' lines cross at is a field of its own  66 deg; 2.7 deg, crossing at 61 deg
+
+Planted fliers: on a case seen by cameras of their own (--rays)
+  PASS  three cameras' rays fix the drifter and it passes T2; 48 bodies are planted in its own air, and the case planted again comes out as the case  T2 passes: it moved over the ground at 8.7 m/s toward 69 deg; the 4 winds at its height leave it 0.4-; Bodies were planted in air that moved as the object did. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wind test whichever way it flew. At 10 m/s the wind test could not say. No planted flier passed as a drifter, down to the slowest tried, 10 m/s. A planted body that drifted with the air passed 16 times in 16.
+  PASS  from cameras as from an aircraft: a planted drifter passes (15 times in 16 or more), 40 m/s fails whichever way it flies, 10 m/s cannot be judged  Bodies were planted in air that moved as the object did. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wind test whichever way it flew. At 10 m/s the wind test could not say. No planted flier passed as a drifter, down to the slowest tried, 10 m/s. A planted body that drifted with the air passed 16 times in 16.
+  PASS  the case planted again is the case's own rays, each with its camera, fitted with the case's own pointing error
+  PASS  every plant's rays are the case's with the two angles alone replaced: each ray keeps its camera, the cameras their names and their own pointing
+  PASS  every ray of every plant keeps its own miss at its own reading, enlarged by sqrt(2n / (2n - 6)) (1.0124 at 123 rays)  48 of 48 plants
+  PASS  so the poorer camera stays the poorer in every plant, as in the case  the case's misses by camera, rms deg: 0.028, 0.096, 0.041
+  PASS  a reading's two misses take one sign, drawn afresh for every plant: no two plants share their signs, and half of them are turned  48 different draws of 48; 0.50 of the signs kept
+  PASS  every plant's fit is handed the case's own options: the errors given, the ground, the cameras' pointing error and the count of resamples
+  PASS  and it is carried there: cameras whose pointing is known to a degree widen a plant's velocity error and move no fitted number  0.16 -> 0.53 m/s
+  PASS  through the stage on cameras' rays: with `plant` every other field and every printed result is the same
+  PASS  and the field holds the plants: the case again as the case, to its tolerance (which a fit without the cameras' own pointing error would move), a planted drifter passing, 40 m/s failing; the stage prints their sentence after the verdict  Bodies were planted in air that moved as the object did. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wi
+  PASS  `mcdonald drift --rays ... --plant`, with no video: 16 bodies planted on the three cameras' case, a drifter passes and 40 m/s fails in every direction  Bodies were planted in air that moved as the object did. On this geometry and these winds, a body flying 40 m/s or more through the air would have failed the wind test whichever way it flew. No planted flier passed as a drifter, down to the slowest tried, 40 m/s. A planted body that drifted with the air passed 8 times in 8.
+
+T3: the beat
+  PASS  a beat of its own: fails
+  PASS  a beat that holds across the video (a rotor's): fails
+  PASS  a beat in one stretch of many (a flame's, or chance) is not counted: passes on the whole stretch  no beat across the video: a beat in one stretch only (1 of 1
+  PASS  the same read from the finding where the envelope has no beat record
+  PASS  no beat: passes, with the smallest beat the injections show it could have seen
+  PASS  without injections, the smallest is the flicker rule's own threshold  0.3
+  PASS  without injections but with the track's own floor (a case file's result): the smallest beat is the track's own, 8 %, not three times the background's 0.7 % (PR097 object 4, as the stage read it until 2026-11-13: 2 %)  no beat of its own; only a beat over 8% of its brightness would have shown
+  PASS  an injection run's floor still comes first
+  PASS  a track's floor recorded without the background's part falls back to the rule's own threshold
+  PASS  no power: cannot say
+  PASS  no flicker run: cannot say
+
+T3: windows apart weighed against chance (2026-11-13)
+  PASS  40 windows that do not overlap: 40
+  PASS  50 windows an eighth apart over 855 frames: 7 that do not overlap  7
+  PASS  2 of 40 at the drift test's 9 % is chance; 12 of 40 is not  0.90, 1.9e-04
+  PASS  an envelope from before: 2 windows apart of 40 is chance, passes (the Galileo clouds' case)  no beat across the video: it beats in 2 windows apart of the 40 its track holds, as often as chance gives (90%
+  PASS  12 windows apart of 40: beyond chance, fails
+  PASS  a whole track that beats: fails, as before
+  PASS  the same from flicker's own new fields
+  PASS  2 windows apart of 5: chance at the census's rate, beyond it at the floor  0.071, 0.0038
+  PASS  background windows: each aperture's windows judged as the object's, few passing on grain alone  [0, 42]
+  PASS  one aperture alone has nothing to be held against: no measured chance
+
+T3 from two cameras watching at the same time (2026-11-13)
+  PASS  a beat one camera sees and another, able to see a third of it, does not: that camera's view, passes  no beat of its own: camera 1 (hideout-cam-1)'s beat at 2.44 Hz (5% of its brightness) is its own view: camera 2 (sphere-cam-2), wa
+  PASS  another camera agrees: fails   it beats at 2.44 Hz (camera 1 (hideout-cam-1); camera 2 (w) sees 2.47 Hz at 3%)
+  PASS  another camera too noisy to see a third of it (the Galileo cloud at 5 % and 0.8 %, floor 2 %): fails as before  era 1 (hideout-cam-1); no other camera could have seen a beat a third as strong)
+  PASS  one envelope: test_beat's own answer
+  PASS  a 4 % beat and another camera whose floor is 1.4 %: it could not have seen a third of it (1.33 %), so the beat stays and T3 fails; at 1.3 % it could, and takes it back  era 1 (one); no other camera could have seen a beat a third as strong)
+  PASS  a 4.6 % beat and a floor of 1.52 %: it could have seen a third (1.53 %) and takes the beat back; rounded for the reading that floor is 2 %, which until then kept the beat  no beat of its own: camera 1 (one)'s beat at 3.00 Hz (5% of its brightness) is its own view: camera 2 (two), watching at
+
+T3 says the band it listened in (2026-11-17)
+  PASS  a video whose clock is its frame rate: the pass names the whole band, 1.5 to 24.0 Hz, and nothing else moves  no beat of its own between 1.5 and 24.0 Hz; only a beat over 1% of its brightness would have shown
+  PASS  frames read as a cadence of 12.1 pictures a second on 60: the pass covers 1.5 to 4.8 Hz and says so, that beats up to 24.0 Hz were not listened for, what was measured, and both things that make it  no beat of its own between 1.5 and 4.8 Hz; only a beat over 1% of its brightness would have shown. Faster beats, up to the 24.0 Hz this frame rate could carry, were not listened for. 78% of the frames nearly repeat the one before in a steady pattern, so the picture is new only 12.1 times a second. A source that delivers pictures at that rate does this. So does compression that copies a still scene from frame to frame, and then the object's own picture may still be new on every frame. This test cannot tell which, so a beat faster than 4.8 Hz may have gone unheard
+  PASS  an envelope that records no band (no top_hz, or no word for how its pictures fall) reads as it did: none is guessed  no beat of its own; only a beat over 1% of its brightness would have shown
+  PASS  a cadence by most of its blocks says where it holds, and one with a period names it (PR051's doubled source)   brightness would have shown. Faster beats, up to the 24.0 Hz this frame rate could carry, were not listened for. 50% of the frames nearly repeat the one before in a steady pattern (1 of eve
+  PASS  a pass on a beat in one stretch says its band too  no beat across the video between 1.5 and 4.8 Hz: a beat in one stretch only (1 of 109 wind
+  PASS  a fail is not a pass: its reading is the beat, as before
+  PASS  nor is a test with no power
+  PASS  two cameras that listened in one band: said once, that it is every camera's, and that every one passes  no beat of its own between 1.5 and 24.0 Hz; only a beat over 2% of its brightness would have shown (camera 1 (sphere-2), of 2 cameras). Every camera listened in that band, and every one passes
+  PASS  one band from every camera does not say that every one passes where one could not say  camera 1 (sphere-2), of 2 cameras). Every camera listened in that band
+  PASS  one camera cut short and one that listened to the frame rate's top: each camera's band, that the other passes too and what it could have shown, why the first stops, and no gap claimed; each camera's own reading is whole  no beat of its own between 1.5 and 4.8 Hz; only a beat over 1% of its brightness would have shown (camera 1 (hideout-1), of 2 cameras). The cameras' bands: camera 1 (hideout-1) between 1.5 and 4.8 Hz only, camera 2 (sphere-2) between 1.5 and 24.0 Hz (it passes too: only a beat over 2% would have shown). Camera 1 listened no higher because 78% of its frames nearly repeat the one before in a steady pattern: its picture is new only 12.1 times a second
+  PASS  every camera cut short: both makers are said, and that a beat faster than the higher top may have gone unheard  me, and then the object's own picture may still be new on every frame. This test cannot tell which, so a beat faster than 5.3 Hz may have gone unheard
+  PASS  a camera whose envelope records no band is said to record none, and one without power to say nothing  ras). The cameras' bands: camera 1 (sphere-2) between 1.5 and 24.0 Hz; camera 2 (dark) could not say
+  PASS  and with no band recorded by any camera the reading is as it was  no beat of its own; only a beat over 1% of its brightness would have shown (camera 1, of 2 cameras)
+  PASS  several cameras: nothing but the readings differs with the band recorded
+  PASS  a beat taken back by another camera: the bands are said; where its 9 Hz is above the 4.8 Hz the other listened to, the reading says that camera could not have shown it (the outcome is the rule's, as before)  no beat of its own: camera 1 (one)'s beat at 9.00 Hz (5% of its brightness) is its own view: camera 2 (two), watching at the same time, sees no beat at that rate where a beat of 1.0% would have shown (but that rate is above the 4.8 Hz this camera listened to, where no beat could have shown). The cameras' bands: camera 1 (one) be
+
+T3 says where a beat was seen and given to the track (2026-11-17)
+  PASS  one camera: the pass says the beat that was seen, its frequency, its strength and the share it kept, and that it is the track's  no beat of its own between 1.5 and 24.0 Hz. A beat was seen at 1.72 Hz, 21% of its brightness, but it follows the track's own jitter. Jitter is the small scatter of the object's measured position from frame to frame. With the jitter's share taken out, 8% of the beat is left, where a beat of the object's own keeps 50% or more. So it is counted as the track's, not the object's. A weaker beat of the object's own could be hidden under it, and only a stronger one would have shown
+  PASS  and does not say that only a beat over 5 % would have shown, beside a beat of 21 % that did  object's. A weaker beat of the object's own could be hidden under it, and only a stronger one would have shown
+  PASS  the outcome and every number are as the envelope gives them; the beat set aside is recorded under its own name  {'hz': 1.72, 'amplitude': 0.21, 'kept': 0.08, 'jitter_px': 1.13, 'frames': [3917, 4036]}
+  PASS  an envelope without the new field reads exactly as before, whatever its beat record holds  no beat of its own between 1.5 and 24.0 Hz; only a beat over 5% of its brightness would have shown
+  PASS  a band cut short is still said, after the beat that was set aside  no beat of its own between 1.5 and 4.8 Hz. A beat was seen at 1.72 Hz, 21% of it
+  PASS  a record given to the track does not hold across the video, though it keeps the windows' own `comes_back`: T3 of the first object passes where another object of the envelope beats  passes: no beat of its own between 1.5 and 24.0 Hz. A beat was seen 
+  PASS  (the same record not given to the track holds, and fails)
+  PASS  two cameras, the reading led by the one with no beat: it says all the same what the other saw and set aside  no beat of its own between 1.5 and 24.0 Hz; only a beat over 3% of its brightness would have shown (camera 1 (hideout-7), of 2 cameras). Camera 2 (sphere-3) saw a beat at 1.72 Hz, 21% of its brightness, but it follows the jitter of that camera's own track. Jitter is the small scatter of the object's measured position from frame to frame. With the jitter's share taken out, 8% of the beat is left, where a beat of the object's own keeps 50% or more. So it is counted as the track's, not the object's. In that camera's view a weaker beat of the object's own could be hidden under it, and only a stronger one would have shown. Every camera listened in that band, and every one passes
+  PASS  the answer records which camera's beat went to its track; each camera's own reading is whole
+  PASS  without the new field the two cameras read exactly as before, and nothing but the words differs  no beat of its own between 1.5 and 24.0 Hz; only a beat over 3% of its brightness would have shown (camera 1 (hideout-7), of 2 cameras). Every camera listened in that band, and every one passes
+  PASS  led by the camera whose beat went to its track: its floor is not quoted  no beat of its own between 1.5 and 24.0 Hz (camera 1 (sphere-3), of 2 cameras). Camera 1 (sphere-3) saw a beat at 1.72 H
+  PASS  in the list of bands such a camera passes too, without a floor; two such cameras are each said, jitter defined once  tween 1.5 and 24.0 Hz (it passes too: the beat it saw was given to its track), camera 3 (wildhorse-1) between 1.5 and 24.0 Hz (it 
+  PASS  (before: another camera's record at the same rate agrees, given to its track or not)  amera 1 (hideout-5); camera 2 (sphere-3) sees 2.47 Hz at 3%)
+  PASS  a held beat and another camera's record at the same rate that was given to its track: the record does not agree, and the failure rests on what no other camera could have seen  ra could have seen a beat a third as strong; camera 2 (sphere-3) saw 3.0% at 2.47 Hz, but that beat follows its own track's jitter and is not counted)
+  PASS  with a third camera that could have seen it and does not, the beat is taken back as before; the camera that saw the same rate follow its track neither agrees nor takes it back, and is said  no beat of its own: camera 1 (hideout-5)'s beat at 2.44 Hz (5% of its brightness) is its own view: camera 3 (wildhorse-5), watching at the same time, sees no beat at that rate where a beat of 1.0% wou
+  PASS  (before, that record agreed and kept the failure against the third camera)
+  PASS  a camera that saw the same rate at a tenth of the strength, following its own track, still takes the held beat back, and the reading says whose that 0.5 % was  no beat of its own: camera 1 (hideout-5)'s beat at 2.44 Hz (5% of its brightness) is its own view: camera 2 (sphere-3), watching at the same time, sees 0.5% at 2.47 Hz, which follows its own track's jitter, where only a beat over 0.5%, the strength o
+  PASS  a camera that set a 4 % beat aside at another rate cannot vouch that a 1.7 % beat was absent (a third of the held 5 %), though its floor is 1 %: the held beat stays  (hideout-5); no other camera could have seen a beat a third as strong)
+  PASS  where the beat it set aside is under a third of the held one, it takes the held beat back, and the reading says what it could have shown  no beat of its own: camera 1 (hideout-5)'s beat at 2.44 Hz (5% of its brightness) is its own view: camera 2 (sphere-3), watching at the same time, sees no beat at that rate where only a beat over 1.5%, the strength of the one given to its track, would have sho
+
+T4a: pieces shed, against the remains
+  PASS  the piece's speed against the remains is recovered  13.03 px/s of 13
+  PASS  0.65 lengths/s at 40 deg bounds the airspeed under 2 lengths/s: passes  passes, 1.01
+  PASS  pieces leaving at 3 lengths/s: it flies, fails  the pieces leave it at 3.00 lengths per second or more: it flies through the air
+  PASS  1.5 lengths/s at 40 deg: a slow flier's, cannot say  its airspeed is bounded only at 2.34 lengths per second, within a slow flier's
+  PASS  no depression: flight along the line of sight could hide, cannot say
+  PASS  pieces leaving at 3 lengths/s with no depression given: fails all the same, since what shows across the line of sight is the least its airspeed can be (it could not say until 2026-11-13)  the pieces leave it at 3.00 lengths per second or more: it flies through the air
+  PASS  as they do at a depression of 2 deg
+  PASS  as they do at a depression of 40 deg
+  PASS  as they do at a depression of 88 deg
+  PASS  1.5 lengths/s with no depression: still cannot say
+  PASS  no pieces: cannot say
+
+T4a: the cloud around it
+  PASS  carried by cloud at its own depth: passes
+  PASS  and that is a strong test: the verdict is tentative drift
+  PASS  carried by cloud it is only within: passes, but is no strong test (the verdict cannot say)
+  PASS  moving through the layer it is in: a depth offset could do that, cannot say  it moves through the cloud at 1.3-3.7 of its own diameters per second;
+  PASS  cloud at an unknown depth is no tracer: cannot say
+
+T4b: the remains
+  PASS  a steady sink excludes a falling wreck of every body under 20 m: passes (no band given: the reach by a + 3 sigma)  827.0 m
+  PASS  its own band: a bound on a steady change of speed, the nugget, a backtest light  0.156 px/s^2, 0.32 px, green
+  PASS  with its band the reach is the band's bound, said in the reading; the steady sink still passes  963.0 m
+  PASS  a 5-m wreck falling at g: fails  1.504 of 1.50 lengths/s^2
+  PASS  its band saw the change, so it gives no bound and the reach is a + 3 sigma; the band's acceleration is the fall's  band 1.455 +- 0.09 lengths/s^2
+  PASS  a drawn track with a slow wander: the band's bound is over three of the bootstrap's errors, its own error larger  bound 8.76, band error 2.63, bootstrap error 1.04 px/s^2; range 0.64 s against 0.50-s blocks
+  PASS  and test_wreck's reach is g cos(delta) over the band's bound  19.0 m, passes
+  PASS  a reach of 15 m passes (the pass needs 10 m)  15.0 m
+  PASS  a reach of 8 m cannot say  it excludes a falling wreck only below 8 m (their 
+  PASS  a 10-m body's own fall, measured to 0.05 lengths/s^2: fails  the remains accelerate down at 0.75 lengths/s^2, as a heavy 
+  PASS  a 20-m body's fall, measured to 0.05: fails (the fail rule's own constant, tried before the pass, whose reach it would meet)  reach 14.0 m
+  PASS  nothing struck: cannot say
+
+T4: other evidence, its parts together
+  PASS  a part passes and none fails: passes, its parts kept  T4a passes, none fails
+  PASS  a part fails: fails, whatever passed  T4b fails
+  PASS  no part decided (nothing shed, no strike): cannot say  no part decided (T4a: nothing to run on; T4b: nothing to run
+  PASS  the remains alone are no strong test: T4 passing on T4b cannot carry the verdict
+  PASS  a failing part decides, and the verdict names it  T4b: the remains fall as a heavy body
+
+the verdict
+  PASS  a strong test (a tracer at its own depth) passed and none failed: tentative drift
+  PASS  any test failed (a beat held across the video, a hovering rotor's): not drifting, whatever passed
+  PASS  T3 without power (cannot say) leaves a strong pass (T2 from lines of sight) standing
+  PASS  T2 passing from the ranges alone: cannot say (tentative drift until 2026-11-17), and the reason says both  no strong test (T2 from lines of sight, or T4a with a tracer at the object's depth) passed. T2 passed from the ranges, where it cannot tell a drifter from a slow flier
+  PASS  with a tracer at its depth beside it, the verdict rests on the tracer alone: "passed T4a and failed none"  passed T4a and failed none; it names no object
+  PASS  from lines of sight T2 is named with it  passed T2, T4a and failed none; it names no object
+  PASS  a fail of T2 from the ranges still decides: any failure is not drifting
+  PASS  and where T2 did not pass the reason does not speak of it
+  PASS  no strong test passed (T1, T3 and T4b only): cannot say
+  PASS  nothing ran: cannot say
+
+Hellfire/Yemen: from its readings (no video)
+  PASS  T1: it holds its height  -0.92 +- 1.08 m/s
+  PASS  and the depression from the ranges  40.55 deg
+  PASS  T2: the winds need 179-191 kn of the aircraft, and lie the way its motion does  [179.1, 190.5] kn, 23.2 kn to the right
+  PASS  T2 by the rule of 2026-11-17: the nearest of its 72 hours and places is 2.7 m/s short of the measured sideways motion, within two errors of the fit (1.5) and a model's own error on such a difference (4.8); it passes, and says the pass is not a strong one  a body drifting with the winds needs the aircraft at 179-190 kn through the air. Across its heading the winds' difference is 5-18 kn to the right, and the measured motion 23 kn to the right. The nearest of the 72 hours and places given leaves it 5 kn (2.7 m/s) short. That is within two errors of the fit (1.5 m/s) and a model's own error on such a difference (4.8). A body flying a few metres a second would pass as well, so this pass is not a strong test
+  PASS  the verdict rests on the tracer alone since then ("passed T2, T4a" before): T2 from the ranges is no strong test  passed T4a and failed none; it names no object
+  PASS  and what the winds leave the aircraft to fly sideways is to its left, 5-18 kn (their shortfall)  5.2-18.4 kn
+  PASS  T3: no beat over 41 %
+  PASS  T3's words are as they were: this envelope, cut down for the test, records no band, and none is guessed  no beat of its own; only a beat over 41% of its brightness would have shown
+  PASS  T4a: the two pieces bound its airspeed under 2 lengths/s  1.93 L/s
+  PASS  and the pieces' speeds from their own bands (0.79 and 0.62 L/s) agree with the lines' within 10 %  bands [0.79, 0.62], lines [0.82, 0.68]
+  PASS  T4b: no falling wreck under ~17 m (16.5), by the band's bound (75 m by a + 3 sigma until 2026-11-02)  -0.082 +- 0.06, 17.0 m
+  PASS  the band: -0.17 +- 0.14 L/s^2, its error over twice the bootstrap's, a steady change over 0.45 would have shown; the wander outlasts the bootstrap's blocks  -0.17 +- 0.145, bound 0.451, range 0.75 s against 0.5-s blocks, green
+  PASS  T4: other evidence, both parts pass  T4a and T4b pass, none fails
+  PASS  the same pieces five times faster and no depression given: T4a fails (4 lengths/s or more at any depression); at their own speed and no depression it cannot say, as before  [4.12, 6.29] L/s
+  PASS  three main tests, then other evidence with its two parts  T1, T2, T3, T4, T4a, T4b
+  PASS  verdict: tentative drift  consistent with wind-borne drift (tentative)
+
+Hellfire/Yemen: by the command line, on the clip
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/hellfire_yemen/x_burlison_1965438792493355291.mp4)
+
+Puerto Rico lanterns: from their readings (no video)
+  PASS  the path: 7.3-7.4 m/s toward 240 deg, 181 m above the field  7.37 m/s toward 240.4, 181 m
+  PASS  T1: a slow sink, passes  it holds its height: -0.60 +- 0.05 m/s
+  PASS  the aircraft's own wind from its turn  9.51 m/s from 70.6
+  PASS  T2: every wind at their height leaves them under 4 m/s through the air, passes  [1.37, 3.64] m/s
+  PASS  14 winds counted, as before the gates (2026-11-02): the aircraft's path left a line by 855 m, the range's bound 0.0025, all 2,000 resamples fitted  855 m, bound 0.0025, 2000 resamples
+  PASS  the model gate's F test is reported, not a refusal: p 0.054 on the known drifter  F 2.68, p 0.054
+  PASS  T3: a beat in one window of 109, one stretch, not counted: passes  no beat across the video: a beat in one stretch only (1 of 1
+  PASS  T4: nothing shed, nothing struck, cannot say  no part decided (T4a: no pieces tracked with the remains; T4
+  PASS  verdict: tentative drift  passed T2 and failed none; it names no object
+
+Puerto Rico lanterns: by the command line, from the aircraft's own track
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/aaro/videos/DOD_110692805-1920x1080-9000k.mp4)
+
+Santa Barbara Huey: from its beat (no video)
+  PASS  T1, T2 and T4: nothing to run on, cannot say  T1 cannot say, T2 cannot say, T3 fails, T4 cannot say, T4a cannot say, T4b cannot say
+  PASS  T3: the rotor's 10.645 Hz holds across the stretch: fails  its brightness beats across the video: it beats at 10.645 ± 
+  PASS  verdict: not drifting  T3: its brightness beats across the video: it beats at 10.645 ± 0.007 Hz, 5% of 
+
+Santa Barbara Huey: by the command line, from its beat alone
+  SKIP  the clip is not on this computer (/Users/runner/work/mcdonald/data/mcdonald/santa_barbara_2018/yt_7N8_g3pCK2o.mkv)
+
+PR051, the second leg: from its readings (an agent's, not checked by a person; no video)
+  PASS  the path from 23 rays: 9.4 m/s toward 103 deg, 4,298 m above the sea, 11.0-11.7 km from the aircraft  9.41 m/s toward 102.6, 4298 m, 11.04-11.66 km, bound 0.0145
+  PASS  DR3: the rays fit far closer than the errors given (reduced chi-square 0.0024), and the errors are their own scatter's  0.0184 and 0.0037 deg; velocity +- 1.59 m/s from the scatter
+  PASS  T1: it holds its height, +0.08 +- 0.19 m/s (+- 2.74 until 2026-11-13)  it holds its height: +0.08 +- 0.19 m/s
+  PASS  DR2: the aircraft flew 14.7 deg right of its heading box; its own wind is 11.2 m/s from 266 deg, where the box alone gives 21.6 from 211  14.68 deg; 11.16 m/s from 265.7
+  PASS  DR4: T2 cannot say, the only wind having been read 1.4 km above the object (it failed on that wind before)  no wind was read near its height: the nearest that counts was read 1420 m from it. Over that much height the w
+  PASS  T3 passes on the 4 s of the hold it was given; the verdict is cannot say  cannot say
+  PASS  T3 says the band it listened in, 1.5 to 12.0 Hz, and why it stops there: every second frame repeats the one before, a source of 30 pictures a second on 60 frames  no beat of its own between 1.5 and 12.0 Hz; only a beat over 12% of its brightness would have shown. Faster beats, up to
+  PASS  the 13 readings of the ULTN field alone put it at the same height, and T2 cannot say  4346 m; T1 passes: it holds its height: +0.17 +- 0.57 m/s; T2: the lines of sight do not fix its velocity (7.2 m/s, two errors 10.7): the line of sight turned 7 de
+
+ALL PASS  (4 skipped: planted fliers, Puerto Rico command line, Hellfire/Yemen command line, Puerto Rico command line, Santa Barbara command line)
