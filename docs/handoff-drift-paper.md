@@ -249,6 +249,18 @@ and `galileo/nevada/paper/` (the Galileo numbers the paper quotes, read from the
   a `--time` near what the job uses (the paper's small jobs were planned a day out at 3-4 GB and 40 min, and ran at
   once at 600 MB and 5 min).
 
+## The misfit gate, built on a branch (2026-11-19)
+
+Jacob, 2026-11-19, on the one cloud of 119 called not drifting (two things matched as one): "The method should be as
+good as it can ... Let's implement the misfit gate in drift now", on a branch, tested for wind-drift before it is
+merged. It is on **branch `misfit`** (worktree `/hugespace/models/mcdonald-misfit`, from this branch at 749dc89), and
+its record is that branch's `docs/handoff-misfit.md` and method section 92. In short: the stage asks how far each
+camera's pointing would have to be off for one straight path to pass through every line of sight, and refuses T1 and
+T2 over 19 times what is taken as known, a threshold from a null of 6,073 transponder-tracked aircraft outside the
+paper's sample. On the paper's 239 objects one moves: clouds read 44 / 75 / 0 where 44 / 74 / 1. The release's tag
+on that null calls 0 of 6,073 aircraft drifting. **Not merged**: whether it goes to `main` as a 0.5.9 for the paper
+or to `dev-0.6`, and at which rate, are his to say. TB1 in "What comes after 0.5.8" below is this.
+
 ## What the paper's session needs
 
 The manuscript is Jacob's: the tool's sessions report what the tool shows and give no revision advice.
