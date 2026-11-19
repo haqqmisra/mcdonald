@@ -24,7 +24,9 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 90 since 2026-11-19: the suites had grown to the old limit of 45 (run 71 took 43.6 min; runs 72 and 74 were cut
+    # off in test_measurement with every finished suite passing, 34 min into the twenty suites before it)
+    timeout-minutes: 90
     env:
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
