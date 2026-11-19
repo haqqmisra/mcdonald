@@ -1507,6 +1507,90 @@ def test_cameras_each_cameras_own_scatter():
           f"{cov['velocity_err_rays_m_s']:.2f} m/s, height {boot['height_err_rays_m']:.1f} against {cov['height_err_rays_m']:.1f} m")
 
 
+def test_cameras_the_misfit_gate():
+    """The misfit gate (method section 92; IDEAS.md TB1). One straight path is fitted to the cameras' rays whatever
+    they are rays to. Where two cameras follow a cloud and a third follows a fast object, the fit is a path nothing
+    took, and T1 and T2 judged it all the same: one cloud of the drift paper's 119 was called not drifting so. The
+    gate asks what pointing one straight path would need of the cameras (`sightlines.asked`): rays to one body ask
+    for what the cameras really have, rays to two things for many times it, and over `sightlines.MISFIT` times what
+    is taken as known T1 and T2 cannot say. A flier seen by every camera is one body and must still fail."""
+    print("\nT1/T2 from cameras on the ground: lines of sight that no single straight path passes through are refused")
+    from mcdonald import fliers, sightlines
+    known = (0.7, 0.4)
+    offs = [(0.5, -0.3), (-0.6, 0.2), (0.4, 0.3)]                 # each camera's pointing off by about what is known of it
+    rd, truth = cameras_scene(offsets=offs)
+    winds = _soundings(truth["v"])
+    with resamples(200):
+        found = drift.measure(None, sight=sightlines.rays(rd), observed_winds=winds, ground_m=600.0, pointing_err=known)
+    p, T = found.fields["ground_path"], {t["test"]: t for t in drift.flat(found.fields["tests"])}
+    check(p["misfit"] is not None and p["misfit"] < 3.0 and p["misfit_gate"] is True and drift.unfixed(p) is None
+          and p["misfit_camera"] in ("camera A", "camera B", "camera C") and p["misfit_angle"] in ("azimuth", "elevation")
+          and all(len(c["pointing_asked_deg"]) == 2 for c in p["cameras"]),
+          "one body seen by three cameras whose pointing is off by what is taken as known: one straight path asks no more "
+          "of them than that, and the gate holds", f"{p['misfit']:.2f} times what is known, asked of {p['misfit_camera']}")
+    check(T["T1"]["outcome"] == drift.PASS and T["T2"]["outcome"] != drift.FAIL,
+          "its T1 and T2 are judged as before", T["T2"]["reading"][:100])
+    text = "\n".join(drift.said(found.fields))
+    check("Do the lines of sight lie on one straight path?" in text and f"It is within the {sightlines.MISFIT:g} times allowed" in text,
+          "the printed lines say what one straight path asks of the cameras, and that it is within the gate")
+    # a flier seen by every camera is one body: its rays ask nothing unusual of the cameras, and T2 still fails it
+    rf, _ = cameras_scene(v=(8.0 + 20.0, 3.0 - 15.0), climb=1.5, offsets=offs)
+    with resamples(200):
+        flier = drift.measure(None, sight=sightlines.rays(rf), observed_winds=winds, ground_m=600.0, pointing_err=known)
+    pf, Tf = flier.fields["ground_path"], {t["test"]: t for t in drift.flat(flier.fields["tests"])}
+    check(pf["misfit_gate"] is True and pf["misfit"] < 3.0 and Tf["T2"]["outcome"] == drift.FAIL
+          and flier.fields["verdict"] == "not drifting",
+          "a flier at 25 m/s through the air, seen by all three cameras: the gate holds and T2 still fails it",
+          f"{pf['misfit']:.2f} times; {Tf['T2']['reading'][:70]}")
+    # two things matched as one: cameras B and C follow the slow drifter, camera A a fast object crossing elsewhere
+    other, _ = cameras_scene(v=(-70.0, 55.0), climb=-6.0, h=2400.0, at=(1500.0, 6500.0), offsets=offs, seed=11)
+    mixed = [r for r in rd if r["camera"] != "camera A"] + [r for r in other if r["camera"] == "camera A"]
+    with resamples(200):
+        bad = drift.measure(None, sight=sightlines.rays(mixed), observed_winds=winds, ground_m=600.0, pointing_err=known)
+    pb, Tb = bad.fields["ground_path"], {t["test"]: t for t in drift.flat(bad.fields["tests"])}
+    check(pb["misfit"] > sightlines.MISFIT and pb["misfit_gate"] is False and "no single straight path fits these lines of sight"
+          in (drift.unfixed(pb) or ""),
+          "two cameras on a drifter and a third on a fast object: one straight path would need a camera's pointing far "
+          "further off than it is taken as known to be", f"{pb['misfit']:.0f} times, {abs(pb['misfit_deg']):.1f} deg in "
+          f"{pb['misfit_angle']} at {pb['misfit_camera']}")
+    check(Tb["T1"]["outcome"] == drift.CANNOT and Tb["T2"]["outcome"] == drift.CANNOT and bad.fields["verdict"] == "cannot say"
+          and "no single straight path fits these lines of sight" in Tb["T2"]["reading"]
+          and "The cameras may be watching different objects" in Tb["T2"]["reading"]
+          and f"more than {sightlines.MISFIT:g} times is refused" in Tb["T1"]["reading"],
+          "T1 and T2 cannot say, and say why; the verdict is cannot say", Tb["T2"]["reading"][:150])
+    real_gate = sightlines.MISFIT
+    sightlines.MISFIT = float("inf")                              # what the stage said of it before the gate
+    try:
+        with resamples(200):
+            before = drift.measure(None, sight=sightlines.rays(mixed), observed_winds=winds, ground_m=600.0, pointing_err=known)
+    finally:
+        sightlines.MISFIT = real_gate
+    Tw = {t["test"]: t for t in drift.flat(before.fields["tests"])}
+    check(before.fields["ground_path"]["misfit_gate"] is True and (Tw["T1"]["outcome"], Tw["T2"]["outcome"]) != (drift.CANNOT, drift.CANNOT),
+          "without the gate the same rays were judged as one body's", f"T1 {Tw['T1']['outcome']}, T2 {Tw['T2']['outcome']}: "
+          f"{before.fields['ground_path']['speed_m_s']:.0f} m/s, climb {before.fields['ground_path']['climb_m_s']:+.0f} m/s")
+    text = "\n".join(drift.said(bad.fields))
+    check(f"It is over the {sightlines.MISFIT:g} times allowed, so no path is read from them" in text,
+          "the printed lines say that no path is read from them")
+    planted = fliers.plant_track(sightlines.rays(mixed), pb, [], procs=0)
+    check("no single straight path" in (planted.get("why") or ""),
+          "and no fliers are planted on rays that fix no path", str(planted.get("why"))[:90])
+    # what the gate does not read
+    R = sightlines.rays(rd)
+    free = drift.fit_track(R, nboot=0, pointing_err=(float("inf"), float("inf")))
+    check(free["misfit"] is None and free["misfit_gate"] is None and all(c["pointing_asked_deg"] is None for c in free["cameras"]),
+          "where nothing is taken as known of the pointing there is nothing to hold an offset against: the misfit is not read")
+    lone = [r for r in rd if r["camera"] != "camera A"] + [r for j, r in enumerate(other) if r["camera"] == "camera A" and j % 90 == 0]
+    few = drift.fit_track(sightlines.rays(lone), nboot=0, pointing_err=known)
+    nA = int(np.sum(sightlines.rays(lone)["camera"] == list(sightlines.rays(lone)["cameras"]).index("camera A")))
+    check(nA < sightlines.ASKED_MIN and few["misfit_camera"] != "camera A",
+          f"a camera with fewer than {sightlines.ASKED_MIN} readings is not the one asked: its few rays hardly move the path",
+          f"camera A read {nA} times; asked of {few['misfit_camera']}, {few['misfit']:.1f} times")
+    shared = drift.fit_track(sightlines.rays(rd, reference="shared"), nboot=0)
+    check("misfit" not in shared and "misfit_gate" not in shared,
+          "cameras that share one reference are fitted as an aircraft's rays, and the gate is not theirs")
+
+
 def _write_rays(td, rd, when=True):
     """The readings as a rays file and a cameras file: ISO times, elevations, the cameras' places apart."""
     from datetime import datetime, timezone

@@ -3,6 +3,24 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased (branch `misfit`)
+
+**`mcdonald drift` refuses lines of sight that no single straight path passes through** (2026-11-19; method section
+92; IDEAS.md TB1). With cameras on the ground (`--rays`), the stage fits one straight path to every camera's lines of
+sight. Until now it judged that path even where the cameras were watching different objects. One cloud in the drift
+paper's table was called "not drifting" that way. Two cameras held a slow cloud while a third site watched a small,
+fast object. The stage now asks how far each camera's pointing would have to be off for one straight path to pass
+through all the lines of sight. Where a camera would need more than 19 times the pointing error stated for it, the
+height test (T1) and the wind test (T2) say they cannot say, and say why: "no single straight path fits these lines
+of sight", with the camera, the angle and the degrees. The 19 comes from a null: 6,073 aircraft tracked by their
+transponders, none of them in the paper's sample. The rule refuses one such aircraft in 500 (12 of 6,073). It
+refuses the paper's mismatched cloud and two other objects known to be wrong matches. Of mismatches made on purpose
+it refuses 93 to 95 in 100 where one of the two objects is an aircraft. Where both are clouds it refuses 51 in 100:
+two clouds in one wind move alike. On the paper's 239 objects only the mismatched cloud moves, from "not drifting" to
+"cannot say". An aircraft's own track (`--platform`, `--los`) is not touched, and the four known answers' files are
+the same to the byte. New fields in the path: `misfit`, `misfit_camera`, `misfit_angle`, `misfit_deg`,
+`misfit_rms_deg`, `misfit_gate`, and each camera's `pointing_asked_deg`.
+
 ## 0.5.8 (2026-11-17)
 
 **The wind-drift tests, made ready for the drift paper** (2026-11-17; ROADMAP 0.5.8; method sections 34 and 66 to

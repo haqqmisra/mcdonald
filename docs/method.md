@@ -10054,3 +10054,139 @@ reading costs nothing to make.
 - *After 0.5.8, each measured first:* the reading made window by window, before the windows are counted (IDEAS.md
   N21: it would change how many windows every bird's finding quotes); and a weaker beat of the object's own under one
   given to the track (IDEAS.md N22: the first trap above).
+
+## 92. Lines of sight that no single straight path passes through: the misfit gate (`sightlines.asked`, `MISFIT`; IDEAS.md TB1; added 2026-11-19)
+
+**What it answers.** `drift.fit_track` fits one straight path at a steady velocity to the rays it is given, whatever
+they are rays to (sections 34 and 66), and T1 and T2 judge that path. `drift.unfixed` refuses the path where the rays
+cannot fix one (too few resamples, rays from one place, a range the bound leaves open). Nothing refused a path the
+rays do not follow. One cloud of the 119 in the drift paper's table (section 66, "As decided") was called not
+drifting so: two cameras 2 km apart held a slow cloud for 130 and 92 s while a third site's two cameras followed a
+small thing across 38 deg of azimuth in 26 s, and the fit through all 300 rays was a body at 64 m/s diving at
+24 m/s, which T1 and T2 both failed. Fitted without the third site's rays, the same object moves at 3.4 m/s and holds
+its height. The maintainer asked for the gate on 2026-11-19 ("The method should be as good as it can"), its threshold
+from a null (his rule of 2026-10-30).
+
+**What does not serve as the misfit, measured on the 239 objects of section 66** (a working note of 2026-11-19;
+aggregate numbers only, the rays are the Galileo Project's).
+- *The reduced chi-square and the rms about the path.* The bad object's chi-square is 65.8 and its rays miss the path
+  by 3.6 deg in azimuth. But an aircraft known by its transponder has 56.1 and 2.55 deg: a real body seen by cameras
+  whose clocks and lens models are a little off misses a straight path nearly as far.
+- *`model_test`'s p* (an accelerating path over a straight one): under 0.01 on 61 of the 119 clouds.
+- *Whether two cameras' rays keep meeting, with no path model*: the angle by which one camera's ray leaves the plane
+  through the other camera's ray and the line between them. The pipeline matches tracks by that very condition, so
+  the third site's rays meet one of the cloud's cameras' to 0.02 deg. Against the other camera the miss drifts by
+  3.3 deg in 25 s (its spread 1.00 deg), but a real aircraft's spread reaches 1.01 deg: a clock offset between two
+  cameras times a line of sight that turns fast.
+- *What is left once each camera's pointing offset is set free*: 0.2 deg for the bad object, as for any other. But it
+  is bought by offsets of 23 and 18 deg.
+
+**The reading** (`sightlines.asked`, `sightlines.misfit`). The rays are fitted again with each camera's two pointing
+offsets as parameters beside the path's six: a constant added to its azimuths and one to its elevations, each held
+to what is taken as known of it (`--pointing-err`: a Gaussian prior of that size), the rays weighted by the errors
+given (`--los-sigma`), not by errors scaled to their misfit. Rays to one body on one straight path ask for offsets of
+the size the cameras really have. Rays to two things, or to a body that did not move as the model says, can be
+brought onto one path only by offsets many times that size. **The misfit is the largest offset asked of any camera,
+in units of what is taken as known of that angle** (`misfit`; with the camera, the angle and the degrees:
+`misfit_camera`, `misfit_angle`, `misfit_deg`; every camera's two offsets: `pointing_asked_deg`; the rays' rms about
+that path: `misfit_rms_deg`). A camera with fewer than `ASKED_MIN` = 9 readings is not asked (TB2's cameras of one
+to four rays): an offset fitted to them is their own scatter. Over `MISFIT` the path is refused (`misfit_gate` false):
+`drift.unfixed` says "no single straight path fits these lines of sight. For one to pass through them all, the
+pointing of hideout-cam-7 would have to be 11.7 deg off in elevation. That is 29 times the 0.4 deg it is taken as
+known to, and more than 19 times is refused. The cameras may be watching different objects, or the object did not
+keep a straight path at a steady speed", and T1 and T2 cannot say. The gate is asked after the path gate and before
+the range's bound. The printed lines give the reading on every run ("Do the lines of sight lie on one straight
+path? ..."). The path, its errors and every other field are as they were.
+
+It is read only for cameras with their own pointing (`--rays`, section 66). An aircraft's display has one azimuth
+reference for all its rays, which the rays read poorly (the lanterns': -2.6 +- 1.3 deg), and no null for it is to
+hand: that route is not touched. Nor is it read where nothing is taken as known of the pointing (an `inf`: there is
+nothing to hold an offset against), nor for cameras that share one reference (`--reference shared`).
+
+**The null: known single bodies the stage was not built on.** The Galileo catalog names 7,423 objects with an
+aircraft's transponder code that are outside the drift paper's 239 (name share 0.9 or more, tracked 10 s or more by
+two or three sites, on the dates whose detections can be read). All 7,423 went through `drift --rays` as the paper's
+objects did (the same selection of rays, each ring camera a camera of its own, `--pointing-err 0.7,0.4`; lines of
+sight by the project's own calibration, on Cannon). **A name is not a known answer:** 1,276 of them have a name but
+no transponder track in the catalog, and they hold 59 objects the stage calls drifting (clouds, by their speeds,
+with an aircraft's name), 236 with a fitted speed over 400 m/s, and 94 with a misfit over 19. The null is the
+**6,073** whose transponder track lies within 1.5 km of the cameras' own position (the catalog study's rule; every
+one of the paper's 80 aircraft meets it): single bodies by a record the cameras did not make. 1,950 are below 3 km,
+779 at 3 to 8 km and 3,344 above; 3,159 were seen by two cameras, 1,722 by three, 1,192 by four to eleven.
+
+| the null's misfit | value |
+|---|---|
+| median; 90th; 95th percentile | 1.9; 5.0; 6.5 |
+| 99th; 99.5th | 10.1; 12.4 |
+| 99.9th; the largest | 40.5; 140 |
+| over 10; 12; 15; 19; 25 | 63 (1.04 %); 33; 22 (0.36 %); 12 (0.20 %); 8 |
+
+Up to its 99.5th percentile the null is log-normal: with the median 1.91 and a spread of 0.75 in the logarithm (read
+from the 75th to the 99th percentiles) the law puts the 99.5th at 13.2, where 12.4 is seen, and expects 18 objects
+over 15, where 22 are. Beyond that the null leaves its own law: 12 over 19 where it expects 6.6, 8 over 25 where 1.8.
+Those 8 are asked 14 to 62 deg of one camera, and on four of them the fitted speed is 0.74, 1.3, 4.1 and 8.4 times
+the transponder's: a ring camera's track that is another object's, inside an object whose other cameras are on the
+aircraft. **`MISFIT` = 19: the law of the null's bulk puts one single body in a thousand over 19.4.** Seen over 19:
+12 of 6,073, 0.20 %. A percentile read on half of the days does not serve in its place: the tail comes in clumps (13
+of the 33 objects over 12 are of one day, 2026-02-16, and 19 are asked of two cameras of one ring), so the 99.9th
+percentile is 42 on the days of even rank and 17 on the odd ones.
+
+**What it refuses of things known to be wrong.**
+- *Three objects known to be two things matched as one:* the paper's cloud, 29; and two objects looked at on
+  2026-11-12 and judged wrong matches then (a cloud or a fixed spot at one site with a fast point at the other), 41
+  and 58. All three are refused.
+- *Made mismatches* (600; `made/make_mixed.py` in the strand's folder): an object's rays with one site's rays
+  replaced by another object's rays from that site, shifted in time to overlap. A cloud with an aircraft at one site:
+  142 of 150 refused (95 %). An aircraft with a cloud at one site: 141 of 150. Two aircraft: 139 of 150. **Two
+  clouds: 76 of 150 (51 %)**: two slow things in one wind move alike, and one path fits them. Made mismatches are
+  easier than a matcher's: the pipeline's wrong matches have passed its own test that the rays meet.
+- *The 40 mismatched pairs of section 53* (two different clouds from the 2-km pair of sites): misfit 0.8 at the
+  median, 2.1 at the most. None is refused. Drift still cannot see a wrong height.
+
+**What it changed on the objects of known answer, and how that is held.**
+- *The 239 objects of section 66* (the release's tag and the branch side by side on Cannon, the same rays and
+  envelopes): the branch's file is the tag's on 238 of 239 but for the new fields and the printed lines. One object
+  moves: the cloud of two things goes from not drifting to cannot say (T1 and T2 from fails to cannot say). Aircraft
+  0 / 0 / 80 as before (their misfit 2.4 at the median, 9.4 at the most); clouds 44 / 75 / 0 where 44 / 74 / 1 (0.7
+  at the median, 4.5 at the most but for the one); mismatched pairs 11 / 29 / 0.
+- *The 6,073 known aircraft of the null* (the tag and the branch on Cannon): the tag calls none drifting, 6,069 not
+  drifting (T2 fails each) and 4 cannot say (their velocity not fixed). That is the paper's 0 of 80 again on 76 times
+  as many aircraft, none of which the stage was built on. The branch: 0 / 15 / 6,058. The gate refuses 12, of which
+  the tag called 11 not drifting, and no other outcome moves. Of the 1,276 with a name only the gate refuses 94 (74
+  of them not drifting at the tag); the 59 called drifting are called so still (misfit 2.9 at the most): they are
+  one thing each, moving with the wind. Of the two objects looked at and judged wrong matches the tag called one not
+  drifting; both are refused.
+- *The planted fliers* (section 67) on four of the paper's sample clouds through the branch: the tables are the
+  tag's, and none of 1,152 plants comes out differently. A plant's rays are the path's angles and the case's own
+  misses, so a plant asks of the cameras what its case does (0.1 to 1.2 on these four).
+- *The four known answers of section 34* come from an aircraft's display or have no rays: their files are the same
+  to the byte (test_drift).
+- *tests/test_drift.py, `test_cameras_the_misfit_gate`*, on drawn cameras: a drifter and a flier at 25 m/s seen by
+  three cameras whose pointing is off by what is taken as known (the gate holds, under 3; the flier still fails T2);
+  two cameras on the drifter and the third on a fast object (refused, T1 and T2 cannot say, with the words; with the
+  gate taken away the same rays are judged as one body's; no fliers are planted on them); nothing read where the
+  pointing is not known, for a camera of fewer than nine readings, or for cameras that share a reference. Eight
+  deliberate breaks of the code each fail it (the list is in the strand's notes).
+
+**Judgement calls** (each for the maintainer).
+1. *The rate:* one single body in a thousand by the bulk's law (19). One in 200 would be 13 (seen over 12: 0.5 % of
+   the null; made cloud-with-aircraft mismatches refused 97 %, two clouds 57 to 67 %); one in 100, 11. Between 9.5 and 29
+   the paper's 239 objects come out the same.
+2. *The null is the Galileo cameras', at the pointing error stated for them* (0.7 and 0.4 deg). The misfit is in
+   units of what is taken as known, so a statement of the pointing that is too tight for the cameras refuses real
+   bodies (at the package's default, 0.3 and 0.1 deg, these cameras' aircraft read about twice as much), and
+   the reading says the degrees and the statement both. For another camera system the 19 is this one's.
+3. *The rays at the errors given, not at errors scaled to their misfit* (the second fit is not `pointing`'s, whose
+   offsets are held with the scaled errors: on the bad object they read 2.6 deg at the most, where this asks 11.7).
+4. *`ASKED_MIN`* is `READINGS_MIN`, the fewest readings a path is fitted from.
+5. *What is refused is T1 and T2 both.* A flier whose rays hold a camera on something else loses its fail: of the 12
+   null aircraft over 19, the tag's T2 fails 11 (the twelfth it could not judge).
+
+**How it fails, and what it does not do.**
+- Two things that move alike are one path: two clouds in one wind (half of the made ones; none of the 40 pairs).
+- A wrong match in a camera of few readings is not asked, and one that is asked little moves the path little.
+- One body on a path that bends or changes speed asks offsets too, and where they pass 19 it is refused with the
+  same words ("or the object did not keep a straight path at a steady speed"): the gate does not tell the two apart.
+- The second fit starts from the first and may stop at a nearer minimum than the least offsets; the misfit is then
+  read too large, never too small for a path that fits.
+- It says nothing of which camera is wrong: the camera asked the most may be the one of three that is right.

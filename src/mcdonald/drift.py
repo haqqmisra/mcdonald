@@ -1119,7 +1119,9 @@ def fit_track(R, sig=(0.3, 0.1), ground_m=None, rng=None, nboot=2000, az_ref_err
 def unfixed(path):
     """Why the rays fix no path, where they do not: the reason in the tests' words, or None. Read before any number of
     the fit is trusted, in this order: too few resamples fitted (BOOT_MIN), the aircraft's path within its reading
-    error of a straight line (the path gate), the range's bound over RANGE_FIX. The model gate (`model_p`) is reported
+    error of a straight line (the path gate), cameras' rays that no single straight path passes through (the misfit
+    gate, `sightlines.asked`; since 2026-11-19, cameras with their own pointing only), the range's bound over
+    RANGE_FIX. The model gate (`model_p`) is reported
     and not yet a refusal: its rate on a real drifter is uncalibrated (c042 notes, 2026-11-02)."""
     if path["boots"] < BOOT_MIN:
         return (f"the bootstrap over its {path['readings']} readings kept {path['boots']} of {path['boots_of']:,} "
@@ -1127,6 +1129,9 @@ def unfixed(path):
     if not path["path_gate"] and path.get("cameras"):
         from . import sightlines
         return sightlines.one_place(path)
+    if path.get("misfit_gate") is False:                   # cameras whose rays no single straight path passes through
+        from . import sightlines
+        return sightlines.no_one_path(path)
     if not path["range_bound"] < RANGE_FIX and path.get("cameras"):
         from . import sightlines
         return sightlines.open_range(path)
