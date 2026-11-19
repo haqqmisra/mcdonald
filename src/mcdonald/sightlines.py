@@ -456,7 +456,7 @@ def no_one_path(path):
     return (f"no single straight path fits these lines of sight. For one to pass through them all, the pointing of "
             f"{path['misfit_camera']} would have to be {abs(path['misfit_deg']):.1f} deg off in {path['misfit_angle']}. "
             f"That is {path['misfit']:.0f} times the {k:g} deg it is taken as known to, and more than {MISFIT:g} times "
-            f"is refused. The cameras may be following different objects, or the object did not keep a straight path "
+            f"is refused. The cameras may be watching different objects, or the object did not keep a straight path "
             f"at a steady speed")
 
 
@@ -531,9 +531,9 @@ def said(g):
             f"{c['pointing_fitted_deg'][1]:+.2f} +- {c['pointing_fitted_err_deg'][1]:.2f} in elevation" for c in cams))
     if g.get("misfit") is not None:
         k = g["pointing_known_deg"][0 if g["misfit_angle"] == "azimuth" else 1]
-        L.append(f"\nDo the lines of sight follow one straight path? For one to pass through them all, the camera asked "
-                 f"the most, {g['misfit_camera']}, would have its pointing {abs(g['misfit_deg']):.2f} deg off in "
-                 f"{g['misfit_angle']}: {g['misfit']:.1f} times the {k:g} deg it is taken as known to. "
-                 + (f"That is within the {MISFIT:g} times allowed" if g["misfit_gate"] else
-                    f"That is over the {MISFIT:g} times allowed, so no path is read from them"))
+        L.append(f"\nDo the lines of sight lie on one straight path? The camera asked the most is {g['misfit_camera']}. "
+                 f"For one path to pass through every line of sight, its pointing would be {abs(g['misfit_deg']):.2f} deg "
+                 f"off in {g['misfit_angle']}. That is {g['misfit']:.1f} times the {k:g} deg it is taken as known to. "
+                 + (f"It is within the {MISFIT:g} times allowed" if g["misfit_gate"] else
+                    f"It is over the {MISFIT:g} times allowed, so no path is read from them"))
     return L

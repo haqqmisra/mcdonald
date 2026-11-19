@@ -55,6 +55,32 @@ Discussion's "one of 119", Fig. 7's caption and its top bar, Methods): the paper
 4. **The route from an aircraft's own track has no misfit gate**: its one azimuth reference is read poorly by the
    rays, and no null is to hand. Open (IDEAS.md TB1's row says so).
 
-## The holds
+## The holds (2026-11-19; Cannon's `test` partition, since arthur's queue was full of the dev session's jobs)
 
-[filled at the end of the pass]
+| what | job | result |
+|---|---|---|
+| the paper's 239 objects, the tag and the branch side by side (the same rays and envelopes) | 62110903, 62116215 | the branch's file is the tag's on 238 of 239, the new fields apart; the cloud of two things: not drifting -> cannot say. The tag on Cannon gives the tag on arthur's every verdict and outcome (239 of 239) |
+| the null, 7,425 objects (6,073 known aircraft, 1,276 with a name only, 74 tracked but over 1.5 km off, 2 looked at), the tag and the branch | 62116259, 62116228 | the tag: 0 of 6,073 known aircraft drifting, 6,069 not drifting, 4 cannot say; the branch refuses 12 (0.20 %), 11 of them not drifting at the tag; no outcome moves but by the gate, in any group |
+| made mismatches, 600 (branch, `MISFIT` then 15; read at 19 from their misfits) | 62112053 | refused: cloud with aircraft 142 of 150, aircraft with cloud 141, two aircraft 139, two clouds 76 |
+| the planted fliers on four sample clouds through the branch | 62116263 | the tag's tables; 0 of 1,152 plants differ |
+| every suite on the branch (`mcdonald-test`) | 62112145 (the first build), 62124433 (the final words) | ALL SUITES PASS both times; test_drift 373 (361 + the gate's 12), test_gui 695 + 4 skips (Cannon's usual) |
+| every suite with the footage test (`mcdonald-test --golden`) on f42c321 | 62116780 | every suite passes but test_golden, 265 PASS and 1 FAIL: the count of reference case files (17 objects where 18), because Cannon's copy of the data folder had 14 case files and not `pr089.mcdonald`, installed on arthur on 2026-11-18 after the copy was synced. Not the gate's. The file was copied to Cannon afterwards and the run made again on the branch's last commit: GOLDEN_AGAIN |
+| eight deliberate breaks of the gate's code against its test | 62116341 | each fails it (1 to 5 checks); the code as it is passes |
+
+The breaks: the gate never shuts; `unfixed` does not read it; the offsets read as zero; the offsets held ten thousand
+times tighter; a camera of any number of readings asked; the gate always shuts; an unknown pointing asked all the
+same; cameras that share a reference given the gate.
+
+Not run: arthur and merlin (the queue), Mac and Windows (they wait for a version commit, as for every release).
+
+## How the null was made (to make it again, or larger)
+
+1. The list: `null/null_list.tsv` and `null_list2.tsv` in the strand's folder (the catalog's named aircraft outside
+   the paper's sample; the rule is in `NOTES.md`).
+2. Lines of sight on Cannon: the research repository's `galileo/nevada/los.py` by `cannon/los_null.sbatch` (16 CPUs,
+   3 min a thousand objects), then `null/rays_from_los.py` (the paper's selection of rays; it gives the table's 239
+   rays files row for row).
+3. The stage on Cannon: `cannon/null_drift.sbatch SNAP LIST RAYS OUT` (48 CPUs: 1,000 objects in 14 min), then
+   `summarise.py`; fetch `OUT.summary.json`.
+4. `scripts/threshold.py` (the null's percentiles, its law, the made mismatches) and `scripts/final.py` (the tag
+   against the branch).

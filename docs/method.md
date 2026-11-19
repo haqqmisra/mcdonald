@@ -10093,9 +10093,9 @@ that path: `misfit_rms_deg`). A camera with fewer than `ASKED_MIN` = 9 readings 
 to four rays): an offset fitted to them is their own scatter. Over `MISFIT` the path is refused (`misfit_gate` false):
 `drift.unfixed` says "no single straight path fits these lines of sight. For one to pass through them all, the
 pointing of hideout-cam-7 would have to be 11.7 deg off in elevation. That is 29 times the 0.4 deg it is taken as
-known to, and more than 19 times is refused. The cameras may be following different objects, or the object did not
+known to, and more than 19 times is refused. The cameras may be watching different objects, or the object did not
 keep a straight path at a steady speed", and T1 and T2 cannot say. The gate is asked after the path gate and before
-the range's bound. The printed lines give the reading on every run ("Do the lines of sight follow one straight
+the range's bound. The printed lines give the reading on every run ("Do the lines of sight lie on one straight
 path? ..."). The path, its errors and every other field are as they were.
 
 It is read only for cameras with their own pointing (`--rays`, section 66). An aircraft's display has one azimuth
@@ -10149,7 +10149,16 @@ percentile is 42 on the days of even rank and 17 on the odd ones.
   moves: the cloud of two things goes from not drifting to cannot say (T1 and T2 from fails to cannot say). Aircraft
   0 / 0 / 80 as before (their misfit 2.4 at the median, 9.4 at the most); clouds 44 / 75 / 0 where 44 / 74 / 1 (0.7
   at the median, 4.5 at the most but for the one); mismatched pairs 11 / 29 / 0.
-- *The 6,073 known aircraft:* the tag calls none drifting. [filled below from the two runs]
+- *The 6,073 known aircraft of the null* (the tag and the branch on Cannon): the tag calls none drifting, 6,069 not
+  drifting (T2 fails each) and 4 cannot say (their velocity not fixed). That is the paper's 0 of 80 again on 76 times
+  as many aircraft, none of which the stage was built on. The branch: 0 / 15 / 6,058. The gate refuses 12, of which
+  the tag called 11 not drifting, and no other outcome moves. Of the 1,276 with a name only the gate refuses 94 (74
+  of them not drifting at the tag); the 59 called drifting are called so still (misfit 2.9 at the most): they are
+  one thing each, moving with the wind. Of the two objects looked at and judged wrong matches the tag called one not
+  drifting; both are refused.
+- *The planted fliers* (section 67) on four of the paper's sample clouds through the branch: the tables are the
+  tag's, and none of 1,152 plants comes out differently. A plant's rays are the path's angles and the case's own
+  misses, so a plant asks of the cameras what its case does (0.1 to 1.2 on these four).
 - *The four known answers of section 34* come from an aircraft's display or have no rays: their files are the same
   to the byte (test_drift).
 - *tests/test_drift.py, `test_cameras_the_misfit_gate`*, on drawn cameras: a drifter and a flier at 25 m/s seen by
@@ -10160,8 +10169,8 @@ percentile is 42 on the days of even rank and 17 on the odd ones.
   deliberate breaks of the code each fail it (the list is in the strand's notes).
 
 **Judgement calls** (each for the maintainer).
-1. *The rate:* one single body in a thousand by the bulk's law (19). One in 200 would be 13 (seen over 13: 0.5 % of
-   the null; made cloud-with-aircraft mismatches refused 97 %, two clouds 65 %); one in 100, 11. Between 9.5 and 29
+1. *The rate:* one single body in a thousand by the bulk's law (19). One in 200 would be 13 (seen over 12: 0.5 % of
+   the null; made cloud-with-aircraft mismatches refused 97 %, two clouds 57 to 67 %); one in 100, 11. Between 9.5 and 29
    the paper's 239 objects come out the same.
 2. *The null is the Galileo cameras', at the pointing error stated for them* (0.7 and 0.4 deg). The misfit is in
    units of what is taken as known, so a statement of the pointing that is too tight for the cameras refuses real
@@ -10171,7 +10180,7 @@ percentile is 42 on the days of even rank and 17 on the odd ones.
    offsets are held with the scaled errors: on the bad object they read 2.6 deg at the most, where this asks 11.7).
 4. *`ASKED_MIN`* is `READINGS_MIN`, the fewest readings a path is fitted from.
 5. *What is refused is T1 and T2 both.* A flier whose rays hold a camera on something else loses its fail: of the 12
-   null aircraft over 19, the tag fails every one.
+   null aircraft over 19, the tag's T2 fails 11 (the twelfth it could not judge).
 
 **How it fails, and what it does not do.**
 - Two things that move alike are one path: two clouds in one wind (half of the made ones; none of the 40 pairs).

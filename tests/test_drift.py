@@ -1531,7 +1531,7 @@ def test_cameras_the_misfit_gate():
     check(T["T1"]["outcome"] == drift.PASS and T["T2"]["outcome"] != drift.FAIL,
           "its T1 and T2 are judged as before", T["T2"]["reading"][:100])
     text = "\n".join(drift.said(found.fields))
-    check("Do the lines of sight follow one straight path?" in text and f"within the {sightlines.MISFIT:g} times allowed" in text,
+    check("Do the lines of sight lie on one straight path?" in text and f"It is within the {sightlines.MISFIT:g} times allowed" in text,
           "the printed lines say what one straight path asks of the cameras, and that it is within the gate")
     # a flier seen by every camera is one body: its rays ask nothing unusual of the cameras, and T2 still fails it
     rf, _ = cameras_scene(v=(8.0 + 20.0, 3.0 - 15.0), climb=1.5, offsets=offs)
@@ -1555,7 +1555,7 @@ def test_cameras_the_misfit_gate():
           f"{pb['misfit_angle']} at {pb['misfit_camera']}")
     check(Tb["T1"]["outcome"] == drift.CANNOT and Tb["T2"]["outcome"] == drift.CANNOT and bad.fields["verdict"] == "cannot say"
           and "no single straight path fits these lines of sight" in Tb["T2"]["reading"]
-          and "The cameras may be following different objects" in Tb["T2"]["reading"]
+          and "The cameras may be watching different objects" in Tb["T2"]["reading"]
           and f"more than {sightlines.MISFIT:g} times is refused" in Tb["T1"]["reading"],
           "T1 and T2 cannot say, and say why; the verdict is cannot say", Tb["T2"]["reading"][:150])
     real_gate = sightlines.MISFIT
@@ -1570,7 +1570,7 @@ def test_cameras_the_misfit_gate():
           "without the gate the same rays were judged as one body's", f"T1 {Tw['T1']['outcome']}, T2 {Tw['T2']['outcome']}: "
           f"{before.fields['ground_path']['speed_m_s']:.0f} m/s, climb {before.fields['ground_path']['climb_m_s']:+.0f} m/s")
     text = "\n".join(drift.said(bad.fields))
-    check(f"over the {sightlines.MISFIT:g} times allowed, so no path is read from them" in text,
+    check(f"It is over the {sightlines.MISFIT:g} times allowed, so no path is read from them" in text,
           "the printed lines say that no path is read from them")
     planted = fliers.plant_track(sightlines.rays(mixed), pb, [], procs=0)
     check("no single straight path" in (planted.get("why") or ""),
