@@ -343,3 +343,24 @@ its two thresholds).
 - **Decisions 12-14, and the last pass** (this document's "final holds").
 - Deliberate breaks through the day, each failing the check meant for it: 21 (the integration), 3 (the jitter
   control), 21 (the band), 15 (decision 13).
+
+## The paper reformatted for Royal Society Open Science, the method first (2026-11-19, night)
+
+Jacob, 2026-11-19: the new target journal is Royal Society Open Science, and the paper's order changes: "Start by
+developing the wind-drift test, then apply it to the triangulated Galileo controls. Once the method has been
+established, then at the end we apply it to the Hellfire case. Most of the figures should be showing the method
+itself". Done that night in the paper's own repository (uap `manuscript/hellfire_yemen/`, Overleaf, pushed 4bc2efe);
+its README has the full map. Nothing in this package changed, and no number of the paper changed (all at 0.5.9).
+
+- The paper is in the publisher's `rsos.cls` with `RS.bst`. Its sections: 2 the tests as rules, 3 the tests on
+  objects of known motion (the Galileo clouds and aircraft, the limit on one straight path with its 6,073 further
+  aircraft, the two videos made from aircraft, planted fliers by route), 4 the Yemen video, 5 Discussion; the former
+  Methods are Appendices A-F.
+- Nine figures in the house style, six on the method and its controls. Two read this package's golden tables:
+  `tests/golden/wind_model_soundings.csv` (a model's wind against radiosondes, the paper's Fig. 2, asserted against
+  the run of record of `tools/wind_model_igra.py`) and `tests/golden/wind_model_t2_ranges.csv` (the range route's
+  rates, its Fig. 6). The schematic of Test 2's rule (Fig. 1) is computed from the rule and checked against
+  `drift.test_wind_track` at 4,004 velocities. The figure scripts are uap `analysis/tools/drift_paper_figs_method.py`
+  and `drift_paper_figs_cases.py`.
+- Left with Jacob: the text is his to edit now (abstract, title, whether the 6,073 aircraft and their figure stay in
+  the main text). uap's new scripts and outputs are uncommitted there.
