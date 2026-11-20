@@ -92,7 +92,9 @@ same; cameras that share a reference given the gate.
 | Mac and Windows (`platforms.yml`, pushed to `macos-ci` and `windows-ci`) | runs 126, 127 | both green: every suite passes on each (`ci-logs`, `logs/126-c28fda4`, `logs/127-c28fda4`); the Mac's runner was slow that hour (47 min where 35 at 0.5.8), Windows took 64 min of its 120 |
 | a fresh install of 0.5.9 from PyPI into an empty venv, on merlin (Python 3.12, no AVX2) | 16865 | `mcdonald --version` 0.5.9, `sightlines.MISFIT` 19.0, `setup --no-desktop` and `drift --help` run |
 
-Not run: merlin. The suites on arthur's card (job 16193) were queued behind the dev session's jobs and had not started
+| GitHub's Linux suites on the pushed `main` (`suites.yml`) | runs 74, 75 | run 74 was cut off at the workflow's 45-minute limit in test_measurement, every finished suite passing (twenty suites, 2,539 PASS, 0 FAIL; that runner reported one CPU). The limit was the fault, not the gate: run 71 took 43.6 minutes the day before and run 72 timed out before 0.5.9. `suites.yml`'s limit is 90 minutes since e77d1fb, and run 75 on it is green in 32 minutes |
+
+Not run: merlin's suites. The suites on arthur's card (job 16193) were queued behind the dev session's jobs and had not started
 when the release went out; the gate touches no code that the card runs.
 
 ## How the null was made (to make it again, or larger)
