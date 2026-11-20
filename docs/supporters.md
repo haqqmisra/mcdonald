@@ -29,7 +29,7 @@ also put your name in our journal articles and in the program itself.
 - **The program.** Patrons are named under Help → About mcDonald in every version released while they are listed.
   Each version is archived on [Zenodo](https://doi.org/10.5281/zenodo.23652954), so your name stays in those
   versions permanently.
-- **Founding Supporters.** Our first 100 donors, at any level, are marked as Founding Supporters on this page
+- **Founding Supporters.** Our first 20 donors, at any level, are marked as Founding Supporters on this page
   permanently.
 - **Your choice.** You choose the name we show, or to stay anonymous. To change how you are listed, write to
   [jacob@bmsis.org](mailto:jacob@bmsis.org). We review every name before it is listed.
