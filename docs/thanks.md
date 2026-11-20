@@ -4,6 +4,8 @@ description: Thank you for supporting the mcDonald UAP Toolkit.
 hide:
   - navigation
   - toc
+search:
+  exclude: true
 ---
 
 <!-- The page Zeffy's donation form opens after a gift. It is kept out of the menu (`not_in_nav` in mkdocs.yml), so

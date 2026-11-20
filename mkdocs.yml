@@ -70,9 +70,11 @@ watch:
   - CONTRIBUTING.md
   - tools/site_hooks.py
 
-# Built and published, but kept out of the menu: thanks.md is reached only from the Zeffy form, after a gift.
+# Built and published, but kept out of the menu: thanks.md is reached only from the Zeffy form, after a gift;
+# field-card.md only from a link Jacob sends. Their front matter also leaves them out of the site's search.
 not_in_nav: |
   thanks.md
+  field-card.md
 
 exclude_docs: |
   handoff-*.md

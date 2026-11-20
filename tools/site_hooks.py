@@ -14,13 +14,17 @@ work without copying a file into docs/:
     disagree (tests/test_reduction.py already holds the README to the version), less any line that points at
     the roadmap: the site does not mention it (Jacob, 2026-10-24). On the publications page,
     `<!-- CITATION -->` is the toolkit's own citation from CITATION.cff, which the same test holds.
+
+A page kept out of the menu (`not_in_nav`: the thank-you page Zeffy opens, the field card Jacob sends) is also
+left out of the sitemap, so that nothing on the site points at it (on_post_build).
 """
+import gzip
 import posixpath
 import re
 from pathlib import Path
 
 import yaml
-from mkdocs.structure.files import File
+from mkdocs.structure.files import File, InclusionLevel
 
 REPO = Path(__file__).resolve().parents[1]
 GITHUB = "https://github.com/haqqmisra/mcdonald/"
@@ -34,6 +38,7 @@ COPIED = {"assets/mcdonald.svg": "src/mcdonald/icons/mcdonald-small.svg",
 # where a link to a repository file arrives on the site, when it is not under docs/
 ARRIVES = {src: page for page, src in ROOT_PAGES.items()} | {"README.md": "index.md"}
 ON_SITE = set()                                       # the files the site carries (on_files)
+UNLISTED = set()                                      # the URLs of pages kept out of the menu (on_files)
 
 LINK = re.compile(r"(\]\()([^)\s]+)((?:\s+\"[^\"]*\")?\))")
 FENCE = re.compile(r"^\s*(```|~~~)", re.M)
@@ -57,7 +62,24 @@ def on_files(files, config):
         files.append(File.generated(config, to, abs_src_path=str(REPO / src)))
     ON_SITE.clear()
     ON_SITE.update(f.src_uri for f in files if not f.inclusion.is_excluded())
+    UNLISTED.clear()
+    UNLISTED.update(f.url for f in files if f.is_documentation_page() and f.inclusion == InclusionLevel.NOT_IN_NAV)
     return files
+
+
+def on_post_build(config):
+    """Take the pages kept out of the menu out of sitemap.xml and its gzipped copy."""
+    site = Path(config["site_dir"])
+    sitemap = site / "sitemap.xml"
+    if not UNLISTED or not sitemap.exists():
+        return
+    base = config["site_url"] or ""
+    gone = {base + url for url in UNLISTED}
+    xml = re.sub(r"\s*<url>\s*<loc>([^<]*)</loc>.*?</url>",
+                 lambda m: "" if m[1] in gone else m[0], sitemap.read_text(encoding="utf-8"), flags=re.S)
+    sitemap.write_text(xml, encoding="utf-8")
+    with open(site / "sitemap.xml.gz", "wb") as f, gzip.GzipFile(fileobj=f, mode="wb", mtime=0) as gz:
+        gz.write(xml.encode("utf-8"))
 
 
 def on_page_markdown(markdown, page, config, files):
