@@ -263,3 +263,29 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* The field card page (field-card.md): the card's two sides, large, with a card's rounded corners
+   (1/8 in on a 3.5 x 2 in card), and its heading kept for screen readers only. */
+.md-typeset img.field-card {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto 2rem;
+  border-radius: 3.6% / 6.3%;
+  box-shadow: var(--md-shadow-z2);
+}
+
+.md-typeset h1.field-card-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* In the dark theme the card's navy back meets the navy page: a faint ring marks its edge. */
+[data-md-color-scheme="slate"] .md-typeset img.field-card {
+  box-shadow: 0 0 0 1px rgba(232, 238, 246, 0.22), var(--md-shadow-z2);
+}
