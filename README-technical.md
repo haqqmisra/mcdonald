@@ -210,6 +210,13 @@ mcdonald mark CLIP.mp4 --n0 400 --n1 420 --no-window --link \
 # lines that take its rows, so that look, mark and run meet in one folder; this lists them, as the window does
 mcdonald segments CLIP.mp4                  # each segment with results: its frames, what its report says, where
 
+# Start a case over: what its results folder holds (the marks, the tracks, the reports, each object's folder) is moved
+# into a dated folder inside it, earlier/<date>_<time>/, so the next run starts with nothing saved. Nothing is deleted
+# unless --delete is given; the video, its frames and other segments' folders are not touched (the window's Start over)
+mcdonald clear CLIP/ --dry-run              # what would be set aside, and what would stay
+mcdonald clear CLIP/                        # a results folder; or the video, as every command names its case:
+mcdonald clear CLIP.mp4 --n0 400 --n1 420   # ... that segment's folder, clip/segment-400-420/
+
 # What could the search have found? Synthetic objects written into a stretch and encoded again as the video is, with a
 # truth table of where each is in every frame, and the same stretch with nothing planted as the control. The result
 # is a test video, never footage: its name, its tags and every case made from it say so (docs/method.md section 62)
@@ -623,7 +630,20 @@ the first that will open.
   stops with a sentence where a step gives it nothing to go on. Three lights under the button -- Find,
   Follow, Measure -- are lit as each is done, and once the button has been
   pressed the Advanced Mode button under it is gone for that video (View →
-  Advanced Mode remains). What the person knows of the video that its pixels cannot say --
+  Advanced Mode remains). Pressed where results are saved, the button (then **Measure again**) goes on
+  from them: it follows what is marked and measures it again, or measures the objects in their folders
+  again. Two things start a case over instead (2026-11-22; `mcdonald/clear.py`, method section 111). A quiet
+  **Start over** at the foot of the box, there whenever something is saved for the open segment (and
+  File → Start this segment over…), asks in the box -- "Start over? …", **Start over** or **Keep them**,
+  no dialog -- and on yes sets the saved results aside in `earlier/<date>_<time>/` inside the results
+  folder (`clear.set_aside`, which `mcdonald clear` is; nothing is deleted) and puts the video back as
+  when first opened: no marks, no track, no objects, no report, the lights off, the button Begin, and one
+  line that says where the results went. And the count is not ignored (`auto_qt.AutoRun.outdated`): where
+  everything saved was a one-press run's own choice, made for another count of objects than the one said
+  now on the segment step, the button says Begin again, and the press starts over by itself and says so
+  under the button when it ends.
+  What a person chose -- marks by hand, a row said yes to, rows ticked, an agent's marks -- is never set
+  aside without the question. What the person knows of the video that its pixels cannot say --
   the horizontal field of view, the distance to the object, a reference of known
   length in the picture (its length in pixels measured on the player), the speeds a
   report gave -- is asked on the segment step too, folded under the count, in the
@@ -673,16 +693,18 @@ the first that will open.
   queue of several): a badge and the label of its
   conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
   sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
-  the checks as rows -- each test as a question in plain words, its answer in a word (Yes, No,
-  Partly, Can't tell, Not yet; integrity's row Consistent or Inconsistent) and why in the tooltip: the report's own checklist, which sits
-  under the conclusion's sentence in the report too, the paragraph of reasoning folded under it
-  (`report.Case.checklist`; a tester's ask, 2026-11-01) -- then the numbers found as label-and-value rows, "More" for how sure
+  then the numbers found as label-and-value rows, "More" for how sure
   the conclusion is (`report.Case.grade`: GRADE's domains, computed), what it rests on, at most four reasons the heaviest first,
   each weighed on the labelled infrared set where it can be (`report.Case.reasons`, `controls`; method section 47), and the bottom
   line's paragraph (which says what a real speed still needs), "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
   (`measure_qt.show_report`), whose "Save as PDF…" writes it as one file with its pictures in it
-  (`paper.write`, which `mcdonald report CASE.json --pdf` is too); Measure → Open the case folder finds the files. **Measure → The sound
+  (`paper.write`, which `mcdonald report CASE.json --pdf` is too). The report's own checklist -- each test as a question
+  in plain words, its answer in a word (Yes, No, Partly, Can't tell, Not yet; integrity's row Consistent or Inconsistent)
+  and why in a line (`report.Case.checklist`; a tester's ask, 2026-11-01) -- is in the full report, under the conclusion's
+  sentence, with the paragraph of reasoning folded under it, and in `run --json`. It is not on the card: it was from
+  2026-11-01, and came off on 2026-11-22 because up to fifteen wrapped rows made the summary too long (the maintainer,
+  after PR169). Measure → Open the case folder finds the files. **Measure → The sound
   of this video…** is `mcdonald audio` in the window: a page over the video that says first, in one
   sentence, what the sound holds (an aircraft named by two tones, the power it was recorded on,
   silence), then the picture of the sound and, folded, the command's own words. A video with sound

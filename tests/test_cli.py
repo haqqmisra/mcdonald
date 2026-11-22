@@ -812,6 +812,184 @@ def test_a_folder_for_each_segment():
               err.strip()[-120:])
 
 
+def test_a_case_started_over_is_set_aside():
+    """Jacob, 2026-11-22, after PR169 in the window (one bird, followed as three objects, measured as three again):
+    "It may be helpful for the user to have a way to "clear" the memory of a specific case, if they want to start
+    over." What a case remembers is in its results folder, and `mcdonald clear` (`clear.set_aside`, which the
+    window's Start over is too) moves it into `earlier/<date>_<time>/` inside that folder. Held here: it moves
+    exactly what the commands wrote there and nothing else -- not another segment's folder, the frames, the video,
+    a file not named for the case, the zoom states or a shared file's thread; nothing is deleted unless asked;
+    --dry-run changes nothing; a second time is a folder of its own; and `segments`, `run --each` and `share` do
+    not take the folder for a segment, an object or part of what to send."""
+    print("\nclear: a case started over, its results set aside")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    from datetime import datetime
+    from mcdonald import clear, segments, several, share
+    with tempfile.TemporaryDirectory() as td:
+        TMP[:] = [td]
+        clip, video = planted_video(td)
+        home, work = Path(td) / "here", Path(td) / "frames"
+        home.mkdir()
+        base, seg = home / "planted", home / "planted" / "segment-1-12"
+        at = lambda n: f"object@{n}={clip.truth(n)[0]:.1f},{clip.truth(n)[1]:.1f}"
+        # a case as the commands make it: the whole video's marks, link and report; a segment's marks; two objects' folders and their list
+        rc1, out, err1 = mcdonald("mark", video, "--no-window", "--link", "--set", at(2), "--set", at(6), "--why", "the disc that moves",
+                                  "--workdir", work, "--json", cwd=home)
+        rc2, out, err2 = mcdonald("run", video, "--marks", base / "planted_marks.json", "--workdir", work,
+                                  "--only", "ingest,track,verify,kinematics,report", "--json", cwd=home)
+        rc3, out, err3 = mcdonald("mark", video, "--no-window", "--n0", 1, "--n1", 12, "--set", at(3), "--set", at(7), "--workdir", work, cwd=home)
+        rcs = [mcdonald("mark", video, "--no-window", "--set", at(2 + k), "--set", at(8 + k), "--why", f"object {k}", "--out", base / f"object-{k}",
+                        "--workdir", work, cwd=home)[0] for k in (1, 2)]
+        rc4, out, err4 = mcdonald("report", base, "--index", "--json", cwd=home)
+        wrote = sorted(p.name for p in base.iterdir() if p.name != seg.name)
+        ok = check([rc1, rc2, rc3, rc4] + rcs == [0] * 6 and (seg / "planted_marks.json").exists()
+                   and {"planted_marks.json", "planted_autotrack.csv", "planted_case.md", "planted_case.json", "planted_objects.md",
+                        "planted_objects.json", "object-1", "object-2"} <= set(wrote),
+                   "a case to start over: the video's marks, track and report, two objects' folders and their list, and a segment "
+                   "with marks of its own", f"exits {[rc1, rc2, rc3, rc4] + rcs}; {len(wrote)} names in planted/")
+        if not ok:
+            print((err1 + err2 + err3 + err4)[-800:])
+            return
+        # what is not the case's, and what a later run reads as given
+        (base / "notes.txt").write_text("mine\n", encoding="utf-8")
+        (base / "PLANTED report.pdf").write_bytes(b"%PDF-")
+        (base / "extra").mkdir()
+        (base / "planted_zoom.json").write_text("{}", encoding="utf-8")
+        (base / f"planted{share.KEPT}").write_text("{}", encoding="utf-8")
+        stays = ["PLANTED report.pdf", "extra", "notes.txt", seg.name]
+        tree = lambda root: sorted((str(p.relative_to(root)), p.stat().st_size, p.stat().st_mtime_ns) for p in Path(root).rglob("*") if p.is_file())
+        before = tree(base), tree(work), video.stat().st_mtime_ns
+        rc, out, err = mcdonald("clear", base, "--dry-run", "--json", cwd=home)
+        d = as_json(out)
+        r = (d or {}).get("results") or {}
+        check(rc == 0 and d is not None and set(d) == ENVELOPE and d["command"] == "clear" and tree(base) == before[0]
+              and r.get("moved") == wrote and r.get("dry_run") is True and Path(r.get("into") or "x").parent == base / clear.EARLIER
+              and not (base / clear.EARLIER).exists() and "would set aside" in err and "Nothing was changed" in err,
+              "clear --dry-run changes nothing, and says in the envelope every command prints what would be set aside: every "
+              "name the commands wrote there", f"exit {rc}; {len(r.get('moved') or [])} names for {len(wrote)}")
+        check(r.get("kept") == sorted(["planted_zoom.json", f"planted{share.KEPT}"]) and r.get("left") == sorted(stays)
+              and (r.get("objects"), r.get("marks"), r.get("tracks"), r.get("reports")) == (2, 3, 1, 1),
+              "and what would stay: another segment's folder, files and folders not named for the case, the zoom states a later "
+              "run reads and a shared file's thread; with the counts a caller can say (2 objects' folders, 3 sets of marks, 1 "
+              "track, 1 report)", f"kept {r.get('kept')}; left {r.get('left')}")
+        rc, out, err = mcdonald("clear", base, "--json", cwd=home)
+        d = as_json(out)
+        r = (d or {}).get("results") or {}
+        into = Path(r.get("into") or "x")
+        try:
+            datetime.strptime(into.name, clear.STAMP)
+            dated = into.parent == base / clear.EARLIER
+        except ValueError:
+            dated = False
+        after = tree(base)
+        moved_whole = sorted((str(Path(n).relative_to(into.relative_to(base))), s, t) for n, s, t in after if n.startswith(clear.EARLIER))
+        was = [(n, s, t) for n, s, t in before[0] if not n.startswith(seg.name) and Path(n).parts[0] not in stays + r.get("kept", [])]
+        check(rc == 0 and dated and sorted(p.name for p in into.iterdir()) == wrote and moved_whole == was
+              and sorted(Path(f).name for f in d["files"]) == wrote and all(Path(f).exists() for f in d["files"]),
+              "clear moves exactly what the commands wrote into earlier/<date>_<time>/ in the results folder: every file as it "
+              "was, to the byte and the time, the objects' folders whole", f"exit {rc}; into {into.name}; {len(moved_whole)} files for {len(was)}")
+        check(sorted(p.name for p in base.iterdir()) == sorted(stays + r["kept"] + [clear.EARLIER])
+              and [x for x in after if x[0].startswith(seg.name)] == [x for x in before[0] if x[0].startswith(seg.name)]
+              and tree(work) == before[1] and video.stat().st_mtime_ns == before[2] and (base / "notes.txt").read_text(encoding="utf-8") == "mine\n",
+              "and nothing else: the other segment's folder, the saved frames, the video, the notes and the zoom states are as "
+              "they were", ", ".join(sorted(p.name for p in base.iterdir())))
+        check(f"Set aside {len(wrote) - 2} files and 2 object folders (3 sets of marks, 1 track, 1 report) from" in err
+              and "Nothing was deleted" in err and "Left where they were" in err and "Traceback" not in err,
+              "it says what it did in sentences, on stderr with --json: what was set aside, where it is, that nothing was "
+              "deleted, and what was left", err.strip().splitlines()[0][:110] if err.strip() else "")
+        # the folder it made is no object, no segment, and no part of a file to send
+        rc, out, err = mcdonald("segments", video, "--json", cwd=home)
+        rows = [(s["first"], s["last"], Path(s["folder"]).name) for s in ((as_json(out) or {}).get("results") or {}).get("segments", [])]
+        rc5, out, err5 = mcdonald("run", video, "--each", base, "--workdir", work, cwd=home)
+        sent = {rel for rel, _ in share._case_files(base)}
+        check(rows == [(1, 12, seg.name)] and segments.listed(base, "planted")[0].folder == seg and several.things(base) == []
+              and rc5 == 5 and not clear.holds(base) and clear.EARLIER in share.SKIP_DIRS and share.KEPT in clear.KEEP
+              and sent and not [x for x in sent if x.startswith(clear.EARLIER)],
+              "the folder of what was set aside is not taken for a segment (`segments`), an object (`run --each` finds none) or "
+              "part of a file to send (`share`): each sees a case with nothing saved", f"segments {rows}; run --each exit {rc5}")
+        rc, out, err = mcdonald("clear", base, cwd=home)
+        check(rc == 0 and "Nothing is saved for a case" in out and [p.name for p in (base / clear.EARLIER).iterdir()] == [into.name],
+              "asked again with nothing saved, it says so in words on stdout, exits 0 and makes no folder", out.strip()[:90])
+        # by the video's name, as every command names a case: a segment's own folder; and --delete
+        first = tree(base / clear.EARLIER)
+        rc, out, err = mcdonald("clear", video, "--n0", 1, "--n1", 12, "--json", cwd=home)
+        r = ((as_json(out) or {}).get("results")) or {}
+        check(rc == 0 and Path(r.get("folder") or "x").resolve() == seg.resolve() and "planted_marks.json" in (r.get("moved") or [])
+              and (Path(r.get("into") or "x") / "planted_marks.json").exists() and not (seg / "planted_marks.json").exists()
+              and Path(r.get("into") or "x").parent == seg / clear.EARLIER and tree(base / clear.EARLIER) == first,
+              "clear VIDEO --n0 1 --n1 12 finds the segment's folder as every command does, and sets its marks aside inside it",
+              f"exit {rc}; {r.get('folder')}")
+        mcdonald("mark", video, "--no-window", "--n0", 1, "--n1", 12, "--set", at(3), "--set", at(7), "--workdir", work, cwd=home)
+        kept_before = tree(seg / clear.EARLIER)
+        rc, out, err = mcdonald("clear", seg, "--delete", "--json", cwd=home)
+        r = ((as_json(out) or {}).get("results")) or {}
+        check(rc == 0 and r.get("deleted") is True and r.get("into") is None and "planted_marks.json" in (r.get("moved") or [])
+              and not (seg / "planted_marks.json").exists() and tree(seg / clear.EARLIER) == kept_before and "cannot be brought back" in err,
+              "--delete removes the results for good, says so, and leaves what was set aside before where it is", f"exit {rc}")
+        rc, out, err = mcdonald("clear", home / "nowhere", cwd=home)
+        check(rc != 0 and "nowhere" in err and "Traceback" not in err, "a folder that is not there is said, not a traceback", err.strip()[-100:])
+        # the function alone: two starts over in one minute are two folders; all of it moves, or none of it
+        twice = Path(td) / "twice" / "clip"
+        twice.mkdir(parents=True)
+        when = datetime(2026, 11, 22, 11, 5)
+        gots = []
+        for k in (1, 2):
+            (twice / "clip_marks.json").write_text(f"{k}", encoding="utf-8")
+            gots.append(clear.set_aside(twice, when=when))
+        check([Path(g["into"]).name for g in gots] == ["2026-11-22_1105", "2026-11-22_1105-2"]
+              and [(Path(g["into"]) / "clip_marks.json").read_text(encoding="utf-8") for g in gots] == ["1", "2"]
+              and gots[0]["tags"] == ["clip"] and clear.set_aside(twice)["moved"] == [] and len(clear.said(gots[0])) == 2,
+              "set_aside: a second start over in the same minute has a folder of its own, so the first is not written over",
+              ", ".join(Path(g["into"]).name for g in gots))
+        both = Path(td) / "both"                      # one folder, two videos' results (--out): the window names its own
+        (both / "object-1").mkdir(parents=True)
+        for name in ("a_marks.json", "a_case.md", "b_marks.json", "object-1/b_marks.json"):
+            (both / name).write_text("{}", encoding="utf-8")
+        one, every = clear.set_aside(both, "a", dry_run=True), clear.set_aside(both, dry_run=True)
+        check(clear.tags(both) == ["a", "b"] and one["moved"] == ["a_case.md", "a_marks.json", "object-1"] and one["left"] == ["b_marks.json"]
+              and every["moved"] == ["a_case.md", "a_marks.json", "b_marks.json", "object-1"] and every["left"] == []
+              and clear.holds(both, "a") and clear.holds(both, "c"),
+              "given a tag (the window's open video), only that case's files are set aside, and every object's folder, which "
+              "is the folder's whatever its files are named for; given none, every case the folder holds", f"{one['moved']}; {every['moved']}")
+        alone = Path(td) / "alone" / "clip"           # one stage's command run alone: no marks, no report, no list to read a tag from
+        (alone / "segment-3-9").mkdir(parents=True)
+        for name in ("clip_layers.csv", "_mine.txt", "segment-3-9/clip_layers.csv", "segment-3-9/other_layers.csv"):
+            (alone / name).write_text("x", encoding="utf-8")
+        was = os.getcwd()
+        os.chdir(alone)
+        try:
+            here = clear.set_aside(".", dry_run=True)
+        finally:
+            os.chdir(was)
+        check(clear.tags(alone) == ["clip"] and clear.set_aside(alone, dry_run=True)["moved"] == ["clip_layers.csv"]
+              and here["moved"] == ["clip_layers.csv"] and here["left"] == ["_mine.txt", "segment-3-9"]
+              and clear.set_aside(alone / "segment-3-9", dry_run=True)["moved"] == ["clip_layers.csv"],
+              "a folder with no marks, report or list has the tag every command gives it: its own name, or its video's folder's "
+              "for a segment -- also when it is named as `.`", f"{here['moved']}; left {here['left']}")
+        (twice / "clip_marks.json").write_text("3", encoding="utf-8")
+        (twice / "clip_case.md").write_text("3", encoding="utf-8")
+        real, moves = shutil.move, []
+
+        def failing(src, dst):
+            moves.append(src)
+            if len(moves) == 2:
+                raise OSError("the disk said no")
+            return real(src, dst)
+        clear.shutil.move = failing
+        try:
+            clear.set_aside(twice, when=datetime(2026, 11, 22, 11, 6))
+            raised = False
+        except OSError:
+            raised = True
+        finally:
+            clear.shutil.move = real
+        check(raised and (twice / "clip_marks.json").read_text(encoding="utf-8") == "3" and (twice / "clip_case.md").exists()
+              and not (twice / clear.EARLIER / "2026-11-22_1106").exists(),
+              "where one move fails the ones made are put back and the error is raised: all of it moves, or none of it")
+
+
 def test_several_objects_are_a_case_each():
     """Jacob, 2026-10-06, after Galileo flyer 1's four things: "Is there a way ... to find/follow/measure
     multiple objects at once?" A case is one object; several objects are several cases, each in its own

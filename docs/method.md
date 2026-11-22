@@ -4921,8 +4921,10 @@ first line (2026-11-02): where that line says the object moved "as the camera he
 moved is not measured, in the same words, and not "No" -- on ten of the fourteen reference case files, PR135's six birds
 among them, 0.4.1 had answered No from the held-still share, which is the step's own no-power. The paragraph that was at the top
 is folded under the table (`<details>`: a link on the window's report page, a fold on GitHub, expanded in the PDF), not
-gone; the conclusion's sentence stays first, so the exercise pages, which quote it, stand. The window's report card has
-the same rows above its numbers, the answer in a word and why in the tooltip; `mcdonald run --json` carries them as
+gone; the conclusion's sentence stays first, so the exercise pages, which quote it, stand. The window's report card had
+the same rows above its numbers, the answer in a word and why in the tooltip, until 2026-11-22: the maintainer found the
+card too long with them (up to fifteen wrapped rows, on every object's card), so the table is the full report's alone and
+the card keeps the conclusion, the numbers found and More. `mcdonald run --json` carries the rows as
 `results.checklist`. The rows are read from the stages' fields, as the conclusion and the bottom line are, so a case file
 from an earlier version gets its checklist when its report is opened or written again. Measured: the rows' own words are
 97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).
@@ -10287,3 +10289,108 @@ until then.
 - `mcdonald batch` asks for its lists without the step (`join=False`): what is one object in a batch is its own rule
   (`long_lived`, `merged`), recorded with what it made, and the tables made so far are held to it.
 - The lists shown while a search goes on are not joined; the last is.
+
+## 111. Starting a case over, and the count the one press keeps to (`mcdonald clear`, `clear.set_aside`, `auto_qt.AutoRun.outdated`; IDEAS.md TU2, TU3; added 2026-11-22)
+
+Not a measurement: what a case remembers, and when it is forgotten. The maintainer opened PR169 in the window (0.5.9).
+The one press followed its one bird as three objects. He opened the video again, said on the segment step that he was
+looking for 1 object, and pressed the button, which by then said Measure again: it measured the three old folders
+again, and its last line read "You looked for 1 object: 2 were followed". The cause was one line of
+`auto_qt.AutoRun._next`: with no marks in the window and object folders in the results folder, measure those again,
+whatever was said. So the folder decided what the press did, the count was ignored, and nothing in the window let a
+person clear the folder. ("It may be helpful for the user to have a way to "clear" the memory of a specific case, if
+they want to start over.") That Find lists the bird as three rows is another strand's (section 110).
+
+**What a case remembers** is its results folder: a video's (`<tag>/`), a segment's (`<tag>/segment-A-B/`) or the one
+`--out` named. `mark`, `run`, `run --each` and the window go on from the marks, the track and the objects' folders
+they find there.
+
+**`clear.set_aside(folder, tag=None, delete=False, dry_run=False)`** moves that out of the way. One function, no
+interface: `mcdonald clear` and the window's Start over both call it. The rule is from what writes there, not from a
+list of file names that a new stage would outdate:
+
+| in the results folder | what happens | why |
+|---|---|---|
+| every file named `<tag>_...` | moved | every command writes through one prefix, `<folder>/<tag>` (`clip.out_prefix`): the marks and their strip (`mark.save_all`), the automatic track (`autolink.save_track`), every stage's tables and pictures and the report (`stages.run_case`), the list of objects (`several.index`), the sound's reading, a PDF `report --pdf` wrote |
+| every `object-N` folder | moved, whole | each is a case this one made (`several`) |
+| `<tag>_zoom.json` | stays | `mcdonald zoom`'s states, which a later `run` reads as given, and a segment's `run` reads from the video's folder: moved, a case started over would be measured without them, silently |
+| `<tag>_share.json` | stays | a shared file's thread (`share.KEPT`): correspondence, not a measurement |
+| `segment-A-B` folders | stay | other cases |
+| `earlier` | stays | what was set aside before |
+| anything not named for the case | stays | someone's notes, a PDF saved under a name of their own |
+| the video, the frames | not there | the work folder is elsewhere, and its caches are keyed by content |
+
+The results go into `earlier/<date>_<time>/` inside the folder (local time, to the minute; `-2`, `-3` for a second in
+that minute), so a slip is undone by moving them back. `--delete` removes them for good and is the command's alone,
+never the window's. All of it moves or none: where one move fails, those made are put back and the error is raised.
+The tag is given by the window (the open video's); a command given a folder reads the tags from the files a case is
+known by (`<tag>_marks.json`, `<tag>_case.json`, `<tag>_objects.json`, there or in an object's folder), else takes the
+folder's own name. `several.things` reads `object-N` and `segments.listed` reads `segment-A-B`, so neither takes
+`earlier` for an object or a segment; `share` leaves it out of a file to send (`share.SKIP_DIRS`). It returns fields:
+`moved`, `into`, `kept`, `left`, and the counts `objects`, `marks`, `tracks`, `reports`, `files`.
+
+**In the window.** A quiet Start over at the foot of the one button's card, shown when the window holds marks or the
+open segment's folder holds anything `set_aside` would move (`QtMarker.saved_before`), and File -> Start this segment
+over…. It asks in the card, never in a dialog. On yes (`QtMarker.begin_again`): marks not saved yet are saved, so that
+they are set aside with the rest and not lost; the folder's results are set aside; and the same frames are loaded
+again (`load`), so the window is as when the video was first opened. What was said on the segment step (the count,
+what is known) stays said. The card says once where the results went.
+
+**The count.** `AutoRun.outdated` is asked at each press, and by the card for what its button says. A press that finds
+it true starts over by itself (`begin_again`), then runs Find afresh, and says where the old results went when it ends. "The press's own" below
+means that every mark of the object says it was taken by a one-press run (`auto_qt.PRESS`, in `TAKEN` and
+`TAKEN_SEVERAL`).
+
+| what the window and the segment's folder hold | the count said now | the press |
+|---|---|---|
+| nothing | any | Find; the first row and each other at least fair, or the N likeliest; follow; measure (as before) |
+| the window's own object, the press's own | none, or 1 | goes on: follows it if it has no track here, and measures it (as before) |
+| the window's own object, the press's own | 2 or more | **starts over**: one object is not what a press told N leaves |
+| the window's own object, a person's or an agent's (by hand, snapped, typed, a row said yes to, marks opened from a file, `mark --set`) | any | goes on from it (as before); the count is not used |
+| objects in folders, all the press's own; their list written for the count said now, and no more objects than it | the same (none both times, or the same N) | measures them again (as before) |
+| objects in folders, all the press's own; their list written for another count, or more objects than are looked for now | another | **starts over** |
+| objects in folders, one or more a person's ticks or an agent's | any | measures them again (as before); the last line holds the count against them |
+| the window gone into one of several objects ("Open in the window") | as the list's two rows | as those rows say; with a mark added by hand, goes on (as before) |
+
+"None said" is a count: a list written with none said is outdated when 1 is said, and the reverse. The list records
+the count it was last written for (`several.asked_before`). The second half of the sixth row -- more objects, their
+groups' members apart, than are looked for -- is for lists the press of 0.5.9 wrote again under a new count: PR169's
+own folder says `asked: 1` over three objects, and a press told N takes at most N rows (`propose.one_press_rows`).
+The window's own object has no record of the count it was chosen under, so the rule there reads what a press can
+leave: one object, for none said or for 1.
+
+**Judgement calls** (each for the maintainer).
+1. *Only the press's own choices are set aside by the press.* The brief for this strand had any saved results started
+   over on a changed count. Read in the code, that would set a person's hand marks aside at a press of the one button
+   whenever 2 or more had been said on the segment step before they were made (the window's own object keeps no record
+   of the count), and an agent's `run --each` folders at a press of Measure again. So a person's or an agent's choice
+   is left, the last line still holds the count against it, and Start over is there to press.
+2. *What the button says.* Where the press will start over the card says Begin, in colour, with its lights off, over
+   the report cards of before (`AutoCard.say` asks `outdated` whenever it is not running): the button says what the
+   press will do. And a video opened again over objects' folders of an earlier day now says Measure again with its
+   lights lit. Until now it said Begin there with the lights off, because the card read the queue's panel, which is
+   not made until asked for; the press measured the old objects again all the same.
+3. *The count is remembered for a video, not for a segment* (`mark_qt.remembered_objects`): a count said for one
+   segment is the count the segment step shows for the next one opened. With this rule a press-made case of the
+   second segment starts over on it. Nothing is lost, and the card says so; a count kept for each segment would end it.
+4. *`KEEP`:* the zoom states and a shared file's thread stay. The sound's reading (`<tag>_audio…`) goes with the rest,
+   so the Measure the sound card is in colour again after a start over.
+5. *Where the results go:* inside the results folder, so they travel with it and no other folder has to be writable.
+   Nothing ever empties `earlier`: each start over keeps a track sheet of a few megabytes for each object.
+
+**How it fails.**
+- A folder that holds only one stage's files under a tag that is not the folder's name (`mcdonald layers X --out Y`
+  alone) gives the command no tag to read: it says nothing is saved. The window always knows its tag.
+- A file held open by another program on Windows stops the move: everything is put back, and the card or the command
+  says why.
+- What writes into the folder on a thread of its own must be over first: Start over is greyed, and refused, while a
+  step runs, while the sound is read, or while a report's speed is worked out again (`QtMarker.can_start_over`). A
+  command run from a terminal at the same time on the same folder is not known to the window.
+- A press that would start over by itself while the sound is read, or a speed worked out, does not start: its line
+  says "Something is already running. Let it end, or stop it, and press again."
+
+**Held to.** test_cli `test_a_case_started_over_is_set_aside` (the names the commands wrote are the names moved, to
+the byte and the time; what stays; `--dry-run`, `--delete`; `segments`, `run --each` and `share` on the folder after;
+two starts over in one minute; a move that fails) and test_gui `drive_one_button` (the button's place, the question
+with no dialog, Keep them, the File menu from Advanced Mode, the window after a yes, the line that says where; an
+unchanged count measures again, a changed one starts over; the table above on drawn marks; a mark not yet saved).

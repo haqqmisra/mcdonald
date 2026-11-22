@@ -2955,6 +2955,8 @@ def drive_one_button(td):
           and w.mode_button.isVisible() and w.mode_button.text() == "Advanced Mode",
           "the side panel opens simple: one button, Begin, under one line, the three steps hidden, its tip naming its key, "
           "and Advanced Mode under it (Jacob, 2026-10-21)", f"{card.button.text()!r} {w.mode_button.text()!r}")
+    check(card.over_row.isHidden() and card.ask.isHidden() and not w.acts["start_over"].isEnabled(),
+          "with nothing saved for the segment there is no Start over on the card, and the File menu's is greyed")
     row = next(a for a in actions.ACTIONS if a.id == "auto")
     check(row.menu == "Track" and "Nothing is asked" in row.help and next(a for a in actions.ACTIONS if a.id == "advanced").check,
           "it is a row of the table, in the Track menu with its line of help; Advanced is a row of View, ticked or not")
@@ -2964,6 +2966,7 @@ def drive_one_button(td):
           and card.jewels.names == w.steps[0].jewels.names and card.jewels.y() >= card.busy.y() + card.busy.height(),
           "pressed, it is finding the object: a moving bar, a Stop, and under the bar no line but Find's jewels, one for "
           "each of its bars (Jacob, 2026-10-20)", f"{card.jewels.lit()} {card.state.text()[:40]!r}")
+    check(card.over_row.isHidden() and not w.acts["start_over"].isEnabled(), "and no Start over while it runs: Stop is the one button")
     check(card.command.isVisible() and card.command.text() == "look" and card.busy.height() == card.command.height(),
           "with the command beside the bar, as the step's card names it, the bar as tall as the oval",
           f"{card.command.text()} {card.busy.height()}/{card.command.height()} px")
@@ -3013,18 +3016,16 @@ def drive_one_button(td):
           "a badge and the label, the one sentence, the numbers found, More folded, and the full report a press away",
           d.headline.text()[:80])
     import re                                        # the function imports it lower down, which makes it local throughout
+    from PySide6 import QtWidgets
     from mcdonald.report import ANSWERS, CHECKS
-    checks = [(d.checks_grid.itemAtPosition(r, 0).widget(), d.checks_grid.itemAtPosition(r, 1).widget())
-              for r in range(d.checks_grid.rowCount()) if d.checks_grid.itemAtPosition(r, 0)]
-    said = [t for q, a in checks for t in (q.text(), a.text(), a.toolTip())]
-    check(d.checks.isVisible() and len(checks) >= 3 and all(q.text() in CHECKS.values() and a.text() in ANSWERS and a.toolTip() and q.toolTip() == a.toolTip()
-                                                            for q, a in checks)
-          and {a.text() for q, a in checks if q.text().startswith("Has a person checked")} == {"Not yet"}
-          and not [(w, t) for t in said for pat in TRADE_WORDS for w in [re.search(pat, t, re.I)] if w]
-          and d.layout().indexOf(d.checks) < d.layout().indexOf(d.facts),
-          "the checks as rows above the numbers: each test as a question in plain words, its answer in a word, why in the tooltip, "
-          "the track not yet checked by eye said so (the report's checklist; Ravi, 2026-11-01)",
-          "; ".join(f"{q.text()[:30]}: {a.text()}" for q, a in checks)[:160])
+    rows = d.case.checklist()                        # the report's own table: on the full report's page, not on the card
+    on_card = lambda card: [x.text() for x in card.findChildren(QtWidgets.QLabel) if x.text() in CHECKS.values() or x.text() in ANSWERS]
+    check(len(rows) >= 3 and not on_card(d) and not hasattr(d, "checks") and not hasattr(d, "checks_grid")
+          and {r["answer"] for r in rows if r["test"].startswith("Has a person checked")} == {"Not yet"}
+          and d.layout().indexOf(d.banner) < d.layout().indexOf(d.facts) < d.layout().indexOf(d.more),
+          "the card does not show the checks: no test's question and no answer in a word is on it, only the conclusion, the "
+          "numbers found and More (Jacob, 2026-11-22: the Yes/No rows on the full report alone)",
+          f"{len(rows)} rows in the case; on the card: {on_card(d)[:3]}")
     from mcdonald import report
     bird = report.Case("t", "/tmp/x.mp4")            # a beat at a wingbeat's rate: the label, and a bird drawn as its badge
     report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, finding="it beats", beat={"object": dict(
@@ -3149,10 +3150,16 @@ def drive_one_button(td):
           f"{cells['Range'].text()!r}; {cells[four[3]].styleSheet()!r}")
     d._fill(report.Case("t", "/tmp/x.mp4"))
     check(not {d.grid.itemAtPosition(r, 0).widget().text() for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)} & set(four)
-          and d.checks.isHidden() and d.checks_grid.count() == 0,
-          "a case with no rate to turn into a speed says nothing of them, and one with nothing measured has no checks")
+          and d.facts.isHidden(),
+          "a case with no rate to turn into a speed says nothing of them, and one with nothing measured has no rows at all")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
+    d.more.click()                                   # what the conclusion rests on is still a press away, on the card
+    more = d.more_text.text()
+    check(d.more_text.isVisible() and d.case.bottom_line() in more and (not d.case.grade() or d.case.grade()["said"] in more)
+          and all(r["said"] in more for r in d.case.reasons()),
+          "More still holds the reasoning: how sure the conclusion is, what it rests on, and the paragraph", more[:90])
+    d.more.click()
     check(card.state.isHidden() and card.button.text() == "Measure again",
           "the one-button card says nothing more: the report's card speaks for itself", card.state.text())
     d.looked.click()
@@ -3163,6 +3170,16 @@ def drive_one_button(td):
     text = w.report_page.page.toPlainText() if w.report_page is not None else ""
     check(w.report_page is not None and w.report_page.isVisible() and text.index("Conclusion") < text.index("Summary of variables")
           and not w.report_page.banner.isVisible(), "Full report opens the whole report over the video, its conclusion first")
+    rows = report.Case.load(case / "planted_case.json").checklist()
+    flat = " ".join(text.split())
+    check(len(rows) >= 3 and "What was checked" in flat and "Answer" in flat and all(r["test"] in flat for r in rows)
+          and all(r["test"] in CHECKS.values() and r["answer"] in ANSWERS for r in rows)
+          and text.index("Conclusion") < text.index("What was checked") < text.index("Summary of variables")
+          and not [(m, r["test"]) for r in rows for pat in TRADE_WORDS for m in [re.search(pat, r["test"] + " " + r["said"], re.I)] if m]
+          and not on_card(d),
+          "and the full report has the checks the card leaves out: its table under the conclusion, each test as a question in "
+          "plain words with its answer in a word (the report's checklist; Ravi, 2026-11-01)",
+          "; ".join(f"{r['test'][:30]}: {r['answer']}" for r in rows)[:160])
     w.report_page.close()
     check(w.track_strip is None and bool(w._strips) and not w.note.quiet and w.note.isHidden() and w.work.isHidden(),
           "through the run nothing was put under the video -- not the track's check either -- and nothing said over it")
@@ -3188,6 +3205,67 @@ def drive_one_button(td):
     QtTest_wait(lambda: not w.auto.running() and not mp.running(), 180)
     check(not w.auto.running() and w.auto.why == "Stopped." and card.state.text() == "Stopped.", "and Stop stops it, and says so",
           card.state.text())
+    # Start over (Jacob, 2026-11-22, after PR169: "a way to "clear" the memory of a specific case, if they want to start
+    # over"): a quiet button at the foot of the card once something is saved; its question in the card, never in a dialog;
+    # on yes the results set aside (`clear.set_aside`), and the window as when the video was first opened
+    from mcdonald import auto_qt, clear, segments
+    from mcdonald import several
+    others = lambda: [x for x in QtWidgets.QApplication.topLevelWidgets() if x.isVisible() and not isinstance(x, mark_qt.QtMarker)]
+    row = next(a for a in actions.ACTIONS if a.id == "start_over")
+    busy = card.over_row.isVisible()                 # there at once, greyed until the window has heard that the measuring ended
+    QtTest_wait(lambda: card.over.isEnabled(), 30)
+    QtTest_wait(lambda: False, 0.2)                  # ... and the column is laid out with it
+    saved = sorted(x.name for x in case.iterdir())
+    check(busy and card.over_row.isVisible() and card.over.isEnabled() and card.over.text() == "Start over" and card.ask.isHidden()
+          and card.over_row.y() > card.lights.y() > card.button.y() and w.acts["start_over"].isEnabled() and row.menu == "File"
+          and card.over.toolTip() == row.help and "Nothing is deleted" in row.help,
+          "with results saved, a quiet Start over is at the foot of the card, under the button and its lights, and in the "
+          "File menu with its line of help", f"{len(saved)} names saved; {card.over.text()!r}")
+    card.over.click()
+    check(card.ask.isVisible() and card.over_row.isHidden() and card.ask_text.text() == auto_qt.OVER_ASKS
+          and "set aside in a folder named earlier" in auto_qt.OVER_ASKS and "Nothing is deleted" in auto_qt.OVER_ASKS
+          and [b.text() for b in (card.yes, card.keep)] == ["Start over", "Keep them"] and card.yes.isVisible() and card.keep.isVisible()
+          and not others() and sorted(x.name for x in case.iterdir()) == saved,
+          "pressed, it asks in the card -- one sentence, then Start over or Keep them -- with no dialog, and nothing has "
+          "changed yet", card.ask_text.text()[:60])
+    QtTest_wait(lambda: False, 0.2)
+    check(not too_tall(w), "the card with its question is as tall as what it holds", "; ".join(too_tall(w)))
+    card.keep.click()
+    check(card.ask.isHidden() and card.over_row.isVisible() and sorted(x.name for x in case.iterdir()) == saved and w.ms.count()
+          and w.links.get(0) is not None and d.isVisible() and card.button.text() == "Measure again",
+          "Keep them: the question goes, and nothing has changed in the folder or in the window")
+    w.set_advanced(True)
+    w.do("start_over")
+    asked = not w.advanced and card.isVisible() and card.ask.isVisible() and not others()
+    card.keep.click()
+    check(asked and w.advanced and card.ask.isHidden() and card.isHidden() and w.steps_box.isVisible(),
+          "File -> Start this segment over… in Advanced Mode brings the card back to ask, and Keep them puts the three steps back")
+    w.set_advanced(False)
+    card.over.click()
+    card.yes.click()
+    aside = case / clear.EARLIER
+    dated = sorted(aside.iterdir()) if aside.is_dir() else []
+    check(len(dated) == 1 and sorted(x.name for x in dated[0].iterdir()) == saved and [x.name for x in case.iterdir()] == [clear.EARLIER]
+          and "planted_case.md" in saved and "planted_marks.json" in saved and "planted_autotrack.csv" in saved,
+          "Start over: everything saved for the segment -- the marks, the track, the report, every step's files -- is moved into "
+          "earlier/<date>_<time>/ in its results folder, and nothing is deleted",
+          f"{len(saved)} names into {dated[0].name if dated else '?'}; left: {[x.name for x in case.iterdir()]}")
+    check(card.button.text() == "Begin" and card._now is True and card.lights.stages == ["todo"] * 3 and not w.ms.count() and not w.links
+          and w.find_panel is None and w.several_panel is None and w.measure_panel is None and not w.report_card.isVisible()
+          and not w.object_cards and card.over_row.isHidden() and card.ask.isHidden() and not w.acts["start_over"].isEnabled()
+          and w.mode_button.isVisible() and not w.advanced and w.clip is not None and (w.clip.n0, w.clip.n1) == (1, 24)
+          and w.stack.currentWidget() is w.split and Path(w.out) == case / "planted" and not others(),
+          "and the window is as when the video was first opened: no marks, no track, no list from Find, no report card, the "
+          "three lights off, the button Begin and teal, the video in front, and no dialog",
+          f"{card.button.text()!r} {card.lights.stages} marks {w.ms.count()}")
+    where = Path(clear.EARLIER) / dated[0].name if dated else "?"
+    check(card.state.isVisible() and card.state.text() == auto_qt.ASIDE.format(where=where) == w.auto.why
+          and card.state.text().startswith("The results from before were set aside in earlier") and not too_tall(w),
+          "the card says, once, where the results went: a line under the button, in a card still as tall as what it holds",
+          card.state.text())
+    check(segments.listed(case, "planted") == [] and several.things(case) == [] and not clear.holds(case, "planted"),
+          "and the folder they went into is no segment and no object: the window, `segments` and `several` see a case with "
+          "nothing saved")
     w._closing = True
     w.close()
 
@@ -3228,6 +3306,10 @@ def drive_one_button(td):
           and not w3.report_card.isVisible() and w3.stack.currentWidget() is w3.split,
           "and the column has a report card for each, the track not yet checked by eye on either, the video still in sight",
           str({k: c.label.text() for k, c in w3.object_cards.items()}))
+    check(all(c.case is not None and len(c.case.checklist()) >= 3 and not on_card(c) and c.facts.isVisible() and c.more.isVisible()
+              and c.case.bottom_line() in c.more_said(c.case) for c in w3.object_cards.values()),
+          "an object's card leaves the checks to its full report too: the numbers found, and More with the reasoning",
+          str({k: on_card(c)[:2] for k, c in w3.object_cards.items()}))
     both = [n for n in range(1, 25) if all(n in t for t in w3.object_tracks.values())]
     w3.goto(both[0] if both else 8)
     check(sorted(w3.object_tracks) == [1, 2] and sorted(w3._object_paths) == [1, 2] and sorted(w3.object_boxes) == [1, 2]
@@ -3257,6 +3339,118 @@ def drive_one_button(td):
           str(sorted(w3.object_cards)))
     w3._closing = True
     w3.close()
+    # The count is not ignored (Jacob, 2026-11-22: he opened PR169 again and said 1, "but it still found 2" -- the press
+    # had measured the old folders again). The saved objects here are the press's own choice, made when no count was said:
+    # opened with the same count the press measures them again, as before; told 1, it starts over by itself
+    w7 = mark_qt.open_session(str(video2), 1, 24, out=str(case2), workdir=str(frames2))
+    w7.show()
+    c7 = w7.auto_card
+    check(w7.objects_expected is None and not w7.auto.outdated() and c7.over_row.isVisible() and c7.over.isEnabled()
+          and sorted(w7.object_cards) == [1, 2],
+          "opened again with the same count (none said), the saved objects are not outdated, and Start over is at the card's "
+          "foot", f"asked before: {several.asked_before(case2)}")
+    check(w7.several_panel is None and c7.button.text() == "Measure again" and c7._now is False and c7.lights.stages == ["done"] * 3,
+          "and the card knows the objects of an earlier day: Measure again, quietly, the three lights lit -- not Begin over "
+          "their report cards, as it said until 2026-11-22", f"{c7.button.text()!r} {c7.lights.stages}")
+    c7.button.click()
+    check(w7.auto.running() and w7.auto.stage == "several" and len(several.things(case2)) == 3 and not (case2 / clear.EARLIER).exists()
+          and c7.over_row.isHidden() and w7.auto.aside == "",
+          "pressed, it measures the objects in their folders again, as before, and sets nothing aside", str(w7.auto.stage))
+    w7.auto.stop()
+    QtTest_wait(lambda: not w7.auto.running() and not w7.several_panel.running(), 300)
+    w7._closing = True
+    w7.close()
+    w8 = mark_qt.open_session(str(video2), 1, 24, out=str(case2), workdir=str(frames2))
+    w8.show()
+    w8.objects_expected = 1
+    was = sorted(x.name for x in case2.iterdir())
+    w8.say_steps()
+    c8 = w8.auto_card
+    check(w8.auto.outdated() and sorted(w8.object_cards) == [1, 2] and c8.button.text() == "Begin" and c8._now is True
+          and c8.lights.stages == ["todo"] * 3 and c8.over_row.isVisible(),
+          "told 1 where the press followed several: what is saved is outdated, and the card says what the press will do -- "
+          "Begin, in colour, the lights off -- over the report cards of before", f"{c8.button.text()!r} {c8.lights.stages}")
+    w8.auto_card.button.click()
+    got = QtTest_wait(lambda: w8.auto.stage in ("link", "measure") or not w8.auto.running(), 300)
+    dated = sorted((case2 / clear.EARLIER).iterdir()) if (case2 / clear.EARLIER).is_dir() else []
+    check(got and w8.auto.running() and len(dated) == 1 and sorted(x.name for x in dated[0].iterdir()) == was
+          and {"object-1", "object-2", "object-3", "two_objects.md", "two_objects.json"} <= set(was) and several.things(case2) == []
+          and w8.ms.count() and not w8.object_cards and not w8.object_tracks and w8.objects_expected == 1 and not w8.advanced
+          and all("one-press run" in (w8.ms.how_of("object", n) or "") for n in w8.ms.frames("object")),
+          "the press starts over by itself: the old objects' folders and their list set aside, Find run afresh, and the first "
+          "row alone taken as a single case, as for a video just opened and told 1", f"{w8.auto.stage}; {w8.auto.why}; {[x.name for x in dated]}")
+    where = Path(clear.EARLIER) / dated[0].name if dated else "?"
+    check(w8.auto.aside == auto_qt.ASIDE.format(where=where) and w8.auto_card.state.isHidden(),
+          "what it will say of them is kept until it ends: nothing under the bar while it runs", w8.auto.aside)
+    w8.auto.stop()
+    QtTest_wait(lambda: not w8.auto.running() and not w8.linking() and not (w8.measure_panel is not None and w8.measure_panel.running()), 180)
+    check(w8.auto.why == "Stopped." and w8.auto_card.state.text() == f"Stopped. {w8.auto.aside}" and w8.auto_card.state.isVisible()
+          and "set aside in earlier" in w8.auto_card.state.text() and not too_tall(w8),
+          "and when it ends, the card says where the results from before went, after what it ended with", w8.auto_card.state.text())
+    w8._closing = True
+    w8.close()
+    # ... and only the press's own choices: what a person chose is never set aside without the question
+    case9 = home / "two-case-hand"
+    w9 = mark_qt.open_session(str(video2), 1, 24, out=str(case9), workdir=str(frames2))
+    w9.show()
+    taken = lambda by: f"proposed: 1 of 2 spots found moving against the background in frames 1–24 (bright, about 9 pixels wide); {by}"
+    spots = {3: (100.0, 120.0), 9: (160.0, 150.0)}
+    w9.objects_expected = 2
+    for n, (x, y) in spots.items():
+        w9.ms.add("object", n, x, y)                # by hand
+    w9.marks_changed()
+    by_hand, offered = w9.auto.outdated(), w9.auto_card.over_row.isVisible() and not clear.holds(case9, "two")
+    for n, (x, y) in spots.items():
+        w9.ms.add("object", n, x, y, how=taken(auto_qt.TAKEN))
+    said = {}
+    for now in (None, 1, 2, 3):
+        w9.objects_expected = now
+        said[now] = w9.auto.outdated()
+    check(not by_hand and offered and said == {None: False, 1: False, 2: True, 3: True} and auto_qt.PRESS in auto_qt.TAKEN
+          and auto_qt.PRESS in auto_qt.TAKEN_SEVERAL,
+          "the window's own object: marks put by hand are never outdated, whatever the count (Start over is offered for them); "
+          "the press's own choice of one object is outdated only when two or more are looked for", f"by hand {by_hand}; the press's {said}")
+    for n in spots:
+        w9.ms.remove_last("object", n)
+    w9.marks_changed()
+    for k, dx in ((1, 0.0), (2, 40.0)):
+        several.place(w9.clip, "two", case9, {n: (x + dx, y) for n, (x, y) in spots.items()}, taken(auto_qt.TAKEN_SEVERAL), video=str(video2))
+    several.index(case9)
+    for now in (None, 1, 2, 3):
+        w9.objects_expected = now
+        said[now] = w9.auto.outdated()
+    several.index(case9, objects=2)
+    again = {}
+    for now in (None, 1, 2, 3):
+        w9.objects_expected = now
+        again[now] = w9.auto.outdated()
+    check(several.asked_before(case9) == 2 and said == {None: False, 1: True, 2: True, 3: True}
+          and again == {None: True, 1: True, 2: False, 3: True},
+          "objects in folders, all the press's own: outdated when the count said now is not the one their list was written "
+          "for (none said is a count too), and not when it is", f"list for none: {said}; list for 2: {again}")
+    several.index(case9, objects=1)                 # as the press before 2026-11-22 left PR169: the list written again under the new count
+    w9.objects_expected = 1
+    legacy = w9.auto.outdated()
+    several.place(w9.clip, "two", case9, {n: (x, y + 60.0) for n, (x, y) in spots.items()},
+                  taken("accepted at the window by a person looking at its strip"), video=str(video2))
+    several.index(case9, objects=3)
+    w9.objects_expected = 1
+    check(legacy and not w9.auto.outdated() and len(several.things(case9)) == 3,
+          "more objects of the press's than are looked for now are outdated even where the list says the same count (a list "
+          "written again by the press of before); and with one a person ticked among them, nothing is outdated")
+    # marks put by hand and not saved yet: saved first, then set aside with the rest -- not lost
+    w9._undo.push(mark_qt._Put(w9, "object", 5, (120.0, 130.0)))
+    w9.marks_changed()
+    unsaved = not w9._undo.isClean() and not (case9 / "two_marks.json").exists() and w9.can_start_over()
+    got = w9.auto.start_over()
+    kept = Path(got["into"]) / "two_marks.json" if got and got.get("into") else Path("?")
+    check(unsaved and kept.exists() and mark.MarkSet("two", str(video2), 30.0).load(kept).marks.get("object") == {5: (120.0, 130.0)}
+          and got["objects"] == 3 and not w9.ms.count() and w9.objects_expected == 1 and several.things(case9) == []
+          and w9.auto_card.button.text() == "Begin" and w9.auto_card.state.text().startswith("The results from before were set aside in earlier"),
+          "Start over with a mark put by hand and not yet saved: it is saved first and set aside with the rest, not lost; what "
+          "was said on the segment step (1 object) stays said", str(kept))
+    w9._closing = True
+    w9.close()
     # told how many to look for (the segment step, 2026-10-08): one is the single path, the first row only; three is the queue
     # of what there is, the count held against it in the run's last line
     case5, frames5 = home / "two-case-one", home / "two-frames"
@@ -3363,6 +3557,21 @@ def drive_sharing(td):
         check(w2.home.share_button.text() == "Open a shared file…" and "open_share" in w2.acts and "share" in w2.acts,
               "the first screen and the File menu both open a shared file")
         check(not sc.measured and not hasattr(sc, "again"), "a file of marks alone has nothing measured to measure again, and no button for it")
+        # Start over in a window opened from a shared file (2026-11-22): the sender's marks are set aside, and the thread
+        # stays -- its file in the folder (`clear.KEEP`), and its card in the column, made again with what was typed
+        sc.note.setPlainText("Starting over, to see whether I find the same.")
+        there = Path(w2.out).parent
+        got = w2.auto.start_over() or {}
+        sc2 = w2.share_card
+        check("shared_marks.json" in got.get("moved", []) and got.get("kept") == [f"shared{share.KEPT}"] and not w2.ms.count()
+              and sc2 is not None and sc2 is not sc and sc2.m is not None and sc2.isVisible()
+              and sc2.note.toPlainText() == "Starting over, to see whether I find the same." and sc2.name.text() == "Ravi"
+              and (there / f"shared{share.KEPT}").exists() and [n["by"] for n in share.thread_of(there)[0]][:1] == ["Jacob"]
+              and not [rel for rel, _ in share._case_files(there) if rel.startswith("earlier")]
+              and w2.auto_card.state.text().startswith("The results from before were set aside in earlier"),
+              "Start over in a window opened from a shared file sets the sender's marks aside and keeps the thread: its card is "
+              "there again with what was typed, and a file to send back would carry nothing that was set aside",
+              f"moved {got.get('moved')}; kept {got.get('kept')}")
         # `mcdonald share rerun` in the window (2026-10-17): a file whose object was measured, measured again on its card
         from test_cli import mcdonald as run_cli
         made = home / "measured" / "shared"

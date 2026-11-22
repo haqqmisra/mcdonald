@@ -565,6 +565,17 @@ and the speed away and keeps the field of view; giving and forgetting one thing
 at once, or `--diameter` (which changes more than the speed), is exit 2; and
 `report --help` lists every option that can be given afterwards.
 
+**A case started over** (`test_a_case_started_over_is_set_aside`, 2026-11-22): a case as the commands make it --
+the whole video's marks, link and report, two objects' folders and their list, a segment with marks of its own --
+with a stranger's notes, a PDF under a name of its own, zoom states and a shared file's thread beside it.
+`mcdonald clear DIR --dry-run` changes nothing and names what would move: the folder's listing as the commands left
+it. `clear DIR` moves exactly those names into `earlier/<date>_<time>/`, every file to the byte and the time; the
+other segment's folder, the frames, the video, the notes, the zoom states and the thread are as they were.
+`segments` lists the other segment alone, `run --each` finds no object (exit 5), and `share` sends nothing from
+`earlier`. Asked again with nothing saved it says so and exits 0. `clear VIDEO --n0 --n1` finds the segment's
+folder; `--delete` removes for good and leaves what was set aside before. On the function alone: two starts over
+in one minute are two folders, and where a move fails the ones made are put back.
+
 ## `test_share.py` — does one file to send someone open where its sender left off?
 
 Portable, needs ffmpeg and no video data (test_cli's drawn clip); 25 checks in about three
@@ -820,6 +831,27 @@ track sheet; Advanced shows the three steps, step 2 with the track's pictures
 behind "Check the track"; pressed again it measures again, and Stop stops it;
 and on a part where nothing moves it stops with a sentence that points at
 Advanced.
+
+**Starting over, and the count** (`drive_one_button`, 2026-11-22). The report's card
+shows no test's question and no answer in a word, on the window's own case or on
+an object's; the full report's page has the table. With nothing saved there is no
+Start over; with results saved it is at the foot of the card, greyed while a step
+runs. Pressed, the card asks in one sentence with Start over and Keep them, no
+other window opens, and the card is as tall as what it holds; Keep them changes
+nothing; from the File menu in Advanced Mode the card comes back to ask, and
+Keep them puts the three steps back. On yes every name saved for the segment is in
+`earlier/<date>_<time>/`, the window has no marks, track, list from Find or
+report card, the lights are off, the button says Begin, and one line says where
+the results went; `segments` and `several` see nothing saved. A two-object case
+the press made with no count said: opened with none said, the card says Measure
+again with its lights lit, and the press measures the folders again and sets
+nothing aside; told 1, the card says Begin with its lights off, and the press sets them aside, runs Find
+afresh, takes the first row as a single case, and says where the old results went
+when it ends. On drawn marks: hand marks are never outdated; the press's own one
+object is outdated from 2 up; the press's own folders when their list's count is
+not the one said, or when there are more of them than are looked for; never with
+a person's tick among them. A mark put by hand and not yet saved is saved, then
+set aside with the rest.
 
 **What is known of the video** (`drive_what_is_known`, 2026-10-09). The segment
 step asks, folded under the count until opened, in plain words and the units a

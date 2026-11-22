@@ -5,9 +5,7 @@ Object' box, so that the video is still visible in the main window. ... Imagine 
 developers would choose to present content, using minimal words and even icons." So: a small
 caption, a badge and the label (a tick for a conclusion, a question mark for a tentative one, a bird for one that beats like a bird,
 a dash for none), the one sentence, a line with a button when nobody has checked the track by
-eye, the checks as rows -- each test as a question in plain words, its answer in a word, and why
-in the tooltip (`report.Case.checklist`, the report's own table; Ravi Kopparapu, 2026-11-01) --
-then the numbers that were found as label-and-value rows (`facts`: how each was found in its
+eye, then the numbers that were found as label-and-value rows (`facts`: how each was found in its
 tooltip; the four unknowns a real speed needs -- scale, range, aspect and the camera's speed -- on
 every card with a rate, found, bounded or "unknown", with how to find each (the report's ledger;
 Jacob's words, 2026-10-29); the speed band as "Along the track" under the speed, and what the track says with no range,
@@ -15,6 +13,13 @@ field of view or platform speed -- the turn, the straight-and-steady test, the s
 the camera from its size -- in plain words), "More" for the bottom line's paragraph, which says what a
 real speed still needs, and two quiet buttons: the full report (`measure_qt.show_report`, a page over the video)
 and the folder.
+
+The report's checklist -- each test as a question, its answer in a word (`report.Case.checklist`; Ravi Kopparapu,
+2026-11-01) -- is not on the card. It was, above the numbers, from 2026-11-01; Jacob, 2026-11-22, after PR169: "The
+Yes/No questions and answers should only appear on the full report and not on the summary box on the right-hand
+pane; it is too long/cluttered otherwise." A case has up to fifteen such rows, each a wrapped question, and a video
+with several objects has a card for each. The table is where it was in the full report, under the conclusion's
+sentence, and in `run --json` (`results.checklist`); what the conclusion rests on is still under More.
 
 Nothing is measured or decided here. The card reads the case back from its `_case.json`
 (`report.Case.load`), the file `mcdonald run` writes, and shows what `Case.conclusion`,
@@ -40,7 +45,7 @@ from . import known_qt, stages
 from .kinematics import band_said, path_said
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, folding_button, heading, media_icon, muted
 from .projective import trend_px
-from .report import ANGLE_NEEDED, BIRD, CONSISTENT, INCONSISTENT, INDETERMINATE, NO, PARTLY, SUBSONIC, SUPERSONIC, YES, Case, _far
+from .report import ANGLE_NEEDED, BIRD, INDETERMINATE, SUBSONIC, SUPERSONIC, Case, _far
 
 # the label of a conclusion: its glyph and colour, as a badge ("bird" and the dials are drawn: `media_icon`)
 LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"), BIRD: ("bird", "#e8a23a"),
@@ -218,6 +223,7 @@ class ReportCard(QtWidgets.QFrame):
     def __init__(self, window, thing=None):
         super().__init__()
         self.window_, self.thing, self.case, self.md, self._seen = window, thing, None, None, None
+        self._working = False                         # "Work out the speed" is on its thread: it will write the report again
         self.setObjectName("report")
         self.setStyleSheet("QFrame#report { border: 1px solid #34343a; border-radius: 8px; }")
         self.setToolTip("click to go to the frame where its track starts")
@@ -309,16 +315,8 @@ class ReportCard(QtWidgets.QFrame):
         self.close_known()
         lay.addWidget(self.ask)
         self.worked.connect(self._worked)
-        # the checks: each test as a question in plain words and its answer in a word, why in the tooltip -- the rows of the
-        # report's checklist (`Case.checklist`; Ravi, 2026-11-01), before the numbers
-        self.checks = QtWidgets.QWidget()
-        self.checks_grid = QtWidgets.QGridLayout(self.checks)
-        self.checks_grid.setContentsMargins(0, 2, 0, 0)
-        self.checks_grid.setHorizontalSpacing(10)
-        self.checks_grid.setVerticalSpacing(3)
-        self.checks_grid.setColumnStretch(0, 1)          # the questions take the width: an answer is a word
-        lay.addWidget(self.checks)
-        # what was found, as rows: the trade's units are the report's own words (the plain-words test skips "technical")
+        # what was found, as rows: the trade's units are the report's own words (the plain-words test skips "technical").
+        # The report's checklist is not here (Jacob, 2026-11-22: the full report's alone; see the module's words)
         self.facts = QtWidgets.QWidget()
         self.facts.setObjectName("technical")
         self.grid = QtWidgets.QGridLayout(self.facts)
@@ -413,22 +411,10 @@ class ReportCard(QtWidgets.QFrame):
         self.older.setText(case.older_said() if case.older() else "")
         self.older.setVisible(bool(case.older()))
         self.banner.setVisible(stages.SHEET_PROVISIONAL in case.notes)
-        for grid in (self.checks_grid, self.grid):
-            while grid.count():
-                item = grid.takeAt(0)
-                if item.widget() is not None:
-                    item.widget().deleteLater()
-        checks = case.checklist()
-        for r, row in enumerate(checks):
-            test = muted(row["test"])
-            answer = QtWidgets.QLabel(row["answer"])
-            answer.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTop)
-            answer.setStyleSheet("font-weight: bold;" if row["answer"] in (YES, NO, PARTLY, CONSISTENT, INCONSISTENT) else f"color: {MUTED};")   # what could not be decided, quietly
-            for w in (test, answer):
-                w.setToolTip(row["said"])
-            self.checks_grid.addWidget(test, r, 0)
-            self.checks_grid.addWidget(answer, r, 1)
-        self.checks.setVisible(bool(checks))
+        while self.grid.count():
+            item = self.grid.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
         rows = facts(case)
         for r, (k, v, how) in enumerate(rows):
             key = muted(k)
@@ -525,7 +511,7 @@ class ReportCard(QtWidgets.QFrame):
         workdir, masks = (str(w.clip.dir) if w.clip is not None else None), (w._masks if same else None)
         self.work_out.setEnabled(False)
         self._say("Working it out…")
-        self._change = change
+        self._change, self._working = change, True
 
         def job():
             try:
@@ -538,8 +524,14 @@ class ReportCard(QtWidgets.QFrame):
                 pass
         threading.Thread(target=job, daemon=True, name="mcdonald-known").start()
 
+    def working(self):
+        """Is the speed being worked out again (`stages.add_known`, on its thread)? It writes the report when it ends,
+        so a start over waits for it (`QtMarker.can_start_over`)."""
+        return self._working
+
     @QtCore.Slot(object)
     def _worked(self, got):
+        self._working = False
         if isinstance(got, BaseException):
             self.work_out.setEnabled(True)
             self._say(f"It could not be worked out: {got}", warn=True)

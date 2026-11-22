@@ -1680,7 +1680,8 @@ ROWS = {a.id: a for a in actions.ACTIONS}
 # over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
 # whatever is in front (PAGE_OK: these open their own page, or bring the video back)
 ANYTIME = {"open_clip", "open_id", "quit", "first_run", "keys", "about", "check_update", "advanced", "preferences"}
-PAGE_OK = {"whole_video", "open_marks", "save", "save_to", "report", "folder", "several", "auto", "find", "measure", "sound"}
+PAGE_OK = {"whole_video", "open_marks", "save", "save_to", "start_over", "report", "folder", "several", "auto", "find", "measure",
+           "sound"}
 
 
 class QtMarker(QtWidgets.QMainWindow):
@@ -2285,6 +2286,7 @@ class QtMarker(QtWidgets.QMainWindow):
         loaded = self.clip is not None
         for i, act in self.acts.items():
             act.setEnabled(i in ANYTIME or (loaded and (on_video or i in PAGE_OK)))
+        self.acts["start_over"].setEnabled(self.can_start_over())     # ... and only with something saved to start over from
 
     def set_advanced(self, on):
         """Advanced Mode: the three steps and marking by hand in place of the one button's card (View -> Advanced Mode,
@@ -2433,7 +2435,7 @@ class QtMarker(QtWidgets.QMainWindow):
         do so when pressed, not here: the window may be built before any video is open."""
         h = {"open_clip": self.open_clip, "open_id": self.open_by_id, "whole_video": self.whole_video, "open_marks": self.open_marks,
              "open_share": self.open_share, "share": self.share_for_review,
-             "save_to": self.save_to,
+             "save_to": self.save_to, "start_over": self.start_over,
              "save": self.finish, "quit": self.save_and_quit, "undo": lambda: self._undo.undo(), "redo": lambda: self._undo.redo(),
              "delete": self.delete_here, "fit": lambda: self.view.fit(), "overview": self.open_overview,
              "candidates": lambda: self.set_candidates(not self._cand_on), "other_frames": self.toggle_other_frames,
@@ -3499,6 +3501,63 @@ class QtMarker(QtWidgets.QMainWindow):
         when the window has gone into one of them."""
         folder = Path(self.out).parent
         return folder.parent if several.NAME.match(folder.name) else folder
+
+    # -- starting over ---------------------------------------------------------------------
+    # Jacob, 2026-11-22, after PR169 (one bird, followed as three objects, and measured as three again when he had
+    # said 1): "It may be helpful for the user to have a way to "clear" the memory of a specific case, if they want to
+    # start over." What the case remembers is in its results folder, and `clear.set_aside` moves it out of the way
+    # (`mcdonald clear` is the same function). The question is asked in the one button's card (`auto_qt.AutoCard`).
+    def saved_before(self):
+        """Is there anything to start over from: marks in the window, or results in the open segment's folder
+        (marks, a track, a report, objects' folders: `clear.holds`)?"""
+        from . import clear
+        return self.clip is not None and (bool(self.ms.count()) or clear.holds(self.several_base(), self.ms.tag))
+
+    def can_start_over(self):
+        """... and is nothing running that would write there meanwhile? (A step, the sound being read, or a report's
+        speed being worked out again.)"""
+        cards = [self.report_card] + list(self.object_cards.values())
+        return (self.clip is not None and not self.auto.running() and not self.auto.busy_elsewhere()
+                and self._listener is None and not any(c.working() for c in cards) and self.saved_before())
+
+    def start_over(self):
+        """File -> Start this segment over…, and the card's quiet button: asked in the card, never in a dialog."""
+        if self.clip is None:
+            return
+        if self.can_start_over():
+            self.auto_card.ask_over()
+        elif self.saved_before():
+            self.note.setText("Something is still running. Let it end, or stop it, and then start over.")
+        else:
+            self.note.setText("Nothing is saved for this segment yet, so there is nothing to start over from.")
+
+    def begin_again(self):
+        """Start over, said yes to: what is saved for the open segment is set aside (`clear.set_aside`: moved into
+        `earlier/<date>_<time>/` in its results folder, nothing deleted), and the video is in the window as if just
+        opened -- no marks, no track, no list from Find, no objects, no report -- by loading the same frames again
+        (`unload`, `load`: whatever the window held for the video goes with them, so nothing is left to forget).
+        Marks not saved yet are saved first: they are set aside with the rest, not lost. What the person said on the
+        segment step stays said (how many objects, what is known), and a shared file's card stays, made again from
+        its file with what was typed in it. Returns what `set_aside` did. Where the results cannot be moved it raises
+        the OSError with nothing changed, in the folder or in the window. For a caller that has seen `can_start_over`
+        (nothing is running that writes there)."""
+        from . import clear
+        base, tag = self.several_base(), self.ms.tag
+        if not self._undo.isClean():
+            self.finish(show_strip=False)
+        got = clear.set_aside(base, tag)
+        clip, video, fps = self.clip, self.ms.video, self.ms.fps
+        said, card = (self.objects_expected, dict(self.known_values)), self.share_card
+        self.load(clip, MarkSet(tag, video, fps, f"{base / tag}_marks.json"), str(base / tag))
+        self.objects_expected, self.known_values = said
+        if card is not None and card.m:               # it came with a shared file: the thread and the answer stay
+            from . import share_qt
+            again = share_qt.ShareCard(self, card.m, card.folder, card.check)
+            for box in ("note", "stretches"):
+                getattr(again, box).setPlainText(getattr(card, box).toPlainText())
+            again.name.setText(card.name.text())
+            self.show_share(again)
+        return got
 
     def refresh_report_cards(self):
         """The report's card for the window's own case, and one for each of the video's objects that has a report

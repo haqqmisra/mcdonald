@@ -50,7 +50,9 @@ KEPT = "_share.json"                          # <tag>_share.json in an opened fi
 DATA = {".json", ".csv", ".md", ".txt", ".tsv", ".png", ".jpg", ".jpeg", ".svg", ".pdf"}
 MAX_FILE = 40 * 2 ** 20                       # a figure or a long track CSV is a few MB; a frame dump is not a result
 MAX_ALL = 200 * 2 ** 20
-SKIP_DIRS = {"frames", "__pycache__", ".git"}
+# ... nor what a case started over set aside (`clear.EARLIER`, said here as a word: `clear` reads this module's KEPT the same way;
+# test_cli holds the two together). A file to send carries the results as they stand, not the ones before them
+SKIP_DIRS = {"frames", "__pycache__", ".git", "earlier"}
 
 
 class ShareError(ValueError):
@@ -467,7 +469,7 @@ def _make(a):
         tmp = tempfile.TemporaryDirectory(prefix="mcdonald-share-")
         staged = Path(tmp.name) / tag
         if folder:
-            shutil.copytree(folder, staged, ignore=shutil.ignore_patterns("frames", "__pycache__"))
+            shutil.copytree(folder, staged, ignore=shutil.ignore_patterns(*SKIP_DIRS))
         staged.mkdir(parents=True, exist_ok=True)
         start = 1 + max((int(d.name.split("-")[1]) for d in staged.glob("object-*") if d.name.split("-")[1].isdigit()), default=0)
         fps = vf.probe(path)["fps"]
@@ -480,6 +482,8 @@ def _make(a):
     if part is None:
         frames = []
         for t in (folder.rglob("*_autotrack.csv") if folder else ()):
+            if any(part in SKIP_DIRS for part in t.relative_to(folder).parts):
+                continue                              # a track set aside is not what the file is about
             try:
                 frames += list(vf.read_track(t))
             except (OSError, ValueError):

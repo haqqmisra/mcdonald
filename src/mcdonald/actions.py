@@ -90,6 +90,12 @@ ACTIONS = [
            mpl=True, sep=True),
     Action("save_to", "File", "Save to a different folder…", ("Ctrl+Shift+S",),
            "choose the folder where everything for this video is saved, and save there"),
+    # Jacob, 2026-11-22, after PR169: "a way to "clear" the memory of a specific case, if they want to start over"
+    # (`mcdonald clear` on the command line; the quiet button on the one button's card)
+    Action("start_over", "File", "Start this segment over…", (),
+           "start over. The marks, tracks and reports saved for this segment are set aside, and the video is as it was "
+           "when first opened. Nothing is deleted: the results go into a folder named earlier, inside the results "
+           "folder. You are asked first, in the card on the right"),
     Action("quit", "File", "Save and quit", ("Q", "Ctrl+Q"), "save and close the window", mpl=True, sep=True),
 
     Action("undo", "Edit", "Undo", ("Ctrl+Z",), "undo your last change to the marks"),
@@ -262,8 +268,9 @@ FIRST_RUN = [
      "and how sure it is. Under it, a table lists each test with its answer: Yes, No, Partly, Can't tell or Not yet. A "
      "test that could not decide has not passed. The reasoning behind the answers is folded under the table. The part "
      "called \"Missing quantities\" names what is missing, and what would give it. Save as PDF, at the top of the whole "
-     "report, keeps it as one file with its pictures in it, to keep or to send. The card on the right shows the same "
-     "tests, each answered in a word; hold the pointer over a test to see why. Along the track says whether the "
+     "report, keeps it as one file with its pictures in it, to keep or to send. The card on the right is a summary: the "
+     "conclusion and the numbers found. It leaves the table of tests to the whole report, which the card's Full report "
+     "button opens. On the card, Along the track says whether the "
      "object's speed in the picture held steady or changed, and between what and what. Four rows need no distance, field "
      "of view or speed of the camera. Turn says whether its path bends, goes round in a loop or swings about, and how "
      "tight. Straight and steady says whether an object going straight at a steady speed would draw this track, and "

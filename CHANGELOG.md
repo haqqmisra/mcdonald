@@ -29,6 +29,42 @@ LLE-UAP-PR004's title follows the release's own change, from "October 2023" to "
 **A beat's picture keeps its title on the page** (2026-11-22). Where a beat had a double, the title over the right
 panel ("5.93 Hz (double 11.86)") ran off the figure's edge. It now ends at the panel's edge.
 
+**A case can be started over** (2026-11-22; method section 111; IDEAS.md TU3). A case's results folder holds what
+the next run goes on from: the marks, the track, the reports and each object's folder. Until now, only deleting
+files by hand made mcdonald forget them.
+- *In the window:* a quiet **Start over** button sits at the foot of the Measure the object box whenever something
+  is saved for the open segment. File → Start this segment over… does the same. The box asks first: "Start over? The
+  marks, tracks and reports saved for this segment will be set aside in a folder named earlier. Nothing is deleted,
+  and the video stays open." On **Start over** the results are set aside, and the window is as it was when the video
+  was first opened. One line then says where the results went. **Keep them** changes nothing. No dialog opens.
+- *On the command line:* `mcdonald clear DIR` does the same for a results folder. `mcdonald clear VIDEO --n0 A --n1 B`
+  finds a segment's folder as every command does. `--dry-run` lists what would be set aside and changes nothing.
+  `--delete` removes the results for good. `--json` prints what moved and where.
+- *What is set aside:* every file named for the case, and every `object-N` folder. They go into
+  `earlier/<date>_<time>/` inside the results folder. To bring a result back, move it out of that folder.
+- *What stays:* the video, its saved frames, other segments' folders and files not named for the case. The zoom
+  states that `mcdonald zoom` wrote stay too, because a later run reads them, and so does a shared file's thread. A
+  file made by `mcdonald share` leaves the `earlier` folder out.
+
+**The one press keeps to the number of objects you say** (2026-11-22; method section 111; IDEAS.md TU2). On the
+segment step you can say how many objects you are looking for. Where results were already saved, the one button
+ignored that number and measured the saved objects again. On PR169 it had followed one bird as three objects, and
+it measured all three again after the count was set to 1. The press now compares the count with what is saved.
+Where the saved objects were the press's own choice, made for another count, the button says **Begin** and the press
+starts over by itself. It sets the old results aside, looks again, and takes as many objects as you said. When it
+ends, the box says where the old results went. With the same count, **Measure again** measures the saved objects again, as before. Objects that a
+person chose are never set aside this way: marks placed by hand, a row chosen from Find's list, or rows ticked
+there. The press goes on from them as before, and **Start over** is there to press. One more thing changed in the box. A
+video opened again whose folder already held several objects showed **Begin** with its three lights off. It now
+shows **Measure again** with the lights lit, which is what the press does there. No report changes.
+
+**The window's report card no longer lists the tests** (2026-11-22; IDEAS.md TU4). The card in the right column
+showed each test of the report as a question, with its answer in a word, above the numbers. A case has up to 15 such
+rows, and a video with several objects has a card for each, so the column grew long. The card now shows the
+conclusion, the numbers found and More, which still holds the reasoning. The table of tests is where it was in the
+full report, under the conclusion's sentence. Press Full report on the card to read it. No report changes, and
+`run --json` and `report --json` keep their `checklist` field. Help → Getting started says the same.
+
 ## 0.5.9 (2026-11-19)
 
 **`mcdonald drift` refuses lines of sight that no single straight path passes through** (2026-11-19; method section
