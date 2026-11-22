@@ -29,6 +29,25 @@ LLE-UAP-PR004's title follows the release's own change, from "October 2023" to "
 **A beat's picture keeps its title on the page** (2026-11-22). Where a beat had a double, the title over the right
 panel ("5.93 Hz (double 11.86)") ran off the figure's edge. It now ends at the panel's edge.
 
+**Two found objects can be said to be the same one** (2026-11-22; method section 112; IDEAS.md TU6). Find lists
+what it saw. An object seen twice, with frames between where it was not seen, is listed as two rows, and each row
+gets its own folder and report. Until now only the program could decide that two were one, where their tracks lay
+on the same pixels.
+- *In the window, after a run:* each object's card has a quiet **Same object as…** button. It opens one line in the
+  card: "This is the same object as", a choice of the other objects, **Join them** and **Cancel**. No dialog opens.
+  On **Join them** the marks of both become one object's, the one with the lower number, and it is followed and
+  measured again. The line under the button then says which objects are now which, and where the old folders went.
+- *In the window, at Find's list:* with two or more rows ticked, **They are one object** sits beside **Follow and
+  measure the ticked ones**. It takes the marks of all the ticked rows as one object and follows it.
+- *On the command line:* `mcdonald run VIDEO --each DIR --same 1,2` does the same before it measures, and `--json`
+  says what was joined.
+- *What is kept:* each mark still says how it was placed. The marks file records who said the objects are one, and
+  when. The old folders are set aside in `earlier/<date>_<time>/` inside the results folder. Nothing is deleted.
+- *What the report says:* above its conclusion, that the objects were made one because a person said so. It then
+  says what the track did where the marks of one meet the marks of the next. Either the track passes through the
+  marks of both, or "The track does not join them", with the frames. Your word decides, and the report does not hide
+  what the track found. No other report changes.
+
 **A case can be started over** (2026-11-22; method section 111; IDEAS.md TU3). A case's results folder holds what
 the next run goes on from: the marks, the track, the reports and each object's folder. Until now, only deleting
 files by hand made mcdonald forget them.

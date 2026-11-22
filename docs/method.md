@@ -10394,3 +10394,83 @@ the byte and the time; what stays; `--dry-run`, `--delete`; `segments`, `run --e
 two starts over in one minute; a move that fails) and test_gui `drive_one_button` (the button's place, the question
 with no dialog, Keep them, the File menu from Advanced Mode, the window after a yes, the line that says where; an
 unchanged count measures again, a changed one starts over; the table above on drawn marks; a mark not yet saved).
+
+## 112. Two found objects said to be the same one (`several.join`, `run --each --same`, the window's "Same object as…"; IDEAS.md TU6; added 2026-11-22)
+
+Not a measurement either: a person's judgment, recorded. The maintainer, while this round ran: "it would also be nice
+if the GUI had an option to indicate that two different found objects are actually the same one". Find lists what it
+saw. One object seen twice -- more than 60 frames apart, or with frames between where it was not seen -- is two rows
+(section 110), and Find will always miss some. Each row taken is a folder, a track and a report. `several.same_things`
+notices by itself only after following, and only where two tracks lie on the same pixels on 10 frames or more.
+
+**What a join is** (`several.join(clip, base, objects, by)`; no interface in it). The lowest-numbered object is kept.
+Its marks become the marks of all of them: each keeps what it was recorded as (`how`), so the report's "Did a person
+pick out the object by eye?" answers as it would have for each. Where two of them have a mark on the same frame at
+different places, they were not on the same pixels there: the lower-numbered one's mark is kept and the frame is
+recorded. The frames it was seen on (`MarkSet.seen`) become the first to the last of any of them, so `run_each`
+measures it over all of them and 2 s either side. The marks file gains a record (`MarkSet.joined`, one for each
+time): `what` ("objects", or "rows" for Find's ticked rows taken as one), `of` (their numbers), `by` (who said so:
+"a person, in the window"; "a person, at Find's list in the window"; "someone at the command line (`mcdonald run
+--each --same`), a person or an agent"), `when`, `marks` (which frames came from which) and `both`. The objects' old
+folders, with everything measured in them, and a copy of the list go into one dated folder under the results folder's
+`earlier` (`clear.aside`, section 111); nothing is deleted, and nothing is measured. A member of a group split by the
+queue is one of that group's points by the way it was made, and a group whose members are objects is what they were
+split from: both are refused (`several.can_join`).
+
+**What the report says, and where.** `stages.run_case` reads the record with the marks and sets `Case.made_one`
+(only such a case's file has the field). Above the conclusion, in a quoted paragraph (`report.made_one_said`): which
+objects were made one, because who said so, and when; whose marks the track was followed from; a frame more than one
+had marked; then what the track did at each seam, and "No test here checks that they are one object. Look at the
+track sheet." The list page says the same on the object's line.
+
+**A seam** (`stages.seams`) is a pair of marked frames next to each other whose marks came from different objects.
+At each, three things are read, by the link's own gate for a mark (`autolink.mark_gate`, the gate its concerns use;
+no new threshold): whether the track has a position on the second frame; how far that is from the mark there; and how
+far from the mark the link from the mark before arrived (`autolink.Link.arrivals`; read back from the track file's
+header where the link was made earlier, `autolink.arrivals_of`). A link is anchored at every mark, so the track lies
+on each mark whatever it joins: it is the arrival that says whether following one object's marks leads to the other's.
+All within the gate: "Followed from those marks, the track passes through the marks of both." Otherwise: "The track
+does not join them at frame 15. Followed from object 1's mark on frame 10, it does not reach object 3's mark on frame
+15." (or "passes 14 pixels from"). Frames between the two with no position are said as "the object was not seen
+there". Nothing is decided by any of this. The person's word made them one, as a hand mark says which spot is the
+object, and the report does not hide what the link found.
+
+**The three shells.** `mcdonald run VIDEO --each DIR --same N,M` joins before it measures (`--json`:
+`results.joined`). In the window, each object's card has a quiet "Same object as…", which asks in the card (a choice
+of the other objects, Join them, Cancel; no dialog); Join them is `QtMarker.join_objects`: the join, then the queue's
+run for the one object as a press does it (`AutoRun.rest`), and the line under the button says once which objects are
+now which and where the old folders went. At Find's list, with two or more rows ticked, "They are one object" takes
+their marks together as the window's own object (`QtMarker.take_as_one`), each saved as proposed, with the record;
+one undo takes the marks and the record back.
+
+**Judgement calls** (each for the maintainer).
+1. *The kept mark on a frame both had marked* is the lower-numbered object's. The other is dropped from the marks and
+   named in the record and the report.
+2. *Who a command's join is by* is not known: the record says "someone at the command line, a person or an agent",
+   where `mark --set` says "agent" unless `--typed`.
+3. *A joined object counts as a person's choice* for the one press (`auto_qt.by_the_press`): a changed count does not
+   set it aside by itself (section 111).
+4. *The card shows nothing of the join*: the report's face, the list and the line under the button say it. A mark on
+   the card where the track does not join the objects would be one more line on a card just made shorter.
+5. *No undo is built.* The old folders are in `earlier`, whole, and are moved back by hand.
+
+**How it fails.**
+- Two things made one are one object in every number after: a speed, a beat and a turn are read over the track of
+  both. The report's first lines say so; the numbers do not.
+- "The track passes through the marks of both" is weak evidence that they are one object. The link goes from one mark
+  toward the next at the velocity between the two, and holds through 40 frames with no spot (`max_gap`), so it arrives
+  wherever a spot is under the next mark: on the drawn video of two discs, one disc's marks joined with the other's,
+  five frames on, are "passed through" (test_cli holds what the report says there). "The track does not join them" is
+  the strong reading: no spot under the other object's mark, or a link lost on the way. Hence the sentence that no
+  test here checks that they are one object.
+- A seam is read only where the marks of two objects are next to each other in time. Marks that interleave make a
+  seam at every change, each said.
+- A track given with `--track` and no link's header has no arrivals: the seam is then read from the track's distance
+  to the marks alone, which is zero where the track was linked from them.
+
+**Held to.** test_cli `test_two_found_objects_said_to_be_one` (a disc marked in two folders and joined: the marks,
+their `how`s, the record, the frame both marked, `seen`, the folders set aside, the report's paragraph above the
+conclusion with "passes through the marks of both"; then joined with the other disc: "The track does not join
+them"; a group's member, a group with members, a number that is no object and `--same` without `--each` refused)
+and test_gui `drive_same_object` (the card's button and its one line with no dialog, Cancel, Join them, the run, one
+card and one report after, the list, the line under the button; Find's two ticked rows taken as one, saved, undone).

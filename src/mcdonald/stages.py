@@ -219,6 +219,33 @@ def around(frames, clip, seconds=2.0):
     return max(clip.n0, min(frames) - pad), min(clip.n1, max(frames) + pad)
 
 
+def seams(joined, marks, track, size=None, arrivals=None):
+    """Where the marks of found objects made one object meet (`MarkSet.joined`: someone said they are the same one), and
+    whether the track followed from them got from one's marks to the next one's: [dict(before, at, of, to, reached, px,
+    missing)], one for each pair of marked frames next to each other whose marks came from different objects. `of` and
+    `to` name them ("object 1", "row 3"). `reached`: the track has a position on frame `at`, within the link's own
+    gate of the mark there (`autolink.mark_gate`, the gate its concerns use), and -- where the link is at hand
+    (`arrivals`, `autolink.Link.arrivals`) -- the link from the mark before arrives within it. `px` is how far off it
+    is where it is there, None where it is not there at all. `missing`: the frames between the two with no position.
+    Nothing is decided here: the person's word made them one, and the report says what the track did (`made_one_said`)."""
+    from .autolink import mark_gate
+    gate = mark_gate(size, 6.0) if size else 6.0
+    out = []
+    for j in joined or ():
+        one = "row" if j.get("what") == "rows" else "object"
+        origin = {int(n): f"{one} {k}" for k, frames in (j.get("marks") or {}).items() for n in frames}
+        ns = sorted(n for n in origin if n in marks)
+        for m, n in zip(ns, ns[1:]):
+            if origin[m] == origin[n]:
+                continue
+            d = float(np.hypot(track[n][0] - marks[n][0], track[n][1] - marks[n][1])) if n in track else None
+            a = (arrivals or {}).get(n, d) if arrivals is not None and n in arrivals else d
+            worst = None if d is None or a is None else max(d, a)
+            out.append(dict(before=m, at=n, of=origin[m], to=origin[n], reached=worst is not None and worst <= gate,
+                            px=worst, missing=sum(1 for f in range(m + 1, n) if f not in track)))
+    return out
+
+
 def track_placed(track_csv):
     """(who, what it says) of a track file given alone (`run --track`), from its own first lines: ("hand", "linked") where
     it says it was linked from hand marks (`autolink.write_track_csv`, a marks file's own "hand marks"); ("not by hand",
@@ -1431,6 +1458,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
     rows = vf.parse_rows(mask_rows)
     trk = None
     placed = (None, None)
+    joined = linked = None                                 # marks of several found objects made one on someone's say, and their link
     if marks:
         from . import autolink
         from .mark import MarkSet
@@ -1446,7 +1474,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         if not track:                                      # with both, the track is the link someone already made of them
             say("[track] from the hand marks")
             tell("track", "Linking")
-            link = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say, procs=procs)
+            link = linked = autolink.link_from_marks_file(clip, marks, prefix, masks=masks, say=say, procs=procs)
             if link is not None and link.track:
                 track = f"{prefix}_autotrack.csv"          # every stage below takes it as it would any other track
                 files += [track, f"{prefix}_autotrack_strip.png"]
@@ -1454,6 +1482,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
                 dark = link.dark if dark is None else dark     # look at its pixels must look for that, not a default
         ms = MarkSet(tag, video, clip.fps).load(marks)
         case.identified(ms.not_by_hand(), len(ms.marks.get("object", {})))
+        joined = ms.joined and (ms.joined, dict(ms.marks.get("object", {})))
         placed = ("not by hand", "the marks") if ms.not_by_hand() else ("hand", "linked")
     elif track:                                            # a track alone: who made it, as far as its own file says
         placed = track_placed(track)
@@ -1461,6 +1490,14 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         trk = vf.read_track(track)
     size_from = "default" if size is None else ("given" if given["size"] is not None else "the marks")
     size, dark = (9.0 if size is None else float(size)), bool(dark)
+    if joined:                                             # found objects made one because someone said so (`several.join`,
+        # Find's ticked rows; Jacob, 2026-11-22): on the report's face, with what the track did where their marks meet.
+        # Only such a case has the field: every other case's file is as it was
+        from . import autolink
+        arrivals = linked.arrivals if linked is not None and linked.track else autolink.arrivals_of(track) if track else None
+        case.made_one = dict(joins=joined[0], seams=seams(joined[0], joined[1], trk or {}, size, arrivals))
+        from .report import made_one_said
+        say("  " + " ".join(made_one_said(case.made_one)))
 
     # ---- 1 survey -------------------------------------------------------------------
     series = None                                          # the frame series, for integrity to take rather than make again

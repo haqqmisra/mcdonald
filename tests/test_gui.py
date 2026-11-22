@@ -3339,6 +3339,8 @@ def drive_one_button(td):
           str(sorted(w3.object_cards)))
     w3._closing = True
     w3.close()
+    JOIN.update(video=video2, case=home / "two-case-join", frames=frames2)      # a copy, for drive_same_object
+    shutil.copytree(case2, JOIN["case"])
     # The count is not ignored (Jacob, 2026-11-22: he opened PR169 again and said 1, "but it still found 2" -- the press
     # had measured the old folders again). The saved objects here are the press's own choice, made when no count was said:
     # opened with the same count the press measures them again, as before; told 1, it starts over by itself
@@ -3482,6 +3484,153 @@ def drive_one_button(td):
     w6._closing = True
     w6.close()
     mark_qt.complain, find_qt.complain, measure_qt.complain = keep
+
+
+JOIN = {}                     # drive_one_button's two-object case, copied for drive_same_object: video, case, frames
+
+
+def drive_same_object(td):
+    """Jacob, 2026-11-22: "it would also be nice if the GUI had an option to indicate that two different found objects
+    are actually the same one". Find lists what it saw, and one object seen twice is two rows, two folders and two
+    cards. Held here, on the drawn video of two discs: an object's card has a quiet "Same object as…", which asks in
+    the card (one line, a choice of the other objects, Join them, Cancel) with no dialog; Join them makes one folder
+    of the two (`several.join`), sets the old ones aside, follows and measures the one object as a press does, and
+    leaves one card, one report that says on its face what was done, and the list written again. And at Find's list,
+    two ticked rows can be taken as one object: the marks of both, each saved as proposed, with the record that a
+    person took them as one, which an undo takes back with the marks."""
+    print("\nsame object: two found objects said to be one")
+    from PySide6 import QtWidgets
+    from mcdonald import clear, find_qt, mark_qt, measure_qt, several, several_qt
+    if not JOIN:
+        print("  SKIP  the two-object case of the one button's checks was not made")
+        return
+    video, case, frames = JOIN["video"], JOIN["case"], JOIN["frames"]
+    others = lambda: [x for x in QtWidgets.QApplication.topLevelWidgets() if x.isVisible() and not isinstance(x, mark_qt.QtMarker)]
+    said = []
+    keep = mark_qt.complain, find_qt.complain, several_qt.complain, measure_qt.complain
+    mark_qt.complain = find_qt.complain = several_qt.complain = measure_qt.complain = lambda parent, text: said.append(text)
+    try:
+        shutil.rmtree(case / "object-3", ignore_errors=True)      # the copy of object 1 that drive_one_button made
+        several.index(case)
+        w = mark_qt.open_session(str(video), 1, 24, out=str(case), workdir=str(frames))
+        w.show()
+        w.measure_panel = measure_qt.MeasurePanel(w)              # the slow checks off: the join is what is held here
+        w.measure_panel.hide()
+        for b in w.measure_panel.slow.values():
+            b.setChecked(False)
+        QtTest_wait(lambda: False, 0.3)
+        cards = dict(w.object_cards)
+        marks = {t.k: mark.MarkSet("two", str(video), 30.0).load(t.marks) for t in several.things(case)}
+        check(sorted(cards) == [1, 2] and all(c.same.isVisible() and c.same.isEnabled() and c.same.text() == "Same object as…"
+                                               and c.same_box.isHidden() for c in cards.values())
+              and w.report_card.same is None,
+              "each object's card has a quiet Same object as…; the window's own report card has none")
+        c2 = cards[2]
+        c2.same.click()
+        QtTest_wait(lambda: False, 0.2)
+        names = [c2.same_as.itemText(i) for i in range(c2.same_as.count())]
+        check(c2.same_box.isVisible() and names == ["Object 1"] and [b.text() for b in (c2.same_join, c2.same_cancel)] == ["Join them", "Cancel"]
+              and not others() and not too_tall(w) and len(several.things(case)) == 2,
+              "pressed, the card asks in one line -- This is the same object as, the other object to choose, Join them or "
+              "Cancel -- with no dialog, the card as tall as what it holds, and nothing changed yet", f"{names}; {'; '.join(too_tall(w))}")
+        c2.same_cancel.click()
+        check(c2.same_box.isHidden() and len(several.things(case)) == 2 and not (case / clear.EARLIER).exists(), "Cancel: nothing changes")
+        c2.same.click()
+        c2.same_join.click()
+        now = several.things(case)
+        dated = sorted((case / clear.EARLIER).iterdir()) if (case / clear.EARLIER).is_dir() else []
+        ms = mark.MarkSet("two", str(video), 30.0).load(now[0].marks) if now else None
+        rec = (ms.joined or [{}])[-1] if ms is not None else {}
+        both = sorted(set(marks[1].marks["object"]) & set(marks[2].marks["object"]))
+        check([t.k for t in now] == [1] and len(dated) == 1 and {"object-1", "object-2"} <= {x.name for x in dated[0].iterdir()}
+              and (dated[0] / "object-2" / "two_case.md").exists() and not (case / "object-2").exists()
+              and sorted(x.name for x in (case / "object-1").iterdir()) == ["two_marks.csv", "two_marks.json", "two_marks.png"],
+              "Join them: one folder where there were two -- object 1's, made again with its marks alone -- and the two old "
+              "folders, reports and all, set aside in earlier/<date>_<time>/", str([x.name for x in dated]))
+        check(ms is not None and set(ms.marks["object"]) == set(marks[1].marks["object"]) | set(marks[2].marks["object"])
+              and all("one-press run" in (ms.how_of("object", n) or "") for n in ms.marks["object"])
+              and rec.get("what") == "objects" and rec.get("of") == [1, 2] and rec.get("by") == several.BY_WINDOW
+              and rec.get("both") == [n for n in both if marks[1].marks["object"][n] != marks[2].marks["object"][n]]
+              and sorted(n for v in rec.get("marks", {}).values() for n in v) == sorted(ms.marks["object"]),
+              "its marks are the marks of both, each still recorded as the press's own choice, and the file says that a person "
+              "in the window said they are one object, and which marks came from which", f"{len(ms.marks['object']) if ms else 0} marks; by {rec.get('by')!r}")
+        card = w.auto_card
+        check(w.auto.running() and w.auto.stage == "several" and card.button.text() == "Stop" and card.busy.isVisible()
+              and card.lights.stages == ["done", "busy", "busy"] and not w.object_cards and not others(),
+              "and the one object is followed and measured as a press does it: the bar, Stop, the lights; no card until its "
+              "report is written, and no dialog", f"{w.auto.stage} {card.lights.stages} cards {sorted(w.object_cards)}")
+        done = QtTest_wait(lambda: not w.auto.running(), 900)
+        QtTest_wait(lambda: sorted(w.object_cards) == [1], 10)
+        md = (case / "object-1" / "two_case.md").read_text(encoding="utf-8") if (case / "object-1" / "two_case.md").exists() else ""
+        line = next((ln for ln in md.splitlines() if ln.startswith("> **Objects 1 and 2 were made one object")), "")
+        check(done and not said and sorted(w.object_cards) == [1] and w.object_cards[1].isVisible() and line
+              and md.index(line) < md.index("## Conclusion") and "because a person, in the window, said they are the same object" in line
+              and ("The track does not join them at frame" in line or "passes through the marks of both" in line)
+              and "No test here checks that they are one object. Look at the track sheet." in line,
+              "when it ends there is one card, and its report says on its face that objects 1 and 2 were made one because a "
+              "person said so, and what the track did where their marks meet", (line or "; ".join(said) or w.auto.why)[:230])
+        page = (case / "two_objects.md").read_text(encoding="utf-8")
+        where = Path(clear.EARLIER) / dated[0].name if dated else "?"
+        check("- **made one object:** Objects 1 and 2 were made one object" in page and "## Object 2" not in page and "# TWO: 1 object" in page
+              and card.state.isVisible() and "Objects 1 and 2 are now object 1" in card.state.text()
+              and f"set aside in {where}, and nothing was deleted" in card.state.text() and card.button.text() == "Measure again"
+              and not others() and not too_tall(w),
+              "the list is written again with the one object and what was said of it, and the line under the button says once "
+              "which objects are now which and where the old folders went", card.state.text()[:160])
+        # an object made one is not offered anything to be the same as, with no other object left
+        c1 = w.object_cards.get(1)
+        check(c1 is not None and c1.same.isHidden() and c1.same_box.isHidden(), "with one object left, its card offers nothing to join")
+        w._closing = True
+        w.close()
+        # at Find's list: two ticked rows taken as one object
+        home = Path(td) / "same-object"
+        home.mkdir()
+        w = mark_qt.open_session(str(video), 1, 24, out=str(home / "case"), workdir=str(frames))
+        w.mode_button.click()
+        w.show()
+        w.do("find")
+        p = w.find_panel
+        got = QtTest_wait(lambda: not p.running() and len(p.proposals) >= 2 and p.go.isEnabled(), 240)
+        if not check(got, "Find lists the two discs", f"{len(p.proposals)} rows"):
+            return
+        p.rows[0].tick.setChecked(True)
+        one = p.one_go.isVisible()
+        p.rows[1].tick.setChecked(True)
+        QtTest_wait(lambda: False, 0.2)
+        check(not one and p.one_go.isVisible() and p.one_go.text() == find_qt.AS_ONE == "They are one object" and p.several_go.isVisible()
+              and p.one_go.x() < p.several_go.x() and not others(),
+              "with two rows ticked, a second button beside Follow and measure the ticked ones: They are one object (one row "
+              "ticked has none: that is This is it)", p.one_go.text())
+        seeds = [dict(p.proposals[i].seeds()) for i in (0, 1)]
+        p.one_go.click()
+        obj = w.ms.marks.get("object", {})
+        rec = (w.ms.joined or [{}])[-1]
+        hows = [w.ms.how_of("object", n) or "" for n in obj]
+        check(set(obj) == set(seeds[0]) | set(seeds[1]) and all(obj[n] == seeds[0][n] for n in seeds[0])
+              and {w.ms.kind("object", n) for n in obj} == {"proposed"} and all("who took rows 1 and 2 as one object" in h for h in hows)
+              and rec.get("what") == "rows" and rec.get("of") == [1, 2] and rec.get("by") == several.BY_FIND
+              and sorted(n for v in rec.get("marks", {}).values() for n in v) == sorted(obj) and not several.things(home / "case")
+              and (w.linking() or w.links.get(0) is not None),
+              "pressed, the marks of both rows are the window's own object, each saved as proposed and as taken by a person, "
+              "with the record that the rows were taken as one; the link starts, and no object folders are made",
+              f"{len(obj)} marks; {rec.get('of')} by {rec.get('by')!r}")
+        QtTest_wait(lambda: not w.linking(), 240)
+        w.finish(show_strip=False)
+        saved = json.loads((home / "case" / "two_marks.json").read_text(encoding="utf-8"))
+        from mcdonald import report
+        told = report.made_one_said(dict(joins=saved.get("joined")))
+        w._undo.undo()
+        check(saved.get("joined") and saved["joined"][-1]["of"] == [1, 2]
+              and told[0].startswith("Rows 1 and 2 of Find's list were taken as one object because a person, at Find's list in the window, said")
+              and not w.ms.marks.get("object") and not w.ms.joined,
+              "saved, the marks file carries the record, which the report will say (Rows 1 and 2 of Find's list were taken as "
+              "one object ...); and one undo takes the marks back and the record with them", told[0][:120])
+    finally:
+        mark_qt.complain, find_qt.complain, several_qt.complain, measure_qt.complain = keep
+        for x in [x for x in QtWidgets.QApplication.topLevelWidgets() if isinstance(x, mark_qt.QtMarker) and x.isVisible() and x.clip is not None
+                  and str(getattr(x, "out", "")).startswith((str(case), str(Path(td) / "same-object")))]:
+            x._closing = True
+            x.close()
 
 
 def drive_sharing(td):
@@ -3681,6 +3830,7 @@ def drive(target):
             drive_sharing(td)
             drive_remembered_folders(td)
             drive_one_button(td)
+            drive_same_object(td)
             drive_what_is_known(td)
             drive_sound(td)
             drive_collector()

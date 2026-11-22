@@ -117,6 +117,35 @@ def _files(p):
     return [q for q in sorted(p.rglob("*")) if q.is_file()] if p.is_dir() else [p]
 
 
+def aside(folder, paths, when=None, copies=()):
+    """These entries of the results folder `folder` moved into a new `earlier/<date>_<time>/` in it, and `copies`
+    copied there (files that stay where they are and are about to be written again). All of it or none: where one
+    move fails, those made are put back and the OSError is raised. Returns the dated folder. `set_aside` moves a whole
+    case this way; `several.join` the folders of the objects it makes one."""
+    dest = _dated(folder, when)
+    dest.mkdir(parents=True)
+    done = []
+    try:
+        for p in copies:
+            shutil.copy2(str(p), str(dest / Path(p).name))
+        for p in paths:
+            shutil.move(str(p), str(dest / Path(p).name))
+            done.append(Path(p))
+    except OSError:
+        for p in reversed(done):                      # all or none: what moved goes back where it was
+            try:
+                shutil.move(str(dest / p.name), str(p))
+            except OSError:
+                pass
+        shutil.rmtree(dest, ignore_errors=True)
+        try:
+            dest.parent.rmdir()                       # `earlier` itself, where this was the first time
+        except OSError:
+            pass
+        raise
+    return dest
+
+
 def set_aside(folder, tag=None, delete=False, dry_run=False, when=None):
     """What the results folder `folder` remembers of its case, moved into `earlier/<date>_<time>/` inside it -- or,
     with `delete`, removed for good. `tag` names the one case to set aside where the folder may hold another video's
@@ -147,28 +176,9 @@ def set_aside(folder, tag=None, delete=False, dry_run=False, when=None):
                 except OSError as e:
                     raise OSError(f"{p} could not be deleted ({e}); what came before it in {folder} is gone") from e
         return got
-    dest = _dated(folder, when)
-    got["into"] = str(dest)
-    if dry_run:
-        return got
-    dest.mkdir(parents=True)
-    done = []
-    try:
-        for p in move:
-            shutil.move(str(p), str(dest / p.name))
-            done.append(p)
-    except OSError:
-        for p in reversed(done):                      # all or none: what moved goes back where it was
-            try:
-                shutil.move(str(dest / p.name), str(p))
-            except OSError:
-                pass
-        try:
-            dest.rmdir()
-            dest.parent.rmdir()                       # `earlier` itself, where this was the first time
-        except OSError:
-            pass
-        raise
+    got["into"] = str(_dated(folder, when))
+    if not dry_run:
+        aside(folder, move, when)
     return got
 
 

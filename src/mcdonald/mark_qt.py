@@ -1375,6 +1375,21 @@ class _Put(QtGui.QUndoCommand):
 # ---- the window -------------------------------------------------------------------------
 
 
+class _Joined(QtGui.QUndoCommand):
+    """The record that the marks just placed are several rows of Find's list taken as one object (`MarkSet.joined`):
+    undone with them, so that marks taken back do not leave it said."""
+
+    def __init__(self, window, record):
+        super().__init__("say that the rows are one object")
+        self.w, self.record = window, record
+
+    def redo(self):
+        self.w.ms.joined = list(self.w.ms.joined) + [self.record]
+
+    def undo(self):
+        self.w.ms.joined = [j for j in self.w.ms.joined if j is not self.record]
+
+
 class Stripes(QtWidgets.QWidget):
     """A bar that says the computer is working: diagonal stripes that move while how far it has got is not
     known (Jacob, 2026-09-25: a still bar did not say so), and once it is -- `fraction` set -- a plain bar
@@ -3351,6 +3366,7 @@ class QtMarker(QtWidgets.QMainWindow):
                       "A mark is a place on the frames of one video. Do you still want to open them on this one?"):
             return
         self.ms.marks, self.ms.how = other.marks, other.how
+        self.ms.joined = other.joined                 # ... with their record of objects made one, where the file has it
         self._undo.clear()
         self._undo.resetClean()                       # they are not what this case directory holds: closing asks
         outside = sum(1 for c in other.marks.values() for n in c if not self.clip.n0 <= n <= self.clip.n1)
@@ -3483,6 +3499,38 @@ class QtMarker(QtWidgets.QMainWindow):
         if not self._link_busy:
             self.do("link")
 
+    def take_as_one(self, items):
+        """The person said that several rows of Find's list are one object (Jacob, 2026-11-22: "an option to indicate
+        that two different found objects are actually the same one"): marks of the object along each of them, as one
+        step to undo, each saying which row was proposed and that a person took it; the record that they were taken as
+        one, by whom and when (`MarkSet.joined`), which the report says on its face; then the link, as after "This is
+        it" for one row. `items` is [(row number, Proposal, how its marks are recorded)], the likeliest first: where two
+        rows have a spot on the same frame at different places, the likelier row's is the mark, and the frame is recorded."""
+        from datetime import datetime
+        self.show_proposal(None)
+        self.set_class(0)
+        came, both, placed = {}, [], {}
+        self._undo.beginMacro("take several rows as one object")
+        for i, p, how in items:
+            for n, (x, y) in sorted(p.seeds().items()):
+                if n in placed:
+                    if placed[n] != (x, y):
+                        both.append(n)
+                    continue
+                placed[n] = (x, y)
+                self._undo.push(_Put(self, CLASSES[0], n, (x, y), how=how))
+                came.setdefault(i, []).append(n)
+        self._undo.push(_Joined(self, dict(what="rows", of=[i for i, _, _ in items], by=several.BY_FIND,
+                                           when=datetime.now().astimezone().isoformat(timespec="seconds"),
+                                           marks={str(i): v for i, v in came.items()}, both=sorted(set(both)))))
+        self._undo.endMacro()
+        self.goto(min(placed))
+        self.note.setText(f"{len(placed)} marks were put along the {len(items)} rows, as one object, and saved as proposed. "
+                          "Linking has started from them. When it ends, look at the strip, and click the object on any frame "
+                          "where the track is wrong.")
+        if not self._link_busy:
+            self.do("link")
+
     # -- more than one object ---------------------------------------------------------------
     def take_several(self, items, quiet=False):
         """Find's ticked rows -- or the rows the one-press run chose (`quiet`: nothing shown) -- each an object with a
@@ -3513,12 +3561,16 @@ class QtMarker(QtWidgets.QMainWindow):
         from . import clear
         return self.clip is not None and (bool(self.ms.count()) or clear.holds(self.several_base(), self.ms.tag))
 
-    def can_start_over(self):
-        """... and is nothing running that would write there meanwhile? (A step, the sound being read, or a report's
-        speed being worked out again.)"""
+    def free(self):
+        """Is nothing running that writes into the results folder: no step, the sound not being read, no report's
+        speed being worked out again?"""
         cards = [self.report_card] + list(self.object_cards.values())
         return (self.clip is not None and not self.auto.running() and not self.auto.busy_elsewhere()
-                and self._listener is None and not any(c.working() for c in cards) and self.saved_before())
+                and self._listener is None and not any(c.working() for c in cards))
+
+    def can_start_over(self):
+        """... and is nothing running that would write there meanwhile?"""
+        return self.free() and self.saved_before()
 
     def start_over(self):
         """File -> Start this segment over…, and the card's quiet button: asked in the card, never in a dialog."""
@@ -3566,6 +3618,8 @@ class QtMarker(QtWidgets.QMainWindow):
         self.report_card.refresh()
         own = self.report_card.path()
         all_things = several.things(self.several_base()) if self.clip is not None else []
+        joinable = [t for t in all_things if several.can_join(all_things, t) is None]     # for "Same object as…" on each card
+        free = self.free()
         twice = several.same_things(all_things)           # followed on what another was: its list row says so, and no card
         all_things = [t for t in all_things if t.k not in twice]
         self._refresh_object_tracks(all_things)
@@ -3582,6 +3636,50 @@ class QtMarker(QtWidgets.QMainWindow):
                 self.object_cards_box.addWidget(card)
             card.thing = t
             card.refresh()
+            card.offer_same([(u.k, f"Object {u.k}") for u in joinable if u.k != t.k] if t in joinable else [], free)
+
+    def join_objects(self, objects):
+        """An object's card said that it and another are the same object ("Same object as…", Join them): `several.join`
+        makes their marks one object's, the lower-numbered one's, and sets their folders aside in the results folder's
+        `earlier`; then the queue follows and measures it -- as a press does, with its bar, jewels and oval, in Auto
+        Mode (`AutoRun.rest`), or on step 3's card in Advanced Mode -- and the cards and the list follow. The line
+        under the button says once which objects are now which and where the old folders went. Refused while
+        anything runs. Returns what `join` did, or None."""
+        if not self.free():
+            self.note.setText("Something is still running. Let it end, or stop it, and then join them.")
+            return None
+        base = self.several_base()
+        inside = several.NAME.match(Path(self.out).parent.name)
+        try:
+            got = several.join(self.clip, base, objects, by=several.BY_WINDOW)
+        except (ValueError, OSError) as ex:
+            if self.advanced:                         # the one button's card is not in sight: over the video
+                self.note.setText(f"The objects could not be made one: {ex}")
+            else:
+                self.auto.why = f"The objects could not be made one: {ex}"
+            self.say_steps()
+            return None
+        said = several.joined_said(got, base)
+        if inside and int(inside.group(1)) in got["of"]:      # the window had gone into one of them: that folder is set aside
+            clip, tag, video, fps = self.clip, self.ms.tag, self.ms.video, self.ms.fps
+            keep = self.objects_expected, dict(self.known_values), self.advanced
+            self.load(clip, MarkSet(tag, video, fps, f"{base / tag}_marks.json"), str(base / tag))
+            self.objects_expected, self.known_values = keep[:2]
+        for k in [k for k in self.object_tracks if k in got["of"]]:       # their tracks go from the video until it is followed again
+            self.object_tracks.pop(k, None)
+            self._object_seen.pop(k, None)
+        self._draw_object_paths()
+        if self.advanced:
+            from . import several_qt
+            if self.several_panel is None:
+                self.several_panel = several_qt.SeveralPanel(self)
+            self.several_panel.refresh()
+            self.several_panel.start()
+            self.note.setText(said)
+        else:
+            self.auto.rest(said)
+        self.say_steps()
+        return got
 
     def _refresh_object_tracks(self, things):
         """Each object's automatic track (`object-N/<tag>_autotrack.csv`, written when its link ends), read when the
@@ -3648,6 +3746,7 @@ class QtMarker(QtWidgets.QMainWindow):
             complain(self, f"{Path(thing.marks).name} could not be opened: {ex}")
             return
         self.ms.marks, self.ms.how = other.marks, other.how
+        self.ms.joined = other.joined                 # ... and that they are several found objects' made one, where its file says so
         self._undo.clear()
         self._undo.setClean()                         # they are what that folder holds
         self.out = str(thing.prefix)

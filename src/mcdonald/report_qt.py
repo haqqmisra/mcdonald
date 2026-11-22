@@ -21,6 +21,13 @@ pane; it is too long/cluttered otherwise." A case has up to fifteen such rows, e
 with several objects has a card for each. The table is where it was in the full report, under the conclusion's
 sentence, and in `run --json` (`results.checklist`); what the conclusion rests on is still under More.
 
+An object's card (one of several: `thing`) has one more quiet button, "Same object as…" (Jacob, 2026-11-22: "an
+option to indicate that two different found objects are actually the same one"). Find lists what it saw, and one
+object seen twice is two rows, two folders and two cards. The button opens one line in the card -- "This is the same
+object as" a choice of the other objects, Join them, Cancel -- and Join them is `QtMarker.join_objects`:
+`several.join` makes their marks one object's and sets their old folders aside, and the queue follows and measures
+it. No dialog. A group's member, and a group whose members are objects, have no such button (`several.can_join`).
+
 Nothing is measured or decided here. The card reads the case back from its `_case.json`
 (`report.Case.load`), the file `mcdonald run` writes, and shows what `Case.conclusion`,
 `Case.summary` and `Case.bottom_line` say; "I looked at the track sheet" is `stages.confirm_sheet`,
@@ -343,9 +350,87 @@ class ReportCard(QtWidgets.QFrame):
             b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
             b.setAutoDefault(False)
             buttons.addWidget(b)
+        self.same = self.same_box = None
+        if thing is not None:                         # one of several objects: it may be another one of them, seen again
+            self.same = QtWidgets.QPushButton("Same object as…")
+            self.same.setToolTip("say that this object and another one found in this video are the same object. Their "
+                                 "marks become one object's, and it is followed and measured again. Their results from "
+                                 "before are set aside, and nothing is deleted")
+            self.same.setStyleSheet(QUIET)
+            self.same.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            self.same.setAutoDefault(False)
+            self.same.clicked.connect(lambda _=False: self.open_same())
+            self.same.hide()
+            buttons.addWidget(self.same)
         buttons.addStretch(1)
         lay.addLayout(buttons)
+        if thing is not None:
+            self.same_box = Box()
+            self.same_box.setObjectName("same")
+            self.same_box.setStyleSheet("QFrame#same { background: #16262a; border: 1px solid #2c5a5e; border-radius: 6px; }")
+            self.same_box.setCursor(QtCore.Qt.CursorShape.ArrowCursor)
+            sl = QtWidgets.QVBoxLayout(self.same_box)
+            sl.setContentsMargins(8, 6, 8, 8)
+            sl.setSpacing(6)
+            line = QtWidgets.QHBoxLayout()
+            line.addWidget(QtWidgets.QLabel("This is the same object as"))
+            self.same_as = QtWidgets.QComboBox()
+            self.same_as.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            line.addWidget(self.same_as)
+            line.addStretch(1)
+            sl.addLayout(line)
+            answers = QtWidgets.QHBoxLayout()
+            answers.addStretch(1)
+            self.same_cancel = QtWidgets.QPushButton("Cancel")
+            self.same_cancel.setStyleSheet(QUIET)
+            self.same_cancel.clicked.connect(lambda _=False: self.same_box.hide())
+            self.same_join = QtWidgets.QPushButton("Join them")
+            self.same_join.setStyleSheet(PRIMARY)
+            self.same_join.setToolTip("make the two one object, the one with the lower number, and follow and measure it "
+                                      "from the marks of both. Their results from before are set aside in the folder named "
+                                      "earlier")
+            self.same_join.clicked.connect(lambda _=False: self.join())
+            for b in (self.same_cancel, self.same_join):
+                b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+                b.setAutoDefault(False)
+                answers.addWidget(b)
+            sl.addLayout(answers)
+            lay.addWidget(self.same_box)
+            self.same_box.hide()
         self.hide()
+
+    # -- one of several objects: the same object as another -----------------------------------------
+    def offer_same(self, others, free):
+        """`others` are the other objects this one could be made one with, [(number, name)] -- none for a group's
+        member or a group whose members are objects (`several.can_join`) -- and `free` whether
+        nothing is running (`QtMarker.refresh_report_cards` says both, at every step): the button is there when there
+        is another, greyed while anything runs, and the question goes when it could no longer be answered."""
+        if self.same is None:
+            return
+        can = bool(others)
+        self.same.setVisible(can)
+        self.same.setEnabled(bool(free))
+        if not can or not free:
+            self.same_box.hide()
+        if [self.same_as.itemData(i) for i in range(self.same_as.count())] != [k for k, _ in others]:
+            chosen = self.same_as.currentData()
+            self.same_as.clear()
+            for k, name in others:
+                self.same_as.addItem(name, k)
+            if chosen in [k for k, _ in others]:
+                self.same_as.setCurrentIndex([k for k, _ in others].index(chosen))
+
+    def open_same(self):
+        """Same object as…: the one line, in the card."""
+        if self.same_as.count():
+            self.same_box.show()
+
+    def join(self):
+        """Join them: this object and the one chosen, one object (`QtMarker.join_objects`)."""
+        other = self.same_as.currentData()
+        self.same_box.hide()
+        if other is not None and self.thing is not None:
+            self.window_.join_objects([self.thing.k, int(other)])
 
     def path(self):
         """The case's report, if there is one: the object's, or the window's own."""

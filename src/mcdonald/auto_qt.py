@@ -73,9 +73,11 @@ def aside_said(got):
 
 
 def by_the_press(ms):
-    """Were all of a MarkSet's marks of the object taken by a one-press run (TAKEN, TAKEN_SEVERAL), none by a person?"""
+    """Were all of a MarkSet's marks of the object taken by a one-press run (TAKEN, TAKEN_SEVERAL), none by a person?
+    Marks of several found objects made one on a person's say (`MarkSet.joined`) are that person's choice, whoever
+    placed each of them."""
     obj = ms.marks.get(CLASSES[0], {})
-    return bool(obj) and all(PRESS in (ms.how_of(CLASSES[0], n) or "") for n in obj)
+    return bool(obj) and not getattr(ms, "joined", None) and all(PRESS in (ms.how_of(CLASSES[0], n) or "") for n in obj)
 
 
 class AutoRun(QtCore.QObject):
@@ -185,6 +187,18 @@ class AutoRun(QtCore.QObject):
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return False                              # marks that cannot be read are not known to be the press's
         return several.asked_before(base) != now or (now is not None and len(found) > now)
+
+    def rest(self, said=""):
+        """The objects with no finished report yet, followed and measured as a press does it -- the bar, the jewels,
+        the oval, the three lights -- for a caller that changed which objects there are (`QtMarker.join_objects`: two
+        said to be one). `said` is what the card's line says of that when the run ends. True if it started."""
+        w = self.w
+        if w.clip is None or self.running() or self.busy_elsewhere():
+            return False
+        self.why, self.used, self.aside = "", True, said
+        w.note.quiet = True
+        self._several()
+        return self.running()
 
     def start_over(self):
         """The card's yes to "Start over?": the results set aside, the video as when first opened, and the card

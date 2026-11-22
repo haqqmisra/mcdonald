@@ -1088,6 +1088,142 @@ def test_several_objects_are_a_case_each():
         check(rc == 5 and "object-1" in err, "and a folder with no object in it is nothing to work on, said with what to put there", f"exit {rc}: {err.strip()[-80:]}")
 
 
+def test_two_found_objects_said_to_be_one():
+    """Jacob, 2026-11-22: "it would also be nice if the GUI had an option to indicate that two different found objects
+    are actually the same one". Find lists what it saw, and one object seen twice is two rows and two folders.
+    `several.join` (the window's "Same object as…"; here `run --each DIR --same N,M`) makes their marks one object's
+    because someone says so: each mark keeps what it was recorded as, the marks file gains who said they are one and
+    when, a frame both had marked at different places is reported, the old folders are set aside and nothing is
+    deleted, and a group's member is refused. The one object is then measured as any other, and its report says on its
+    face that it was made one and what the track did where the marks of one meet the next one's: it passes through
+    both where they are one object, and where they are not it says that the track does not join them."""
+    print("\nrun --each --same: two found objects said to be the same one")
+    if shutil.which("ffmpeg") is None:
+        print("  SKIP  ffmpeg is not installed")
+        return
+    from mcdonald import clear, several
+    with tempfile.TemporaryDirectory() as td:
+        TMP[:] = [td]
+        clip, video = planted_video(td, TwoPlanted(n1=24, seen=range(1, 25)), "two")
+        base, work = Path(td) / "two", Path(td) / "frames"
+        at = lambda truth, n, dx=0.0: f"object@{n}={truth(n)[0] + dx:.1f},{truth(n)[1]:.1f}"
+        # one disc seen twice (objects 1 and 2, with frame 5 marked by both, 4 px apart), and the other disc (object 3)
+        made = [("object-1", [at(clip.truth, 2), at(clip.truth, 5)], "the disc from the left, early"),
+                ("object-2", [at(clip.truth, 5, 4.0), at(clip.truth, 8), at(clip.truth, 10)], "the disc from the left, later"),
+                ("object-3", [at(clip.truth2, 15), at(clip.truth2, 18)], "the second disc, lower down"),
+                ("object-4", [at(clip.truth2, 16), at(clip.truth2, 19)], "a point of a group")]
+        rcs = [mcdonald("mark", video, "--no-window", "--n0", 1, "--n1", 24, "--out", base / name, "--workdir", work,
+                        *[x for st in sets for x in ("--set", st)], "--why", why)[0] for name, sets, why in made]
+        if not check(rcs == [0] * 4, "four objects' marks, each in a folder of its own", str(rcs)):
+            return
+        m2 = json.loads((base / "object-2" / "two_marks.json").read_text(encoding="utf-8"))
+        m2["seen"] = [1, 14]                             # as Find's marks say the frames it was seen on
+        (base / "object-2" / "two_marks.json").write_text(json.dumps(m2), encoding="utf-8")
+        (base / "object-4" / f"two{several.GROUP}").write_text(json.dumps(dict(object=3, member=1, folder="object-3",
+                                                                          members="object-3/two_members.csv", siblings=[])), encoding="utf-8")
+        tree = lambda: sorted(str(p.relative_to(base)) for p in base.rglob("*"))
+        before = tree()
+        rc, out, err = mcdonald("run", video, "--each", base, "--same", "1,4", "--workdir", work)
+        rc9, out9, err9 = mcdonald("run", video, "--each", base, "--same", "1,9", "--workdir", work)
+        rc1, out1, err1 = mcdonald("run", video, "--marks", base / "object-1" / "two_marks.json", "--same", "1,2", "--workdir", work)
+        check(rc == 2 and "Object 4 is member 1 of object 3's group" in err and "cannot be made one" in err and rc9 == 2
+              and "There is no object 9" in err9 and rc1 == 2 and "--same goes with --each" in err1 and tree() == before
+              and several.can_join(several.things(base), several.things(base)[2]) is not None,
+              "a group's member is refused, and so is a group whose member is an object, a number that is no object, and "
+              "--same without --each: exit 2 with a sentence, and nothing changed", err.strip().splitlines()[-1][:110])
+        shutil.rmtree(base / "object-4")
+        only = ("--only", "ingest,track,verify,kinematics,report")
+        rc, out, err = mcdonald("run", video, "--each", base, "--same", "1,2", "--workdir", work, *only, "--json")
+        d = as_json(out)
+        j = ((d or {}).get("results") or {}).get("joined") or [{}]
+        ok = check(rc == 0 and d is not None and len(j) == 1 and j[0].get("kept") == 1 and j[0].get("of") == [1, 2] and j[0].get("marks") == 4
+                   and j[0].get("came_from") == {"1": 2, "2": 2} and j[0].get("both") == [5] and j[0].get("seen") == [1, 14]
+                   and [r["object"] for r in d["results"]["objects"]] == [1, 3],
+                   "run --each --same 1,2 makes the two one object, the lower number, before it measures: 4 marks, 2 from each, "
+                   "the frame both had marked reported, the frames it was seen on carried; and --json says what was joined",
+                   f"exit {rc}; {j[0].get('came_from')}; both {j[0].get('both')}; seen {j[0].get('seen')}")
+        if not ok:
+            print(err[-1500:])
+            return
+        into = Path(j[0]["into"])
+        ms = mark.MarkSet("two", video, clip.fps).load(base / "object-1" / "two_marks.json")
+        rec = ms.joined[-1] if ms.joined else {}
+        check(into.parent == base / clear.EARLIER and sorted(p.name for p in into.iterdir()) == ["object-1", "object-2"]
+              and (into / "object-2" / "two_marks.json").exists() and not (base / "object-2").exists()
+              and sorted(p.name for p in base.iterdir()) == sorted([clear.EARLIER, "object-1", "object-3", "two_objects.json", "two_objects.md"])
+              and several.things(base)[0].k == 1 and len(several.things(base)) == 2,
+              "the two old folders are set aside whole in one dated folder under earlier/, and nothing is deleted; object 1's "
+              "folder is made again", ", ".join(sorted(p.name for p in base.iterdir())))
+        check(sorted(ms.marks["object"]) == [2, 5, 8, 10] and ms.marks["object"][5] == (round(clip.truth(5)[0], 1), round(clip.truth(5)[1], 1))
+              and ms.how_of("object", 2) == "agent: the disc from the left, early" and ms.how_of("object", 10) == "agent: the disc from the left, later"
+              and ms.seen == (1, 14) and rec.get("what") == "objects" and rec.get("of") == [1, 2] and rec.get("by") == several.BY_COMMAND
+              and rec.get("marks") == {"1": [2, 5], "2": [8, 10]} and rec.get("both") == [5] and str(rec.get("when", ""))[:2] == "20",
+              "its marks are theirs together: each still says what it was recorded as, object 1's mark is kept on the frame "
+              "both had marked, and the file records who said they are one, when, and which marks came from which",
+              f"{sorted(ms.marks['object'])}; by {rec.get('by')!r}")
+        md = (base / "object-1" / "two_case.md").read_text(encoding="utf-8")
+        said = next((ln for ln in md.splitlines() if ln.startswith("> **Objects 1 and 2 were made one object")), "")
+        case = json.loads((base / "object-1" / "two_case.json").read_text(encoding="utf-8"))
+        seams = (case.get("made_one") or {}).get("seams") or []
+        check(said and md.index(said) < md.index("## Conclusion") and "because someone at the command line" in said
+              and "said they are the same object" in said and "2 from object 1 and 2 from object 2" in said
+              and "More than one of them had a mark on frame 5, at different places; object 1's was kept." in said
+              and "Followed from those marks, the track passes through the marks of both." in said and "Look at the track sheet." in said
+              and [(s["before"], s["at"], s["of"], s["to"], s["reached"]) for s in seams] == [(5, 8, "object 1", "object 2", True)]
+              and "made_one" not in json.loads((base / "object-3" / "two_case.json").read_text(encoding="utf-8")),
+              "its report says on its face, above the conclusion, that the objects were made one, who said so, whose marks "
+              "it was followed from, and that the track passes through the marks of both; no other case's file has the field",
+              said[:150] or md[:200])
+        page = (base / "two_objects.md").read_text(encoding="utf-8")
+        row = d["results"]["objects"][0]
+        check("- **made one object:** Objects 1 and 2 were made one object because someone at the command line" in page
+              and "## Object 2" not in page and row["made_one"] and "passes through the marks of both" in (row["made_one_said"] or "")
+              and row["frames"] == [1, 24] and row["followed"] and row["followed"]["frames"] >= 6 and "Objects 1 and 2 are now object 1" in err,
+              "the list says so on object 1's line, has no object 2, and the object was followed and measured over the frames "
+              "of both", row.get("made_one_said", "")[:100])
+        # two different objects, made one on someone's say all the same: one object in the record, and the report says what
+        # the track did where their marks meet, whichever it was
+        rc, out, err = mcdonald("run", video, "--each", base, "--same", "1,3", "--workdir", work, *only, "--json")
+        md = (base / "object-1" / "two_case.md").read_text(encoding="utf-8") if (base / "object-1" / "two_case.md").exists() else ""
+        said = next((ln for ln in md.splitlines() if ln.startswith("> **Objects 1 and 3 were made one object")), "")
+        ms = mark.MarkSet("two", video, clip.fps).load(base / "object-1" / "two_marks.json")
+        case = json.loads((base / "object-1" / "two_case.json").read_text(encoding="utf-8")) if md else {}
+        seam = [x for x in (case.get("made_one") or {}).get("seams") or [] if x["at"] == 15] or [{}]
+        told = ("The track does not join them at frame 15. Followed from object 1's mark on frame 10, it" in said if not seam[0].get("reached")
+                else "the track passes through the marks of both" in said
+                and (not seam[0].get("missing") or "Between frames 10 and 15 the track has no position on" in said))
+        check(rc == 0 and said and md.index(said) < md.index("## Conclusion") and "4 from object 1 and 2 from object 3" in said
+              and "Objects 1 and 2 had been made one the same way" in said and len(ms.joined) == 2
+              and [x.k for x in several.things(base)] == [1] and len(list((base / clear.EARLIER).iterdir())) == 2
+              and (seam[0].get("of"), seam[0].get("to"), seam[0].get("before")) == ("object 1", "object 3", 10) and told,
+              "two different objects made one on someone's say are one object in the record, and the report says above its "
+              "conclusion what the track did where their marks meet; the join before is still said",
+              (said[said.find("Objects 1 and 2 had"):] or err[-300:])[:330])
+        # the seams, on drawn tracks: where the link from one object's last mark does not arrive at the next one's first
+        from mcdonald import report, stages
+        joins = [dict(what="objects", of=[1, 2], by=several.BY_WINDOW, when="2026-11-22T12:00:00-05:00",
+                      marks={"1": [10, 20], "2": [40, 50]}, both=[])]
+        marks = {10: (0.0, 0.0), 20: (10.0, 0.0), 40: (300.0, 200.0), 50: (310.0, 200.0)}
+        track = {**{n: (float(n - 10), 0.0) for n in range(10, 31)}, **{n: (260.0 + n, 200.0) for n in range(40, 51)}}
+        words = lambda seams: " ".join(report.made_one_said(dict(joins=joins, seams=seams)))
+        lost = stages.seams(joins, marks, track, 9.0, {20: 0.4, 40: None, 50: 0.2})
+        off = stages.seams(joins, marks, track, 9.0, {20: 0.4, 40: 37.2, 50: 0.2})
+        fine = stages.seams(joins, marks, track, 9.0, {20: 0.4, 40: 1.0, 50: 0.2})
+        none = stages.seams(joins, marks, {n: xy for n, xy in track.items() if n < 31}, 9.0, None)
+        check([len(x) for x in (lost, off, fine, none)] == [1, 1, 1, 1] and (lost[0]["before"], lost[0]["at"], lost[0]["reached"], lost[0]["px"]) == (20, 40, False, None)
+              and "The track does not join them at frame 40. Followed from object 1's mark on frame 20, it does not reach object 2's mark on frame 40." in words(lost)
+              and off[0]["reached"] is False and "it passes 37 pixels from object 2's mark on frame 40." in words(off)
+              and fine[0]["reached"] is True and fine[0]["missing"] == 9 and "Followed from those marks, the track passes through the marks of both." in words(fine)
+              and "Between frames 20 and 40 the track has no position on 9 frames: the object was not seen there." in words(fine)
+              and none[0]["reached"] is False and "does not reach object 2's mark on frame 40" in words(none)
+              and words(fine).startswith("Objects 1 and 2 were made one object because a person, in the window, said they are the same object (2026-11-22).")
+              and words(lost).endswith("No test here checks that they are one object. Look at the track sheet.")
+              and report.made_one_said(dict(joins=[dict(joins[0], what="rows", by=several.BY_FIND)]))[0]
+              == "Rows 1 and 2 of Find's list were taken as one object because a person, at Find's list in the window, said they are the same object (2026-11-22).",
+              "where one object's marks meet the next one's, the report says what the track did: it does not reach the mark, it "
+              "passes so many pixels from it, or it passes through both, with the frames between that have no position", words(off)[-140:])
+
+
 def test_a_newer_version_is_found_said_and_put_in_place():
     """At a start mcdonald asks GitHub what version main is, once a day, and only for a copy
     pip installed from there; the command line says it in one line on stderr, and the window's
