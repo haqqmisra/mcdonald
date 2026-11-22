@@ -1162,11 +1162,19 @@ class HomePage(QtWidgets.QWidget):
 
 class ReadingView(QtWidgets.QTextBrowser):
     """Text to read -- the report, the list of objects, Help -- in a column no wider than a page, centred
-    when the window is wider: a line of 150 characters is not read, it is scanned."""
+    when the window is wider: a line of 150 characters is not read, it is scanned.
+
+    With `paper` the page is a sheet of paper in the dark window: dark ink on white, as the PDF of a report is
+    (`paper.SHEET`, `paper.INK`). A report's plots are drawn on white, for paper, and on the window's dark page each
+    stood in a white rectangle of its own (Jacob, 2026-11-22: "the white border of the plot makes it look like it was
+    pasted in ... or just make the background color of the report white"). On a white page a plot's white is the
+    page's, and it sits in the text with no border. The pages that show a case's pictures or lead to them are paper:
+    the report, the list of objects, the sound's page. Help is the window's own and stays dark."""
     WIDTH = 1000
 
-    def __init__(self):
+    def __init__(self, paper=False):
         super().__init__()
+        self.paper = bool(paper)
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         self.setMaximumWidth(self.WIDTH)
         # everything wraps to the column and a picture is never wider than it (measure_qt.fit_pictures), and a
@@ -1174,7 +1182,14 @@ class ReadingView(QtWidgets.QTextBrowser):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         pal = self.palette()
-        pal.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(ACCENT))    # the default blue is not read on a dark page
+        if self.paper:
+            from . import paper as sheet
+            for group in (QtGui.QPalette.ColorGroup.Active, QtGui.QPalette.ColorGroup.Inactive, QtGui.QPalette.ColorGroup.Disabled):
+                pal.setColor(group, QtGui.QPalette.ColorRole.Base, QtGui.QColor(sheet.SHEET))
+                pal.setColor(group, QtGui.QPalette.ColorRole.Text, QtGui.QColor(sheet.INK))
+                pal.setColor(group, QtGui.QPalette.ColorRole.Link, QtGui.QColor(sheet.PAPER[2]))
+        else:
+            pal.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(ACCENT))    # the default blue is not read on a dark page
         self.setPalette(pal)
 
     def setHtml(self, html):

@@ -757,7 +757,8 @@ def sheet_unconfirmed(report_md):
 def render(page, report_md):
     """The report's Markdown on the page, set for reading as the PDF of it is (`paper.dress`: room
     round the text, headings that stand out, lines not packed tight, the conclusion in its band,
-    tables ruled lightly), in the window's colours, and the pictures fitted. A folded part
+    tables ruled lightly, each picture a figure with its caption), in the page's colours -- paper's
+    where the page is paper, else the window's -- and the pictures fitted. A folded part
     (`<details>`, the marks frame by frame) is a link that opens and closes it."""
     opened = getattr(page, "opened", set())             # which of the folded parts are open, by their order
     count = iter(range(1000))
@@ -770,7 +771,10 @@ def render(page, report_md):
     page.setWordWrapMode(QtGui.QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)     # a long path breaks too
     doc = page.document()
     doc.setDocumentMargin(28)
-    paper.dress(doc, page.font().pointSizeF(), "#16262a", "#3a3a40", ACCENT)     # links in the icon's teal, as the headings
+    if getattr(page, "paper", False):               # a sheet of paper in the window: the PDF's colours (`ReadingView`)
+        paper.dress(doc, page.font().pointSizeF(), *paper.PAPER, faint=paper.FAINT)
+    else:
+        paper.dress(doc, page.font().pointSizeF(), "#16262a", "#3a3a40", ACCENT, faint=MUTED)   # links in the icon's teal, as the headings
     fit_pictures(page, Path(report_md).resolve().parent)
 
 
@@ -908,7 +912,7 @@ def show_report(window, path):
     bl.addWidget(looked)
     banner.setVisible(sheet_unconfirmed(path))
     lay.addWidget(banner)
-    page = ReadingView()
+    page = ReadingView(paper=True)                # dark ink on white, so that a plot's white is the page's (2026-11-22)
     page.setOpenLinks(False)                      # a link, or a picture clicked, opens outside the page, which stays the report
     def clicked(url):
         if url.scheme() == "mcdonald":                # a folded part: open or close it where it is

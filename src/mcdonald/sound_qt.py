@@ -19,7 +19,7 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import actions, audio
-from .mark_qt import DIM_ACCENT, MUTED, QUIET, SECONDARY, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
+from .mark_qt import DIM_ACCENT, QUIET, SECONDARY, BusyCard, Page, ReadingView, folding_button, heading, muted, show_busy
 
 TITLE = "The sound of this video"
 
@@ -119,17 +119,19 @@ class SoundPage(Page):
             where = str(picture.resolve().parent)
             folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(where)))
             self.tools.addWidget(folder)
-        html = [f"<table width='100%' cellpadding='12' cellspacing='0' bgcolor='#16262a'><tr><td>"
+        # the page is paper, as a report's is (`ReadingView(paper=True)`, 2026-11-22): the band and the quiet ink are paper's
+        from . import paper
+        html = [f"<table width='100%' cellpadding='12' cellspacing='0' bgcolor='{paper.PAPER[0]}'><tr><td>"
                 f"<span style='font-size: large; font-weight: bold;'>{escape(head)}</span></td></tr></table>"]
         html += [f"<p style='line-height: 135%;'>{escape(r)}</p>" for r in rest]
         if picture is not None:
-            html.append(f"<p><img src='{escape(picture.name)}'></p>"
-                        f"<p style='color: {MUTED};'>How far each tone stands above the noise near it (dashed lines: "
+            html.append(f"<p align='center'><img src='{escape(picture.name)}'></p>"
+                        f"<p style='color: {paper.FAINT};'>How far each tone stands above the noise near it (dashed lines: "
                         "the tones that were explained). Saved as " + escape(picture.name) + " in the results folder.</p>")
-        html.append(f"<p style='color: {MUTED};'>The whole video's sound is read, up to {audio.MAX_S / 60:g} minutes "
+        html.append(f"<p style='color: {paper.FAINT};'>The whole video's sound is read, up to {audio.MAX_S / 60:g} minutes "
                     "of it, not only the segment open. A tone is heard here only if it is steady: voices and noise "
                     "are not read.</p>")
-        page = self.page = ReadingView()
+        page = self.page = ReadingView(paper=True)
         page.setOpenLinks(False)
         page.anchorClicked.connect(QtGui.QDesktopServices.openUrl)
         if picture is not None:

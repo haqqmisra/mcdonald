@@ -25,6 +25,10 @@ DETAILS = re.compile(r"<details><summary>(.*?)</summary>(.*?)</details>", re.S)
 PICTURE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
 # the conclusion's band, the tables' rules, and the headings' and links' colour, on paper (the window's are its own)
 PAPER = ("#e3eeee", "#c2c2c2", "#1b6b73")
+# the sheet itself, its ink, and the quieter ink of a picture's caption: the PDF's, and since 2026-11-22 the window's
+# pages that show a case's pictures (`mark_qt.ReadingView(paper=True)`): a plot is drawn on white, and on a white page
+# its white is the page's
+SHEET, INK, FAINT = "#ffffff", "#1c1c1e", "#5c5b57"
 MARGIN_MM = 22           # round the text: what Qt's printing gives a document (2 cm), and the paper's 2 mm it sets where none are
 BODY_PT = 9.5
 MOST_PAGES = 6           # a picture longer than this many pages (a long track's sheet) is named, not printed;
@@ -43,18 +47,45 @@ def application():
     return app
 
 
-def dress(doc, size_pt, band, rule, accent):
+def dress(doc, size_pt, band, rule, accent, faint=None):
     """A report's Markdown, already in `doc`, set for reading: room round the headings, which stand out
     (the second level in `accent`), lines not packed tight, the conclusion as a card -- `band` behind its
     lines, under its heading (Jacob, 2026-10-07: first on the page) -- links in `accent`, and tables ruled
     lightly in `rule` and as wide as the text. `size_pt` is the body's size; the headings' go from it.
-    The window's report page (`measure_qt.render`) and the PDF (`write`) are dressed by this one function."""
-    from PySide6 import QtGui
-    block = doc.begin()
+    The window's report page (`measure_qt.render`) and the PDF (`write`) are dressed by this one function.
+
+    A picture is set as a figure is in print (Jacob, 2026-11-22: "make the plots more embedded into the report"): in
+    the middle of the column, with room above it, and the line of italics under it -- its caption, where the report
+    gives one -- close beneath, a little smaller and in `faint`, with the room after that."""
+    from PySide6 import QtCore, QtGui
+    block, pictured = doc.begin(), False
     while block.isValid():
         fmt = block.blockFormat()
         level = fmt.headingLevel()
         cur = QtGui.QTextCursor(block)
+        picture = "\ufffc" in block.text()
+        if picture:                                # a figure: centred, close to its caption
+            fmt.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
+            fmt.setTopMargin(14)
+            fmt.setBottomMargin(4)
+            cur.setBlockFormat(fmt)
+            block, pictured = block.next(), True
+            continue
+        if pictured and not level and block.text().strip() and _all_italic(block):      # its caption
+            fmt.setNonBreakableLines(False)
+            fmt.setLineHeight(125, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
+            fmt.setBottomMargin(16)
+            cur.setBlockFormat(fmt)
+            cur.select(QtGui.QTextCursor.SelectionType.BlockUnderCursor)
+            ch = QtGui.QTextCharFormat()
+            ch.setFontPointSize(size_pt * 0.93)
+            if faint:
+                ch.setForeground(QtGui.QColor(faint))
+            cur.mergeCharFormat(ch)
+            block, pictured = block.next(), False
+            continue
+        if block.text().strip():
+            pictured = False
         if level:
             fmt.setTopMargin({1: 4, 2: 22}.get(level, 14))
             fmt.setBottomMargin(8)
@@ -113,6 +144,19 @@ def dress(doc, size_pt, band, rule, accent):
             tf.setCellSpacing(0)
             tf.setWidth(QtGui.QTextLength(QtGui.QTextLength.Type.PercentageLength, 100))    # its columns wrap, not the page
             frame.setFormat(tf)
+
+
+def _all_italic(block):
+    """Is every piece of text in this block in italics (a picture's caption, as the report writes one)?"""
+    it, any_text = block.begin(), False
+    while not it.atEnd():
+        f = it.fragment()
+        if f.text().strip():
+            any_text = True
+            if not f.charFormat().fontItalic():
+                return False
+        it += 1
+    return any_text
 
 
 def letter_here():
@@ -202,7 +246,7 @@ def write(report_md, pdf=None, letter=None):
                 cur.setCharFormat(im)
             it += 1
         block = block.next()
-    dress(doc, BODY_PT, *PAPER)
+    dress(doc, BODY_PT, *PAPER, faint=FAINT)
     doc.print_(writer)
     del writer                                     # the file is finished when the writer goes
     if not pdf.exists() or pdf.stat().st_size == 0:

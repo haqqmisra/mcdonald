@@ -424,7 +424,7 @@ def show_list(window, page, open_report):
     d.saved.setOpenExternalLinks(True)
     d.saved.hide()
     lay.addWidget(d.saved)
-    view = ReadingView()
+    view = ReadingView(paper=True)                # as the reports it leads to: a sheet of paper in the window
     view.setOpenLinks(False)
 
     def clicked(url):

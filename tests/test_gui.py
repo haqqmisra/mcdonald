@@ -2191,6 +2191,27 @@ def drive_measuring(td):
     check(pics and all(float(wd) <= measure_qt.PICTURE_WIDTH for _, wd in pics) and any("_all_frames" in src for src, _ in pics),
           "the pictures the steps drew are in the report page, under their step, the track sheet among them, none wider than "
           "the page", f"{len(pics)} pictures: " + ", ".join(src for src, _ in pics[:4]))
+    # The page is a sheet of paper in the dark window (Jacob, 2026-11-22: "the white border of the plot makes it look like
+    # it was pasted in ... or just make the background color of the report white"): a plot is drawn on white, and its white
+    # is the page's, so nothing frames it.
+    from urllib.parse import unquote
+    from PySide6 import QtGui
+    from mcdonald import paper
+    sheet = p.report.page
+    base, ink = (sheet.palette().color(QtGui.QPalette.ColorRole.Base), sheet.palette().color(QtGui.QPalette.ColorRole.Text))
+    plot = next((case / unquote(src) for src, _ in pics if src.endswith(".png") and (case / unquote(src)).exists()), None)
+    corner = QtGui.QImage(str(plot)).pixelColor(0, 0) if plot is not None else None
+    shown = sheet.viewport().grab().toImage()
+    check(sheet.paper and base.name() == paper.SHEET == "#ffffff" and ink.lightness() < 60 and corner is not None
+          and corner.rgb() == base.rgb() and shown.pixelColor(3, 3).rgb() == base.rgb(),
+          "the report's page is a sheet of paper in the window, dark ink on white, and a plot's own white is the page's: "
+          "no border round it", f"page {base.name()}, ink {ink.name()}, {plot.name if plot else 'no plot'} "
+          f"{corner.name() if corner else ''}")
+    doc_ = sheet.document()
+    blocks = [doc_.findBlockByNumber(i) for i in range(doc_.blockCount())]
+    figures = [b for b in blocks if "\ufffc" in b.text()]
+    check(figures and all(b.blockFormat().alignment() & QtCore.Qt.AlignmentFlag.AlignHCenter for b in figures),
+          "and each picture is set in the middle of the column, as a figure is in print", f"{len(figures)} pictures")
     from PySide6 import QtWidgets as QW
     keep_where, asked = measure_qt.where_to_save, []
     measure_qt.where_to_save = lambda parent, start: asked.append(start) or str(case.parent / "saved report")
@@ -2326,6 +2347,7 @@ def drive_measuring(td):
     heads = [h for h, _ in actions.first_run()]
     check(w.first_run_page.isVisible() and all(h in text for h in heads) and text.index("Two clicks") < text.index("Link") < text.index("Measure"),
           "Help -> Getting started walks through the job in the order it is done", ", ".join(heads))
+    check(not w.first_run_page.page.paper, "Help is the window's own page, in the window's colours: only a case's pages are paper")
     named = {a.id: mark_qt.native_keys(actions.spoken(a.keys[0])) if a.keys else f"{a.menu} -> {a.text}"
              for a in actions.ACTIONS}                # ⌘ on a Mac; a row with no key is named by its menu
     import re
@@ -2458,6 +2480,7 @@ def drive_several(td):
     text = page.page.toPlainText() if page is not None else ""
     check("Object 1" in text and "Object 2" in text and text.count("not looked at yet") == 2,
           "Open the list shows one page that lists them, each with its track sheet not yet looked at", text[:60].replace("\n", " "))
+    check(page is not None and page.page.paper, "the list is on paper too, as the reports it leads to")
     d = sp.open_report(1)
     check(d is not None and d.banner.isVisible(), "an object's report opens as any report does, with the line at its top that "
                                                   "nobody has said its track sheet shows the object")
@@ -4789,6 +4812,7 @@ def drive_sound(td):
               and d.picture.parent.resolve() == Path(w.out).parent.resolve(),
               "the page says why (two tones agree), and shows the picture of the sound, saved in the results folder",
               str(d.picture))
+        check(d.page.paper, "the sound's page is on paper, as a report's is: its picture's white is the page's")
         words = [text] + [x.text() for x in d.findChildren(QtWidgets.QAbstractButton)] + [d.head.text()]
         bad = [t_[:60] for t_ in words if not plain(t_)]
         check(not bad, "in plain words", "; ".join(bad))

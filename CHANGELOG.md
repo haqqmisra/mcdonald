@@ -26,6 +26,13 @@ also shows a bird that Find sees three separate times and lists once. PR44's pag
 **The list of PURSUE videos has release 08's three** (2026-11-22): PR166, PR168 and PR169 can be opened by name.
 LLE-UAP-PR004's title follows the release's own change, from "October 2023" to "January 2024".
 
+**The report's page is white, and its plots sit in it** (2026-11-22; IDEAS.md TU8). The window is dark, and the
+report's plots are drawn on white. On the dark page each plot stood in a white box, as if pasted in. The full report
+now opens as a sheet of paper in the window: dark text on white, as the saved PDF has always been. A plot's white
+is the page's white, so nothing frames it. Each picture sits in the middle of the page, with its caption close under
+it in smaller, quieter type. The list of objects and the sound's page are on paper too. Help and the rest of the
+window stay dark. No report's words or numbers change.
+
 **A beat's picture keeps its title on the page** (2026-11-22). Where a beat had a double, the title over the right
 panel ("5.93 Hz (double 11.86)") ran off the figure's edge. It now ends at the panel's edge.
 
