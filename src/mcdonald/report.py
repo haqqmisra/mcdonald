@@ -359,6 +359,58 @@ COMPUTED_ON = ("computed on a graphics card, {card}: its arithmetic agrees with 
                "(--gpu none measures on the CPU)")
 
 
+def _listed(words):
+    """'1 and 2', '1, 2 and 3'."""
+    words = [str(w) for w in words]
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def made_one_said(made):
+    """What a case says of several found objects made one object because someone said they are the same one (Jacob,
+    2026-11-22: "an option to indicate that two different found objects are actually the same one"), as sentences:
+    who said so and when; whose marks the track was followed from; a frame both had marked at different places; and
+    what the track did where one object's marks meet the next one's (`stages.seams`) -- it passes through both, or it
+    does not join them, said plainly: the person's word is the authority, as a hand mark is, and what the link found
+    is not hidden. `made` is `Case.made_one`: {joins: `MarkSet.joined`'s records, seams}; the last record is the
+    one said, the ones before it are named after it."""
+    joins, seams = made.get("joins") or [], made.get("seams")
+    if not joins:
+        return []
+    j = joins[-1]
+    rows = j.get("what") == "rows"
+    one = "row" if rows else "object"
+    ks = [int(k) for k in j.get("of") or []]
+    day, by = str(j.get("when") or "")[:10], str(j.get("by") or "someone")
+    out = [(f"Rows {_listed(ks)} of Find's list were taken as one object" if rows else f"Objects {_listed(ks)} were made one object")
+           + f" because {by}{',' if ',' in by else ''} said they are the same object" + (f" ({day})." if day else ".")]
+    counts = [(int(k), len(v)) for k, v in sorted((j.get("marks") or {}).items(), key=lambda kv: int(kv[0])) if v]
+    if counts:
+        out.append(f"Its track was followed from the marks of {'both' if len(ks) == 2 else 'all of them'}: "
+                   + _listed(f"{n} from {one} {k}" for k, n in counts) + ".")
+    both = [int(n) for n in j.get("both") or []]
+    if both:
+        out.append((f"More than one of them had a mark on frame {both[0]}, at different places" if len(both) == 1 else
+                    f"More than one of them had a mark on frames {_listed(both)}, at different places")
+                   + f"; {one} {ks[0]}'s was kept.")
+    for e in joins[:-1]:                             # made one before, of others made one before that
+        was = "Rows" if e.get("what") == "rows" else "Objects"
+        out.append(f"{was} {_listed(e.get('of') or [])} had been made one the same way" + (f" ({str(e.get('when'))[:10]})." if e.get("when") else "."))
+    if seams is not None:
+        apart = [s for s in seams if not s.get("reached")]
+        for s in apart:
+            how = (f"passes {s['px']:.0f} pixels from" if s.get("px") is not None else "does not reach")
+            out.append(f"The track does not join them at frame {s['at']}. Followed from {s['of']}'s mark on frame {s['before']}, "
+                       f"it {how} {s['to']}'s mark on frame {s['at']}.")
+        if seams and not apart:
+            out.append("Followed from those marks, the track passes through the marks of " + ("both." if len(ks) == 2 else "all of them."))
+        gaps = [s for s in seams if s.get("reached") and s.get("missing")]
+        for s in gaps:
+            out.append(f"Between frames {s['before']} and {s['at']} the track has no position on {s['missing']} "
+                       f"frame{'s' if s['missing'] != 1 else ''}: the object was not seen there.")
+    out.append("No test here checks that they are one object. Look at the track sheet.")
+    return out
+
+
 def emit(env):
     """The envelope, alone on stdout. With --json everything said to a person goes to stderr."""
     print(json.dumps(env, indent=1, default=plain))
@@ -468,6 +520,9 @@ class Case:
         self.commands = []
         self.notes = []
         self.identified_by = None            # set when the marks the track came from were not all a hand's
+        # set when the marks are several found objects', made one because someone said so (`MarkSet.joined`): {joins: the
+        # marks file's records, seams: where one's marks meet another's, and whether the track followed from them got there}
+        self.made_one = None
         self.figures = []                    # the summary's two pictures, beside the report
         self.started = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -490,6 +545,7 @@ class Case:
         case.commands = list(d.get("commands") or [])
         case.notes = [SHEET_PROVISIONAL if n == SHEET_PROVISIONAL_BEFORE else n for n in d.get("notes") or []]
         case.identified_by = d.get("identified_by")
+        case.made_one = d.get("made_one")
         case.figures = list(d.get("figures") or [])
         if case.identified_by:                          # JSON keeps a dict's keys as strings; the frames are numbers
             case.identified_by["not_by_hand"] = {int(n): h for n, h in case.identified_by.get("not_by_hand", {}).items()}
@@ -2814,6 +2870,9 @@ class Case:
         from .stages import SHEET_PROVISIONAL        # the one note that qualifies every number: kept where it is seen
         if SHEET_PROVISIONAL in self.notes:
             L += [f"> {SHEET_PROVISIONAL}", ""]
+        if self.made_one:                            # several found objects, one on someone's say: on the report's face too
+            said = made_one_said(self.made_one)
+            L += ["> " + " ".join([f"**{said[0]}**"] + said[1:]), ""]
         label, head = self.conclusion()
         L += ["## Conclusion", "", f"**{label}.** {head}", ""]
         L += self._reasons()
@@ -2879,6 +2938,7 @@ class Case:
                                notes=self.notes, started=self.started, measured_by=self.measured_by,
                                computed_on=self.computed_on, ledger=self.ledger(),
                                value_of_information=self.value_of_information(),
+                               **({"made_one": self.made_one} if self.made_one else {}),      # no key in any other case's file
                                mcdonald=__version__, python=platform.python_version(),
                                ffmpeg=_ffmpeg_version()),
                           indent=1, default=plain)

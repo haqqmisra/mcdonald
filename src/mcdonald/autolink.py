@@ -1035,6 +1035,26 @@ def link_from_marks_file(clip, marks_json, out_prefix, cls="object", say=print, 
     return link
 
 
+def arrivals_of(track_csv):
+    """{marked frame: px at which the link from the mark before arrived, None where it did not reach it}, as a link's
+    own track file says in its header (`save_track`: "the forward link from the mark before arrives at -- ..."), or
+    None for a track from anywhere else. For a case measured from a link made earlier (the window's), which has the
+    file and not the Link: `stages.seams` reads where the marks of objects made one meet."""
+    import re
+    try:
+        with open(track_csv, encoding="utf-8") as f:
+            head = [ln for ln in f if ln.startswith("#")]
+    except OSError:
+        return None
+    for ln in head:
+        if ln.startswith("# the forward link from the mark before arrives at -- "):
+            out = {}
+            for n, d in re.findall(r"(\d+): (does not reach it|[0-9.]+ px)", ln):
+                out[int(n)] = None if d.startswith("does") else float(d.split()[0])
+            return out
+    return None
+
+
 def detector_of(track_csv):
     """(size, dark) as a link's own track file says them in its header (`write_track_csv`), or None for a track from
     anywhere else."""

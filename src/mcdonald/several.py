@@ -33,6 +33,19 @@ the group's flicker stage (`flicker.of_member`: measured with its fellows, the b
 where it is out of step with one of them), and knows its fellows when the tether stage
 finds "something moving with it". The group's own case stays: its report is the flock's.
 
+Two found objects may be one (Jacob, 2026-11-22: "it would also be nice if the GUI had an option to
+indicate that two different found objects are actually the same one"). Find lists what it saw, and a
+bird seen twice, 60 frames apart or with frames between where it was not seen, is two rows; so is
+whatever Find misses. `same_things` notices by itself only after following, where two tracks lie on
+the same pixels. `join` is for a person, or an agent, who says so: the objects' marks become one
+object's, each mark still saying what it was recorded as, with a record of who said they are one and
+when (`MarkSet.joined`); their old folders are set aside, not deleted (`clear.aside`); and nothing is
+measured. `run_each` then follows and measures the one object as any other, and its report says on
+its face that it was made one, by whom, and what the track did where one's marks meet the next
+one's (`stages.seams`, `report.made_one_said`). The person's word is the authority, as a hand mark
+is; what the link found is not hidden. `run --each DIR --same 1,2` and the window's "Same object
+as…" on an object's card are the two shells.
+
 No interface in it. `mcdonald run VIDEO --each DIR` and the window's "Follow and measure
 the ticked ones" (`several_qt`) are the two shells, and what they write is the same.
 """
@@ -134,6 +147,120 @@ def place(clip, tag, base, marks, how=None, k=None, video=None, seen=None):
         ms.add("object", n, x, y, how=how)
     save_all(clip, ms, str(folder / tag))
     return Thing(k, folder, folder / f"{tag}_marks.json", tag)
+
+
+BY_WINDOW = "a person, in the window"                              # who said that found objects are one: `join`'s `by`
+BY_FIND = "a person, at Find's list in the window"
+BY_COMMAND = "someone at the command line (`mcdonald run --each --same`), a person or an agent"
+
+
+def can_join(found, t):
+    """None where object `t` can be made one with another, else why not, as a sentence. A member of a group split by
+    the queue (`split_group`) is one of that group's points by the way it was made, and a group whose members are
+    objects of their own is what they were split from: neither is offered, and `join` refuses both."""
+    if t.group:
+        return (f"Object {t.k} is member {t.group.get('member')} of object {t.group.get('object')}'s group, one of that "
+                "group's points, so it cannot be made one with another object.")
+    kids = children(found, t.k)
+    if kids:
+        return (f"Object {t.k} is a group whose members are objects of their own ({', '.join(str(c.k) for c in kids)}), "
+                "so it cannot be made one with another object.")
+    return None
+
+
+def join(clip, base, objects, by=BY_COMMAND, when=None):
+    """Two or more of the objects under `base`, made one object because someone says they are the same one.
+
+    The one kept is the lowest-numbered. Its marks become all their marks together: each keeps what it was recorded
+    as (`how`), the frames it was seen on are the first to the last of any of them (`MarkSet.seen`, so that `run_each`
+    measures it over all of them and 2 s either side), and the marks file gains the record of this (`MarkSet.joined`:
+    what, of, by, when, which marks came from which object, and `both`). Where two of them have a mark on the same
+    frame at different places, they were not on the same pixels there: the lower-numbered one's mark is kept, and the
+    frame is in `both`. `by` is who said so (`BY_WINDOW`, `BY_COMMAND`), `when` the time (now).
+
+    Their folders, with everything measured in them, and a copy of the list are set aside in one dated folder
+    (`clear.aside`: `earlier/<date>_<time>/` under `base`); nothing is deleted. The kept object's folder is then made
+    again with its marks alone, as a save writes them (`place`'s way), and the list is written again. Nothing is
+    measured: `run_each` follows and measures it as any other object, and its report says it was made one.
+
+    A member of a group, and a group whose members are objects, are refused (`can_join`), as is a number that is no
+    object here: a ValueError with the sentence. Returns {kept, of, marks, came_from, both, seen, into, folder, joined}."""
+    from . import clear
+    base = Path(base)
+    ks = sorted({int(k) for k in objects})
+    found = things(base)
+    by_k = {t.k: t for t in found}
+    if len(ks) < 2:
+        raise ValueError("Give two or more objects to make one of them.")
+    gone = [k for k in ks if k not in by_k]
+    if gone:
+        raise ValueError(f"There is no object {_and(gone)} in {base}: its objects are {_and(sorted(by_k)) or 'none'}.")
+    for k in ks:
+        why = can_join(found, by_k[k])
+        if why:
+            raise ValueError(why)
+    kept = by_k[ks[0]]
+    sets = {k: MarkSet(by_k[k].tag, "", 1.0).load(by_k[k].marks) for k in ks}
+    try:
+        video = json.loads(kept.marks.read_text(encoding="utf-8")).get("video") or clip.video
+    except (OSError, ValueError):
+        video = clip.video
+    ms = MarkSet(kept.tag, video, clip.fps)
+    came, both = {k: [] for k in ks}, []
+    for k in ks:                                     # the lowest number first: its mark is the one kept where two share a frame
+        for cls, marks in sets[k].marks.items():
+            for n, (x, y) in sorted(marks.items()):
+                if n in ms.marks.get(cls, {}):
+                    if cls == "object" and ms.marks[cls][n] != (x, y):
+                        both.append(n)
+                    continue
+                ms.add(cls, n, x, y, how=sets[k].how_of(cls, n))
+                if cls == "object":
+                    came[k].append(n)
+    spans = [s.seen for s in sets.values() if s.seen]
+    ms.seen = (min(a for a, _ in spans), max(b for _, b in spans)) if spans else None
+    record = dict(what="objects", of=ks, by=by, when=when or datetime.now().astimezone().isoformat(timespec="seconds"),
+                  marks={str(k): v for k, v in came.items()}, both=sorted(set(both)))
+    ms.joined = [j for k in ks for j in sets[k].joined] + [record]
+    lists = [p for p in (base / f"{kept.tag}{LIST}.md", base / f"{kept.tag}{LIST}.json") if p.exists()]
+    dest = clear.aside(base, [by_k[k].folder for k in ks], copies=lists)
+    try:
+        kept.folder.mkdir()
+        save_all(clip, ms, str(kept.folder / kept.tag))
+    except OSError:                                  # the marks could not be written: everything back as it was
+        import shutil
+        shutil.rmtree(kept.folder, ignore_errors=True)
+        for k in ks:
+            shutil.move(str(dest / by_k[k].folder.name), str(by_k[k].folder))
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
+    index(base)
+    return dict(kept=ks[0], of=ks, marks=len(ms.marks.get("object", {})), came_from={k: len(v) for k, v in came.items()},
+                both=record["both"], seen=list(ms.seen) if ms.seen else None, into=str(dest), folder=str(kept.folder),
+                joined=record)
+
+
+def joined_said(got, base=None):
+    """What `join` did, in sentences for a person: which objects are now which, whose marks it has, a frame both had
+    marked, and where the folders from before went (said from `base`, the results folder, where given)."""
+    ks = got["of"]
+    into = Path(got["into"])
+    if base is not None:
+        try:
+            into = into.relative_to(base)
+        except ValueError:
+            pass
+    s = (f"Objects {_and(ks)} are now object {got['kept']}, with {got['marks']} marks: "
+         + _and([f"{n} from object {k}" for k, n in sorted(got["came_from"].items())]) + ".")
+    if got["both"]:
+        s += (f" More than one of them had a mark on frame{'s' if len(got['both']) != 1 else ''} {_and(got['both'])}, at "
+              f"different places; object {got['kept']}'s was kept.")
+    return s + f" Their folders from before were set aside in {into}, and nothing was deleted."
+
+
+def _and(ks):
+    ks = [str(k) for k in ks]
+    return ks[0] if len(ks) == 1 else ", ".join(ks[:-1]) + " and " + ks[-1] if ks else ""
 
 
 def measured(t):
@@ -404,7 +531,7 @@ def row(t, same=None):
              chosen_as=chosen, measured=False, stopped=None, followed=None, frames=None, conclusion=None, grade=None, bottom_line=None,
              segment=None, segment_said=None, track_sheet_looked_at=None, report=None, track_sheet=None, error=t.error,
              group={k: t.group[k] for k in ("object", "member") if k in t.group} if t.group else None,
-             same_as=dict(same) if same else None)
+             same_as=dict(same) if same else None, made_one=list(ms.joined) or None, made_one_said=None)
     js = t.case_json
     if js is not None and js.exists():
         try:
@@ -420,6 +547,9 @@ def row(t, same=None):
                  frames=[clip.get("n0"), clip.get("n1")] if clip else None,
                  track_sheet_looked_at=((case.stages.get("verify") or {}).get("fields") or {}).get("reviewed"),
                  report=f"{t.folder.name}/{t.report.name}")
+        if case.made_one:                            # as its report says it, with what the track did where the marks meet
+            from .report import made_one_said
+            d.update(made_one=case.made_one.get("joins"), made_one_said=" ".join(made_one_said(case.made_one)))
         sheet = next(iter(sorted(t.folder.glob("*_all_frames*.jpg"))), None)      # one sheet, or its first page (_p1)
         d["track_sheet"] = f"{t.folder.name}/{sheet.name}" if sheet else None
     return d
@@ -464,6 +594,9 @@ def index(base, objects=None):
               f"- **chosen as:** {r['chosen_as']}" + (f" ({r['marks']} marks, frames {mf[0]}–{mf[1]})" if mf else "")]
         if kids:
             L.append(f"- **a group of points:** its members are objects {', '.join(str(c.k) for c in kids)}, each with a report of its own")
+        if r["made_one"]:                            # found as several objects, one because someone said so (`join`)
+            from .report import made_one_said
+            L.append("- **made one object:** " + (r["made_one_said"] or " ".join(made_one_said(dict(joins=r["made_one"])))))
         if not r["measured"]:
             L += [f"- **not measured yet**" + (f": {r['error']}" if r["error"] else ""), ""]
             continue

@@ -61,6 +61,12 @@ def main():
                          "asked about, so each report is provisional until `mcdonald report ... --i-looked`")
     ap.add_argument("--again", action="store_true",
                     help="with --each: measure every object again, also one that has a report from the same marks")
+    ap.add_argument("--same", action="append", metavar="N,M",
+                    help="with --each: objects N and M are the same object (the numbers of their folders). Their marks "
+                         "become one object's, the lower number's, and that object is then followed and measured. Their "
+                         "old folders are set aside in DIR/earlier/, and nothing is deleted. The report says the objects "
+                         "were made one, and what the track did where their marks meet. Give --same again for another "
+                         "pair; three or more numbers make one object of all of them")
     ap.add_argument("--objects", type=int, metavar="N",
                     help="with --each: how many objects you are looking for. The list says how many were followed against "
                          "it, and where fewer things were found than N and one is a group of points, its members (each seen "
@@ -111,11 +117,13 @@ def main():
     unknown = [x for x in (args.only or "").split(",") + (args.skip or "").split(",") if x and x not in STAGES]
     if unknown:
         ap.error(f"no such stage: {', '.join(unknown)} (the stages are {', '.join(STAGES)})")
-    kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip", "each", "again", "objects")}
+    kw = {k: v for k, v in vars(args).items() if k not in ("json", "only", "skip", "each", "again", "objects", "same")}
     if args.each:
         return each(ap, args, kw)
     if args.again:
         ap.error("--again goes with --each")
+    if args.same:
+        ap.error("--same goes with --each: it says that two objects of that folder are the same one")
     if args.objects is not None:
         ap.error("--objects goes with --each: how many objects to look for in the folder of them")
     with said_to_stderr(args.json):
@@ -143,8 +151,25 @@ def each(ap, args, kw):
                  "the one given, and nobody is asked about a track sheet")
     if args.objects is not None and args.objects < 1:
         ap.error("--objects N: N is how many objects you are looking for, 1 or more")
+    same = []
+    for spec in args.same or ():
+        try:
+            same.append([int(x) for x in spec.split(",")])
+        except ValueError:
+            ap.error(f"--same {spec}: give the numbers of the objects' folders with a comma between, such as --same 1,2")
+    joined = []
     with said_to_stderr(args.json):
-        things = several.run_each(kw.pop("video"), args.each, again=args.again, progress=to_stderr(), objects=args.objects,
+        video = kw.pop("video")
+        if same:                                     # said to be one object: made one before anything is measured (`several.join`)
+            from . import forensics as vf
+            clip = vf.Clip(vf.resolve(str(video))[0], kw.get("workdir"), kw.get("n0"), kw.get("n1"), extract=False)
+            for ks in same:
+                try:
+                    joined.append(several.join(clip, args.each, ks, by=several.BY_COMMAND))
+                except ValueError as e:
+                    ap.error(str(e))
+                print(several.joined_said(joined[-1]))
+        things = several.run_each(video, args.each, again=args.again, progress=to_stderr(), objects=args.objects,
                                   only=args.only.split(",") if args.only else None,
                                   skip=args.skip.split(",") if args.skip else None, **kw)
         page, rows = several.index(args.each, objects=args.objects)
@@ -156,7 +181,7 @@ def each(ap, args, kw):
         cases = [(t.k, t.case) for t in things if t.case is not None]
         emit(envelope("run", inputs_of(args), None, [str(page), str(page)[:-3] + ".json"] + [str(f) for t in things for f in t.files],
                       {"objects": rows, "list": str(page), "asked": count["asked"], "tally": count,
-                       "states": {f"object-{t.k}": t.state for t in things}},
+                       "states": {f"object-{t.k}": t.state for t in things}, **({"joined": joined} if joined else {})},
                       [(f"object {k}: {n}: {test}", why) for k, c in cases for n, st in c.stages.items() for test, why in st["no_power"]],
                       [f"object {k}: {x} ({n})" for k, c in cases for n, st in c.stages.items() for x in st["needs"]],
                       [f"object {t.k}: {t.error}" for t in things if t.error]))

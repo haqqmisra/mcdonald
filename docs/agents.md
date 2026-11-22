@@ -447,6 +447,30 @@ the most single it is on (a member before a thing alone before a group): its row
 line names it (PR135 at 6: Find's third row, seen on 3 frames, was one of the second group's birds,
 on member object 8's track on all 21 frames both were followed on). Exercise 4 (`docs/exercises/04-pr135.md`) is this, step by step.
 
+**Two of them are the same object.** Find lists what it saw. One object seen twice, with frames between where it
+was not seen, is two rows, and so two folders and two reports. If you know that objects 1 and 2 are one object,
+say so before measuring:
+
+```bash
+mcdonald run CLIP --each cases/clip --same 1,2 --json
+```
+
+The marks of both become object 1's, the lower number. Each mark keeps what it was recorded as. The marks file
+gains a record, `joined`: who said they are one, when, and which marks came from which object. Where both had a
+mark on the same frame at different places, object 1's is kept, and the frame is listed in `both`. The two old
+folders are set aside in `cases/clip/earlier/<date>_<time>/`; nothing is deleted. The one object is then followed
+and measured like any other. `results.joined[]` has `kept`, `of`, `marks`, `came_from`, `both`, `seen` and `into`
+for each `--same` given.
+
+The report says above its conclusion that the objects were made one because someone said so. It also says what
+the track did where the marks of one meet the marks of the next. Either "the track passes through the marks of
+both", or "The track does not join them at frame N", with the frames. The second means the link, followed from
+one object's last mark, did not arrive at the other's first mark: look at the track sheet before you rely on it.
+The same is in the case file as `made_one` (`joins`, and `seams`: `before`, `at`, `of`, `to`, `reached`, `px`,
+`missing`), and on the object's line of the list. A member of a group, and a group whose members are objects,
+cannot be joined: exit 2, with the reason. Three or more numbers make one object of all of them, and `--same` can
+be given more than once.
+
 ### Starting a case over
 
 A results folder is the case's memory. `mark`, `run`, `run --each` and the window all go on from what
