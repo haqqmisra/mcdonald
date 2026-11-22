@@ -25,13 +25,31 @@ and the record says so.
 
 `AutoCard` is the button and how the job stands under it, at the top of the side panel: the
 one thing there in Auto Mode; Advanced Mode puts the three steps in its place.
+
+Starting over (Jacob, 2026-11-22, after PR169: one bird, followed as three objects, and measured
+as three again when he had opened the video anew and said he was looking for 1). Two things, both
+on `clear.set_aside`, which moves what a results folder holds into `earlier/<date>_<time>/`
+inside it and deletes nothing:
+
+- "Start over", a quiet button at the foot of the card whenever something is saved for the open
+  segment. It asks in the card, in one sentence with two buttons, never in a dialog. On yes the
+  results are set aside and the video is as when first opened (`QtMarker.begin_again`): no marks,
+  no track, no objects, no report, the three lights off, the button Begin. The card then says,
+  once, where the results went. File -> Start this segment over… is the same question.
+- The count the person gives is not ignored (`AutoRun.outdated`). The press went on from whatever
+  the folder held, so three objects from a press that was told nothing were measured again for
+  someone who had since said 1. Now, where every saved object was the press's own choice and the
+  count said is not the one they were chosen for, the button says Begin again (the card asks
+  `outdated` too) and the press starts over by itself, and says so under the button when it ends. What a person chose -- marks by hand, a row said yes to, rows
+  ticked, an agent's -- is never set aside without the question: the press goes on from it as
+  before, and Start over is theirs to press.
 """
 from pathlib import Path
 
 from PySide6 import QtCore, QtWidgets
 
 from . import actions, several
-from .mark import CLASSES
+from .mark import CLASSES, MarkSet
 from .mark_qt import ACCENT, MUTED, PRIMARY, QUIET, Command, Jewels, Stripes, heading, muted, with_command
 
 AUTO = "Begin"                                    # the card's heading says what (Jacob, 2026-10-21: "the button can say \"Begin\"")
@@ -39,6 +57,25 @@ TAKEN = ("taken by the window's one-press run as the first spot on Find's list, 
          "sheet in the report")
 TAKEN_SEVERAL = ("taken by the window's one-press run as one of the spots on Find's list worth following, with nobody "
                  "looking: check the track sheet in its report")
+PRESS = "taken by the window's one-press run"     # in both: how a mark's record says the press chose it, not a person
+BUSY = "Something is already running. Let it end, or stop it, and press again."
+OVER_ASKS = ("Start over? The marks, tracks and reports saved for this segment will be set aside in a folder named "
+             "earlier. Nothing is deleted, and the video stays open.")
+ASIDE = "The results from before were set aside in {where}, inside the results folder."
+NOT_ASIDE = "The results from before could not be set aside, so nothing was changed: {why}"
+
+
+def aside_said(got):
+    """What `clear.set_aside` did, in the card's one sentence: where the results went ("" where there were none)."""
+    if not got or not got.get("into"):
+        return ""
+    return ASIDE.format(where=Path(got["into"]).relative_to(got["folder"]))
+
+
+def by_the_press(ms):
+    """Were all of a MarkSet's marks of the object taken by a one-press run (TAKEN, TAKEN_SEVERAL), none by a person?"""
+    obj = ms.marks.get(CLASSES[0], {})
+    return bool(obj) and all(PRESS in (ms.how_of(CLASSES[0], n) or "") for n in obj)
 
 
 class AutoRun(QtCore.QObject):
@@ -49,10 +86,12 @@ class AutoRun(QtCore.QObject):
         super().__init__(window)
         self.w = window
         self.stage, self.why, self.used = None, "", False
+        self.aside = ""                               # where a press that started over by itself put the results from before
         window.link_finished.connect(self._linked)
 
     def reset(self):
         self.stage, self.why, self.used = None, "", False
+        self.aside = ""
         self.w.note.quiet = False
 
     def running(self):
@@ -80,7 +119,7 @@ class AutoRun(QtCore.QObject):
         if w.clip is None or self.running():
             return
         if self.busy_elsewhere():
-            w.note.setText("Something is already running. Let it end, or stop it, and press again.")
+            w.note.setText(BUSY)
             return
         self.why, self.used = "", True
         w.set_advanced(False)                         # the one press is the simple way: the steps' panel is not offered beside it
@@ -88,8 +127,21 @@ class AutoRun(QtCore.QObject):
         self._next()
 
     def _next(self):
-        """Whatever is still to do: find, if nothing is marked; follow, if nothing is followed; else measure."""
+        """Whatever is still to do: find, if nothing is marked; follow, if nothing is followed; else measure -- after
+        starting over, where what is saved is a press's own work for another count than the one said now (`outdated`)."""
         w = self.w
+        self.aside = ""
+        if self.outdated():
+            if not w.can_start_over():                # the sound being read, or a report's speed worked out: they write there
+                self._end(BUSY)
+                return
+            try:
+                got = w.begin_again()                 # the video as when first opened, which resets this run too
+            except OSError as ex:
+                self._end(NOT_ASIDE.format(why=ex))
+                return
+            self.used, self.aside = True, aside_said(got)
+            w.note.quiet = True
         link = w.links.get(0)
         if not w.ms.marks.get(CLASSES[0]) and several.things(w.several_base()):
             self._several(again=True)                 # the video's objects, each in a folder from a run before: again
@@ -99,6 +151,56 @@ class AutoRun(QtCore.QObject):
             self._link()
         else:
             self._measure()
+
+    def outdated(self):
+        """Is what the open segment's folder holds a one-press run's own work, made for another count of objects than
+        the person says now? Then the press starts over (`_next`). Jacob, 2026-11-22: "I tried "open a new clip" and
+        specifying 1 as the number of objects; but it still found 2" -- the three folders of the press before, measured
+        again. The rule, with the cases in the method notes (section 111):
+
+        - *The window's own object* (its marks here, not in an object's folder). A press told 1, or told nothing where
+          one row of Find's list was worth following, leaves this; a press told 2 or more never does. So it is
+          outdated when 2 or more are looked for now.
+        - *Objects in folders of their own* (`several`). Their list records the count it was written for
+          (`several.asked_before`). Outdated when that is not the count said now -- none said counts as a count -- or
+          when there are more objects, their groups' members apart, than are looked for now: a press told N takes at
+          most N rows. (The second half is for lists the press before 2026-11-22 wrote again under a new count.)
+
+        And only where every object there was the press's own choice (`by_the_press`). Marks a person put by hand, a
+        row they said yes to, rows they ticked and an agent's marks are theirs: the press goes on from them as it
+        always did, whatever the count, and the card's Start over is the way to set them aside."""
+        w = self.w
+        now = w.objects_expected
+        own = w.ms.marks.get(CLASSES[0])
+        inside = several.NAME.match(Path(w.out).parent.name)     # the window has gone into one of several objects
+        if own and not by_the_press(w.ms):
+            return False
+        if own and not inside:
+            return bool(now) and now > 1
+        base = w.several_base()
+        found = [t for t in several.things(base) if not t.group]
+        try:
+            if not found or not all(by_the_press(MarkSet(t.tag, "", 1.0).load(t.marks)) for t in found):
+                return False
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return False                              # marks that cannot be read are not known to be the press's
+        return several.asked_before(base) != now or (now is not None and len(found) > now)
+
+    def start_over(self):
+        """The card's yes to "Start over?": the results set aside, the video as when first opened, and the card
+        saying once where they went. Returns what `clear.set_aside` did, or None where it did nothing."""
+        w = self.w
+        if not w.can_start_over():
+            return None
+        try:
+            got = w.begin_again()
+        except OSError as ex:
+            self.why = NOT_ASIDE.format(why=ex)
+            w.say_steps()
+            return None
+        self.why = aside_said(got)
+        w.say_steps()
+        return got
 
     # -- 1 find ----------------------------------------------------------------------------------
     def _find(self):
@@ -291,7 +393,9 @@ class StepLights(QtWidgets.QWidget):
 
 class AutoCard(QtWidgets.QFrame):
     """The one button, and how the job stands under it. Its state is read off the three step cards
-    (`QtMarker.say_steps` writes those, then calls `say`)."""
+    (`QtMarker.say_steps` writes those, then calls `say`). At its foot, when something is saved for the
+    open segment, `over`: Start over, quietly; pressed, `ask` takes its place -- the question in one
+    sentence, `yes` (Start over) and `keep` (Keep them) -- until one of them is pressed or a step starts."""
 
     def __init__(self, window):
         super().__init__()
@@ -323,8 +427,71 @@ class AutoCard(QtWidgets.QFrame):
         self.state.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         self.state.hide()
         lay.addWidget(self.state)
+        # Start over (Jacob, 2026-11-22): quiet, under everything else, and its question here in the card
+        over = next(a for a in actions.ACTIONS if a.id == "start_over")
+        self.over = QtWidgets.QPushButton("Start over")
+        self.over.setStyleSheet(QUIET)
+        self.over.setToolTip(over.help)
+        self.over.clicked.connect(lambda _=False: window.do("start_over"))
+        self.over_row = QtWidgets.QWidget()           # a widget, hidden whole: an empty row of buttons would keep its room
+        foot = QtWidgets.QHBoxLayout(self.over_row)
+        foot.setContentsMargins(0, 0, 0, 0)
+        foot.addWidget(self.over)
+        foot.addStretch(1)
+        lay.addWidget(self.over_row)
+        self.over_row.hide()
+        self.ask = QtWidgets.QFrame()
+        self.ask.setObjectName("over")
+        self.ask.setStyleSheet("QFrame#over { background: #3a2f16; border: 1px solid #8a6a1f; border-radius: 6px; }")
+        al = QtWidgets.QVBoxLayout(self.ask)
+        al.setContentsMargins(8, 6, 8, 8)
+        al.setSpacing(6)
+        self.ask_text = QtWidgets.QLabel(OVER_ASKS)
+        self.ask_text.setWordWrap(True)
+        al.addWidget(self.ask_text)
+        answers = QtWidgets.QHBoxLayout()
+        answers.addStretch(1)
+        self.keep = QtWidgets.QPushButton("Keep them")
+        self.keep.setStyleSheet(QUIET)
+        self.keep.setToolTip("change nothing: the results stay where they are")
+        self.keep.clicked.connect(lambda _=False: self.keep_them())
+        self.yes = QtWidgets.QPushButton("Start over")
+        self.yes.setStyleSheet(PRIMARY)
+        self.yes.setToolTip("set the results aside in the folder named earlier, and begin again with nothing saved")
+        self.yes.clicked.connect(lambda _=False: self.start_over())
+        for b in (self.over, self.keep, self.yes):
+            b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+        answers.addWidget(self.keep)
+        answers.addWidget(self.yes)
+        al.addLayout(answers)
+        lay.addWidget(self.ask)
+        self.ask.hide()
+        self._was_advanced = False                    # the question was asked from Advanced Mode: Keep them goes back to it
         self._now = None
         self._frame(True)
+
+    def ask_over(self):
+        """Start over, asked for (the quiet button, or File -> Start this segment over…): the question, here. From
+        Advanced Mode the card comes back to ask it, and Keep them puts the three steps back."""
+        w = self.window_
+        self._was_advanced = bool(w.advanced)
+        w.set_advanced(False)
+        self.ask.show()
+        self.say()
+        w.panel_area.ensureWidgetVisible(self.ask)
+
+    def keep_them(self):
+        """No: nothing changes, and the card is as it was."""
+        self.ask.hide()
+        if self._was_advanced:
+            self.window_.set_advanced(True)
+        self.say()
+
+    def start_over(self):
+        """Yes (`AutoRun.start_over`): the card then says where the results went."""
+        self.ask.hide()
+        self.window_.auto.start_over()
 
     def _frame(self, now):
         """Drawn as the thing to do next (the step cards' teal), or quietly."""
@@ -344,8 +511,18 @@ class AutoCard(QtWidgets.QFrame):
         sp = w.several_panel
         queue = loaded and sp is not None and bool(sp.rows) and not w.ms.marks.get(CLASSES[0])     # several objects, a report each
         ready = sum(1 for r in sp.rows.values() if r.thing.report is not None) if queue else 0
+        objects = len(sp.rows) if queue else 0
+        if loaded and not queue and not running and not w.ms.marks.get(CLASSES[0]):
+            # ... or their folders are here from an earlier day, and the queue's panel is not made until it is asked for:
+            # the card said Begin over their report cards, with its lights off, and the press measured them again
+            # (PR169 opened again, 2026-11-22). They are found, and measured, whoever looks
+            found = several.things(w.several_base())
+            queue, objects, ready = bool(found), len(found), sum(1 for t in found if t.report is not None)
         if queue and ready:
             report = True
+        # what is saved is the press's own, for another count than the one said now (`AutoRun.outdated`): the press
+        # will set it aside and begin, so the button says Begin, in colour, with the lights off -- not Measure again
+        stale = loaded and not running and not a.busy_elsewhere() and a.outdated()
         if running:
             k = a.step_number()
             st = w.steps[k - 1]
@@ -363,17 +540,31 @@ class AutoCard(QtWidgets.QFrame):
             self.busy.hide()
             self.command.say(None)
             self.jewels.hide()
-            self.button.setText("Measure again" if report else AUTO)
+            self.button.setText("Measure again" if report and not stale else AUTO)
             self.button.setEnabled(loaded and not a.busy_elsewhere())
-            text = a.why if loaded else ""                # a report is the card under this one; it speaks for itself
+            # a report is the card under this one; it speaks for itself. A press that started over says where the
+            # results from before went, after whatever it ended with
+            text = " ".join(x for x in (a.why, a.aside) if x) if loaded else ""
         self.state.setText(text)
         self.state.setVisible(bool(text))
-        self.state.setStyleSheet("" if running or not a.why else f"color: {MUTED};")
-        self._frame(loaded and not running and not report)
+        self.state.setStyleSheet("" if running or not text else f"color: {MUTED};")
+        # Start over: there whenever something is saved for the segment and the press is not running; greyed while
+        # another step runs. Its question goes when anything starts, or when nothing is left to start over from
+        free = loaded and w.can_start_over()
+        there = free or (loaded and not running and w.saved_before())
+        if not free:
+            self.ask.hide()
+        self.over_row.setVisible(there and self.ask.isHidden())
+        self.over.setEnabled(free)
+        if hasattr(w, "acts"):
+            w.acts["start_over"].setEnabled(free)
+        self._frame(loaded and not running and (stale or not report))
         # the three lights: what is done, and which step is under way
         link = w.links.get(0) if loaded else None
-        if queue:                                     # the objects: found; followed and measured in turn, as one step each
-            stages = ["done", "done" if ready else "todo", "done" if ready == len(sp.rows) else "todo"]
+        if stale:
+            stages = ["todo"] * 3
+        elif queue:                                   # the objects: found; followed and measured in turn, as one step each
+            stages = ["done", "done" if ready else "todo", "done" if ready == objects else "todo"]
             if running and a.stage == "several":
                 stages[1:] = ["busy", "busy"]
         else:

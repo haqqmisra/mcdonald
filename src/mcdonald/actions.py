@@ -90,6 +90,12 @@ ACTIONS = [
            mpl=True, sep=True),
     Action("save_to", "File", "Save to a different folder…", ("Ctrl+Shift+S",),
            "choose the folder where everything for this video is saved, and save there"),
+    # Jacob, 2026-11-22, after PR169: "a way to "clear" the memory of a specific case, if they want to start over"
+    # (`mcdonald clear` on the command line; the quiet button on the one button's card)
+    Action("start_over", "File", "Start this segment over…", (),
+           "start over. The marks, tracks and reports saved for this segment are set aside, and the video is as it was "
+           "when first opened. Nothing is deleted: the results go into a folder named earlier, inside the results "
+           "folder. You are asked first, in the card on the right"),
     Action("quit", "File", "Save and quit", ("Q", "Ctrl+Q"), "save and close the window", mpl=True, sep=True),
 
     Action("undo", "Edit", "Undo", ("Ctrl+Z",), "undo your last change to the marks"),

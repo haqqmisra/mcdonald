@@ -68,22 +68,19 @@ def tags(folder):
         for end in ANCHORS:
             found |= {p.name[:-len(end)] for p in where.glob(f"*{end}") if p.is_file() and p.name != end}
     if not found:
-        name = folder.parent.name if segments.NAME.match(folder.name) else folder.name
-        if any(p.is_file() for p in folder.glob(f"{glob.escape(name)}_*")):
+        here = folder.resolve()                       # "." has no name of its own
+        name = here.parent.name if segments.NAME.match(here.name) else here.name
+        if name and any(p.is_file() for p in folder.glob(f"{glob.escape(name)}_*")):
             found.add(name)
     return sorted(found)
 
 
-def _of(d, names):
-    """Is an `object-N` folder one of these cases': has it a file named for one of them, or nothing in it at all?"""
-    inside = [p.name for p in d.iterdir()]
-    return not inside or any(n.startswith(f"{t}_") for n in inside for t in names)
-
-
 def remembered(folder, tag=None):
     """(what `set_aside` would move, what it keeps of the case's own, what else is there), each a sorted list of
-    paths in `folder`: the rule at the top of this module. `tag` is the one case to look for (the window's: the
-    video that is open); without it, every case the folder holds (`tags`)."""
+    paths in `folder`: the rule at the top of this module. `tag` is the one case whose files to look for (the
+    window's: the video that is open); without it, every case the folder holds (`tags`). An `object-N` folder is
+    the folder's, whatever its files are named: `several.things` reads them all, so the window shows them all and
+    the next run measures them all."""
     folder = Path(folder)
     names = [tag] if tag else tags(folder)
     move, kept, left = [], [], []
@@ -91,7 +88,7 @@ def remembered(folder, tag=None):
         if p.is_dir() and not p.is_symlink():
             if p.name == EARLIER:
                 continue                              # what was set aside before: neither moved again nor anyone else's
-            (move if several.NAME.match(p.name) and _of(p, names) else left).append(p)
+            (move if several.NAME.match(p.name) else left).append(p)
         elif any(p.name.startswith(f"{t}_") for t in names):
             (kept if p.name.endswith(KEEP) else move).append(p)
         else:

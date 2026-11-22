@@ -943,6 +943,31 @@ def test_a_case_started_over_is_set_aside():
               and gots[0]["tags"] == ["clip"] and clear.set_aside(twice)["moved"] == [] and len(clear.said(gots[0])) == 2,
               "set_aside: a second start over in the same minute has a folder of its own, so the first is not written over",
               ", ".join(Path(g["into"]).name for g in gots))
+        both = Path(td) / "both"                      # one folder, two videos' results (--out): the window names its own
+        (both / "object-1").mkdir(parents=True)
+        for name in ("a_marks.json", "a_case.md", "b_marks.json", "object-1/b_marks.json"):
+            (both / name).write_text("{}", encoding="utf-8")
+        one, every = clear.set_aside(both, "a", dry_run=True), clear.set_aside(both, dry_run=True)
+        check(clear.tags(both) == ["a", "b"] and one["moved"] == ["a_case.md", "a_marks.json", "object-1"] and one["left"] == ["b_marks.json"]
+              and every["moved"] == ["a_case.md", "a_marks.json", "b_marks.json", "object-1"] and every["left"] == []
+              and clear.holds(both, "a") and clear.holds(both, "c"),
+              "given a tag (the window's open video), only that case's files are set aside, and every object's folder, which "
+              "is the folder's whatever its files are named for; given none, every case the folder holds", f"{one['moved']}; {every['moved']}")
+        alone = Path(td) / "alone" / "clip"           # one stage's command run alone: no marks, no report, no list to read a tag from
+        (alone / "segment-3-9").mkdir(parents=True)
+        for name in ("clip_layers.csv", "_mine.txt", "segment-3-9/clip_layers.csv", "segment-3-9/other_layers.csv"):
+            (alone / name).write_text("x", encoding="utf-8")
+        was = os.getcwd()
+        os.chdir(alone)
+        try:
+            here = clear.set_aside(".", dry_run=True)
+        finally:
+            os.chdir(was)
+        check(clear.tags(alone) == ["clip"] and clear.set_aside(alone, dry_run=True)["moved"] == ["clip_layers.csv"]
+              and here["moved"] == ["clip_layers.csv"] and here["left"] == ["_mine.txt", "segment-3-9"]
+              and clear.set_aside(alone / "segment-3-9", dry_run=True)["moved"] == ["clip_layers.csv"],
+              "a folder with no marks, report or list has the tag every command gives it: its own name, or its video's folder's "
+              "for a segment -- also when it is named as `.`", f"{here['moved']}; left {here['left']}")
         (twice / "clip_marks.json").write_text("3", encoding="utf-8")
         (twice / "clip_case.md").write_text("3", encoding="utf-8")
         real, moves = shutil.move, []

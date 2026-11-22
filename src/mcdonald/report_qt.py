@@ -223,6 +223,7 @@ class ReportCard(QtWidgets.QFrame):
     def __init__(self, window, thing=None):
         super().__init__()
         self.window_, self.thing, self.case, self.md, self._seen = window, thing, None, None, None
+        self._working = False                         # "Work out the speed" is on its thread: it will write the report again
         self.setObjectName("report")
         self.setStyleSheet("QFrame#report { border: 1px solid #34343a; border-radius: 8px; }")
         self.setToolTip("click to go to the frame where its track starts")
@@ -510,7 +511,7 @@ class ReportCard(QtWidgets.QFrame):
         workdir, masks = (str(w.clip.dir) if w.clip is not None else None), (w._masks if same else None)
         self.work_out.setEnabled(False)
         self._say("Working it out…")
-        self._change = change
+        self._change, self._working = change, True
 
         def job():
             try:
@@ -523,8 +524,14 @@ class ReportCard(QtWidgets.QFrame):
                 pass
         threading.Thread(target=job, daemon=True, name="mcdonald-known").start()
 
+    def working(self):
+        """Is the speed being worked out again (`stages.add_known`, on its thread)? It writes the report when it ends,
+        so a start over waits for it (`QtMarker.can_start_over`)."""
+        return self._working
+
     @QtCore.Slot(object)
     def _worked(self, got):
+        self._working = False
         if isinstance(got, BaseException):
             self.work_out.setEnabled(True)
             self._say(f"It could not be worked out: {got}", warn=True)
