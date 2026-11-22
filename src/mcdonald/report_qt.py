@@ -90,7 +90,7 @@ GLOSS = {"Followed": "how many frames it was followed on, and which",
          "Moves in a frame": "how far it moves in one frame, in its own widths",
          "Time to the camera": "when it would reach the camera at the rate its size grows",
          "Speed, in its own lengths": "its speed in its own lengths a second, at the least",
-         "Turn, as a load": "how fast its heading turns"}
+         "Turn, as a load": "the pull of its turn, in multiples of gravity, at the speeds it could have"}
 
 
 def gloss(label):
