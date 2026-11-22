@@ -43,25 +43,24 @@ MAIN = PRIMARY                                # the primary button's style: mark
 
 RULED = ("fov_px", "ref_px", "size_px", "diameter")     # the optional fields that are a length on the screen: a ruler beside each
 # what each step of the measuring is for, in the tooltip of the jewels under step 3's bar, one a step (mark_qt.Jewels)
-STAGE_WORDS = {
-    "ingest": "Reading the video: its size, its frames, and how it was saved",
-    "survey": "Looking for frames shown twice and for sudden changes from one frame to the next",
-    "symbology": "Reading what is drawn over the picture: the cross in the middle, the north pointer, the corner marks",
+STAGE_WORDS = {                                # each a few words: the jewels' tooltip is one short sentence (2026-11-22)
+    "ingest": "Reading the video's size, its frames and how it was saved",
+    "survey": "Looking for frames shown twice and sudden changes between frames",
+    "symbology": "Reading what is drawn over the picture, such as the north pointer",
     "track": "Taking the object's track, or following it from the marks",
-    "verify": "Making the track sheet: the object in every frame, to look at",
+    "verify": "Making the track sheet, the object in every frame, to look at",
     "layers": "How the object moves against each part of the background",
     "scale": "What is known of how much of the world one pixel covers",
-    "kinematics": "What its motion says of how fast it may be going, how its speed changed along the track, and whether it "
-                  "went straight at a steady speed",
-    "camera": "Did the camera zoom or turn while it followed the object, and does the object's speed change just where it did?",
-    "groups": "Is it one object, or several points, and do they keep their places?",
-    "flicker": "Does its brightness beat, and is the beat its own?",
-    "tether": "Is something tied to it, such as a line, and does it swing?",
-    "comotion": "Does it move with the texture behind it, or through it?",
-    "horizon": "How far away it can be, or how high, from where it is against the sea's horizon",
-    "haze": "How far away a dark object can be, from how pale the haze in the air makes it",
-    "focus": "How far away it is at least, from how sharp it is beside the scene's own points",
-    "integrity": "Has the video been changed, and was the object added later?",
+    "kinematics": "What its motion says of its speed and its path",
+    "camera": "Whether the camera zoomed or turned while it followed the object",
+    "groups": "Whether it is one object or several points",
+    "flicker": "Whether its brightness beats, and whether the beat is its own",
+    "tether": "Whether something is tied to it, such as a line",
+    "comotion": "Whether it moves with the texture behind it, or through it",
+    "horizon": "How far or how high it can be, from the sea's horizon",
+    "haze": "How far a dark object can be, from how pale it looks",
+    "focus": "How far away it is at least, from how sharp it is",
+    "integrity": "Whether the video was changed, or the object added later",
     "report": "Writing the report",
 }
 
@@ -198,7 +197,7 @@ class MeasurePanel(QtWidgets.QFrame):
         self.fields, self.rulers = {}, {}
         for k in stages.KNOWN:
             edit = QtWidgets.QLineEdit()
-            edit.setToolTip(f"{k.help} (command line: {k.flag})")
+            edit.setToolTip(stages.tip(k))
             edit.setPlaceholderText(k.help if k.kind is str else k.unit)
             if k.kind is float:
                 v = QtGui.QDoubleValidator(self)
@@ -213,7 +212,7 @@ class MeasurePanel(QtWidgets.QFrame):
                 row = QtWidgets.QHBoxLayout()
                 row.addWidget(edit, 1)
                 ruler = QtWidgets.QPushButton("Measure on the video")
-                ruler.setToolTip("drag along it on the video, from one end to the other; the length in pixels goes here")
+                ruler.setToolTip("drag along it on the video to measure its length in pixels")
                 ruler.setAutoDefault(False)
                 ruler.clicked.connect(lambda _=False, e=edit: self.window_.start_ruler(lambda px, e=e: self._ruled(e, px)))
                 row.addWidget(ruler)
@@ -225,8 +224,7 @@ class MeasurePanel(QtWidgets.QFrame):
         # the command line's --avoid (2026-10-17): the bird paper measured PR135's six with the apertures beside each clear
         # of the others; not done unless asked, so that an object measured in a queue gives what it gives alone
         self.avoid = QtWidgets.QCheckBox("Keep the apertures beside it clear of the other objects followed in this video")
-        self.avoid.setToolTip("the background apertures its brightness is held against go where no other followed object "
-                              "passes on any frame, as the bird paper measured PR135's six (command line: --avoid)")
+        self.avoid.setToolTip("measure its brightness against background that no other followed object crosses (command line: --avoid)")
         self.avoid.hide()
         kl.addWidget(self.avoid)
         self.known_toggle = folding("Provide additional information about this video (optional)", known)
@@ -263,8 +261,7 @@ class MeasurePanel(QtWidgets.QFrame):
         row.addWidget(self.elapsed, 1)
         row.addStretch(1)
         self.halt = QtWidgets.QPushButton("Stop")
-        self.halt.setToolTip("the step that is running stops where it is. The steps not yet run are left out, and the "
-                             "report covers the steps that ran")
+        self.halt.setToolTip("stop after the step that is running, and report the steps that ran")
         self.halt.setEnabled(False)
         self.halt.hide()
         self.halt.clicked.connect(self.stop)
@@ -359,7 +356,7 @@ class MeasurePanel(QtWidgets.QFrame):
             self.what.setText(f"Works out how the object moved along the track followed from your marks (frames "
                               f"{min(link.track)}–{max(link.track)}), and writes a report. Your marks and the track are "
                               f"saved first, with everything else, in {Path(w.out).parent.resolve()}.")
-            self.what.setToolTip(link.say)
+            self.what.setToolTip("")                  # the link's own summary is step 2's line, and its track file's first lines
             size = self.fields["size"]
             if not size.text():
                 size.setPlaceholderText(f"{link.size:g} pixels, {'dark' if link.dark else 'bright'}: chosen from your marks")
@@ -376,9 +373,7 @@ class MeasurePanel(QtWidgets.QFrame):
         row = QtWidgets.QHBoxLayout(box)
         row.setContentsMargins(24, 0, 0, 0)
         self.dense = QtWidgets.QCheckBox("Also map where each layer of the background is, and how its motion changes across the picture")
-        self.dense.setToolTip("the background matched in squares 128 pixels wide, every 16 pixels, on 24 pairs of frames: where "
-                              "each part of the background that moves on its own lies. Best with a graphics card "
-                              "(command line: --dense)")
+        self.dense.setToolTip("also map where each moving part of the background lies (command line: --dense)")
         self.dense.setChecked(False)
         self.dense.setEnabled(self.slow["layers"].isChecked())
         self.slow["layers"].toggled.connect(self.dense.setEnabled)
@@ -856,8 +851,7 @@ def show_report(window, path):
     d.setWindowTitle(f"Report — {Path(path).name}")
     if window.clip is not None:
         whole = QtWidgets.QPushButton("← Back to the whole video")
-        whole.setToolTip("the whole video, to watch it again and choose another segment of it. Each segment keeps its own "
-                         "results, and the segments you opened before are listed there with their reports")
+        whole.setToolTip("the whole video again, to choose another segment of it")
         whole.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         whole.setAutoDefault(False)
         whole.clicked.connect(lambda _=False: window.whole_video())
@@ -871,14 +865,14 @@ def show_report(window, path):
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
     lay.addWidget(where)
     folder = QtWidgets.QPushButton("Open the folder")
-    folder.setToolTip("open the results folder: the report, the sheets, the tables of numbers and the pictures")
+    folder.setToolTip("open the folder with the report, the sheets, the tables and the pictures")
     folder.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     folder.setAutoDefault(False)
     folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(Path(path).resolve().parent))))
     d.tools.addWidget(folder)
     # the report as one file to keep or send (a tester, 2026-10-18: "I couldn't find a button to download the report")
     save = QtWidgets.QPushButton("Save as PDF…")
-    save.setToolTip("the whole report as one PDF file, with its pictures in it, to keep or to send. You choose where it goes")
+    save.setToolTip("save the whole report as one PDF file, with its pictures")
     save.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     save.setAutoDefault(False)
     save.clicked.connect(lambda _=False: save_pdf(d, path))
@@ -900,9 +894,7 @@ def show_report(window, path):
     note.setWordWrap(True)
     bl.addWidget(note, 1)
     looked = QtWidgets.QPushButton("I have looked at the track sheet now")
-    looked.setToolTip("the track sheet shows the object ringed on every frame. If you have looked at it since, and the ring is "
-                      "on the object in every frame, say so here: the report stops calling the numbers for the object not yet "
-                      "sure. Nothing is measured again")
+    looked.setToolTip("say that you looked at the track sheet and the ring is on the object")
     looked.setStyleSheet(MAIN)
     looked.clicked.connect(lambda: _confirm(d, path))
     bl.addWidget(looked)

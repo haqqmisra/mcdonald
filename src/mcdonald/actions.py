@@ -61,7 +61,7 @@ _WHAT = {"object": "the object", "object2": "a second object",
          "boresight": "the boresight, the cross that shows where the camera points",
          "north": "the north arrow, if the screen shows one",
          "reference": "an object whose true size you know",
-         "horizon": "the horizon: the line between sky and ground"}
+         "horizon": "the horizon, the line between sky and ground"}
 _CLASS = Group("1..%d" % len(CLASSES), "choose what your clicks mark: " + ", ".join(CLASSES).replace("object2", "object #2"))
 _NUDGE = Group("Ctrl+arrows", "move this mark by 1 pixel; a mark you move this way counts as placed by hand")
 _FINE = Group("Ctrl+Shift+arrows", "move it by a tenth of a pixel")
@@ -182,6 +182,42 @@ ACTIONS = [
     Action("about", "Help", "About mcdonald", (), "the version, when it came out, the license, and where to donate"),
 ]
 
+# A row's words for a tooltip, the box that appears when the pointer rests on a button: one short sentence, 15 words
+# at most (Jacob, 2026-11-22: "make sure any of the yellow box "hover over" text is one short sentence at most"). A
+# row's `help` is also the status bar's line under a menu, Help -> Keys and mouse and `mark --help`, where a long line
+# is right; so a row whose help is longer than a tooltip may be has its short form here, and `tip` gives either.
+TIPS = {
+    "open_clip": "open another video, then choose the segment of it to open",
+    "open_id": "open a video by its short name in a catalog, such as PR149",
+    "whole_video": "the whole of this video again, to choose another segment of it",
+    "open_marks": "go on from marks you saved before, in a file ending _marks.json",
+    "open_share": "open a file someone sent you, with their results and their notes",
+    "share": "make one file to send someone, with this video's results and your note",
+    "save": "save your marks and the track, with small pictures to check them",
+    "start_over": "set aside what is saved for this segment, and begin again",
+    "preferences": "where files are saved, how many CPU cores to use, the sound, the graphics card",
+    "overview": "small pictures from the whole video, to click one and go there",
+    "candidates": "ring each small bright or dark spot the computer finds on this frame",
+    "advanced": "show find, follow and measure as three steps, with marking by hand under them",
+    "auto": "find the object, follow it, measure it and write the report, at one press",
+    "find": "look for spots that move against the background, and list them",
+    "link": "follow the object from your marks, or stop following",
+    "measure": "run every measuring step on this video and write one report",
+    "report": "show the report for this video, once there is one",
+    "several": "the list of this video's objects, each with its own report",
+    "sound": "what the video's sound holds, if it has any",
+    "first_run": "the job, step by step",
+}
+
+
+def tip(a, key=False):
+    """What a tooltip says of row `a`: its short form (`TIPS`), else its help where that is one short sentence
+    already, else what the menu calls it (a nudge's help is its group's). With `key`, its first key after it in
+    parentheses, as the buttons have it: "(a)"."""
+    said = TIPS.get(a.id) or a.help or a.text
+    return f"{said} ({spoken(a.keys[0])})" if key and a.keys else said
+
+
 # Help -> About, in the README's own words: test_reduction holds each to README.md.
 ABOUT = ("mcdonald is a frame-by-frame analysis toolkit for measuring the kinematics of an unknown object in a "
          "single-camera video.")
@@ -279,7 +315,7 @@ FIRST_RUN = [
      "one frame, in its own widths. Time to the camera says when it would reach the camera at the rate its size grows, "
      "where it is big enough to have a size. Scale, Range, Aspect and Camera's speed are the four quantities a real "
      "speed needs. Each is shown with its value, with how far it can be, or as unknown. Hold the pointer over a row to "
-     "see how it was found, or how to find it."),
+     "see what it is. The full report says how each was found, or how to find it."),
     ("The sound",
      "If the video has sound, a card under the steps says so: press Measure the sound ({sound}). The computer reads the "
      "whole sound track and says first, in one sentence, what it holds. That may be the hum of the power it was recorded "

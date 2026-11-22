@@ -62,16 +62,14 @@ class SeveralPanel(QtWidgets.QFrame):
         lay.addWidget(self.what)
         row = QtWidgets.QHBoxLayout()
         self.halt = QtWidgets.QPushButton("Stop")
-        self.halt.setToolTip("stop after the step under way. The report of that object says which steps ran, and the objects "
-                             "not yet started are left as they are, to be measured later")
+        self.halt.setToolTip("stop after the step under way, and leave the other objects for later")
         self.halt.clicked.connect(self.stop)
         self.go = QtWidgets.QPushButton("Measure the rest")
         self.go.setToolTip("follow and measure the objects that have no finished report yet")
         self.go.setStyleSheet(MAIN)
         self.go.clicked.connect(self.start)
         self.list_button = QtWidgets.QPushButton("Open the list")
-        self.list_button.setToolTip("one page that lists every object of this video: what it was chosen as, how far it was "
-                                    "followed, the last line of its report, and whether its track sheet has been looked at")
+        self.list_button.setToolTip("one page that lists every object of this video and how each stands")
         self.list_button.clicked.connect(self.show_list)
         self.elapsed = muted()
         self.elapsed.setWordWrap(False)
@@ -127,12 +125,10 @@ class SeveralPanel(QtWidgets.QFrame):
         v.addWidget(r.desc)
         h.addLayout(v, 1)
         r.report = QtWidgets.QPushButton("Open its report")
-        r.report.setToolTip("the report of this object. Its track sheet is in it: look at it there, and say so at the top")
+        r.report.setToolTip("the report of this object, with its track sheet to look at")
         r.report.clicked.connect(lambda _=False, k=k: self.open_report(k))
         r.bring = QtWidgets.QPushButton("Open in the window")
-        r.bring.setToolTip("bring this object's marks into the main window, and follow it there, where you can watch the "
-                           "track, put it right by hand, and measure it again. Use this if its track went wrong or it could "
-                           "not be followed")
+        r.bring.setToolTip("bring this object into the main window, to put its track right by hand")
         r.bring.clicked.connect(lambda _=False, k=k: self.open_in_window(k))
         for b in (r.report, r.bring):
             b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -415,7 +411,7 @@ def show_list(window, page, open_report):
     where.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
     lay.addWidget(where)
     save = QtWidgets.QPushButton("Save as PDF…")
-    save.setToolTip("this list as one PDF file, to keep or to send. Each object's report has its own, on its page")
+    save.setToolTip("save this list as one PDF file")
     save.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
     save.setAutoDefault(False)
     save.clicked.connect(lambda _=False: save_pdf(d, page, f"{window.ms.tag.upper()} objects.pdf"))

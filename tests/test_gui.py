@@ -60,7 +60,83 @@ WANTED = []
 PATIENCE = float(os.environ.get("MCDONALD_TEST_PATIENCE", "1"))
 
 
+# A tooltip -- the box that appears when the pointer rests on something -- is one short sentence at most (Jacob,
+# 2026-11-22: "make sure any of the yellow box "hover over" text is one short sentence at most"): TIP_WORDS words or
+# fewer, counted as a reader does, one line, no second sentence, no "X: Y; Z" chain, no table or list. A key named
+# after it in parentheses, "(Ctrl+O)", or the command line's option, is not counted. A path, a frame range or a name
+# alone is less than a sentence, and fine; so is none.
+TIP_WORDS = 15
+TIPS_SEEN = {}                # every tooltip that broke the rule since the last driver's own check: {text: why, where}
+TIPS_WALKED = [0.0]           # when the widgets were last walked: at a check, at most every TIPS_EVERY seconds
+TIPS_EVERY = 0.2              # ... a walk is some 40 ms of several thousand widgets, and a burst of checks is one state
+
+
+def tip_breaks(text):
+    """Why a tooltip's text breaks the rule, or None."""
+    import re
+    if not text or not text.strip():
+        return None
+    if re.search(r"<\s*(table|tr|td|li|ul|ol|br|p)\b", text, re.I):
+        return "a table, a list or a break"
+    plain = re.sub(r"<[^>]+>", "", text).strip()
+    if "\n" in plain:
+        return "more than one line"
+    body = re.sub(r"\s*\([^()]*\)\s*$", "", plain)            # a key, or the command line's option, named after it
+    if re.search(r"[.!?]\s+\S", body):
+        return "more than one sentence"
+    if "; " in body or re.search(r":\s", body):
+        return "a chain of clauses (a colon or a semicolon)"
+    n = len(body.split())
+    return f"{n} words" if n > TIP_WORDS else None
+
+
+def long_tips():
+    """Every tooltip there is at this moment that breaks the rule: [(text, why, where)], over every widget of every
+    window of the package's, every action of each, every item of each table, list and choice. (A status tip is the
+    status bar's line, not a tooltip, and is not read.)
+
+    Only the package's own windows and what is inside them, found from the top-level widgets. Not
+    `QApplication.allWidgets()`: the figures' drawing makes matplotlib's own figure window and toolbar in this
+    process, on the thread that measures, and never shows them; reading those from here while that thread made or
+    closed one left a stopped measuring hanging (2026-11-22, one run in three). A toolbar of matplotlib's put inside a
+    window of the package's would be read, as its child."""
+    if "PySide6.QtWidgets" not in sys.modules:
+        return []
+    from PySide6 import QtCore, QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        return []
+    role = QtCore.Qt.ItemDataRole.ToolTipRole
+    out = []
+    tops = [t for t in app.topLevelWidgets() if type(t).__module__.startswith("mcdonald")]
+    for w in [x for t in tops for x in [t] + t.findChildren(QtWidgets.QWidget)]:
+        tips = [(w.toolTip(), type(w).__name__ + (f" {w.objectName()!r}" if w.objectName() else ""))]
+        tips += [(a.toolTip(), f"action {a.text()!r}") for a in w.actions() if a.toolTip() != a.text().replace("&", "")]
+        if isinstance(w, QtWidgets.QTableWidget):
+            tips += [(w.item(r, c).toolTip(), f"table cell {r},{c}") for r in range(w.rowCount()) for c in range(w.columnCount())
+                     if w.item(r, c) is not None]
+        elif isinstance(w, QtWidgets.QListWidget):
+            tips += [(w.item(i).toolTip(), f"list row {i}") for i in range(w.count())]
+        elif isinstance(w, QtWidgets.QComboBox):
+            tips += [(str(w.itemData(i, role) or ""), f"choice {i}") for i in range(w.count())]
+        for text, where in tips:
+            why = tip_breaks(text)
+            if why:
+                out.append((text, why, where))
+    return out
+
+
+def see_tips(now=False):
+    """Walk the tooltips there are (`long_tips`) and keep those that break the rule for the driver's own check: at
+    every check, but not more often than every TIPS_EVERY seconds unless `now`."""
+    if now or time.monotonic() - TIPS_WALKED[0] >= TIPS_EVERY:
+        for text, why, where in long_tips():
+            TIPS_SEEN.setdefault(text, (why, where))
+        TIPS_WALKED[0] = time.monotonic()
+
+
 def check(cond, label, detail=""):
+    see_tips()                                        # held as the suite goes: every state it reaches
     print(f"  {'PASS' if cond else 'FAIL'}  {label}{'  ' + detail if detail else ''}", flush=True)
     if not cond:
         FAIL.append(label)
@@ -868,11 +944,10 @@ def drive_jewels(rig):
     m = rig.m
     j = mark_qt.Jewels()
     j.set(["one", "two", "three"], 1)
-    tip = j.toolTip().split("\n")
-    check(j.lit() == ["done", "now", "todo"] and tip[0].startswith("✓") and "(now)" in tip[1] and tip[2].startswith("·"),
-          "one lit, one under way, one to come, and the tooltip says which is which", " | ".join(tip))
+    check(j.lit() == ["done", "now", "todo"] and j.toolTip() == "two, 2 of 3",
+          "one lit, one under way, one to come, and the tooltip names the one under way in a few words", j.toolTip())
     j.set(["one", "two", "three"], 7)
-    check(j.lit() == ["done"] * 3, "a count past the end lights them all, and no more")
+    check(j.lit() == ["done"] * 3 and j.toolTip() == "all 3 done", "a count past the end lights them all, and no more")
     words = list(measure_qt.STAGE_WORDS.values()) + list(mark_qt.PART_WORDS.values())
     found = [(pat, w) for w in words for pat in TRADE_WORDS if re.search(pat, w, re.I)]
     check(set(measure_qt.STAGE_WORDS) == set(stages.ORDER) and not found,
@@ -1370,8 +1445,11 @@ def drive_the_player(d, truth):
     tips = {k: b.toolTip() for k, b in d.buttons_by_id.items()}
     check(all("(" in t for t in tips.values()) and "space" in tips["play"] and "[" in tips["start"],
           "there is no menu here, so every button's tip names its key", tips["play"])
-    tip = next(b for b in d.findChildren(QtWidgets.QToolButton) if b.text() == "Shortcuts").toolTip()
-    check(all(k in tip for k in ("space", "shift", "Home", "[ and ]")), "and Shortcuts lists the keys that have no button")
+    shortcuts = next(b for b in d.findChildren(QtWidgets.QToolButton) if b.text() == "Shortcuts")
+    check(all(k in d.keys_table for k in ("space", "shift", "Home", "[ and ]")) and tip_breaks(shortcuts.toolTip()) is None
+          and "<table" not in shortcuts.toolTip() and "keys" in shortcuts.toolTip(),
+          "and Shortcuts, pressed, lists the keys that have no button; its own tooltip is one short sentence, not the list",
+          shortcuts.toolTip())
     d.last.setValue(44)
 
 
@@ -1396,7 +1474,8 @@ def drive_getting_in(td):
     d = mark_qt.RangeChooser(clip)
     d.show()
     check(d.chosen() == (1, 90) and "Needs about" in d.cost.text() and "free" in d.cost.text()
-          and "90 of 90 frames still have to be saved" in d.cost.toolTip() and clip.dir.name in d.cost.toolTip(),
+          and "90 of 90 frames still have to be saved" in d.cost.toolTip() and clip.dir.name in d.cost.toolTip()
+          and tip_breaks(d.cost.toolTip()) is None,
           "the range chooser opens on the whole clip and says in a few words what extracting it costs; its tip says where",
           repr(d.cost.text()))
     d.first.setValue(30)
@@ -1413,7 +1492,8 @@ def drive_getting_in(td):
     clip.cost = lambda a=None, b=None: {**real(a, b), "bytes": 10 ** 15}
     d.first.setValue(21)
     ok = d.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open)
-    check(not ok.isEnabled() and d.cost.text().startswith("Too large") and "more than there is room for" in d.cost.toolTip(),
+    check(not ok.isEnabled() and d.cost.text().startswith("Too large") and "Choose a shorter segment" in d.cost.text()
+          and "frames still have to be saved" in d.cost.toolTip(),
           "a range that will not fit cannot be opened, and says why", repr(d.cost.text()))
     d.close()
     clip.cost = real
@@ -1626,8 +1706,10 @@ def drive_getting_in(td):
                                     "how": {"object": {"12": "agent: candidate 1 of 3 at 9 px"}}}), encoding="utf-8")
     w.open_marks(str(by_agent))
     shown = {w.table.item(r, 1).text(): w.table.item(r, 4).text() for r in range(w.table.rowCount())}
-    check(shown == {"12": "agent", "15": "hand", "80": "hand"} and "candidate 1 of 3" in w.table.item(0, 4).toolTip(),
-          "a mark an agent placed is shown as an agent's, with its reason, to the person who opens the file", str(shown))
+    check(shown == {"12": "agent", "15": "hand", "80": "hand"} and w.table.item(0, 4).toolTip() == mark_qt.HOW_TIPS["agent"]
+          and "candidate 1 of 3" in (w.ms.how_of("object", 12) or "") and not w.table.item(1, 4).toolTip(),
+          "a mark an agent placed is shown as an agent's to the person who opens the file, its tooltip saying so in a short "
+          "sentence; its reason stays in the record", f"{shown}; {w.table.item(0, 4).toolTip()!r}")
     check(w.ms.marks["object"] == {12: (101.0, 51.0), 15: (90.0, 60.0), 80: (5.0, 5.0)} and "1 of them are on frames outside" in w.note.text(),
           "File -> Open marks continues from a marks file, and says which of its marks this range cannot show", repr(w.note.text()[:60]))
     check(" * — " in w.windowTitle(), "they are not this case's saved marks, so the window counts them unsaved")
@@ -1992,7 +2074,8 @@ def drive_measuring(td):
           "Measure opens a panel; with nothing linked it says nothing of an object will be measured, and what to do", repr(p.what.text()[:60]))
     check(p.avoid.isHidden() and not p.others(), "with no other object followed in the video, there is nothing to keep its apertures clear of")
     rows = {k.name: k for k in stages.KNOWN}
-    check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == f"{k.help} (command line: {k.flag})" for n, k in rows.items())
+    check(set(p.fields) == set(rows) and all(p.fields[n].toolTip() == stages.tip(k) and k.flag in stages.tip(k)
+                                              and tip_breaks(stages.tip(k)) is None for n, k in rows.items())
           and all(p.fields[n].parentWidget().objectName() == "technical" for n in rows),
           "its form has a field for every row of stages.KNOWN, with the row's help and flag under the pointer, in the part "
           "that may use the trade's terms", f"{len(rows)} rows")
@@ -3122,13 +3205,15 @@ def drive_one_button(td):
           repr(sw["Straight and steady"]))
     words = [x for n in shown for k, v, _ in shown[n] for x in (k, v) if k in ("Along the track", "Turn", "Straight and steady",
                                                                                  "Moves in a frame", "Time to the camera")]
-    check(all(tip for n in shown for k, _, tip in shown[n] if k != "Followed")
-          and not [w for w in words if any(re.search(pat, w.replace("px/frame", ""), re.I) for pat in TRADE_WORDS)],
-          "every row says how it was found when the pointer is held over it, and the new rows' words are plain (their unit is "
-          "the speed row's own)", "; ".join(words)[:120])
+    check(all(tip and tip == report_qt.gloss(k) and tip_breaks(tip) is None for n in shown for k, _, tip in shown[n])
+          and not [w for w in words if any(re.search(pat, w.replace("px/frame", ""), re.I) for pat in TRADE_WORDS)]
+          and all(tip_breaks(t) is None and t for t in list(report_qt.GLOSS.values()) + list(report_qt.DRAWN.values())),
+          "every row says what it is, in one short sentence, when the pointer is held over it (Jacob, 2026-11-22), and the new "
+          "rows' words are plain (their unit is the speed row's own)", "; ".join(words)[:120])
     # the four unknowns (the ledger, ROADMAP 0.4 objective 6): all four on a card with a rate, found, bounded or not known,
     # in the summary's order, each with what would give it where it is not found
-    tips = {n: {k: tip for k, _, tip in shown[n]} for n in shown}
+    # how each was found, or how to find it, is the full report's (`facts` still gives it): too long for a tooltip
+    tips = {n: {k: how for k, _, how in report_qt.facts(c)} for n, c in (("near", near), ("bent", bent))}
     four = ["Scale", "Range", "Aspect", "Camera's speed"]
     check([k for k in keys if k in four] == four and a["Scale"].endswith(" px/rad, a guess") and a["Range"] == report_qt.NOT_KNOWN
           and a["Camera's speed"] == report_qt.NOT_KNOWN and b["Scale"] == report_qt.NOT_KNOWN and b["Aspect"] == report_qt.NOT_KNOWN
@@ -3143,7 +3228,8 @@ def drive_one_button(td):
     d._fill(bent)
     cells = {d.grid.itemAtPosition(r, 0).widget().text(): d.grid.itemAtPosition(r, 1).widget()
              for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)}
-    check(cells["Range"].text() == "2.5 km to 57 km" and "mcdonald horizon" in cells["Range"].toolTip()
+    check(cells["Range"].text() == "2.5 km to 57 km" and cells["Range"].toolTip() == report_qt.GLOSS["Range"]
+          and "mcdonald horizon" in {k: how for k, _, how in report_qt.facts(bent)}["Range"]
           and "bold" in cells["Range"].styleSheet() and report_qt.MUTED in cells[four[3]].styleSheet()
           and "bold" not in cells[four[3]].styleSheet(),
           "a range the horizon and the focus bound is shown from one to the other; what is not known is written quietly",
@@ -3218,7 +3304,7 @@ def drive_one_button(td):
     saved = sorted(x.name for x in case.iterdir())
     check(busy and card.over_row.isVisible() and card.over.isEnabled() and card.over.text() == "Start over" and card.ask.isHidden()
           and card.over_row.y() > card.lights.y() > card.button.y() and w.acts["start_over"].isEnabled() and row.menu == "File"
-          and card.over.toolTip() == row.help and "Nothing is deleted" in row.help,
+          and card.over.toolTip() == actions.tip(row) and "Nothing is deleted" in row.help,
           "with results saved, a quiet Start over is at the foot of the card, under the button and its lights, and in the "
           "File menu with its line of help", f"{len(saved)} names saved; {card.over.text()!r}")
     card.over.click()
@@ -3809,31 +3895,26 @@ def drive(target):
         drive_zoom_and_pan(rig)
         drive_pixels_are_where_the_coordinates_say(rig)
         if qt:
-            drive_the_menus(rig)
-            drive_plain_words(rig)
-            drive_boxes_fit(rig)
-            drive_modes(rig)
-            drive_jewels(rig)
-            drive_the_finder(rig, new_rig)
-            drive_finding(new_rig)
-            drive_extraction(td)
-            drive_getting_in(td)
-            drive_on_its_side(td)
-            drive_one_window(td)
-            drive_opening_another(td)
-            drive_segments(td)
-            drive_the_first_screen_and_memory(td)
-            drive_preferences()
-            drive_the_add_on(td)
-            drive_measuring(td)
-            drive_several(td)
-            drive_sharing(td)
-            drive_remembered_folders(td)
-            drive_one_button(td)
-            drive_same_object(td)
-            drive_what_is_known(td)
-            drive_sound(td)
-            drive_collector()
+            def tips(after):
+                """The tooltips seen at every check since the last call (`check` walks them all, `long_tips`): one
+                check that none broke the rule -- one short sentence at most (Jacob, 2026-11-22)."""
+                see_tips(now=True)
+                bad = dict(TIPS_SEEN)
+                check(not bad, f"every tooltip seen during {after} is one short sentence at most: {TIP_WORDS} words, one line",
+                      "; ".join(f"{why}, {where}: {text[:80]!r}" for text, (why, where) in list(bad.items())[:4]))
+                TIPS_SEEN.clear()
+            tips("the checks both windows share")
+            for driver, args in ((drive_the_menus, (rig,)), (drive_plain_words, (rig,)), (drive_boxes_fit, (rig,)),
+                                 (drive_modes, (rig,)), (drive_jewels, (rig,)), (drive_the_finder, (rig, new_rig)),
+                                 (drive_finding, (new_rig,)), (drive_extraction, (td,)), (drive_getting_in, (td,)),
+                                 (drive_on_its_side, (td,)), (drive_one_window, (td,)), (drive_opening_another, (td,)),
+                                 (drive_segments, (td,)), (drive_the_first_screen_and_memory, (td,)), (drive_preferences, ()),
+                                 (drive_the_add_on, (td,)), (drive_measuring, (td,)), (drive_several, (td,)),
+                                 (drive_sharing, (td,)), (drive_remembered_folders, (td,)), (drive_one_button, (td,)),
+                                 (drive_same_object, (td,)), (drive_what_is_known, (td,)), (drive_sound, (td,)),
+                                 (drive_collector, ())):
+                driver(*args)
+                tips(driver.__name__)
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
@@ -4153,6 +4234,11 @@ def drive_preferences():
         d.close()
         gpu.installed = lambda: True
 
+        # Every opening of the page looks for the devices on a thread of its own, and the waits above are met by what the
+        # look before left: one still looking would hand its cards to the next page (seen 2026-11-22, when the checks grew
+        # slower by the tooltips' walk). So: every look over, and what it found handed in, before the stand-in changes
+        QtTest_wait(lambda: not any(t.name == "mcdonald-devices" for t in threading.enumerate()), 20)
+        QtTest_wait(lambda: False, 0.2)
         mark_qt.settings().setValue("sound/device", "Gone (Test)")       # unplugged since it was chosen
         gpu.found = lambda: []
         w.do("preferences")
@@ -4167,6 +4253,8 @@ def drive_preferences():
         check("could not be used" in d.sound_said.text(), "and its test tone says it could not be used", d.sound_said.text())
         check(not d.gpu.isEnabled() and items(d.gpu) == ["None found"] and d.gpu_said.text() == "No graphics card (GPU) was found on this computer.",
               "with no graphics card, the choice is greyed out, and the page says none was found", str(items(d.gpu)))
+        QtTest_wait(lambda: not any(t.name == "mcdonald-devices" for t in threading.enumerate()), 20)     # as above: every look over
+        QtTest_wait(lambda: False, 0.2)
         gpu.found = lambda: [dict(name="Apple M2", vendor="106b", compute=True, cuda=False)]   # a Mac's: it computes, but not for mcDonald yet
         d.close()
         w.do("preferences")
@@ -4989,6 +5077,72 @@ def _run_child(backend, host, open_within=25, finish_within=180):
     if hung:
         out += f"\n(ended by the harness after {time.monotonic() - began:.0f} s)\n"
     return p.returncode, out, hung
+
+
+def test_tooltips_are_one_short_sentence():
+    """Jacob, 2026-11-22: "make sure any of the yellow box "hover over" text is one short sentence at most". The windows
+    are held to it as they run (`long_tips`, at every check of the Qt window's drivers). Here, with no window: no
+    `setToolTip` in the package is given a string over the rule; every row of `actions.ACTIONS` has a short form within
+    it (`actions.tip`), with and without its key; and so have `stages.KNOWN`'s rows (`stages.tip`), the plain form's
+    boxes (`known_qt.TIPS`, read from its source: no toolkit here), the report card's rows and badges, and a mark's."""
+    print("\ntooltips: one short sentence at most")
+    import ast
+    import re
+    from mcdonald import actions, stages
+    check(tip_breaks("") is None and tip_breaks("frames 3, 9, 15") is None and tip_breaks("/a/path with a space/x.mp4") is None
+          and tip_breaks("go on one frame (.)") is None and tip_breaks("stop after the step (command line: --each DIR)") is None
+          and tip_breaks("a b c d e f g h i j k l m n o") is None and tip_breaks("a b c d e f g h i j k l m n o p") == "16 words"
+          and tip_breaks("One sentence. And another.") and tip_breaks("the spot size: how big") and tip_breaks("stop; keep")
+          and tip_breaks("one\ntwo") and tip_breaks("<table><tr><td>k</td></tr></table>"),
+          f"the rule: {TIP_WORDS} words at most, one sentence, one line, no colon or semicolon chain, no table; a key or an "
+          "option in parentheses at the end is not counted; a path, a frame range or nothing is fine")
+    root = Path(__file__).resolve().parent.parent / "src" / "mcdonald"
+    bad, seen, tables = [], 0, {}
+
+    def whole(arg):
+        """The texts an argument gives whole: a string, or the strings on each side of an `if ... else`."""
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return [arg.value]
+        if isinstance(arg, ast.IfExp):
+            return whole(arg.body) + whole(arg.orelse)
+        return []
+    for p in sorted(root.glob("*.py")):
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "setToolTip" and node.args:
+                seen += 1
+                for t in whole(node.args[0]):          # a text given whole (also each side of an if): the rule
+                    if tip_breaks(t):
+                        bad.append(f"{p.name}:{node.lineno} {tip_breaks(t)}: {t[:60]!r}")
+                if not whole(node.args[0]):            # a text built at run time: no piece of it too long, or a line break, or a table
+                    for t in [n.value for n in ast.walk(node.args[0]) if isinstance(n, ast.Constant) and isinstance(n.value, str)]:
+                        if len(t.split()) > TIP_WORDS or "\n" in t or "<t" in t:
+                            bad.append(f"{p.name}:{node.lineno} a piece of {len(t.split())} words: {t[:60]!r}")
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
+                    and node.targets[0].id in ("TIPS", "GLOSS", "DRAWN", "HOW_TIPS", "STAGE_WORDS", "PART_WORDS") \
+                    and isinstance(node.value, ast.Dict):
+                try:
+                    tables[f"{p.stem}.{node.targets[0].id}"] = {ast.literal_eval(k): ast.literal_eval(v)
+                                                                 for k, v in zip(node.value.keys, node.value.values)}
+                except ValueError:                     # not a table of plain strings: not one of these
+                    pass
+    check(seen > 90 and not bad, "no setToolTip in the package is given a string over the rule", f"{seen} calls; " + "; ".join(bad[:4]))
+    rows = {a.id: (actions.tip(a), actions.tip(a, key=True)) for a in actions.ACTIONS}
+    wrong = [f"{i}: {tip_breaks(t) or tip_breaks(k)}" for i, (t, k) in rows.items() if not t or tip_breaks(t) or tip_breaks(k)]
+    check(len(rows) > 50 and not wrong and set(actions.TIPS) <= set(rows)
+          and all(a.help and tip_breaks(a.help) for a in actions.ACTIONS if a.id in actions.TIPS),
+          "every row of actions.ACTIONS has a short form for a tooltip, with its key or without; a row has one of its own "
+          "only where its help is too long for one", "; ".join(wrong[:4]))
+    wrong = [f"{k.name}: {tip_breaks(stages.tip(k))}" for k in stages.KNOWN if tip_breaks(stages.tip(k)) or k.flag not in stages.tip(k)]
+    check(not wrong, "every row of stages.KNOWN has one too: what the form calls it, and its option", "; ".join(wrong[:4]))
+    want = {"known_qt.TIPS", "report_qt.GLOSS", "report_qt.DRAWN", "mark_qt.HOW_TIPS", "actions.TIPS", "measure_qt.STAGE_WORDS",
+            "mark_qt.PART_WORDS"}
+    counted = lambda name, v: v + ", 12 of 12" if name.endswith("_WORDS") else v      # a bar's name, as the jewels' tooltip says it
+    wrong = [f"{name}[{k!r}]: {tip_breaks(counted(name, v))}" for name, d in tables.items() for k, v in d.items()
+             if not v or tip_breaks(counted(name, v))]
+    check(want <= set(tables) and not wrong,
+          "and so has every entry of the tables tooltips are taken from: the plain form's boxes, the report card's rows and "
+          "badges, a mark's record, and the names of the bars the jewels stand for", f"{sorted(tables)}; " + "; ".join(wrong[:4]))
 
 
 def test_help_is_the_table():

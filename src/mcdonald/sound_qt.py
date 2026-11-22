@@ -165,12 +165,12 @@ class PassingForm(QtWidgets.QWidget):
     the sound page, and its answer under it, in the measurement's own words (`audio.flyover_said`): a tone that falls
     as something passes a microphone on the ground gives its speed and closest range (Ferguson 1992). Worked out in a
     thread, as the sound itself is read."""
-    FIELDS = (("lo", "the tone, from (Hz)", "--flyover LO-HI: its lowest, read off the picture above"),
-              ("hi", "to (Hz)", "--flyover LO-HI: its highest"),
-              ("rest", "its frequency at rest, if known (Hz)", "--rest: an identified airframe's tone in flight holds it"),
-              ("t0", "start at (s)", "--from: where in the recording to start"),
-              ("seconds", "for (s)", "--seconds: how much of it to read (all of it, if empty)"),
-              ("temp_c", "air temperature (°C)", "--temp-c: for the speed of sound (20 °C if empty)"))
+    FIELDS = (("lo", "the tone, from (Hz)", "the tone's lowest frequency, read off the picture above (command line: --flyover LO-HI)"),
+              ("hi", "to (Hz)", "the tone's highest frequency (command line: --flyover LO-HI)"),
+              ("rest", "its frequency at rest, if known (Hz)", "the tone at rest, where the airframe is identified (command line: --rest)"),
+              ("t0", "start at (s)", "where in the recording to start (command line: --from)"),
+              ("seconds", "for (s)", "how much of it to read, or all of it if empty (command line: --seconds)"),
+              ("temp_c", "air temperature (°C)", "the air's temperature, for the speed of sound, or 20 °C if empty (command line: --temp-c)"))
     answered = QtCore.Signal(object)                  # the pass, None, or the exception that ended it
 
     def __init__(self, window):
@@ -284,7 +284,7 @@ class SoundCard(QtWidgets.QFrame):
         lay.addWidget(self.headline)
         self.button = QtWidgets.QPushButton("Measure the sound")
         row = next(a for a in actions.ACTIONS if a.id == "sound")
-        self.button.setToolTip(row.help)
+        self.button.setToolTip(actions.tip(row))
         self.button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.button.setAutoDefault(False)
         self.button.setMinimumHeight(32)

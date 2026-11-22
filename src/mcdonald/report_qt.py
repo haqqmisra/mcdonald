@@ -61,10 +61,41 @@ LOOK = {"Conclusion": ("✓", ACCENT), "Tentative conclusion": ("?", "#e8a23a"),
         "No conclusion": ("–", "#898781"), "No conclusion yet": ("…", "#898781")}
 DRAWN = {"bird": "its brightness beats at the rate of a bird's wingbeat",
          "subsonic": "slower than sound, relative to the camera's aircraft",
-         "supersonic": "faster than sound relative to the camera's aircraft: two aircraft meeting head-on can be that, "
-                       "each slower than sound",
-         "angle": "its speed across the picture is known, and not its motion toward or away from the camera: the angle "
-                  "of its path to the line of sight would give it"}
+         "supersonic": "faster than sound relative to the camera's aircraft, as two aircraft meeting head-on can be",
+         "angle": "its speed across the picture is known, but not its motion toward the camera"}
+# What each row of the card is, in one short sentence, for its tooltip (Jacob, 2026-11-22: a tooltip is one short
+# sentence at most). Until then the tooltip was how the number was found, or how to find it (the summary's `how`, the
+# ledger's "To find it"): sentences of 20 to 60 words, which the full report has in its Summary of variables and its
+# table of the four unknowns. `facts` still returns that text; `gloss` is what the pointer shows.
+GLOSS = {"Followed": "how many frames it was followed on, and which",
+         "Speed, in the picture": "how fast it crosses the picture, in pixels a frame",
+         "Along the track": "whether its speed in the picture held steady or changed",
+         "Along its path": "its speed along its path, and its net speed start to finish",
+         "Field of view": "how wide an angle the camera sees, side to side",
+         "Scale": "the angular scale, how many pixels one radian spans",
+         "Pixels, wide to tall": "the shape of one pixel, its width over its height",
+         "Turn rate": "how fast its direction from the camera turns",
+         "Size, in the picture": "how wide it is in the picture, in pixels",
+         "Range": "the range, the distance from the camera to the object",
+         "Aspect": "the aspect angle, between its path and the line of sight",
+         "Camera's speed": "how fast the camera itself was moving",
+         "Relative speed, across": "its speed across the line of sight, relative to the camera",
+         "Size": "how large the object really is",
+         "Relative speed": "its speed relative to the camera",
+         "Velocity": "its own velocity, with the camera's motion taken out",
+         "Beat": "how many times a second its brightness rises and falls",
+         "Light": "whether it flashes in a regular train, as an aircraft's light does",
+         "Turn": "how tightly its path bends, in its own widths",
+         "Straight and steady": "whether a straight path at a steady speed would draw this track",
+         "Moves in a frame": "how far it moves in one frame, in its own widths",
+         "Time to the camera": "when it would reach the camera at the rate its size grows",
+         "Speed, in its own lengths": "its speed in its own lengths a second, at the least",
+         "Turn, as a load": "how fast its heading turns"}
+
+
+def gloss(label):
+    """A row's tooltip: what the row is (`GLOSS`), "" for one with no words of its own."""
+    return "its speed against that part of the background" if label.startswith("Against the ") else GLOSS.get(label, "")
 # the summary's rows, in the fewest words
 SHORT = {"pixel velocity": "Speed, in the picture", "horizontal field of view": "Field of view", "angular scale": "Scale",
          "pixel aspect": "Pixels, wide to tall", "angular rate": "Turn rate", "image extent": "Size, in the picture", "range": "Range",
@@ -264,13 +295,10 @@ class ReportCard(QtWidgets.QFrame):
         row = QtWidgets.QHBoxLayout(self.banner)
         row.setContentsMargins(8, 5, 6, 5)
         note = QtWidgets.QLabel("⚠  Track not yet checked by eye")
-        note.setToolTip("the numbers for the object are not yet sure: nobody has said that the track sheet shows the object in "
-                        "every frame. The sheet is in the full report")
+        note.setToolTip("nobody has yet said that the track sheet shows the object in every frame")
         row.addWidget(note, 1)
         self.looked = QtWidgets.QPushButton("I looked")
-        self.looked.setToolTip("the track sheet shows the object ringed on every frame. If you have looked at it, and the ring is "
-                               "on the object in every frame, say so here: the report stops calling the numbers not yet sure. "
-                               "Nothing is measured again")
+        self.looked.setToolTip("say that you looked at the track sheet and the ring is on the object")
         self.looked.setStyleSheet(PRIMARY)
         self.looked.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.looked.setAutoDefault(False)
@@ -310,9 +338,7 @@ class ReportCard(QtWidgets.QFrame):
         self.cancel_known.clicked.connect(lambda _=False: self.close_known())
         self.work_out = QtWidgets.QPushButton("Work out the speed")
         self.work_out.setStyleSheet(PRIMARY)
-        self.work_out.setToolTip("the speed is worked out again with what you gave, from the track already followed. "
-                                 "Nothing is followed again, and it takes a second or two. The sea's horizon and how far "
-                                 "you could see take a few seconds more, since they are read along the track")
+        self.work_out.setToolTip("work the speed out again from the track already followed, in a second or two")
         self.work_out.clicked.connect(lambda _=False: self.work_it_out())
         for b in (self.cancel_known, self.work_out):
             b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -340,7 +366,7 @@ class ReportCard(QtWidgets.QFrame):
         lay.addWidget(self.more_text)
         buttons = QtWidgets.QHBoxLayout()
         self.full = QtWidgets.QPushButton("Full report")
-        self.full.setToolTip("the whole report, over the video: the numbers, what is missing, the pictures, every step")
+        self.full.setToolTip("the whole report, on a page over the video")
         self.full.clicked.connect(self.open_full)
         self.folder = QtWidgets.QPushButton("Folder")
         self.folder.setToolTip("open the folder with the report, the sheets, the tables of numbers and the pictures")
@@ -353,9 +379,7 @@ class ReportCard(QtWidgets.QFrame):
         self.same = self.same_box = None
         if thing is not None:                         # one of several objects: it may be another one of them, seen again
             self.same = QtWidgets.QPushButton("Same object as…")
-            self.same.setToolTip("say that this object and another one found in this video are the same object. Their "
-                                 "marks become one object's, and it is followed and measured again. Their results from "
-                                 "before are set aside, and nothing is deleted")
+            self.same.setToolTip("say that this object and another one found here are the same object")
             self.same.setStyleSheet(QUIET)
             self.same.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
             self.same.setAutoDefault(False)
@@ -386,9 +410,7 @@ class ReportCard(QtWidgets.QFrame):
             self.same_cancel.clicked.connect(lambda _=False: self.same_box.hide())
             self.same_join = QtWidgets.QPushButton("Join them")
             self.same_join.setStyleSheet(PRIMARY)
-            self.same_join.setToolTip("make the two one object, the one with the lower number, and follow and measure it "
-                                      "from the marks of both. Their results from before are set aside in the folder named "
-                                      "earlier")
+            self.same_join.setToolTip("make the two one object, and follow and measure it from the marks of both")
             self.same_join.clicked.connect(lambda _=False: self.join())
             for b in (self.same_cancel, self.same_join):
                 b.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -506,7 +528,7 @@ class ReportCard(QtWidgets.QFrame):
             key.setWordWrap(False)
             value = QtWidgets.QLabel(v)
             for w in (key, value):
-                w.setToolTip(how)
+                w.setToolTip(gloss(k))               # what the row is; how it was found is the full report's
             value.setStyleSheet(f"color: {MUTED};" if v == NOT_KNOWN else "font-weight: bold;")   # the found ones stand out
             value.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignTop)
             value.setWordWrap(True)

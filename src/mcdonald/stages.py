@@ -219,6 +219,13 @@ def around(frames, clip, seconds=2.0):
     return max(clip.n0, min(frames) - pad), min(clip.n1, max(frames) + pad)
 
 
+def tip(k):
+    """A row of `KNOWN` in one short sentence, for the Measure form's tooltip: what the form calls it in plain
+    words, and its option on the command line. Its `help`, which says what the report does with it, is `run --help`'s
+    and the documents' (Jacob, 2026-11-22: a tooltip is one short sentence at most)."""
+    return f"{k.label.replace(': ', ', ')} (command line: {k.flag})"
+
+
 def seams(joined, marks, track, size=None, arrivals=None):
     """Where the marks of found objects made one object meet (`MarkSet.joined`: someone said they are the same one), and
     whether the track followed from them got from one's marks to the next one's: [dict(before, at, of, to, reached, px,
