@@ -3013,18 +3013,16 @@ def drive_one_button(td):
           "a badge and the label, the one sentence, the numbers found, More folded, and the full report a press away",
           d.headline.text()[:80])
     import re                                        # the function imports it lower down, which makes it local throughout
+    from PySide6 import QtWidgets
     from mcdonald.report import ANSWERS, CHECKS
-    checks = [(d.checks_grid.itemAtPosition(r, 0).widget(), d.checks_grid.itemAtPosition(r, 1).widget())
-              for r in range(d.checks_grid.rowCount()) if d.checks_grid.itemAtPosition(r, 0)]
-    said = [t for q, a in checks for t in (q.text(), a.text(), a.toolTip())]
-    check(d.checks.isVisible() and len(checks) >= 3 and all(q.text() in CHECKS.values() and a.text() in ANSWERS and a.toolTip() and q.toolTip() == a.toolTip()
-                                                            for q, a in checks)
-          and {a.text() for q, a in checks if q.text().startswith("Has a person checked")} == {"Not yet"}
-          and not [(w, t) for t in said for pat in TRADE_WORDS for w in [re.search(pat, t, re.I)] if w]
-          and d.layout().indexOf(d.checks) < d.layout().indexOf(d.facts),
-          "the checks as rows above the numbers: each test as a question in plain words, its answer in a word, why in the tooltip, "
-          "the track not yet checked by eye said so (the report's checklist; Ravi, 2026-11-01)",
-          "; ".join(f"{q.text()[:30]}: {a.text()}" for q, a in checks)[:160])
+    rows = d.case.checklist()                        # the report's own table: on the full report's page, not on the card
+    on_card = lambda card: [x.text() for x in card.findChildren(QtWidgets.QLabel) if x.text() in CHECKS.values() or x.text() in ANSWERS]
+    check(len(rows) >= 3 and not on_card(d) and not hasattr(d, "checks") and not hasattr(d, "checks_grid")
+          and {r["answer"] for r in rows if r["test"].startswith("Has a person checked")} == {"Not yet"}
+          and d.layout().indexOf(d.banner) < d.layout().indexOf(d.facts) < d.layout().indexOf(d.more),
+          "the card does not show the checks: no test's question and no answer in a word is on it, only the conclusion, the "
+          "numbers found and More (Jacob, 2026-11-22: the Yes/No rows on the full report alone)",
+          f"{len(rows)} rows in the case; on the card: {on_card(d)[:3]}")
     from mcdonald import report
     bird = report.Case("t", "/tmp/x.mp4")            # a beat at a wingbeat's rate: the label, and a bird drawn as its badge
     report.Found("flicker", {"finding": "it beats"}, fields=dict(beats=True, finding="it beats", beat={"object": dict(
@@ -3149,10 +3147,16 @@ def drive_one_button(td):
           f"{cells['Range'].text()!r}; {cells[four[3]].styleSheet()!r}")
     d._fill(report.Case("t", "/tmp/x.mp4"))
     check(not {d.grid.itemAtPosition(r, 0).widget().text() for r in range(d.grid.rowCount()) if d.grid.itemAtPosition(r, 0)} & set(four)
-          and d.checks.isHidden() and d.checks_grid.count() == 0,
-          "a case with no rate to turn into a speed says nothing of them, and one with nothing measured has no checks")
+          and d.facts.isHidden(),
+          "a case with no rate to turn into a speed says nothing of them, and one with nothing measured has no rows at all")
     d.refresh(force=True)
     check(d.label.text() == "No physical conclusion" and d.badge.text() == "≈", "and the card's own case comes back", d.label.text())
+    d.more.click()                                   # what the conclusion rests on is still a press away, on the card
+    more = d.more_text.text()
+    check(d.more_text.isVisible() and d.case.bottom_line() in more and (not d.case.grade() or d.case.grade()["said"] in more)
+          and all(r["said"] in more for r in d.case.reasons()),
+          "More still holds the reasoning: how sure the conclusion is, what it rests on, and the paragraph", more[:90])
+    d.more.click()
     check(card.state.isHidden() and card.button.text() == "Measure again",
           "the one-button card says nothing more: the report's card speaks for itself", card.state.text())
     d.looked.click()
@@ -3163,6 +3167,16 @@ def drive_one_button(td):
     text = w.report_page.page.toPlainText() if w.report_page is not None else ""
     check(w.report_page is not None and w.report_page.isVisible() and text.index("Conclusion") < text.index("Summary of variables")
           and not w.report_page.banner.isVisible(), "Full report opens the whole report over the video, its conclusion first")
+    rows = report.Case.load(case / "planted_case.json").checklist()
+    flat = " ".join(text.split())
+    check(len(rows) >= 3 and "What was checked" in flat and "Answer" in flat and all(r["test"] in flat for r in rows)
+          and all(r["test"] in CHECKS.values() and r["answer"] in ANSWERS for r in rows)
+          and text.index("Conclusion") < text.index("What was checked") < text.index("Summary of variables")
+          and not [(m, r["test"]) for r in rows for pat in TRADE_WORDS for m in [re.search(pat, r["test"] + " " + r["said"], re.I)] if m]
+          and not on_card(d),
+          "and the full report has the checks the card leaves out: its table under the conclusion, each test as a question in "
+          "plain words with its answer in a word (the report's checklist; Ravi, 2026-11-01)",
+          "; ".join(f"{r['test'][:30]}: {r['answer']}" for r in rows)[:160])
     w.report_page.close()
     check(w.track_strip is None and bool(w._strips) and not w.note.quiet and w.note.isHidden() and w.work.isHidden(),
           "through the run nothing was put under the video -- not the track's check either -- and nothing said over it")
@@ -3228,6 +3242,10 @@ def drive_one_button(td):
           and not w3.report_card.isVisible() and w3.stack.currentWidget() is w3.split,
           "and the column has a report card for each, the track not yet checked by eye on either, the video still in sight",
           str({k: c.label.text() for k, c in w3.object_cards.items()}))
+    check(all(c.case is not None and len(c.case.checklist()) >= 3 and not on_card(c) and c.facts.isVisible() and c.more.isVisible()
+              and c.case.bottom_line() in c.more_said(c.case) for c in w3.object_cards.values()),
+          "an object's card leaves the checks to its full report too: the numbers found, and More with the reasoning",
+          str({k: on_card(c)[:2] for k, c in w3.object_cards.items()}))
     both = [n for n in range(1, 25) if all(n in t for t in w3.object_tracks.values())]
     w3.goto(both[0] if both else 8)
     check(sorted(w3.object_tracks) == [1, 2] and sorted(w3._object_paths) == [1, 2] and sorted(w3.object_boxes) == [1, 2]

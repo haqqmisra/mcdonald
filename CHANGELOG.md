@@ -3,6 +3,15 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+**The window's report card no longer lists the tests** (2026-11-22; IDEAS.md TU4). The card in the right column
+showed each test of the report as a question, with its answer in a word, above the numbers. A case has up to 15 such
+rows, and a video with several objects has a card for each, so the column grew long. The card now shows the
+conclusion, the numbers found and More, which still holds the reasoning. The table of tests is where it was in the
+full report, under the conclusion's sentence. Press Full report on the card to read it. No report changes, and
+`run --json` and `report --json` keep their `checklist` field. Help → Getting started says the same.
+
 ## 0.5.9 (2026-11-19)
 
 **`mcdonald drift` refuses lines of sight that no single straight path passes through** (2026-11-19; method section

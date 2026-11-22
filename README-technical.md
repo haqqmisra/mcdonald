@@ -673,16 +673,18 @@ the first that will open.
   queue of several): a badge and the label of its
   conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
   sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
-  the checks as rows -- each test as a question in plain words, its answer in a word (Yes, No,
-  Partly, Can't tell, Not yet; integrity's row Consistent or Inconsistent) and why in the tooltip: the report's own checklist, which sits
-  under the conclusion's sentence in the report too, the paragraph of reasoning folded under it
-  (`report.Case.checklist`; a tester's ask, 2026-11-01) -- then the numbers found as label-and-value rows, "More" for how sure
+  then the numbers found as label-and-value rows, "More" for how sure
   the conclusion is (`report.Case.grade`: GRADE's domains, computed), what it rests on, at most four reasons the heaviest first,
   each weighed on the labelled infrared set where it can be (`report.Case.reasons`, `controls`; method section 47), and the bottom
   line's paragraph (which says what a real speed still needs), "I looked" when the track sheet has not been
   checked by eye, and "Full report", the whole report as a page over the video
   (`measure_qt.show_report`), whose "Save as PDF…" writes it as one file with its pictures in it
-  (`paper.write`, which `mcdonald report CASE.json --pdf` is too); Measure → Open the case folder finds the files. **Measure → The sound
+  (`paper.write`, which `mcdonald report CASE.json --pdf` is too). The report's own checklist -- each test as a question
+  in plain words, its answer in a word (Yes, No, Partly, Can't tell, Not yet; integrity's row Consistent or Inconsistent)
+  and why in a line (`report.Case.checklist`; a tester's ask, 2026-11-01) -- is in the full report, under the conclusion's
+  sentence, with the paragraph of reasoning folded under it, and in `run --json`. It is not on the card: it was from
+  2026-11-01, and came off on 2026-11-22 because up to fifteen wrapped rows made the summary too long (the maintainer,
+  after PR169). Measure → Open the case folder finds the files. **Measure → The sound
   of this video…** is `mcdonald audio` in the window: a page over the video that says first, in one
   sentence, what the sound holds (an aircraft named by two tones, the power it was recorded on,
   silence), then the picture of the sound and, folded, the command's own words. A video with sound
