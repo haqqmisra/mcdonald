@@ -45,6 +45,7 @@ COMMANDS = {
               "mcdonald.drift"),
     "report": ("a case's report again, from its _case.json: --i-looked once the track sheet is looked at", "mcdonald.case_cli"),
     "segments": ("the segments of a video with results, a folder each: what each report says, and where", "mcdonald.segments"),
+    "clear": ("start a case over: what its results folder holds is set aside in a dated folder, and nothing is deleted", "mcdonald.clear"),
     "share": ("one file to send someone: a video's results, the part to look at, and the notes", "mcdonald.share"),
     "plant": ("write synthetic objects into a stretch of a video, with a table of where each is: a test of what the search can find",
               "mcdonald.plant"),

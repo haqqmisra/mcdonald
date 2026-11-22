@@ -447,6 +447,38 @@ the most single it is on (a member before a thing alone before a group): its row
 line names it (PR135 at 6: Find's third row, seen on 3 frames, was one of the second group's birds,
 on member object 8's track on all 21 frames both were followed on). Exercise 4 (`docs/exercises/04-pr135.md`) is this, step by step.
 
+### Starting a case over
+
+A results folder is the case's memory. `mark`, `run`, `run --each` and the window all go on from what
+they find there: marks saved earlier, a track, the folders of several objects. To begin again with
+nothing saved, set those results aside:
+
+```bash
+mcdonald clear cases/clip --dry-run --json      # what would be set aside, and what would stay; nothing changes
+mcdonald clear cases/clip --json                # done: moved into cases/clip/earlier/<date>_<time>/
+mcdonald clear CLIP --n0 380 --n1 440           # by the video's name: that segment's own folder, ./clip/segment-380-440/
+```
+
+`clear` moves every file named for the case (`<tag>_…`: the marks, the track, each step's tables and
+pictures, the report, the list of objects) and every `object-N` folder. They go into a dated folder
+inside the results folder, `earlier/<date>_<time>/`. Nothing is deleted unless you give `--delete`.
+To bring a result back, move it out of that folder.
+
+It leaves six things where they are:
+
+- the video and its saved frames;
+- another segment's folder (`segment-A-B`);
+- any file or folder not named for the case;
+- what was set aside before (`earlier`);
+- the zoom states `mcdonald zoom` wrote (`<tag>_zoom.json`), which a later `run` reads as given;
+- a shared file's thread (`<tag>_share.json`).
+
+`results.moved` lists the names that were set aside and `results.into` is the dated folder (null with
+`--delete`, or where nothing was saved). `results.kept` and `results.left` list what stayed.
+`results.objects`, `marks`, `tracks`, `reports` and `files` count what moved, and `results.said` has
+the same in sentences. With nothing saved it says so and exits 0. `segments`, `run --each` and `share`
+never read the `earlier` folder. The window's **Start over** is the same function (`clear.set_aside`).
+
 ### Many videos, with nobody looking
 
 `mcdonald batch` does the whole job on a list of videos, or on the whole catalog, with no one choosing an object:
