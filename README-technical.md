@@ -602,7 +602,16 @@ the first that will open.
   holds Find and the link from its marks against every clip with a recorded
   track (the two Galileo flyers among them), and is what to run after any
   change. About 0.2 s a frame, twice that where the scene holds still, shown as
-  it goes.
+  it goes. An object that turns is found before the turn and after it, as two
+  rows: it is slow where it turns, and a chain does not bend. So the last list
+  puts such rows to the link (`propose.joined`, 2026-11-22; docs/method.md
+  §110): started from the end of the earlier row with no mark ahead of it,
+  does it arrive on the later row's first mark, and from the later back onto
+  the earlier's last? Where both do, the list has one row, which says how many
+  times the object was found (`pieces` in `--json`) and has marks in each
+  stretch. PR169's bird, turning twice in 13.6 s, was three rows and three
+  reports; it is one row, and the link from its marks one track over 396 of
+  its 408 frames.
 
   **With no terminal.** `mcdonald-gui` starts the same window the other way
   round: it opens on its home page -- what this is, the two ways to name a
