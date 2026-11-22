@@ -3366,6 +3366,7 @@ class QtMarker(QtWidgets.QMainWindow):
                       "A mark is a place on the frames of one video. Do you still want to open them on this one?"):
             return
         self.ms.marks, self.ms.how = other.marks, other.how
+        self.ms.joined = other.joined                 # ... with their record of objects made one, where the file has it
         self._undo.clear()
         self._undo.resetClean()                       # they are not what this case directory holds: closing asks
         outside = sum(1 for c in other.marks.values() for n in c if not self.clip.n0 <= n <= self.clip.n1)
