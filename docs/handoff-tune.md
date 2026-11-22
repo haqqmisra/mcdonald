@@ -21,6 +21,10 @@ Jacob, 2026-11-22, after analysing PR169 (DOD_112158018) in the window at 0.5.9:
 - Everything is on the branch **`tune`** (worktree `/hugespace/models/mcdonald-tune`), made from `main` 6aa845b
   (0.5.9 and the site's commits). **Nothing is pushed, tagged or versioned: the version is still 0.5.9, and the
   version push waits for Jacob's word** (the other sessions were told: `amateur`/`am-sky` and `audio-paper`).
+- **`main` was fast-forwarded to `tune` on 2026-11-22, late afternoon** (local only), on Jacob's word as the
+  audio-paper session relayed it ("work with the other agents to merge the tune branch"). The tested commit is
+  5691539; the commits after it on `tune` change this file alone. A window opened before the merge runs the old code
+  until it is started again (one had been open, idle, since 2026-11-20).
 - The same Find change is on **`tune-06`** (worktree `/hugespace/models/mcdonald-tune-06`), made from `amateur`
   0c55fa5, so that the 0.6 line has it when it is next brought together. `amateur`, `dev-0.6` and `audio-paper`
   were not touched.
@@ -114,6 +118,38 @@ make sure any of the yellow box "hover over" text is one short sentence at most"
 | **Every tooltip in the window is one short sentence at most** (TU7; the window strand's Job D): 15 words at most, one line, no second sentence, no chain of clauses on a colon or a semicolon, no table or list; a key or a command's option in parentheses at its end is not counted. 238 tooltips read, 178 rewritten. A menu row's long `help` stays where long is right (the status bar, Help → Keys and mouse, `mark --help`) and has a short form for the hover (`actions.TIPS`, `actions.tip`). The report card's rows now say what each number is, not how it was found (`report_qt.GLOSS`); the full report says how | `actions`, `stages.tip`, `known_qt.TIPS`, `report_qt`, `mark_qt`, `measure_qt` (`STAGE_WORDS`), `find_qt`, `several_qt`, `share_qt`, `sound_qt`, `auto_qt`; commit 0cfa22a, merged as 012a05a | test_gui: at every check of every driver each of the package's windows is walked (every widget, action, table cell, list row and choice) and no tooltip seen may break the rule (26 checks), and with no window the rule is held on every `setToolTip` string in the source and every table of tips (5 checks). On PR169 in the real window, four states: 74 different tooltips, none breaks it (`scripts/tips169.py`). **The table of every tooltip before and after, for Jacob to read and change: `/scratch/mcdonald/tune-2026-11-22/tips/tooltips.tsv`** |
 | **The window draws its figures as files on Linux too**: inside the Qt window's process `figures.setup` now takes matplotlib's Agg whatever display there is. With a display it had taken the Qt backend, and every figure built a hidden window and toolbar of matplotlib's on the thread that measures (found by the tooltip walk, which met their tooltips; reading them while one was made left a stopped measuring hanging once in three runs). No figure changes; a Mac and Windows always drew this way | `figures.setup` | test_gui: after the window measured, the backend is Agg and no window of matplotlib's exists |
 
+**Checks after the afternoon's work.**
+
+- `tune` 5691539 (the commit `main` is fast-forwarded to): every suite with the footage, job 19321: ALL SUITES
+  PASS, 29 suites, 4,451 checks, 0 FAIL (test_gui 873 with 1 SKIP, test_cli 164, test_measurement 722, test_golden
+  266).
+  Before it, on 012a05a (the white page, the card, the tooltips; job 19313): ALL SUITES PASS, 29 suites, test_gui
+  872 with 1 SKIP; and test_gui alone with the figures' fix (job 19315): 873 with 1 SKIP. Against the round's end
+  (51b3528, job 19230, test_gui 836): the paper page's 5 checks, the tooltips' 31 and the figures' 1; every other suite
+  the same count.
+- `tune-06` d02cd36 (the same work on the 0.6 line; 350231f adds one tooltip's words): ALL SUITES PASS, 32 suites, on
+  CPUs (job 19318) and on the card (job 19319): test_gui 879 with 1 SKIP on both, test_golden 266, test_gpu 203 with 1
+  SKIP and 276. One tooltip of that line's own broke the new rule and was shortened (Preferences' "Find searches the
+  frames" box).
+- The window strand's own run on `tune-tips` 0cfa22a (job 19312): ALL SUITES PASS, 29 suites.
+- In the real window on a virtual screen, PR169: the report's page (`ex1/report-i/*.png`) and 74 different tooltips
+  over four states, none over the rule (`scripts/tips169.py`).
+
+**For Jacob, from the afternoon:**
+
+- The tooltips' words are yours: the table is `/scratch/mcdonald/tune-2026-11-22/tips/tooltips.tsv` (where, before,
+  after). A tooltip changed to more than 15 words, to two sentences or to a chain on a colon or a semicolon fails
+  test_gui; relax `tip_breaks` in tests/test_gui.py if the rule should be looser.
+- The report card's rows now say on hover what each number is, not how it was found (the full report says how). If
+  you would rather they say nothing, `report_qt.gloss` can return "".
+- The segment step's Shortcuts button still shows its table of keys in a box when pressed (not on hover).
+- The jewels under a working bar name on hover only the bar under way ("…, 2 of 3"); they listed every bar.
+- The tooltips' box is yellow because Qt draws tooltips with a palette of its own; the window's dark colours for it
+  (`ToolTipBase`, `ToolTipText` in `mark_qt.application`) are not used. `QToolTip.setPalette` would make it the
+  window's. Not changed: you did not ask.
+- Not fixed, seen by the window strand: a Preferences page opened while an earlier look for devices is still running
+  can show that look's result (the test now waits; the window does not).
+
 ## Checks on the merged tree
 
 **`tune` 5dbea30** (everything of the round; a snapshot in `/scratch/mcdonald/tune-2026-11-22/snap/tune-e`).
@@ -155,8 +191,10 @@ make sure any of the yellow box "hover over" text is one short sentence at most"
 
 ## Decisions for Jacob, each with a recommendation
 
-1. **Bringing `tune` into your window.** Your desktop icon runs the main checkout, and `tune` is not merged into
-   `main`: the other sessions treat a merge into `main` as your word, and so did this one. To try it first without
+1. **Bringing `tune` into your window.** *Done since: `main` was fast-forwarded to `tune` on your word, relayed by the
+   audio-paper session; start the window again to run it.* As first written: your desktop icon runs the main
+   checkout, and `tune` was not merged into `main`: the other sessions treat a merge into `main` as your word, and so
+   did this one. To try it first without
    merging: `PYTHONPATH=/hugespace/models/mcdonald-tune/src ~/.venvs/py314/bin/mcdonald-gui`. To take it:
    `git -C /hugespace/models/mcdonald merge --ff-only tune` with the window closed (it is a fast-forward: `main` has
    not moved since 6aa845b). *Recommendation:* try it on PR169, then merge, and make your GUI tweaks on `main`.
