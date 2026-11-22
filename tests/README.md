@@ -874,6 +874,15 @@ folders went. At Find's list, two ticked rows show "They are one object" beside 
 not); pressed, the marks of both are the window's own object, each saved as proposed, with the record; saved, the
 file carries it; one undo takes back the marks and the record.
 
+**Tooltips** (2026-11-22). A tooltip is one short sentence at most: 15 words, one line, no second sentence, no colon
+or semicolon chain, no table; a key or the command line's option in parentheses at its end is not counted
+(`tip_breaks`). Every `check` of the Qt window's drivers first walks every widget of the application, each widget's
+actions, every table cell, list row and choice (`long_tips`), and after each driver one check says that no tooltip
+seen during it broke the rule, so every state the suite reaches is held. `test_tooltips_are_one_short_sentence`
+holds the same with no window: no `setToolTip` in the package is given a string over the rule, and every row of
+`actions.ACTIONS` (`actions.tip`), of `stages.KNOWN` (`stages.tip`) and of the tables tooltips are taken from has a
+short form within it.
+
 **What is known of the video** (`drive_what_is_known`, 2026-10-09). The segment
 step asks, folded under the count until opened, in plain words and the units a
 person thinks in (miles, feet, knots); a thing of known size without its length

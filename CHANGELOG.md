@@ -5,6 +5,18 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**Every tooltip in the window is one short sentence** (2026-11-22; IDEAS.md TU7). A tooltip is the small box that
+appears when the pointer rests on a button or a row. Many had grown to two or three sentences, and the longest ran
+to 47 words. Each now says what the control does in 15 words or fewer. Nothing that mattered is lost.
+- Each menu entry keeps its full line of help in the status bar and under Help → Keys and mouse.
+- The rows of the report's card now say what each number is. How each was found, or how to find it, is in the full
+  report. Help → Getting started says so.
+- A mark's row in the table of marks says who placed it. Its whole record stays in the marks file and the report.
+- The boxes for what you know of the video say what to type. What the report does with each is in `mcdonald run
+  --help` and the technical README.
+- Edit → Preferences… now says under the CPU cores box that the answers are the same with any number.
+- On the segment step, the Shortcuts button still shows its table of keys when pressed.
+
 **Find lists an object once where it turns** (2026-11-22; method section 110; IDEAS.md TU1). Find builds its list from
 short runs of steady motion. An object that turns slows down as it turns, and Find loses it there, so one object
 could come out as two or three rows. PR169 is a 14-second infrared video of one bird that turns twice. Find listed it

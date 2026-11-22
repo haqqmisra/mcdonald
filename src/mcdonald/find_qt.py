@@ -85,7 +85,7 @@ class FindPanel(QtWidgets.QFrame):
         self.go.setToolTip("look again, for instance after choosing other frames above")
         self.go.clicked.connect(self.start)
         self.halt = QtWidgets.QPushButton("Stop")
-        self.halt.setToolTip("stop looking; what has been found so far stays on the list")
+        self.halt.setToolTip("stop looking, and keep what has been found so far")
         self.halt.setEnabled(False)
         self.halt.clicked.connect(self.stop)
         self.elapsed = QtWidgets.QLabel()
@@ -115,8 +115,7 @@ class FindPanel(QtWidgets.QFrame):
         lay.addWidget(self.looking)
         self.list = QtWidgets.QVBoxLayout()
         self.more = QtWidgets.QPushButton()
-        self.more.setToolTip("show the other spots the computer found, which it thinks less likely. In a hard video the object "
-                             "may be one of these")
+        self.more.setToolTip("show the other spots the computer found, which it thinks less likely")
         self.more.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.more.clicked.connect(self.show_more)
         self.more.hide()
@@ -138,16 +137,13 @@ class FindPanel(QtWidgets.QFrame):
         self.several_text.setWordWrap(True)
         self.several_go = QtWidgets.QPushButton(SEVERAL)
         self.several_go.setStyleSheet(PRIMARY)
-        self.several_go.setToolTip("each ticked object gets a folder of its own, with marks along its path saved as proposed. "
-                                   "Then each is followed and measured in turn, and gets its own report")
+        self.several_go.setToolTip("follow and measure each ticked object in turn, each with its own folder and report")
         self.several_go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.several_go.clicked.connect(self.take_several)
         # ... or the ticked rows are one object, seen more than once (Jacob, 2026-11-22: "an option to indicate that two
         # different found objects are actually the same one"): the list's own way to say so, before anything is followed
         self.one_go = QtWidgets.QPushButton(AS_ONE)
-        self.one_go.setToolTip("the ticked rows are the same object, seen more than once. Marks are put along all of them "
-                               "as one object, saved as proposed, and it is followed from them. The report says that you "
-                               "took them as one")
+        self.one_go.setToolTip("follow the ticked rows as one object seen more than once")
         self.one_go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.one_go.clicked.connect(lambda _=False: self.take_as_one())
         bar.addWidget(self.several_text, 1)
@@ -434,11 +430,10 @@ class FindPanel(QtWidgets.QFrame):
             show.setToolTip("go to it in the main window, with its path drawn as a dashed line")
             take = QtWidgets.QPushButton("This is it")
             take.setStyleSheet(PRIMARY)
-            take.setToolTip("put marks along its path, saved as proposed and never as placed by hand, and start linking from them")
+            take.setToolTip("put marks along its path, saved as proposed, and start following from them")
             key = self._key(p)
             tick = QtWidgets.QCheckBox("one of several")
-            tick.setToolTip("tick this if the video has more than one object and this is one of them. Then press "
-                            f"“{SEVERAL}” under the list: each ticked object is followed and measured in turn")
+            tick.setToolTip("tick each row that is one of several objects in this video")
             tick.setChecked(key in self._ticked)
             tick.toggled.connect(lambda on, key=key: self._tick_row(key, on))
             for b in (show, take, tick):

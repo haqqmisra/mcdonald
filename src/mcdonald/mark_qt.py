@@ -68,7 +68,7 @@ from .reel import Reel
 MASKS = autolink.MASKS                             # one sentence, wherever that wait is met
 FOLLOW_SHORT = {"masks": "Static masks", "scale": "Spot size"}   # step 2's line; the linking stage says its own
 # what each of the bars of steps 1 and 2 is for, in the tooltip of the jewels under them (Jewels)
-PART_WORDS = {"masks": "Working out which parts of the picture never change, such as words on the screen",
+PART_WORDS = {"masks": "Working out which parts of the picture never change",
               "search": "Looking for what moves against the background",
               "scale": "Choosing the spot size from the marks",
               "follow": "Following it from frame to frame"}
@@ -979,10 +979,9 @@ class SoundControl(QtCore.QObject):
         b = self.button
         on = b.isChecked()
         b.setIcon(media_icon("sound" if on else "mute"))
-        b.setToolTip("This video has sound, but ffplay, which plays it, was not found. It comes with ffmpeg: install "
-                     "ffmpeg as the install notes say, then open the video again." if not b.isEnabled() else
-                     "the sound plays with the video: press to turn it off" if on else
-                     "the sound is off: press to hear it as the video plays")
+        b.setToolTip("the sound cannot play because ffplay, which comes with ffmpeg, was not found" if not b.isEnabled() else
+                     "the sound plays with the video, press to turn it off" if on else
+                     "the sound is off, press to hear it as the video plays")
 
 
 class Page(QtWidgets.QFrame):
@@ -1108,8 +1107,7 @@ class HomePage(QtWidgets.QWidget):
         row = QtWidgets.QHBoxLayout(box)
         row.setContentsMargins(12, 8, 8, 8)
         self.where = muted()
-        self.where.setToolTip("Downloaded videos go in its videos folder, each video's frames saved as pictures in its "
-                              "frames folder, and what you save for a video in a folder named for it")
+        self.where.setToolTip("it holds downloaded videos, their frames, and a folder of results for each video")
         self.change = QtWidgets.QPushButton("Change…")
         self.change.setStyleSheet(QUIET)
         self.change.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -1144,7 +1142,7 @@ class HomePage(QtWidgets.QWidget):
                 b.setCursor(Qt.CursorShape.PointingHandCursor)
                 b.setStyleSheet("QPushButton { text-align: left; padding: 4px 6px; border-radius: 4px; } "
                                 "QPushButton:hover { background: #2a2a2f; }")
-                b.setToolTip(path + ("\nopens on the frames chosen last time" if part else ""))
+                b.setToolTip(path)                    # where it is; the frames it opens on are in its name, beside it
                 b.clicked.connect(lambda _=False, p=path: self.window_.open_clip(p))
                 self.recent_col.addWidget(b)
                 self.recent_buttons.append(b)
@@ -1500,8 +1498,9 @@ class Jewels(QtWidgets.QWidget):
         if (names, done) == (self.names, self.done):
             return
         self.names, self.done = names, done
-        self.setToolTip("\n".join(f"{'✓' if i < done else '→' if i == done else '·'} {name}" + (" (now)" if i == done else "")
-                                  for i, name in enumerate(names)))
+        # one short sentence (Jacob, 2026-11-22), where it listed every bar on a line of its own: which bar is under way
+        self.setToolTip(f"{names[done]}, {done + 1} of {len(names)}" if done < len(names) else
+                        f"all {len(names)} done" if names else "")
         self.update()
 
     def lit(self):
@@ -1594,7 +1593,7 @@ class Command(QtWidgets.QLabel):
     def say(self, name):
         """Show the command `name`; nothing (None, "") hides the oval."""
         self.setText(name or "")
-        self.setToolTip(f"what the window is doing now is what “mcdonald {name}” does, typed in a terminal" if name else "")
+        self.setToolTip(f"the command that does this in a terminal is “mcdonald {name}”" if name else "")
         self.setVisible(bool(name))
 
 
@@ -1706,6 +1705,13 @@ class Step(QtWidgets.QFrame):
 
 
 ROWS = {a.id: a for a in actions.ACTIONS}
+# A mark's tooltip in the table of marks: who placed it, in one short sentence (Jacob, 2026-11-22). Its record, as
+# long as its reason, is the marks file's and the report's ("Where the marks came from"), not a tooltip's.
+HOW_TIPS = {"proposed": "the computer proposed this mark, and it was taken",
+            "snapped": "snapped to the spot the computer found there",
+            "agent": "placed by an agent from the command line, with its reason in the marks file",
+            "typed": "typed as numbers by a person",
+            "other": "not placed by hand on the frame"}
 # What a key or a menu entry needs: nothing (ANYTIME); a video open, and the video in front rather than a page
 # over it (the rest) -- a key pressed on the report page must not play the video behind it; or a video open,
 # whatever is in front (PAGE_OK: these open their own page, or bring the video back)
@@ -1939,7 +1945,7 @@ class QtMarker(QtWidgets.QMainWindow):
         """A button for a row of the table: its help and its key are the tooltip."""
         b = QtWidgets.QToolButton()
         b.setText(text)
-        b.setToolTip(f"{ROWS[act].help} ({actions.spoken(ROWS[act].keys[0])})")
+        b.setToolTip(actions.tip(ROWS[act], key=True))
         b.setCheckable(checkable)
         b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         b.clicked.connect(lambda _=False: self.do(act))
@@ -1978,11 +1984,10 @@ class QtMarker(QtWidgets.QMainWindow):
             b.setAutoDefault(False)
             b.clicked.connect(go or (lambda _=False: self.do(act)))
             return b
-        self.find_button = step_button("Find the object", "find", rows["find"].help)
+        self.find_button = step_button("Find the object", "find", actions.tip(rows["find"]))
         self.link_button = step_button("Follow the object", "link",
-                                       "the computer follows the object from its marks, forward and backward, and draws "
-                                       "the track as it grows")
-        self.measure_button = step_button("Measure", "measure", rows["measure"].help, go=lambda _=False: self.measure_step())
+                                       "the computer follows the object from its marks and draws the track as it grows")
+        self.measure_button = step_button("Measure", "measure", actions.tip(rows["measure"]), go=lambda _=False: self.measure_step())
         self.report_button = QtWidgets.QPushButton("Open the report")
         self.report_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.report_button.setAutoDefault(False)
@@ -1995,14 +2000,14 @@ class QtMarker(QtWidgets.QMainWindow):
             Step(3, "Measure", "Works out how the object moved, and writes a report.", self.measure_button)]
         self.steps[2].add_button(self.report_button)
         self.several_button = QtWidgets.QPushButton("Show the objects")
-        self.several_button.setToolTip(rows["several"].help)
+        self.several_button.setToolTip(actions.tip(rows["several"]))
         self.several_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.several_button.setAutoDefault(False)
         self.several_button.clicked.connect(lambda _=False: self.do("several"))
         self.several_button.hide()
         self.steps[2].add_button(self.several_button)
         self.check_button = QtWidgets.QPushButton("Check the track")
-        self.check_button.setToolTip("small pictures along the track: is the box on the object in every one?")
+        self.check_button.setToolTip("small pictures along the track, to check the box is on the object")
         self.check_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.check_button.setAutoDefault(False)
         self.check_button.clicked.connect(lambda _=False: self._show_track_strip(self._strips))
@@ -2046,8 +2051,7 @@ class QtMarker(QtWidgets.QMainWindow):
         # by hand: the classes, the loupe, the marks, the detector's settings
         self.hand_toggle = QtWidgets.QToolButton()
         self.hand_toggle.setText("Mark the object by hand")
-        self.hand_toggle.setToolTip("when the computer does not find the object: click it yourself on two or more frames, "
-                                    "then Follow it")
+        self.hand_toggle.setToolTip("click the object yourself on two or more frames when the computer cannot find it")
         self.hand_toggle.setCheckable(True)
         self.hand_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.hand_toggle.setArrowType(Qt.ArrowType.RightArrow)
@@ -2095,14 +2099,14 @@ class QtMarker(QtWidgets.QMainWindow):
         hand.addWidget(self.table, 1)
         det = QtWidgets.QHBoxLayout()
         self.cand_box = QtWidgets.QCheckBox(f"show spots ({key_of('candidates')})")
-        self.cand_box.setToolTip(rows["candidates"].help)
+        self.cand_box.setToolTip(actions.tip(rows["candidates"]))
         self.cand_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.cand_box.toggled.connect(self.set_candidates)
         self.size_box = QtWidgets.QSpinBox()
         self.size_box.setRange(3, 60)
         self.size_box.setValue(9)
         self.size_box.setSuffix(" pixels")
-        self.size_box.setToolTip("the spot size: how big a spot the computer looks for")
+        self.size_box.setToolTip("how big a spot the computer looks for")
         self.size_box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.size_box.setKeyboardTracking(False)
         self.size_box.valueChanged.connect(lambda _: (self._candidates_stale(), self.view is not None and self.view.setFocus()))
@@ -2112,7 +2116,7 @@ class QtMarker(QtWidgets.QMainWindow):
         self.dark_box.toggled.connect(lambda _: self._candidates_stale())
         self.auto_box = QtWidgets.QCheckBox("choose for me")
         self.auto_box.setChecked(True)
-        self.auto_box.setToolTip("when following, let the computer choose the spot size, and bright or dark, from your marks")
+        self.auto_box.setToolTip("let the computer choose the spot size, and bright or dark, from your marks")
         self.auto_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         det.addWidget(self.cand_box)
         det.addWidget(self.size_box)
@@ -2228,8 +2232,9 @@ class QtMarker(QtWidgets.QMainWindow):
         bar.addStretch(1)
         self.speed_label = QtWidgets.QComboBox()
         self.speed_label.addItems([f"{v}× speed" for v in SPEEDS])
-        self.speed_label.setToolTip(f"how fast it plays ({actions.spoken(rows['slower'].keys[0])} and "
-                                    f"{actions.spoken(rows['faster'].keys[0])})")
+        self._speed_tip = (f"how fast it plays ({actions.spoken(rows['slower'].keys[0])} and "
+                           f"{actions.spoken(rows['faster'].keys[0])})")
+        self.speed_label.setToolTip(self._speed_tip)
         self.speed_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.speed_label.activated.connect(lambda i: self.change_speed(i - self._speed))
         bar.addWidget(self.speed_label)
@@ -2330,8 +2335,8 @@ class QtMarker(QtWidgets.QMainWindow):
             return
         self.advanced = on
         self.mode_button.setText("Auto Mode" if on else ROWS["advanced"].text)
-        self.mode_button.setToolTip("back to the one button that finds, follows and measures the object, in place of the "
-                                    "three steps" if on else ROWS["advanced"].help)
+        self.mode_button.setToolTip("back to the one button that finds, follows and measures the object" if on else
+                                    actions.tip(ROWS["advanced"]))
         self.auto_card.setVisible(not on)
         self.steps_box.setVisible(on)
         if on:
@@ -2611,8 +2616,8 @@ class QtMarker(QtWidgets.QMainWindow):
             for k, text in enumerate((c, str(n), f"{x:.2f}", f"{y:.2f}", self.ms.kind(c, n))):
                 it = QtWidgets.QTableWidgetItem(text)
                 it.setForeground(QtGui.QColor(COLOURS[CLASSES.index(c)]))
-                if how:
-                    it.setToolTip(how)
+                if how:                               # who placed it, in a short sentence: the record itself is the file's
+                    it.setToolTip(HOW_TIPS.get(self.ms.kind(c, n), HOW_TIPS["other"]))
                 self.table.setItem(r, k, it)
         self._rows = rows
         self._say_link()
@@ -2852,7 +2857,7 @@ class QtMarker(QtWidgets.QMainWindow):
     def _follow_jewels(self):
         """(what each bar of the follow is for, how many are over), for the jewels under step 2's bar."""
         many = len({ci for ci, _ in self._follow_parts if ci != "masks"}) > 1
-        return ([(f"{CLASSES[ci]}: " if many and ci != "masks" else "") + PART_WORDS[what if ci != "masks" else "masks"]
+        return ([(f"{CLASSES[ci]}, " if many and ci != "masks" else "") + PART_WORDS[what if ci != "masks" else "masks"]
                  for ci, what in self._follow_parts], self._follow_part)
 
     # -- marks -----------------------------------------------------------------------------
@@ -2968,9 +2973,8 @@ class QtMarker(QtWidgets.QMainWindow):
 
     def _say_speed(self):
         self.speed_label.setCurrentIndex(self._speed)
-        self.speed_label.setToolTip(self.speed_label.toolTip().split(" — ")[0]
-                                    + (f" — last played: {self.shown} frames shown, {self.skipped} skipped"
-                                       if self._playing or self.shown else ""))
+        self.speed_label.setToolTip(f"last played {self.shown} frames, {self.skipped} skipped" if self._playing or self.shown
+                                    else self._speed_tip)
 
     def _tick(self):
         due = self._play_from + int(Fraction(self._clock.nsecsElapsed(), 10 ** 9) * self.fps * self.speed())
@@ -3285,7 +3289,7 @@ class QtMarker(QtWidgets.QMainWindow):
         words.addWidget(tip)
         top.addLayout(words, 1)
         no = QtWidgets.QPushButton("No, it goes off the object")
-        no.setToolTip("then click the object yourself on a frame where the box is wrong, and follow again")
+        no.setToolTip("click the object yourself on a frame where the box is wrong, then follow again")
         yes = QtWidgets.QPushButton("Yes, it is on the object")
         yes.setStyleSheet(PRIMARY)
         for b in (no, yes):
@@ -3933,7 +3937,7 @@ class QtMarker(QtWidgets.QMainWindow):
         row.addWidget(d.storage)
         d.change = QtWidgets.QPushButton("Change…")
         d.change.setAutoDefault(False)
-        d.change.setToolTip("choose another folder to save data in; remembered for next time")
+        d.change.setToolTip("choose another folder to save data in")
         d.change.clicked.connect(lambda _=False: self.change_storage())
         row.addWidget(d.change)
         row.addStretch(1)
@@ -3955,10 +3959,7 @@ class QtMarker(QtWidgets.QMainWindow):
         box.setSpecialValueText(cores_by_default(have))
         box.setSuffix(f" of {have}")
         box.setKeyboardTracking(False)
-        box.setToolTip("Fewer leaves more of the computer for other work while a video is measured, and the "
-                       "measuring takes longer. The answers are the same either way."
-                       + (f" More than {progress.MOST_WORKERS} measure no sooner: each one takes time to start."
-                          if have > progress.MOST_WORKERS else ""))
+        box.setToolTip("fewer leaves more of the computer for other work, and the measuring takes longer")
         chosen = int(os.environ.get(progress.CPUS_VAR, "0") or 0)
         box.setValue(0 if chosen >= have else chosen)
         fixed = bool(os.environ.get(CPUS_FROM_OUTSIDE, ""))
@@ -3969,7 +3970,10 @@ class QtMarker(QtWidgets.QMainWindow):
         d.body.addLayout(row)
         d.body.addWidget(muted(
             f"This was set to {chosen} before the window opened ({progress.CPUS_VAR}), and cannot be changed here."
-            if fixed else "Remembered for next time. A step already under way keeps what it has; the next one uses this."))
+            if fixed else "Remembered for next time. A step already under way keeps what it has; the next one uses this. "
+                          "The answers are the same with any number."         # said in the box's tooltip until 2026-11-22
+                          + (f" More than {progress.MOST_WORKERS} measure no sooner, because each one takes time to start."
+                             if have > progress.MOST_WORKERS else "")))
         d.body.addSpacing(12)
 
         d.body.addWidget(heading("Sound", 1.1))
@@ -3978,7 +3982,7 @@ class QtMarker(QtWidgets.QMainWindow):
         box = d.sound_device = QtWidgets.QComboBox()
         box.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         box.setMinimumContentsLength(34)              # a device's name can be long; the list shows the whole of it
-        box.setToolTip("where the sound of a video plays: the computer's own choice, or headphones or speakers you choose")
+        box.setToolTip("choose where a video's sound plays, such as headphones or speakers")
         box.activated.connect(self.choose_sound)
         row.addWidget(box)
         d.sound_test = QtWidgets.QPushButton("Play a test sound")
@@ -3999,14 +4003,13 @@ class QtMarker(QtWidgets.QMainWindow):
         box = d.gpu = QtWidgets.QComboBox()
         box.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         box.setMinimumContentsLength(34)
-        box.setToolTip("the graphics card the slow steps run on; they give the same measurement on the CPU")
+        box.setToolTip("the graphics card the slow steps run on")
         box.activated.connect(self.choose_gpu)
         row.addWidget(box)
         d.gpu_install = QtWidgets.QPushButton("Install the add-on")      # there only where a card waits for it (`_say_gpu`)
         d.gpu_install.setAutoDefault(False)
         d.gpu_install.setStyleSheet(SECONDARY)        # a job still to do, beside the main one: teal, quietly
-        d.gpu_install.setToolTip("download the add-on for this graphics card and put it in place; nothing already on "
-                                 "this computer is replaced")
+        d.gpu_install.setToolTip("download the add-on for this graphics card and put it in place")
         d.gpu_install.clicked.connect(lambda _=False: self.install_addon())
         d.gpu_install.hide()
         row.addWidget(d.gpu_install)
@@ -4271,7 +4274,7 @@ def extract_with_progress(clip, parent=None, watch=None):
     total = clip.n1 - clip.n0 + 1
     box = BusyCard(parent if isinstance(parent, QtMarker) else None, "Saving the frames as pictures",
                    f"Saving {total} frames from {clip.video.name}", total, fmt="%v of %m frames", command="mark")
-    box.label.setToolTip(f"Done once for this video, with nothing lost. They are kept in {clip.dir}")   # one line, nothing else (2026-10-21)
+    box.label.setToolTip(f"done once for this video, and kept in {clip.dir}")   # one line, nothing else (2026-10-21)
     show_busy(parent, box)
     stop, result = threading.Event(), {}
 
@@ -4516,7 +4519,7 @@ class AddOn(QtCore.QObject):
         self.words = dict(card=offer["card"], gb=offer["download_mb"] / 1000)
         self.card = BusyCard(window, ADDON_TITLE, ADDON_WORDS["looking"].format(**self.words), int(offer["download_mb"]),
                              fmt="%v of %m MB", command="setup", stays=True)
-        self.card.command.setToolTip("what the window is doing now is what “mcdonald setup --install-gpu” does, typed in a terminal")
+        self.card.command.setToolTip("the command that does this in a terminal is “mcdonald setup --install-gpu”")
         self.card.cancel_button.setToolTip("stop the download, and install nothing")
         self.card.cancel_button.clicked.connect(self.drop)
         self.ended.connect(self._ended)
@@ -4907,7 +4910,7 @@ class RangeChooser(Page):
         name, fps = clip.video.name, float(self.fps)
         self.setWindowTitle(f"Select a segment of the video ({name})")
         self.back.hide()                              # its own Open and Cancel are the way out (Esc is Cancel)
-        self.head.setToolTip(f"{name}: {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
+        self.head.setToolTip(f"{name}, {total} frames, {clock(total / fps)} long, {fps:.4g} frames a second, {clip.W}×{clip.H}")
         # the card of questions: in the window's right column, or beside the player when there is no window
         self.panel = QtWidgets.QFrame()
         self.panel.setObjectName("segment")
@@ -4956,7 +4959,7 @@ class RangeChooser(Page):
 
         def button(text, act, kind=QtWidgets.QToolButton, icon=None):
             """A button for a move, its tip the row's help and its first key."""
-            do, tip = (moves[act], rows[act].help) if act in moves else own[act]
+            do, tip = (moves[act], actions.tip(rows[act])) if act in moves else own[act]
             b = self.buttons_by_id[act] = kind()
             b.setText(text)
             if icon is not None:
@@ -5000,7 +5003,7 @@ class RangeChooser(Page):
         right.addStretch(1)
         self.speed_box = QtWidgets.QComboBox()
         self.speed_box.addItems([f"{v}× speed" for v in SPEEDS])
-        self.speed_box.setToolTip("how fast it plays: slower to find the object's first and last frames "
+        self.speed_box.setToolTip("how fast it plays, slower to find the object's first and last frames "
                                   f"({native_keys(actions.spoken(keys_of('slower')[0]))} and "
                                   f"{native_keys(actions.spoken(keys_of('faster')[0]))})")
         self.speed_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -5016,10 +5019,13 @@ class RangeChooser(Page):
                  ("Home and End", "the first and the last frame"), ("shift and Home", "stop, and back to the first frame"),
                  ("[ and ]", "start or end the segment here"), ("Enter", "open the segment"),
                  ("P", "play the segment")]
-        shortcuts.setToolTip("<table>" + "".join(f"<tr><td><b>{escape(k)}</b>&nbsp;&nbsp;</td><td>{escape(v)}</td></tr>"
-                                                  for k, v in lines) + "</table>")
+        # Pressed, it shows the page's keys as a table under itself. That is not a tooltip: its tooltip, what the pointer
+        # shows at rest, is one short sentence like every other (Jacob, 2026-11-22), and the table is `keys_table`
+        shortcuts.setToolTip("press to see the keys that work on this page")
+        self.keys_table = ("<table>" + "".join(f"<tr><td><b>{escape(k)}</b>&nbsp;&nbsp;</td><td>{escape(v)}</td></tr>"
+                                               for k, v in lines) + "</table>")
         shortcuts.clicked.connect(lambda: QtWidgets.QToolTip.showText(
-            shortcuts.mapToGlobal(QtCore.QPoint(0, shortcuts.height())), shortcuts.toolTip(), shortcuts))
+            shortcuts.mapToGlobal(QtCore.QPoint(0, shortcuts.height())), self.keys_table, shortcuts))
         right.addWidget(shortcuts)
         ctl.addLayout(right, 1)
         lay.addLayout(ctl)
@@ -5033,7 +5039,7 @@ class RangeChooser(Page):
             box.setValue(n)
             box.setPrefix("frame ")
             box.setKeyboardTracking(False)
-            box.setToolTip(tip + ": type a frame number, or use the button at the frame on the screen")
+            box.setToolTip(tip + ", typed here or set with the button beside it")
             box.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
             grid.addWidget(button(text, act, QtWidgets.QPushButton), r, 0)
             grid.addWidget(box, r, 1)
@@ -5071,8 +5077,7 @@ class RangeChooser(Page):
         self.count.setSpecialValueText("I don't know")
         self.count.setKeyboardTracking(False)
         self.count.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        self.count.setToolTip("Leave it if you don't know: the run then follows every likely thing it finds. With a number, "
-                              "it follows that many of the likeliest things, and says how many it found against it.")
+        self.count.setToolTip("how many objects to follow, or leave it to follow every likely one")
         self.count.editingFinished.connect(self.preview.setFocus)
         count.addWidget(self.count)
         count.addStretch(1)
@@ -5156,7 +5161,7 @@ class RangeChooser(Page):
             said = QtWidgets.QLabel(f"<b>{clock((seg.n0 - 1) / fps)} to {clock((seg.n1 - 1) / fps)}</b><br>"
                                     + escape(seg.label or ("No report yet" if not seg.reports else "Report")))
             said.setWordWrap(True)
-            said.setToolTip(f"frames {seg.n0}–{seg.n1}, in {seg.folder}" + (f"\n\n{seg.headline}" if seg.headline else ""))
+            said.setToolTip(f"frames {seg.n0}–{seg.n1}, in {seg.folder}")      # what its report says is its label, and its report
             rows.addWidget(said, r, 0)
             again = QtWidgets.QPushButton("Open")
             again.setToolTip("open this segment again, with its marks and its report")
@@ -5245,7 +5250,7 @@ class RangeChooser(Page):
         c = self.clip.cost(a, b)
         fits = c["bytes"] <= 0.8 * c["free"]
         self.cost.setText(short_cost(c))
-        self.cost.setToolTip(vf.cost_text(c))
+        self.cost.setToolTip(cost_tip(c))
         self.cost.setStyleSheet("" if fits else "color: #e8a23a;")
         self.buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Open).setEnabled(fits)
         self.bar.part = (a, b)
@@ -5431,6 +5436,14 @@ class RangeChooser(Page):
         if self._done is None:                        # closed without an answer (Esc, the window going): none
             self.done(0)
         super().closeEvent(e)
+
+
+def cost_tip(c):
+    """clip.cost_text in one short sentence, for the tip of the range chooser's foot: how many frames are still to be
+    saved, and where. The size and the room are the foot's own words (`short_cost`); the whole sentence is the
+    command line's."""
+    return (f"all {c['frames']} frames are already saved, in {c['dir']}" if not c["missing"] else
+            f"{c['missing']} of {c['frames']} frames still have to be saved, in {c['dir']}")
 
 
 def short_cost(c):

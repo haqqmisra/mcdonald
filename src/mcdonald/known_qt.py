@@ -146,36 +146,22 @@ class KnownForm(QtWidgets.QWidget):
     changed = QtCore.Signal()
 
     # what each box holds, said under the pointer
-    TIPS = {"fov": "how wide an angle the picture covers, from its left edge to its right, in degrees. A source, or the "
-                   "camera's make and zoom, may give it. With the distance to the object, the report gives its speed and size",
-            "lens_k1": "how much the lens bends straight lines near the picture's edge, if a calibration of the camera gives "
-                       "it: its k1, counted as calibration tools count it, in the lens's focal length. Below 0 for a wide lens, "
-                       "which bows lines outward, such as -0.43. It needs the horizontal field of view. The path is then drawn "
-                       "back through the lens before it is tested for a straight line at a steady speed",
-            "lens_k2": "the lens's second bending term, if a calibration of the camera gives one: its k2, counted as k1 is. "
-                       "Wide lenses often have one of the other sign from k1, such as k1 -0.55 with k2 +0.73. Without it, a "
-                       "rate near the picture's edge can read about an eighth too high. It needs the horizontal field of view",
-            "range_m": "the distance from the camera to the object, if a source gives it. With the horizontal field of view, "
-                       "the report gives the object's speed and its size",
-            "range_max_m": "the farthest the object can be, if you know a limit and not its distance: the ground behind it, "
-                           "where the camera looks down, and a display may say how far away that is. With the horizontal field "
-                           "of view, the report gives the most its speed across the picture and its size can be",
-            "ref_m": "the physical length of a reference object in the picture, one whose size you know, such as a ship or a "
-                     "building. With its length in pixels on the screen, the report gives the most the object's speed "
-                     "can be, if it is no farther away than that reference",
-            "ref_px": "the reference's length in pixels on the screen: measure it on the video with the button",
-            "ground_speed": "a speed a report gave for the object, measured along the ground below it. Used with the "
-                            "aircraft's speed",
-            "own_ship": "the speed of the aircraft that carried the camera. Used with a speed a report gave for the object",
-            "height": "how high the camera was over the sea, if a source gives it. With where the sea's horizon is, the "
-                      "report says how far away the object can be if it is below the horizon, or how high it is at least "
-                      "if it is above",
-            "horizon": "click the line where the sea meets the sky, on the video, on a frame where the object is near it",
-            "visibility": "how far one could see that day, from a weather report: a dark object that looks pale in the haze "
-                          "is far away, so the report says how far away it can be, to within about four times",
-            "band": "daylight, or which kind of infrared (a heat camera sees warmth). An object as sharp as the scene's own "
-                    "points is far away, if the camera was focused far away and not on it: with the horizontal field of "
-                    "view, the report says how far away it is at least"}
+    # each box's tooltip: what to put in it, in one short sentence (Jacob, 2026-11-22: "make sure any of the yellow box
+    # "hover over" text is one short sentence at most"). What the report then does with it is said by the card that asks
+    # ("Its real speed needs ..."), by `mcdonald run --help` (`stages.KNOWN`'s help) and in the technical README.
+    TIPS = {"fov": "how wide an angle the picture covers, left edge to right, in degrees",
+            "lens_k1": "how much the lens bends straight lines near the picture's edge, from a calibration",
+            "lens_k2": "the lens's second bending term, if a calibration of the camera gives one",
+            "range_m": "the distance from the camera to the object, if a source gives it",
+            "range_max_m": "the farthest the object can be, such as the ground behind it",
+            "ref_m": "the physical length of a reference in the picture whose size you know",
+            "ref_px": "the reference's length in pixels on the screen, measured with the button",
+            "ground_speed": "a speed a report gave for the object, measured along the ground",
+            "own_ship": "the speed of the aircraft that carried the camera",
+            "height": "how high the camera was over the sea, if a source gives it",
+            "horizon": "click where the sea meets the sky, on a frame with the object near it",
+            "visibility": "how far one could see that day, from a weather report",
+            "band": "daylight, or which kind of infrared the camera saw"}
 
     def __init__(self, ruler=None, where="on the video", narrow=False, parent=None, point=None):
         super().__init__(parent)
@@ -214,8 +200,7 @@ class KnownForm(QtWidgets.QWidget):
         self.ruler = None
         if ruler is not None:
             self.ruler = QtWidgets.QPushButton("Measure " + where)
-            self.ruler.setToolTip(f"drag along that object {where}, from one end to the other: its length on the screen goes "
-                                  "in the box beside it")
+            self.ruler.setToolTip(f"drag along that object {where} to measure its length on the screen")
             self.ruler.setAutoDefault(False)
             self.ruler.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             self.ruler.clicked.connect(lambda _=False: ruler(self._ruled))

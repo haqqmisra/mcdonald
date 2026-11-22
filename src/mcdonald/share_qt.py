@@ -101,9 +101,8 @@ class ShareCard(QtWidgets.QFrame):
                 self.again.setFocusPolicy(Qt.FocusPolicy.NoFocus)
                 same = check is None or check[0]
                 self.again.setEnabled(same)
-                self.again.setToolTip("measure each object it holds again, as its report says it was measured, and see whether "
-                                      "the numbers come back the same -- minutes for each object" if same else
-                                      "the video here is not the one they measured, so its numbers cannot come back the same")
+                self.again.setToolTip("measure each object it holds again, to see whether the numbers come back the same" if same else
+                                      "this is not the video they measured, so the numbers cannot come back the same")
                 self.again.clicked.connect(self.measure_again)     # a method, not a lambda holding the card (mark_qt.Collector)
                 lay.addWidget(self.again)
                 self.again_said = _small("")
@@ -116,7 +115,7 @@ class ShareCard(QtWidgets.QFrame):
                 b.setStyleSheet(QUIET)
                 b.setAutoDefault(False)
                 b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-                b.setToolTip("sent with it: opens in the program this computer uses for it")
+                b.setToolTip("open it in the program this computer uses for such a file")
                 b.clicked.connect(lambda _=False, p=p: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(p))))
                 lay.addWidget(b)
         line = QtWidgets.QFrame()
@@ -148,7 +147,7 @@ class ShareCard(QtWidgets.QFrame):
         self.go.setStyleSheet(PRIMARY)
         self.go.setAutoDefault(False)
         self.go.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.go.setToolTip("one file with this video's results, the stretches, and the notes; the video itself is not in it")
+        self.go.setToolTip("one file with this video's results, the stretches and the notes, without the video")
         self.go.clicked.connect(self.save)
         lay.addWidget(self.go)
         self.result = _small("")
