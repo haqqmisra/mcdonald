@@ -100,6 +100,20 @@ frames or fewer whose frames are saved opens without the segment step, so the co
 File → Another segment of this video…; `several.index` writes the list again under the count said now, which is how
 a list came to record a count its objects were not chosen for.
 
+## After the round was reported: two more requests (2026-11-22, afternoon)
+
+Jacob: "Can you also polish up the report? In particular, can you make the plots more embedded into the report? Right
+now the white border of the plot makes it look like it was pasted in. Either make a transparent background for the
+figures that shows up against the background, or just make the background color of the report white. Second request:
+make sure any of the yellow box "hover over" text is one short sentence at most".
+
+| what | where | held to |
+|---|---|---|
+| **The report's page is a sheet of paper in the window** (TU8): dark ink on white, the saved PDF's colours, so a plot's white is the page's and nothing frames it. (A transparent plot would have put its black ink on the dark page: the plots are drawn for paper.) Each picture is centred, with its caption close under it in smaller, quieter type. The list of objects and the sound's page are paper too; Help and the rest of the window stay dark | `mark_qt.ReadingView(paper=True)`, `paper.dress` (`SHEET`, `INK`, `FAINT`), `measure_qt.render`, `several_qt`, `sound_qt`; commit f0684d7 | test_gui 836 -> 841 (job 19297): the page white behind dark ink, a plot's corner pixel the page's colour, every picture centred, the list and the sound's page paper, Help not; seen on PR169's report in the real window (`scripts/report169.py`, `ex1/report-i/*.png` in the scratch folder) |
+| **The conclusion as one card**: one frame round its lines in place of a band behind each paragraph, which had left stripes of page between them (plain to see on white); on the page and in the PDF | `paper.dress`; commit fea90ac | test_gui 841, test_cli 164, test_share 31 (job 19302); seen on the page and in the PDF's first page |
+| **Every tooltip in the window is one short sentence at most** (TU7; the window strand's Job D): 15 words at most, one line, no second sentence, no chain of clauses on a colon or a semicolon, no table or list; a key or a command's option in parentheses at its end is not counted. 238 tooltips read, 178 rewritten. A menu row's long `help` stays where long is right (the status bar, Help → Keys and mouse, `mark --help`) and has a short form for the hover (`actions.TIPS`, `actions.tip`). The report card's rows now say what each number is, not how it was found (`report_qt.GLOSS`); the full report says how | `actions`, `stages.tip`, `known_qt.TIPS`, `report_qt`, `mark_qt`, `measure_qt` (`STAGE_WORDS`), `find_qt`, `several_qt`, `share_qt`, `sound_qt`, `auto_qt`; commit 0cfa22a, merged as 012a05a | test_gui: at every check of every driver each of the package's windows is walked (every widget, action, table cell, list row and choice) and no tooltip seen may break the rule (26 checks), and with no window the rule is held on every `setToolTip` string in the source and every table of tips (5 checks). On PR169 in the real window, four states: 74 different tooltips, none breaks it (`scripts/tips169.py`). **The table of every tooltip before and after, for Jacob to read and change: `/scratch/mcdonald/tune-2026-11-22/tips/tooltips.tsv`** |
+| **The window draws its figures as files on Linux too**: inside the Qt window's process `figures.setup` now takes matplotlib's Agg whatever display there is. With a display it had taken the Qt backend, and every figure built a hidden window and toolbar of matplotlib's on the thread that measures (found by the tooltip walk, which met their tooltips; reading them while one was made left a stopped measuring hanging once in three runs). No figure changes; a Mac and Windows always drew this way | `figures.setup` | test_gui: after the window measured, the backend is Agg and no window of matplotlib's exists |
+
 ## Checks on the merged tree
 
 **`tune` 5dbea30** (everything of the round; a snapshot in `/scratch/mcdonald/tune-2026-11-22/snap/tune-e`).

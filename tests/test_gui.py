@@ -2295,6 +2295,14 @@ def drive_measuring(td):
     figures = [b for b in blocks if "\ufffc" in b.text()]
     check(figures and all(b.blockFormat().alignment() & QtCore.Qt.AlignmentFlag.AlignHCenter for b in figures),
           "and each picture is set in the middle of the column, as a figure is in print", f"{len(figures)} pictures")
+    # The window's figures are files, drawn with Agg whatever screen there is (`figures.setup`, 2026-11-22): with
+    # matplotlib's Qt backend each one built a window and a toolbar of matplotlib's own on the thread that measures.
+    import matplotlib
+    from PySide6 import QtWidgets as _QW
+    theirs = [type(t).__name__ for t in _QW.QApplication.topLevelWidgets() if type(t).__module__.startswith("matplotlib")]
+    check(matplotlib.get_backend().lower() == "agg" and not theirs,
+          "the figures the window measured were drawn as files (Agg): matplotlib made no window of its own in this process",
+          f"backend {matplotlib.get_backend()}; {theirs[:3]}")
     from PySide6 import QtWidgets as QW
     keep_where, asked = measure_qt.where_to_save, []
     measure_qt.where_to_save = lambda parent, start: asked.append(start) or str(case.parent / "saved report")

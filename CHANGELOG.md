@@ -45,6 +45,11 @@ is the page's white, so nothing frames it. Each picture sits in the middle of th
 it in smaller, quieter type. The list of objects and the sound's page are on paper too. Help and the rest of the
 window stay dark. No report's words or numbers change.
 
+**The window draws its figures as files, on Linux too** (2026-11-22). While the window measured a video on a Linux
+desktop, the plotting library built a hidden window of its own for every figure, on the thread that measures. Such
+windows may only be made on the window's own thread, so this could leave a run hanging. Figures are now drawn
+straight to files inside the window, as they always were on a Mac and on Windows. No figure changes.
+
 **A beat's picture keeps its title on the page** (2026-11-22). Where a beat had a double, the title over the right
 panel ("5.93 Hz (double 11.86)") ran off the figure's edge. It now ends at the panel's edge.
 

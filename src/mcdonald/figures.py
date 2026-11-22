@@ -91,10 +91,19 @@ CLASHES = []
 
 def setup(size=None, family=None):
     """The house rcParams (HOUSE_RC). Call once, before creating a figure. `size` and `family` are kept for the old
-    callers and are not used: one size of type in every figure is the point."""
+    callers and are not used: one size of type in every figure is the point.
+
+    The figures are files, drawn with Agg: where there is no display, and also inside the Qt window's process, whatever
+    display there is. There, matplotlib would otherwise choose its Qt backend, and every `plt.figure()` would build a
+    window and a toolbar of matplotlib's own -- never shown -- on the thread that measures, which is not the thread
+    Qt's widgets may be made on (found 2026-11-22, when a walk over every widget met their tooltips, and reading them
+    from the window's thread while a figure was made left a stopped measuring hanging). On a Mac and on Windows there
+    is no DISPLAY and it was always Agg. The matplotlib marking window (`mark` with no Qt) runs in a process that never
+    loads `mark_qt`, and keeps its screen."""
+    import sys
     import matplotlib
-    if not os.environ.get("DISPLAY"):
-        matplotlib.use("Agg")
+    if not os.environ.get("DISPLAY") or "mcdonald.mark_qt" in sys.modules:
+        matplotlib.use("Agg")                      # nothing to do where it is Agg already
     import matplotlib.pyplot as plt
     from cycler import cycler
     plt.rcParams.update(dict(HOUSE_RC, **{"axes.prop_cycle": cycler(color=HOUSE)}))
