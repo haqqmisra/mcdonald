@@ -58,12 +58,59 @@ def dress(doc, size_pt, band, rule, accent, faint=None):
     the middle of the column, with room above it, and the line of italics under it -- its caption, where the report
     gives one -- close beneath, a little smaller and in `faint`, with the room after that."""
     from PySide6 import QtCore, QtGui
+    # the conclusion, first on the page (Jacob, 2026-10-07), as a card: `band` behind its lines, under its heading. One
+    # frame round each run of them, so that the band is whole: a band behind each paragraph left the page showing
+    # between them, as stripes, which on a white page were plain to see (2026-11-22). The checklist's table, between
+    # two runs, is ruled, not banded.
+    runs, run, in_conclusion, block = [], None, False, doc.begin()
+    while block.isValid():
+        level = block.blockFormat().headingLevel()
+        if level:
+            in_conclusion, run = level == 2 and block.text().strip() == "Conclusion", None
+        elif in_conclusion and QtGui.QTextCursor(block).currentTable() is not None:
+            run = None
+        elif in_conclusion and block.text().strip():
+            if run is None:
+                run = [block.position(), None]
+                runs.append(run)
+            run[1] = block.position() + block.length() - 1
+        block = block.next()
+    for start, end in reversed(runs):               # from the last, so that the earlier ones' places stand
+        cur = QtGui.QTextCursor(doc)
+        cur.setPosition(start)
+        cur.setPosition(end, QtGui.QTextCursor.MoveMode.KeepAnchor)
+        card = QtGui.QTextFrameFormat()
+        card.setBackground(QtGui.QColor(band))
+        card.setBorder(0)
+        card.setPadding(12)
+        card.setMargin(0)
+        card.setTopMargin(4)
+        card.setBottomMargin(8)
+        cur.insertFrame(card)
+
+    def carded(b):
+        """Is this block one of the conclusion's card?"""
+        if not b.isValid():
+            return False
+        c = QtGui.QTextCursor(b)
+        return c.currentTable() is None and c.currentFrame().parentFrame() is not None
     block, pictured = doc.begin(), False
     while block.isValid():
         fmt = block.blockFormat()
         level = fmt.headingLevel()
         cur = QtGui.QTextCursor(block)
         picture = "\ufffc" in block.text()
+        if not block.text() and not carded(block) and (carded(block.previous()) or carded(block.next())):
+            # the empty line a frame leaves before it and after it: no height, or the card stands off from its heading
+            fmt.setTopMargin(0)
+            fmt.setBottomMargin(0)
+            fmt.setLineHeight(1, QtGui.QTextBlockFormat.LineHeightTypes.FixedHeight.value)
+            cur.setBlockFormat(fmt)
+            small = QtGui.QTextCharFormat()
+            small.setFontPointSize(1)
+            cur.setBlockCharFormat(small)
+            block = block.next()
+            continue
         if picture:                                # a figure: centred, close to its caption
             fmt.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter)
             fmt.setTopMargin(14)
@@ -103,22 +150,6 @@ def dress(doc, size_pt, band, rule, accent, faint=None):
                 fmt.setLineHeight(135, QtGui.QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
             fmt.setBottomMargin(max(fmt.bottomMargin(), 6))
             cur.setBlockFormat(fmt)
-        block = block.next()
-    # the conclusion, first on the page (Jacob, 2026-10-07), as a card: a band behind its lines, under its heading
-    in_conclusion, first, block = False, True, doc.begin()
-    while block.isValid():
-        level = block.blockFormat().headingLevel()
-        if level:
-            in_conclusion, first = level == 2 and block.text().strip() == "Conclusion", True
-        elif in_conclusion and block.text().strip() and QtGui.QTextCursor(block).currentTable() is None:   # the checklist's cells are ruled, not banded
-            fmt = block.blockFormat()
-            fmt.setBackground(QtGui.QColor(band))
-            fmt.setLeftMargin(14)
-            fmt.setRightMargin(14)
-            fmt.setTopMargin(10 if first else 0)
-            fmt.setBottomMargin(10)
-            QtGui.QTextCursor(block).setBlockFormat(fmt)
-            first = False
         block = block.next()
     it = doc.begin()                              # links in the accent: Markdown import fixes them in the palette's blue
     while it.isValid():
