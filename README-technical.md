@@ -743,6 +743,7 @@ mcdonald mark CLIP.mp4 --no-window --set object@813=116,70 --set object@911=137,
 mcdonald mark CLIP.mp4 --no-window --set object@1658=307,71 --set object@1703=379,231 --why "…" --out CLIP/object-2
 mcdonald run CLIP.mp4 --each CLIP/          # every object-N under it: linked, measured over the frames it is in
 mcdonald run CLIP.mp4 --each CLIP/ --objects 6   # looking for six: the list says how many were followed, and a group's members become objects
+mcdonald run CLIP.mp4 --each CLIP/ --same 1,2    # objects 1 and 2 are the same object: made one (object 1), then followed and measured
 mcdonald report CLIP/object-1/clip_case.json --i-looked     # once its track sheet has been looked at
 mcdonald report CLIP/object-1/clip_case.json --fov 2.5 --range 9000   # known afterwards: the speed worked out again
 mcdonald report CLIP/ --index               # the list again, from the folders
@@ -768,6 +769,25 @@ by the codec's line or the bird beside them), and the tether stage names a fello
 with it rather than calling it something tied to the object. The group's own case stays, its report
 the flock's. The background step is measured for each object on its own: its templates are made with the
 object's track in hand.
+
+**Two found objects that are one** (2026-11-22; `several.join`, method section 112). Find lists what it saw, so one
+object seen twice -- 60 frames apart, or with frames between where it was not seen -- is two rows, two folders and
+two reports, and `same_things` notices by itself only where two tracks lie on the same pixels. `run --each DIR
+--same N,M` is for whoever knows they are one: the marks of both become object N's (the lower number), each mark
+still saying what it was recorded as (`how`), the frames it was seen on the first to the last of either, and the
+marks file gains a record of who said they are one and when (`joined`: what, of, by, when, which marks came from
+which, and `both`, the frames both had marked at different places, where the lower number's mark is kept). Their old
+folders are set aside whole in `DIR/earlier/<date>_<time>/` (`clear.aside`), and nothing is deleted or measured; the
+queue then follows and measures the one object as any other. Its report says above its conclusion that the objects
+were made one, by whom, whose marks it was followed from, and what the track did where one's marks meet the next
+one's (`stages.seams`, by the link's own gate): "the track passes through the marks of both", or "The track does not
+join them at frame 15", with the frames. The person's word is the authority, as a hand mark is, and what the link
+found is not hidden. `--json` has `results.joined`; a group's member, and a group whose members are objects, are
+refused with exit 2. In the window the same function is "Same object as…" on an object's card -- one line in the
+card, a choice of the other objects, Join them or Cancel, no dialog -- after which the one object is followed and
+measured as a press does it and the line under the button says where the old folders went; and at Find's list, with
+two or more rows ticked, "They are one object" beside "Follow and measure the ticked ones" takes their marks together
+as the window's own object (`QtMarker.take_as_one`), saved as proposed, with the same record.
 
 In the window it is the same function. Each row of Find's list has a tick, "one of several"; with
 rows ticked, "Follow and measure the ticked ones" under the list gives each a folder with its marks

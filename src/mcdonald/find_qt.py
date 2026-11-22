@@ -24,6 +24,7 @@ from . import propose
 from .mark_qt import MUTED, PART_WORDS, PRIMARY, complain, qimage_from_rgb
 
 SEVERAL = "Follow and measure the ticked ones"      # the button under the list, and what the words above it call it
+AS_ONE = "They are one object"                       # ... and the one beside it, for rows that are one object seen more than once
 from .progress import Stopped, clock, left
 
 NEAR = 300                  # frames either side of the one in view, where everything open would take long
@@ -141,7 +142,16 @@ class FindPanel(QtWidgets.QFrame):
                                    "Then each is followed and measured in turn, and gets its own report")
         self.several_go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.several_go.clicked.connect(self.take_several)
+        # ... or the ticked rows are one object, seen more than once (Jacob, 2026-11-22: "an option to indicate that two
+        # different found objects are actually the same one"): the list's own way to say so, before anything is followed
+        self.one_go = QtWidgets.QPushButton(AS_ONE)
+        self.one_go.setToolTip("the ticked rows are the same object, seen more than once. Marks are put along all of them "
+                               "as one object, saved as proposed, and it is followed from them. The report says that you "
+                               "took them as one")
+        self.one_go.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+        self.one_go.clicked.connect(lambda _=False: self.take_as_one())
         bar.addWidget(self.several_text, 1)
+        bar.addWidget(self.one_go)
         bar.addWidget(self.several_go)
         self.several_bar.hide()
         lay.addWidget(self.several_bar)
@@ -313,6 +323,7 @@ class FindPanel(QtWidgets.QFrame):
         n = len(self.ticked())
         self.several_text.setText(f"{n} ticked. Each will be followed and measured in turn, and get its own report."
                                   if n != 1 else "1 ticked. Tick the others too, if there are more.")
+        self.one_go.setVisible(n > 1)                 # one row is "This is it"
         was = self.several_bar.isVisibleTo(self)
         self.several_bar.setVisible(n > 0)
         if was != (n > 0):
@@ -331,6 +342,26 @@ class FindPanel(QtWidgets.QFrame):
             r.tick.setChecked(False)
         self._say_ticked()
         self.take_rows(rows)
+
+    def take_as_one(self):
+        """The person's yes to more than one row as ONE object: marks along all of them as the window's own object,
+        each recorded as proposed and as accepted by a person, with the record that the rows were taken as one
+        (`QtMarker.take_as_one`); then the link, as after "This is it"."""
+        got = self.ticked()
+        if len(got) < 2:
+            return
+        if self.running():
+            self.end_now()
+        rows = _and([i for i, _ in got])
+        items = [(i, p, f"proposed: {i} of {len(self.proposals)} spots found moving against the background in frames "
+                        f"{self.frames()[0]}–{self.frames()[1]} ({p.describe()}); accepted at the window by a person looking "
+                        f"at its strip, who took rows {rows} as one object") for i, p in got]
+        self._ticked.clear()
+        for r in self.rows:
+            r.tick.setChecked(False)
+        self._say_ticked()
+        self.window_.take_as_one(items)
+        self.close()
 
     def take_rows(self, rows, by="accepted at the window by a person looking at its strip", quiet=False):
         """Rows of the list (from 0) as several objects, each with a folder of its own, followed and measured in
@@ -463,6 +494,12 @@ class FindPanel(QtWidgets.QFrame):
         self.window_.show_proposal(None)
         super().closeEvent(e)
         self.window_.work_changed()
+
+
+def _and(ks):
+    """'1 and 3', '1, 2 and 3'."""
+    ks = [str(k) for k in ks]
+    return ks[0] if len(ks) == 1 else ", ".join(ks[:-1]) + " and " + ks[-1]
 
 
 def _about(seconds):

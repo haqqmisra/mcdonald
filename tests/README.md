@@ -576,6 +576,16 @@ other segment's folder, the frames, the video, the notes, the zoom states and th
 folder; `--delete` removes for good and leaves what was set aside before. On the function alone: two starts over
 in one minute are two folders, and where a move fails the ones made are put back.
 
+**Two found objects said to be one** (`test_two_found_objects_said_to_be_one`, 2026-11-22): on the two-disc video,
+the first disc marked in two folders (one frame marked in both, 4 px apart) and the second in a third.
+`run --each --same 1,2` makes the two one object before it measures: four marks, each with the reason it was
+recorded with, object 1's mark kept on the frame both had, the frames it was seen on carried, the record of who said
+so in the marks file, the two old folders whole under `earlier/`, and nothing deleted. Its report says above the
+conclusion that the objects were made one and that the track passes through the marks of both; the list says so on
+its line; no other case's file has the field. Joined then with the other disc, the report says "The track does not
+join them at frame 15", and that objects 1 and 2 had been made one before. A group's member, a group whose member is
+an object, a number that is no object and `--same` without `--each` are exit 2 with a sentence.
+
 ## `test_share.py` — does one file to send someone open where its sender left off?
 
 Portable, needs ffmpeg and no video data (test_cli's drawn clip); 25 checks in about three
@@ -852,6 +862,17 @@ object is outdated from 2 up; the press's own folders when their list's count is
 not the one said, or when there are more of them than are looked for; never with
 a person's tick among them. A mark put by hand and not yet saved is saved, then
 set aside with the rest.
+
+**The same object** (`drive_same_object`, 2026-11-22). On the two-object case the press made: each object's card
+has a quiet "Same object as…" and the window's own card none; pressed, the card asks in one line with the other
+object to choose, Join them and Cancel, no other window opens, and the card is as tall as what it holds; Cancel
+changes nothing. Join them leaves one folder with its marks alone, the two old folders whole under `earlier/`, the
+marks of both with the record that a person in the window said they are one, and the one object followed and
+measured as a press does it. Then there is one card, a report that says above its conclusion what was done and what
+the track did where the marks meet, the list written again, and the line under the button saying where the old
+folders went. At Find's list, two ticked rows show "They are one object" beside the other button (one tick does
+not); pressed, the marks of both are the window's own object, each saved as proposed, with the record; saved, the
+file carries it; one undo takes back the marks and the record.
 
 **What is known of the video** (`drive_what_is_known`, 2026-10-09). The segment
 step asks, folded under the count until opened, in plain words and the units a

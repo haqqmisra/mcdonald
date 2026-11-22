@@ -145,6 +145,12 @@ class SeveralPanel(QtWidgets.QFrame):
         """The rows, from what is in the folders: also the objects of an earlier day."""
         measuring = self._now if self.running() else None
         found = several.things(self.base)
+        for k in [k for k in self.rows if k not in {t.k for t in found}]:      # made one with another object
+            r = self.rows.pop(k)                                               # (`several.join`): its folder is gone
+            self.list.removeWidget(r)
+            r.setParent(None)
+            r.deleteLater()
+            self.pictures.pop(k, None)
         twice = several.same_things(found)
         for t in found:
             d = several.row(t, twice.get(t.k))
