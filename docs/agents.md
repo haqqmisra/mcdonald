@@ -87,8 +87,12 @@ of the way round it the frame shows background — a compact thing is 0.3 to
 `track`, `mark_at` and `to_accept`, the `mcdonald mark --set …` command that takes
 it; `points`, how many compact points it holds (2 or more: a group, whose marks
 would follow the middle of it — ask `mcdonald groups` once it is linked, below);
-and `scrolling_tape`, true for one of a row of marks that slide across the
-screen together, the numbers of a heading or altitude tape. On PR149 the first
+`scrolling_tape`, true for one of a row of marks that slide across the
+screen together, the numbers of a heading or altitude tape; and `pieces`, the
+stretches of frames it was found in, as `[first, last]` pairs. A row has more
+than one where an object that turned was found before the turn and after it,
+and Follow could carry the spot from each stretch into the next: the row is
+then one object, and its `mark_at` has marks in every stretch. On PR149 the first
 is the contact, `strong`; the rest are the ship's masts, `weak`. The list is the
 best few; `--more` lists everything that was kept, up to 30, eight rows to a
 sheet (`…_2.png` and on). Where every row says `weak` — PR113, a four-frame transit — the order is

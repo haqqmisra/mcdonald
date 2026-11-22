@@ -10190,3 +10190,100 @@ percentile is 42 on the days of even rank and 17 on the odd ones.
 - The second fit starts from the first and may stop at a nearer minimum than the least offsets; the misfit is then
   read too large, never too small for a path that fits.
 - It says nothing of which camera is wrong: the camera asked the most may be the one of three that is right.
+
+## 110. One object found at different times: rows joined on the link's say (`propose.joined`, `link_reaches`; IDEAS.md TU1; added 2026-11-22)
+
+**What it answers.** Find's pieces are chains at constant screen velocity, and its two joiners keep to that: `things`
+joins a later chain that starts where the earlier was heading at much the same velocity, and `distinct` folds a row
+into a better one that it runs on, or that it follows on the earlier's path at the earlier's velocity (section 12's
+steps 3 and 6). An object that turns keeps neither. It is slow where it turns, the double difference at k frames is
+blind to what moves under its own width in 2k frames, and the chain after the turn is not where the chain before was
+heading. PR169 (DOD_112158018, 1280 x 720, 408 frames; the maintainer in the window, 2026-11-21) is one bird that an
+infrared camera follows through two turns in 13.6 s. Find listed it as three rows, frames 261-406 (strong, 15.5),
+68-251 (fair, 8.3) and 3-39 (fair, 7.6); the gaps are 29 and 10 frames, and the bird 45 and 5 px from where it had
+been. The one-press run followed all three, each over its own frames and 2 s either side, and wrote three reports.
+`several.same_things` then said that object 2 was object 1 (their tracks on the same pixels on 107 of 107 shared
+frames) and counted object 3, which shares no frame with object 1, as a second object.
+
+**The test** (`link_reaches`). For two rows that could be one object (below), the package's own link
+(`autolink.link_from_marks`, sections on the link) is started from the last two marks the earlier row would be given
+(`Proposal.seeds`) and left to follow the spot on, *with no mark ahead of it*, as far as the frame of the later row's
+first mark. It is lost where two frames in a row hold no spot like the marked one (`autolink.END_GAP`). `forward` is
+the distance from where it arrives to the later row's first mark. `backward` is the same from the later row's first
+two marks back to the earlier's last. The rows are one object where both are within the link's own tolerance for a
+mark (`autolink.mark_gate`: 6 px, a fifth of the spot's size above 30 px). No new threshold: the evidence is the
+link's -- a spot like the marked one on every frame between, each a step from the last, that ends on a mark it was not
+started from (`Link.arrivals`) -- and its constants are the link's, held to the recorded tracks
+(`tools/find_rank.py --replay`).
+
+A link *between* the two rows' marks is not asked. Over frames where the spot is not seen, a pass that has a mark
+ahead holds the line between its marks (`_link_held`), and would arrive at a second object that came up where the
+first had gone. Drawn (tests/test_measurement.py, `TurningClip`): a spot that is not there for the 15 frames of its
+turn and is there again after it; and one that leaves while another comes up 25 px to the side. In both the link
+from the earlier row loses the spot (`forward` None) and nothing is joined.
+
+**Which pairs are asked** (`one_after_another`). Both among the first 12 rows of the scored list (`JOIN_ROWS`: what a
+list holds when nobody asks for more, so `look --more` has the same first rows as the window); each seen on 6 frames
+or more (`JOIN_SEEN`: the length at which `chains` keeps a chain whatever its size and amplitude do); alike as the
+fold asks (the same polarity, widths within 2.5 times); the later beginning 1 to 60 frames after the earlier ends
+(`JOIN_GAP`: the fold's own reach in time); and beginning no further from the earlier's end than 30 px and 25 px a
+frame (`JOIN_STEP`: the link's gate about where a spot should be), or the faster row's own speed where that is more.
+At most 8 pairs a list are put to the link (`JOIN_TESTS`), the better rows' first and of those the nearest in time.
+These bound the link's work; none of them decides a join.
+
+**What a join does** (`joined`). The better row is lent the other's frames and keeps its place, its score and its
+other numbers; the other leaves the list and the rows under it move up; again until nothing more joins. The row's
+`pieces` are the stretches it was found in, its sentence says so ("found 3 separate times (frames 3-39, 68-251,
+261-406) and taken as one object, because the spot can be followed from each into the next"), and its marks are placed
+stretch by stretch, two at least in each (`Proposal.seeds`): taken as one stretch, PR169's first mark fell on frame
+68, because marks keep 70 px off the frame's edge where two points allow and the bird begins 43-63 px from the
+bottom, and the link from the marks then lost the bird at frame 36 going back. Only the last list of a search is
+joined -- the one after the last block, or the one Stop asks for: the link reads frames, and the pool is the search's
+until then.
+
+**Held to.**
+
+- *PR169.* One row, frames 3-406, seen on 339, in three stretches; `forward` and `backward` 0.4 and 0.3 px at both
+  joins; marks on frames 3, 39, 68, 125, 190, 251, 261, 308, 356 and 406. The link from those marks follows 396 of
+  408 frames, 1-408, arriving within 0.7 px of every mark, and lies within 1 px of each of the three tracks of
+  2026-11-21 on every frame it shares with them (204, 270 and 90 frames). Find's time is as before (19-20 s on 16
+  CPUs; the two questions take about 1.3 s each).
+- *The Find benchmark's development part* (section 78: 441 labelled clips; the held-out third was not run), one CPU a
+  clip, the list before the step and after it from the same search. The link was asked about 566 pairs in 147 clips
+  and joined 25. Of the 25, 20 are two rows on the same labelled object. The other five are one object each: a bird
+  whose label changes its number from one frame to the next (V_BIRD_015: the first labelled track ends on frame 129
+  at (190, 116) and the second begins on 130 at (217, 109)); a bird followed, by eye, across 12 unlabelled frames
+  while the camera centres it again, with the second bird of the clip elsewhere in every frame (V_BIRD_008); rows on
+  the unlabelled frames just before a labelled track and on that track (V_AIRPLANE_020, V_BIRD_014); and two rows on
+  one group of lights on the ground, on no labelled object before or after (IR_AIRPLANE_049). Of the 541 not joined,
+  75 were on two different labelled objects, 89 on one object and on nothing, 165 on nothing, 73 on the frames of an
+  object too short to be scored, and 139 on the same labelled object.
+- *Its score there, before -> after:* first row on the object, infrared 190 -> 190 of 294 and visible 163 -> 164 of
+  286 (the bird of V_BIRD_015, from second); shortlist 238 -> 239 and 248 -> 248; any row unchanged; no object's
+  place on a list is lower; the flyers 5 of 5. Output on nothing by the first row: infrared 0.0277 -> 0.0281 positions
+  a frame, 30 positions in the one clip whose first row was on the ground lights before and is longer now; visible
+  0.0228 -> 0.0228. Labelled objects that the one-press run would follow as two objects or more
+  (`one_press_rows`): infrared 6 -> 3 of 210 followed, visible 17 -> 15 of 208.
+- *Its cost there:* 742 s of the 18,291 s that Find and the step took together (4.1 %); a question about 1 s at the
+  median and 9 s at most, on one CPU; the most for one clip 24.6 s.
+- *The recorded tracks* (`tools/find_rank.py --link`, 11 cases): every line the same, rank, score, the frames linked
+  and what the link said; no row of a recorded object was joined to another.
+- *The two bounds, each tried at one other value.* With the reach from the rows' own speeds (in place of
+  `JOIN_STEP`) 356 pairs were asked and 20 joined: a camera that centres its target again carries it across the
+  screen faster than it ever moved while it was held (IR_BIRD_017: two rows at 1 px a frame, the second beginning
+  65 px from the first's end 24 frames on), and such pairs were never asked. With `JOIN_GAP` 150 frames 812 pairs
+  were asked and 38 joined, 31 on the same labelled object, but a helicopter lost its shortlist row
+  (V_HELICOPTER_008: the row on it joined, across 64 frames, to a row outside its box), so 60 stands.
+
+**What it does not do.**
+
+- Pieces more than 60 frames apart, or with two frames between them on which the spot is not seen, stay two rows
+  (of the 18 development objects still followed twice, seven are such small objects). `several.same_things` still
+  says so after they are followed, where their tracks meet.
+- A large body found as several parts at the same time stays several rows (ten helicopters and an airplane of those
+  18): the parts are different spots, and this step is about one spot at different times.
+- A link can go from one object to another where they cross. For a false join it must do so going forward and going
+  back. None was seen in the 566 pairs; flocks whose members cross are where to look.
+- `mcdonald batch` asks for its lists without the step (`join=False`): what is one object in a batch is its own rule
+  (`long_lived`, `merged`), recorded with what it made, and the tables made so far are held to it.
+- The lists shown while a search goes on are not joined; the last is.

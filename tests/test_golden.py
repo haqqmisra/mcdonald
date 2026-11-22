@@ -338,8 +338,8 @@ def test_exercises(only=None):
     the real window when each page was written. A page of several objects (exercise 4, PR135, 2026-10-21) shows a
     line for each row `look --propose --objects N` prints, each with `--out` a folder of its own, and `run --each`:
     each object's report must start as the page quotes it (but one the list counts as another, which its first line
-    names), and the list's first line be the page's. About 30 minutes for PR44, 12 for PR149, 4 for PR113 and 35 for
-    PR135 on four CPUs, so it runs with --full or --exercises; `only`, pages' numbers ("03"), runs those pages and
+    names), and the list's first line be the page's. About 5 minutes for PR169 (exercise 1 since 2026-11-22; PR44 before
+    it took 30), 12 for PR149, 4 for PR113 and 35 for PR135 on four CPUs, so it runs with --full or --exercises; `only`, pages' numbers ("03"), runs those pages and
     nothing else (`--exercises 03`)."""
     import re
     import shlex

@@ -3,6 +3,32 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
+## Unreleased
+
+**Find lists an object once where it turns** (2026-11-22; method section 110; IDEAS.md TU1). Find builds its list from
+short runs of steady motion. An object that turns slows down as it turns, and Find loses it there, so one object
+could come out as two or three rows. PR169 is a 14-second infrared video of one bird that turns twice. Find listed it
+as three spots, and the one-press run wrote three reports. Find now asks the Follow step about such rows. It starts
+at the end of the earlier row and follows the spot forward, frame by frame, with nothing to guide it. If it arrives
+on the first mark of the later row, and the same holds going backward, the two rows are one object. The better row
+then takes the other's frames, and the other leaves the list. The row says so: "found 3 separate times (frames 3–39,
+68–251, 261–406) and taken as one object, because the spot can be followed from each into the next". Its marks are
+placed in each of those stretches. PR169 is now one row, one track over 396 of its 408 frames, and one report. On
+441 labelled test clips the step joined 25 pairs of rows, and each pair was one object. No labelled object moved
+down a list. Find takes about 4 % longer. Rows more than 60 frames apart stay separate. So do rows with frames
+between them where the spot cannot be seen. `mcdonald batch` does not use the step yet. New in
+`look --propose --json`: each row's `pieces`, the stretches of frames it was found in.
+
+**Exercise 1 is now PR169** (2026-11-22; IDEAS.md TU5; `docs/exercises/01-pr169.md`). It is still called
+Birdwatching. PR169 is 14 seconds long, and the whole exercise takes 5 to 10 minutes. PR44's took 25 to 35. The page
+also shows a bird that Find sees three separate times and lists once. PR44's page is gone from the list.
+
+**The list of PURSUE videos has release 08's three** (2026-11-22): PR166, PR168 and PR169 can be opened by name.
+LLE-UAP-PR004's title follows the release's own change, from "October 2023" to "January 2024".
+
+**A beat's picture keeps its title on the page** (2026-11-22). Where a beat had a double, the title over the right
+panel ("5.93 Hz (double 11.86)") ran off the figure's edge. It now ends at the panel's edge.
+
 ## 0.5.9 (2026-11-19)
 
 **`mcdonald drift` refuses lines of sight that no single straight path passes through** (2026-11-19; method section

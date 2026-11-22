@@ -3603,6 +3603,46 @@ class TwoPlanted(PlantedClip):
         return g.astype(np.float32)
 
 
+class TurningClip:
+    """PR169 drawn (2026-11-22): a bright spot 7 px wide that flies right at 6 px a frame, slows to a third of a
+    pixel a frame as it turns through a right angle (frames `a` to `a + turn`), and flies down. Find's chains are
+    of constant velocity and its residual is blind to what is slow, so the spot is found twice, before the turn and
+    after it. `truth(n)` is its centre. On the frames in `gone` it is not drawn: one thing leaves and another comes.
+    With `jump` = (frame, dx, dy) it is drawn that far to the side from that frame on."""
+    W, H, n0, fps = 540, 300, 1, 30000 / 1001
+    RADIUS, CONTRAST, SPEED = 3.0, 120, 6.0
+
+    def __init__(self, n1=70, a=25, turn=15, gone=(), jump=None):
+        from scipy import ndimage
+        self.n1, self.gone, self.jump = n1, set(gone), jump
+        rng = np.random.default_rng(7)
+        self._sky = ndimage.gaussian_filter(rng.normal(0, 1, (self.H, self.W)), 6.0) * 80 + 60
+        self._yx = np.mgrid[0:self.H, 0:self.W]
+        p, self.path = np.array([60.0, 80.0]), {}
+        for n in range(1, n1 + 1):
+            self.path[n] = (float(p[0]), float(p[1]))
+            u = min(max((n - a) / turn, 0.0), 1.0)
+            ang = 0.5 * np.pi * u
+            p = p + self.SPEED * (1.0 - 0.95 * np.sin(np.pi * u)) * np.array([np.cos(ang), np.sin(ang)])
+
+    def truth(self, n):
+        x, y = self.path[n]
+        if self.jump and n >= self.jump[0]:
+            x, y = x + self.jump[1], y + self.jump[2]
+        return x, y
+
+    def grey(self, n):
+        g = self._sky
+        if n not in self.gone:
+            yy, xx = self._yx
+            x, y = self.truth(n)
+            g = g + self.CONTRAST * np.exp(-0.5 * ((xx - x) ** 2 + (yy - y) ** 2) / (self.RADIUS / 1.5) ** 2)
+        return g.astype(np.float32)
+
+    def rgb(self, n):
+        return np.repeat(self.grey(n)[..., None], 3, axis=2)
+
+
 class StreakClip(PlantedClip):
     """PR43 drawn (2026-09-27): a small bright thing crossing 20 px a frame over textured ground with bright
     specks, smeared into a dash 16 px long and 3 px across along its motion. No spot size holds it; its
@@ -4179,8 +4219,9 @@ def test_the_pursue_videos_ship_with_the_package():
         try:
             cat = catalog.active()
             recs = cat.videos()
-            check(isinstance(cat, catalog.ShippedCatalog) and len(recs) == 144, "with nothing set, the catalog is the shipped one",
-                  f"{cat.name}, {len(recs)} videos")
+            # 147 since 2026-11-22: release 08's three (PR166, PR168, PR169), with the 144 of the first six releases
+            check(isinstance(cat, catalog.ShippedCatalog) and len(recs) == 147 and bool(cat.by_id("PR169")),
+                  "with nothing set, the catalog is the shipped one", f"{cat.name}, {len(recs)} videos")
             check(all(r["url"].startswith("https://") and r["url"].endswith(".mp4") and r["bytes"] > 0 for r in recs),
                   "every video has an address to download it from, and a size")
             pr113 = cat.by_id("PR113")
@@ -4761,6 +4802,89 @@ def test_the_object_is_proposed_with_no_marks_to_go_on():
           "one strong thing and a tail of weak ones is a short list: the best three, and any other within a quarter of the best")
     check(len(propose.shortlist([mk(3.5), mk(2.1), mk(1.9), mk(1.7), mk(1.6), mk(1.6)])) == 6,
           "where nothing stands out -- PR113, where every row says weak -- the list is longer")
+
+    # One thing found at different times (PR169, 2026-11-22): a bird that turns is a row before the turn and a row after
+    # it. The link is asked: followed on from the end of the one, does the spot arrive at the start of the other?
+    turning = TurningClip()
+    tmasks = vf.static_masks(turning)
+    apart = propose.find(turning, tmasks, procs=0, join=False)
+    on_it = lambda p, c=turning: float(np.median([np.hypot(p.track[n][0] - c.truth(n)[0], p.track[n][1] - c.truth(n)[1]) for n in p.frames]))
+    check(len(apart) >= 2 and all(on_it(p) < 2.0 for p in apart[:2]) and apart[0].frames[0] > apart[1].frames[-1]
+          and all(p.pieces is None for p in apart),
+          "a spot that turns is two rows until the link is asked: one before the turn and one after, each on the spot",
+          f"{[(p.frames[0], p.frames[-1], round(p.score, 1)) for p in apart[:3]]}")
+    pair = propose.one_after_another(apart[0], apart[1]) if len(apart) >= 2 else None
+    said = propose.link_reaches(turning, tmasks, *pair, procs=0) if pair else {}
+    check(pair is not None and pair[0] is apart[1] and said.get("joined") and said["forward"] < 2.0 and said["backward"] < 2.0,
+          "followed on from the end of the earlier row the link arrives on the later row's first mark, and followed back "
+          "from the later it arrives on the earlier's last", f"{said}")
+    one = propose.find(turning, tmasks, procs=0)
+    first = one[0] if one else None
+    check(first is not None and len([p for p in one if on_it(p) < 2.0]) == 1 and first.pieces is not None and len(first.pieces) == 2
+          and first.frames[0] == apart[1].frames[0] and first.frames[-1] == apart[0].frames[-1]
+          and first.score == apart[0].score and len(one) == len(apart) - 1,
+          "and Find lists it once: the better row is lent the other's frames and keeps its place and its score, and the "
+          "other leaves the list", f"{[(p.frames[0], p.frames[-1], p.pieces) for p in one[:3]]}")
+    marks = sorted(first.seeds()) if first is not None else []
+    check(first is not None and all(sum(a <= n <= b for n in marks) >= 2 for a, b in first.pieces)
+          and marks[0] == first.frames[0] and marks[-1] <= first.frames[-1] and "found 2 separate times" in first.why
+          and first.to_dict()["pieces"] == [list(q) for q in first.pieces] and apart[0].to_dict()["pieces"] == [[apart[0].frames[0], apart[0].frames[-1]]],
+          "its marks are placed stretch by stretch, two or more in each, and the row says that it was found two separate "
+          "times and why the two are one", f"marks {marks}; {first.why if first is not None else ''}")
+    lists = [props for _, _, props in propose.search(turning, tmasks, procs=0, block=30)]
+    on_spot = [[p for p in props if on_it(p) < 2.0] for props in lists]
+    check(len(lists) == 3 and len(on_spot[-2]) == 2 and all(p.pieces is None for p in on_spot[-2])
+          and len(on_spot[-1]) == 1 and len(on_spot[-1][0].pieces) == 2,
+          "only the last list is held to the link: a list shown while the search goes on has the pieces as they were found",
+          f"{[[(p.frames[0], p.frames[-1]) for p in rows] for rows in on_spot]}")
+    link = None
+    for link in autolink.link_from_marks(turning, first.seeds() if first is not None else {}, tmasks, procs=0):
+        pass
+    check(link is not None and link.track and min(link.track) <= 2 and max(link.track) >= turning.n1 - 1
+          and np.median([np.hypot(link.track[n][0] - turning.truth(n)[0], link.track[n][1] - turning.truth(n)[1]) for n in link.track]) < 1.0
+          and not [c for c in link.concerns() if "arrives" in c or "does not reach" in c],
+          "the link from those marks is one track through the turn, on the spot from the first frame to the last",
+          f"{len(link.track) if link else 0} frames; {link.concerns() if link else ''}")
+    # ... and not on kinematics. One thing leaves and another comes up where it would have been: nothing joins them.
+    P = propose.Proposal
+    drawn = lambda c, ns, v, score: P({n: c.truth(n) for n in ns}, False, 7.0, v, 6.0, 3.0, 130.0, 0.5, 0, score=score,
+                                      seen=len(ns), frame_size=(c.W, c.H))
+    for name, clip in (("the same path taken up again after 15 frames with nothing there", TurningClip(gone=range(26, 41))),
+                       ("another spot that comes up 25 px to the side", TurningClip(gone=range(26, 41), jump=(41, 25.0, 0.0)))):
+        m = vf.static_masks(clip)
+        A, B = drawn(clip, range(3, 25), (6.0, 0.0), 10.0), drawn(clip, range(43, 66), (0.0, 6.0), 8.0)
+        pair = propose.one_after_another(B, A)
+        said = propose.link_reaches(clip, m, *pair, procs=0) if pair else {}
+        rows = propose.joined(clip, [A, B], m, procs=0)
+        check(pair is not None and pair[0] is A and said.get("joined") is False and said["forward"] is None and len(rows) == 2
+              and A.pieces is None and len(A.track) == 22,
+              f"a spot that is gone for the frames between is not followed into the next row: {name}", f"{said}")
+    A, B = drawn(turning, range(3, 25), (6.0, 0.0), 10.0), drawn(turning, range(43, 66), (0.0, 6.0), 8.0)
+    dark = drawn(turning, range(43, 66), (0.0, 6.0), 8.0)
+    dark.dark = True
+    wide = drawn(turning, range(43, 66), (0.0, 6.0), 8.0)
+    wide.size_px = 20.0
+    line = lambda a, b: P({n: (100.0 + n, 50.0) for n in range(a, b + 1)}, False, 7.0, (1.0, 0.0), 1.0, 3.0, float(b - a), 0.5, 0,
+                          score=5.0, seen=b - a + 1)
+    check(propose.one_after_another(A, B) is not None
+          and propose.one_after_another(A, drawn(turning, range(20, 66), (0.0, 6.0), 8.0)) is None
+          and propose.one_after_another(A, dark) is None and propose.one_after_another(A, wide) is None
+          and propose.one_after_another(A, drawn(turning, range(43, 48), (0.0, 6.0), 8.0)) is None
+          and propose.one_after_another(drawn(turning, range(3, 6), (6.0, 0.0), 10.0), B) is None
+          and propose.one_after_another(line(1, 10), line(10 + propose.JOIN_GAP, 90)) is not None
+          and propose.one_after_another(line(1, 10), line(11 + propose.JOIN_GAP, 90)) is None,
+          "the link is asked only of rows that could be one thing: alike, each seen on six frames or more, one after the "
+          "other and no more than 60 frames apart")
+    far = lambda a: P({n: (400.0 + n, 250.0) for n in range(a, a + 23)}, False, 7.0, (1.0, 0.0), 1.0, 3.0, 22.0, 0.5, 0, score=8.0, seen=23)
+    check(propose.one_after_another(A, far(26)) is None and propose.one_after_another(A, far(43)) is not None
+          and propose.JOIN_STEP == autolink.GATE[0],
+          "nor of a row that begins further off than the link could have followed a spot in the frames between: its own "
+          "gate of 25 px a frame, not the rows' speeds -- a camera that centres its target again carries it faster than "
+          "it flew", f"{np.hypot(*np.subtract(far(26).track[26], A.track[24])):.0f} px in 2 frames, and in 19")
+    import inspect
+    from mcdonald import batch
+    check(inspect.signature(propose.search).parameters["join"].default is True and "join=False" in inspect.getsource(batch),
+          "the window's Find and `look --propose` ask the link; `mcdonald batch`, whose rule for one object is its own, does not")
 
 
 

@@ -982,7 +982,11 @@ def _unit(out, u, opt, folder, state, say, progress, stop):
             p = at(f"window {i} of {len(rec['windows'])}")
             try:
                 clip = vf.Clip(video, wd, a, b)
-                props = propose.find(clip, vf.static_masks(clip, progress=p), progress=p, stop=stop, keep=opt.get("keep", KEEP))
+                # join=False: rows are not made one on the link's say here (`propose.joined`, 2026-11-22). What is one object
+                # in a batch is this module's rule (`long_lived`, `merged`), recorded with what it made (`make_of`), and the
+                # tables made by it so far are held to it; turning it on is a change of that rule, for its next version.
+                props = propose.find(clip, vf.static_masks(clip, progress=p), progress=p, stop=stop, keep=opt.get("keep", KEEP),
+                                     join=False)
                 write_json(f, dict(window=wtag, n0=a, n1=b, proposals=[dict(q.to_dict(), rank=r) for r, q in enumerate(props, 1)]))
             except vf.Stopped:
                 raise

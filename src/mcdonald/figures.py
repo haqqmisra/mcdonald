@@ -1002,8 +1002,10 @@ def beat(path, fps, ns, curves, seg, scale, beats, tracks, bgs, lines=(), trend=
             ymax = max(ymax, Aw[fw > 1.0].max())
         sp_.set_xlim(0, fps / 2)
         sp_.set_ylim(0, 1.15 * ymax)
-        sp_.set_title(f"{b['hz']:.2f} Hz" + (f" (double {b['double_hz']:.2f})" if b.get("double_hz") else ""), loc="left",
-                      color=col)
+        # A beat with its double is a longer line than this narrow panel is wide: set from the left it ran off the
+        # figure's right edge ("5.93 Hz (double 1", PR169, 2026-11-22). Set from the right it ends at the panel's edge.
+        sp_.set_title(f"{b['hz']:.2f} Hz" + (f" (double {b['double_hz']:.2f})" if b.get("double_hz") else ""),
+                      loc="right" if b.get("double_hz") else "left", color=col)
         if i < len(tracks) - 1:
             sp_.tick_params(labelbottom=False)
     left.supylabel("Brightness change (%)", fontweight="bold", fontsize=LABEL_PT)

@@ -78,6 +78,17 @@ How, and what each step is for:
    for a person. It is not a probability and nothing downstream reads it. (Counted among
    the pieces, before they fold: counted among the rows left, terrain under PR113's pan
    lost its company and went above the transit.)
+9. **One thing found at different times** (`joined`, on the last list; 2026-11-22). Steps 3
+   and 6 join pieces that keep a velocity. A thing that turns does not: it is slow where it
+   turns, the residual at k frames is blind to it there, and the piece after the turn is not
+   where the piece before was heading. PR169's bird, turning twice in 13.6 s, was three rows.
+   So two rows that could be one thing -- alike, one after the other, 60 frames apart at most
+   -- are put to the package's own link (`link_reaches`): followed on from the end of the
+   earlier, with no mark ahead of it, does the spot arrive on the later row's first mark, and
+   followed back from the later, on the earlier's last? Where both do, the better row is lent
+   the other's frames and the other leaves the list. On the Find benchmark's development part
+   (441 labelled clips) the link was asked about 566 pairs and joined 25, each of them one
+   object; no labelled object lost its place on a list (docs/method.md, section 110).
 
 What it is for, measured 2026-09-21 against every clip that has a recorded track
 (the place of the recorded object on the list; before step 5, and with it):
@@ -165,6 +176,7 @@ class Proposal:
     points: int = None                          # how many compact points it holds (`points_in`): 2 or more, a group
     tape: bool = False                          # one of a row of marks that slide together: a scrolling tape (`score`)
     seen: int = None                            # the chain's own points, the evidence `score` counts: frames lent by pieces folded into it are not
+    pieces: list = None                         # [(first, last)] of the stretches it was found in, where the link joined rows (`joined`)
 
     @property
     def frames(self):
@@ -185,8 +197,28 @@ class Proposal:
         the spot size, 15 px for the smallest. Marks are taken 70 px in where the thing was seen
         there twice or more (room for a large spot), else 15 px in (flyer 1's second bird, 2026-09-29:
         18 px from the top for its whole 16 s, and its first mark 13 px from the right edge, where
-        the link found nothing under it and so linked nothing), else wherever it was."""
-        ns = self.frames
+        the link found nothing under it and so linked nothing), else wherever it was.
+
+        A row the link joined from several stretches (`pieces`) is marked stretch by stretch: each has its
+        own ends marked, kept off the edge by its own points, and a share of the ten by its frames, two at
+        least. PR169's bird begins 43-63 px from the bottom of the frame and flies inward: taken as one
+        stretch its first mark fell on frame 68, the first stretch had none, and the link from the marks
+        lost the bird at frame 36 going back -- 35 frames of a track that the first stretch's own marks,
+        on frames 3 to 39, hold."""
+        if self.pieces and len(self.pieces) > 1:
+            parts = [p for p in ([n for n in self.frames if a <= n <= b] for a, b in self.pieces) if p]
+            total = sum(len(p) for p in parts)
+            share = [max(2, int(round(most * len(p) / total))) for p in parts]
+            while sum(share) > max(most, 2 * len(parts)):
+                share[int(np.argmax(share))] -= 1
+            out = {}
+            for p, k in zip(parts, share):
+                out.update(self._seeds_among(p, k, apart))
+            return out
+        return self._seeds_among(self.frames, most, apart)
+
+    def _seeds_among(self, ns, most, apart):
+        """`seeds` of the frames `ns` of the track: one stretch's, or all of it."""
         if self.frame_size:
             W, H = self.frame_size
             for edge in (70, 15):
@@ -210,6 +242,8 @@ class Proposal:
               f"{self.against_background * (ns[-1] - ns[0]):.0f} in all" if self.against_background < 1.0 else
               f"moves {self.against_background:.0f} pixels each frame against the background")
              + (f", {speed:.0f} on the screen" if abs(speed - self.against_background) > 2 else ""),
+             *([f"found {len(self.pieces)} separate times (frames {', '.join(f'{a}–{b}' for a, b in self.pieces)}) and taken as "
+                "one object, because the spot can be followed from each into the next"] if self.pieces else []),
              "a spot with background all round it" if self.all_round >= 0.3 else "more like an edge or a line than a spot",
              *([f"it holds about {self.points} points, not one: it may be a group, and the marks would follow the middle "
                 "of them (`mcdonald groups` follows each)"] if (self.points or 0) >= 2 else []),
@@ -228,6 +262,7 @@ class Proposal:
                     path_px=round(self.path_px, 1), resid_px=round(self.resid_px, 2), going_the_same_way=self.company,
                     background_all_round=round(self.all_round, 2), points=self.points, scrolling_tape=self.tape,
                     score=round(self.score, 2), strength=self.strength(), says=self.describe(),
+                    pieces=[list(q) for q in (self.pieces or [(self.frames[0], self.frames[-1])])],
                     mark_at={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in s.items()},
                     track={str(n): [round(x, 1), round(y, 1)] for n, (x, y) in sorted(self.track.items())})
 
@@ -1071,6 +1106,133 @@ def _fold(props, near):
     return out
 
 
+# ---- 9: one thing found at different times, on the link's say ---------------------------------
+JOIN_ROWS = 12      # rows from the top of the list held against each other: as many as a list holds when nobody asks for more
+JOIN_SEEN = 6       # frames a row must have been seen on to be asked about: where a chain stands without steady size (`chains`)
+JOIN_GAP = 60       # frames at most from the end of one to the start of the next: the fold's own reach in time (`_fold`)
+JOIN_STEP = 25.0    # px a frame: how far from where a spot should be the link looks for it (`autolink.GATE`'s first number)
+JOIN_TESTS = 8      # pairs at most that one list asks the link about
+JOINING = "Checking which of the spots found are one object"     # the step said meanwhile: the bar stands still, as for a list
+
+
+def one_after_another(a, b):
+    """(the earlier, the later) of two rows that could be one thing seen at two times, else None. Each was seen on
+    JOIN_SEEN frames or more; they are alike as the fold asks (the same polarity, widths within two steps of the
+    ladder); the later begins after the earlier ends, JOIN_GAP frames on at most; and it begins no further from where
+    the earlier ended than the link could have followed a spot in that time -- JOIN_STEP px a frame, or the faster
+    row's own speed where that is more -- and 30 px (the fold's `near`). Nothing is asked of their velocities: that is
+    what the fold and `things` ask, and what a thing that turns does not keep. Nor is the reach the rows' own speed: a
+    camera that follows its target and then centres it again carries the target across the screen faster than it ever
+    moved while it was followed (the benchmark's IR_BIRD_017: two rows at 1 px a frame, the second beginning 65 px
+    from the first's end 24 frames on). This only says which pairs are worth the link's time (`link_reaches`); it
+    joins nothing."""
+    if (a.seen if a.seen is not None else len(a.track)) < JOIN_SEEN or (b.seen if b.seen is not None else len(b.track)) < JOIN_SEEN:
+        return None
+    if a.dark != b.dark or not b.size_px / 2.5 <= a.size_px <= b.size_px * 2.5:
+        return None
+    first, later = (a, b) if a.frames[0] <= b.frames[0] else (b, a)
+    f1, l0 = first.frames[-1], later.frames[0]
+    if not 0 < l0 - f1 <= JOIN_GAP:
+        return None
+    reach = 30.0 + (l0 - f1) * max(float(np.hypot(*first.velocity)), float(np.hypot(*later.velocity)), JOIN_STEP)
+    if np.hypot(later.track[l0][0] - first.track[f1][0], later.track[l0][1] - first.track[f1][1]) > reach:
+        return None
+    return first, later
+
+
+def link_reaches(clip, masks, first, later, procs=None, stop=None, cache=None):
+    """Is the row `later` the thing of the row `first`, seen again? Asked of the package's own link
+    (`autolink.link_from_marks`), with the frames between them: {joined, forward, backward, size, dark}.
+
+    The link is started from the last two marks `first` would be given (`seeds`) and left to follow the spot on, with
+    no mark ahead of it, to the frame of `later`'s first mark: `forward` is how far from that mark it arrives, px, or
+    None if it lost the spot on the way (two frames in a row with nothing like it, `autolink.END_GAP`) or was not on a
+    spot there. `backward` is the same from `later`'s first two marks back to `first`'s last. The two are one thing
+    where both arrive within the link's own tolerance for a mark (`autolink.mark_gate`: 6 px, a fifth of the spot's
+    size above 30 px). So the pieces are joined on the same evidence a track is later held to: a spot like the marked
+    one on every frame between, each a step from the last, that ends on a mark it was not started from
+    (`Link.arrivals`' "first honest answer").
+
+    Not on kinematics. A thing that turns leaves pieces at different velocities with a gap where it was slow -- the
+    residual at k frames is blind to what moves under its own width in that time -- and where one piece was heading
+    is not where the next begins. PR169 (2026-11-22, Jacob): one bird followed by an infrared camera, turning twice
+    in 13.6 s, was three rows, frames 3-39, 68-251 and 261-406; the gaps are 29 and 10 frames, and the bird 45 and
+    5 px from where it had been. Followed on from frame 39 the link arrives 0.4 px from the mark on 68, and from 251,
+    0.3 px from the mark on 261. And a link with a mark ahead of it is not asked: over frames where the spot is not
+    seen it holds the line between its marks (`autolink._link_held`), and would arrive at a second object that came
+    up where the first had gone."""
+    from . import autolink
+    sa, sb = first.seeds(), later.seeds()
+    na, nb = sorted(sa), sorted(sb)
+    a1, b0 = na[-1], nb[0]
+    out = dict(joined=False, forward=None, backward=None, size=None, dark=None)
+    if len(na) < 2 or len(nb) < 2 or b0 <= a1:
+        return out
+    cache = {} if cache is None else cache
+    for name, marks, lo, hi, at, want in (("forward", {n: sa[n] for n in na[-2:]}, na[-2], b0, b0, sb[b0]),
+                                          ("backward", {n: sb[n] for n in nb[:2]}, a1, nb[1], a1, sa[a1])):
+        link = None
+        for link in autolink.link_from_marks(clip, marks, masks=masks, n_lo=lo, n_hi=hi, procs=procs, stop=stop, cache=cache):
+            pass
+        if link is None or link.stopped or not link.track or at not in link.track:
+            return out
+        d = float(np.hypot(link.track[at][0] - want[0], link.track[at][1] - want[1]))
+        out[name] = round(d, 2)
+        if name == "forward":
+            out.update(size=link.size, dark=link.dark)
+        if d > autolink.mark_gate(link.size):
+            return out
+    out["joined"] = True
+    return out
+
+
+def joined(clip, props, masks, procs=None, stop=None, progress=None, asked=None):
+    """The list with the rows that are one thing found at different times made one row (`one_after_another`,
+    `link_reaches`): the better row is lent the other's frames and keeps its place and its score, the other leaves the
+    list, and the rows under it move up. A row's `pieces` are the stretches it was found in, in order, and `describe`
+    says how many. Again until nothing more joins: PR169's first row takes the second, and what they make takes the
+    third.
+
+    Only the first JOIN_ROWS rows are held against each other, so a list asked for with more rows (`look --more`)
+    has the same first rows as one without; and JOIN_TESTS pairs at most are put to the link, the better rows' first
+    and of those the nearest in time. `asked` keeps the link's answers, {(the earlier's last mark, the later's
+    first): its fields}, for a caller that makes the list more than once."""
+    rows = list(props)
+    asked = {} if asked is None else asked
+    tests = 0
+    while True:
+        top = rows[:JOIN_ROWS]
+        pairs = []
+        for i, p in enumerate(top):
+            for j in range(i + 1, len(top)):
+                pair = one_after_another(p, top[j])
+                if pair is not None:
+                    pairs.append((i, pair[1].frames[0] - pair[0].frames[-1], j, pair))
+        for i, _, j, (first, later) in sorted(pairs, key=lambda t: t[:3]):
+            sa, sb = first.seeds(), later.seeds()
+            key = (max(sa), sa[max(sa)], min(sb), sb[min(sb)])
+            if key not in asked:
+                if tests >= JOIN_TESTS:
+                    continue
+                if progress:
+                    progress(JOINING, None, None)
+                tests += 1
+                asked[key] = link_reaches(clip, masks, first, later, procs=procs, stop=stop)
+            if asked[key]["joined"]:
+                kept, lent = rows[i], rows[j]
+                kept.pieces = sorted((kept.pieces or [(kept.frames[0], kept.frames[-1])])
+                                     + (lent.pieces or [(lent.frames[0], lent.frames[-1])]))
+                for n, xy in lent.track.items():
+                    kept.track.setdefault(n, xy)
+                kept.parts += lent.parts
+                X, Y = (np.array([kept.track[n][k] for n in kept.frames]) for k in (0, 1))
+                kept.path_px = float(np.hypot(X.max() - X.min(), Y.max() - Y.min()))     # the extent of all of it, as `score` takes it
+                del rows[j]
+                break
+        else:
+            return rows
+
+
 # ---- the whole search ------------------------------------------------------------------------
 SHOW_SHARE = 4.0    # with `show` a number of seconds: a list waits at least this many times as long as the last took
 LISTING = "Making the list of what was found so far"     # the step said while a list is made: the bar stands still meanwhile
@@ -1087,7 +1249,7 @@ def show_now(waited, took, every):
 
 
 def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, progress=None, stop=None, keep=12, show=True,
-           enough=None):
+           enough=None, join=True):
     """Yields (frames done, frames in all, [Proposal], best first) as it goes, a block of
     frames at a time, so that a caller can show what has been found so far and stop when the
     object is on the list. `progress` and `stop` are mcdonald.progress's.
@@ -1110,7 +1272,13 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, pr
     `enough` (the window's Stop) ends the search as `stop` does, but first yields the list of every
     frame looked at, those of the last part-block too, unless the last list yielded already had
     them all: with lists made seconds apart, the one showing when Stop is pressed can be some
-    blocks old. `stop` ends it with nothing more (the person has taken a row, or closed the panel)."""
+    blocks old. `stop` ends it with nothing more (the person has taken a row, or closed the panel).
+
+    With `join` (the default) the last list -- the one after the last block, or the one Stop asks for -- has the rows
+    that are one thing found at different times made one row, on the link's say (`joined`): a thing that turns is found
+    in pieces, and nothing before this step can tell that they are one (PR169). The lists shown on the way are not
+    held to it: the link reads frames, and the pool is the search's until the last block is in. `mcdonald batch` asks
+    for its lists without (its rule for what is one object is its own, and is recorded with what it made)."""
     n_lo, n_hi = max(n_lo or clip.n0, clip.n0) + k, min(n_hi or clip.n1, clip.n1) - k
     if n_hi - n_lo < 2:
         return
@@ -1132,13 +1300,21 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, pr
                 + chains({n: pk for n, pk in found.items() if n >= since})
                 + lasting(chains({n: pk for n, pk in still.items() if n >= since}), half_second(clip, k)))
 
-    def listed():
+    def listed(last=False):
         """Scored, folded, and scored again: the fold needs the order, and a folded row's path is all it was lent. The bar
         moves as this process takes each frame's peaks, so it stands still while a list is made -- on a long video for
-        many seconds (PR051's at 3,000 frames, about 20 s): `progress` says so."""
+        many seconds (PR051's at 3,000 frames, about 20 s): `progress` says so. The `last` list is the one whose rows the
+        link is asked about (`joined`), where `join` says so: its rows are counted for their points first, as every
+        list's are, so a joined row's points are those of the better piece."""
         if progress:
             progress(LISTING, got, len(frames))
-        props = score(distinct(score(describe(things(raw), found, vbg, still))), company=False)[:keep]
+        props = score(distinct(score(describe(things(raw), found, vbg, still))), company=False)
+        if last and join:
+            # the frame's size first: a row's marks keep off the edge by it (`seeds`), and the link is asked from its marks
+            for p in props[:max(keep, JOIN_ROWS)]:
+                p.frame_size = (clip.W, clip.H)
+            props = joined(clip, props, masks, procs=procs, stop=stop, progress=progress)
+        props = props[:keep]
         for p in props:
             p.frame_size = (clip.W, clip.H)
             p.points = points_in(clip, p, bad)
@@ -1166,7 +1342,7 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, pr
                                                               and not show_now(time.monotonic() - since_shown, took, every))):
                 continue
             began = time.monotonic()
-            props = listed()
+            props = listed(last=i + block >= len(frames))
             shown = got
             yield got, len(frames), props
             since_shown = time.monotonic()
@@ -1176,7 +1352,7 @@ def search(clip, masks=None, n_lo=None, n_hi=None, k=K, procs=None, block=90, pr
             raise
         if got > i:                                            # the part-block it was in: its frames are looked at too
             raw = chained(part[0])
-        yield got, len(frames), listed()
+        yield got, len(frames), listed(last=True)
         raise
     finally:
         if pool is not None:
