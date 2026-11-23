@@ -921,7 +921,8 @@ def test_a_case_started_over_is_set_aside():
         r = ((as_json(out) or {}).get("results")) or {}
         check(rc == 0 and Path(r.get("folder") or "x").resolve() == seg.resolve() and "planted_marks.json" in (r.get("moved") or [])
               and (Path(r.get("into") or "x") / "planted_marks.json").exists() and not (seg / "planted_marks.json").exists()
-              and Path(r.get("into") or "x").parent == seg / clear.EARLIER and tree(base / clear.EARLIER) == first,
+              and Path(r.get("into") or "x").parent.resolve() == (seg / clear.EARLIER).resolve()    # a Mac's temporary folder is a link
+              and tree(base / clear.EARLIER) == first,
               "clear VIDEO --n0 1 --n1 12 finds the segment's folder as every command does, and sets its marks aside inside it",
               f"exit {rc}; {r.get('folder')}")
         mcdonald("mark", video, "--no-window", "--n0", 1, "--n1", 12, "--set", at(3), "--set", at(7), "--workdir", work, cwd=home)
