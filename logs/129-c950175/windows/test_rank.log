@@ -1,0 +1,79 @@
+test_uniform_against_its_own_class
+  PASS  objects drawn like the class: 0.057 at or under 0.05  band 0.019-0.081
+  PASS  objects drawn like the class: 0.112 at or under 0.1  band 0.057-0.143
+  PASS  objects drawn like the class: 0.218 at or under 0.2  band 0.143-0.257
+  PASS  and their p-values are not refused as uniform (Kolmogorov-Smirnov)  D = 0.036, p = 0.411
+  PASS  no p-value is under 1/(n+1)  0.0164
+test_far_out_on_one_axis
+  PASS  an object far out gets the smallest p-value the class allows, 1/(n+1)  p = 0.0244
+  PASS  and the axis it is far out on drove it, above the class's middle  light_over_bg, z = 14.9
+  PASS  that axis alone gives it the same tail  0.0244
+  PASS  far below drives it too, with the sign below  z = -16.3
+  PASS  and the list says below  how much faster its brightness varies than the sky beside it, 16.3 spreads below the class's middle
+test_missing_is_missing
+  PASS  an axis the object lacks is not scored  light_var,light_over_bg,size_trend,rate_scene_w,speed_spread
+  PASS  an axis too few of the class have is let go, and every member counts on the rest  n = 40, axes beat_amp,beat_hz,light_var,light_over_bg,size_trend,speed_spread
+  PASS  an object with no scored measurement has no p-value
+  PASS  a record with no case has no measurements, not zeros
+  PASS  a line that does not stand above the slow wander has no frequency, but its amplitude
+  PASS  the size's change is not read across a zoom of the camera
+test_no_power_is_an_answer
+  PASS  the strata are cut at the controls' own median contrast  [40.0] against 40.0
+  PASS  a class with fewer than 19 objects of the object's contrast has no power, and says so  16 of the class's objects are up to 40 grey levels of contrast, under the 19 a p-value of 0.05 needs
+  PASS  with enough of the class at its contrast, it has a p-value
+  PASS  an object outside a class's range of contrast has no power from it (E5)  outside the class's range: contrast 4e+03 outside the class's 80-160
+  PASS  nor outside its frame rates  outside the class's range: fps 60 outside the class's 30-30
+  PASS  nor wider than any of the class  outside the class's range: size_px 60 outside the class's 3.14-8.98
+  PASS  an object with no contrast has no stratum, and no power  contrast unknown: the object has no stratum
+  PASS  with no class that could tell there is no largest p-value
+  PASS  the class least unlike is the one with the largest p-value  b 0.3
+test_calibration_held_out
+  PASS  held out with its video, class alpha's p-values hold the level  0.100 at or under 0.10 of 150
+  PASS  held out with its video, class beta's p-values hold the level  0.100 at or under 0.10 of 150
+  PASS  and drawn classes that differ are told apart  1.00 of alpha unlike beta at 0.05
+test_objects_and_defects
+  PASS  a row on another's track is folded into it  ['v1#1', 'v1#3']
+  PASS  a group stays one object of the kind group
+  PASS  a clean record has no defect
+  PASS  a spot still on a picture not seen to move is not called the sensor's
+  PASS  the rule 'not followed' fires on its own drawn record  not followed
+  PASS  the rule 'failed' fires on its own drawn record  failed
+  PASS  the rule 'added' fires on its own drawn record  added
+  PASS  the rule 'overlay' fires on its own drawn record  overlay
+  PASS  the rule 'blend' fires on its own drawn record  blend
+  PASS  the rule 'scene' fires on its own drawn record  scene
+  PASS  the rule 'sensor' fires on its own drawn record  sensor
+  PASS  the rule 'lost' fires on its own drawn record  lost
+  PASS  the rule 'masked' fires on its own drawn record  masked
+  PASS  the rule 'held' fires on its own drawn record  held
+  PASS  a recorded look sets an object aside with its reason
+  PASS  a short track in a padded clip is not called lost: only frames with no spot under it count
+  PASS  a defect is listed and never ranked
+test_corpus_summary
+  PASS  Benjamini-Hochberg on a worked example  [0, 1]
+  PASS  Benjamini-Yekutieli, stricter, on the same  [0]
+  PASS  and nothing where nothing is small
+  PASS  the bootstrap over videos is the same twice with one seed  3 of 7
+  PASS  and its interval holds the share  0.00-0.60
+test_match_known_objects
+  PASS  a track on the labelled box is matched, and the longer of two pieces stands for it  [1]
+  PASS  a track beside it is not matched
+test_a_track_on_the_overlay
+  PASS  a track on a burned-in bracket for half its frames is on the masks for about half  0.5
+  PASS  a track on the moving scene is on no mask  0.0
+  PASS  a track on a redaction block is on it throughout  1.0
+  PASS  and the rule takes the half-on track out as a defect
+test_the_command
+  PASS  the controls' table reads back as written
+32 objects (0 rows folded in); 1 with a defect; 31 ranked; at 0.05, 4 unlike every class that could tell (0 after Benjamini-Hochberg)
+the list: C:\Users\RUNNER~1\AppData\Local\Temp\mcdonald-test-rank-s1sw7cb8\test_the_command\out\rank.md (and rank.tsv, rank.json)
+  PASS  the command writes its envelope  exit 0
+  PASS  the object drawn far out heads the list  vfar#1
+  PASS  the defect is counted by its rule  {'overlay': 1}
+  PASS  a list given with --apart is counted apart  {'videos': 1, 'ranked': 1, 'le_0.05': 1, 'le_0.10': 1}
+  PASS  the page, the table and the JSON are written
+  PASS  no word of them names an object anomalous
+  PASS  the page says what could not tell, and the correction for many objects
+  PASS  every rule has its words for the page
+
+all passed
