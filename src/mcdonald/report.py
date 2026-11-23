@@ -278,7 +278,7 @@ def _num(v):
 
 def _deg(rad):
     """A turn rate in the picture as degrees a second: whole degrees from 1° up, two figures under it, so that an
-    object the camera held does not "move about 0° a second" (IMG_5611's 0.09°, 2026-11-01)."""
+    object the camera held does not "move about 0° a second" (clip W's 0.09°, 2026-11-01)."""
     d = math.degrees(rad)
     return f"{d:.0f}°" if d >= 1 else f"{_two(d):g}°"
 
@@ -954,7 +954,7 @@ class Case:
         an upper limit, not a measurement"). A camera following the object over a sky with nothing to read, and a
         camera held still over a slow scene, both look so, and the step cannot tell them apart (a pattern on the
         sensor can hold a match at zero). The object's rate against the background is then not measured, whatever
-        number the step read of it: what the track gives is its motion in the picture, as the camera held it. IMG_5611
+        number the step read of it: what the track gives is its motion in the picture, as the camera held it. Clip W
         (2026-11-01): the phone followed the object, which moved 98 px/s against the clouds while the track read 6
         px/s, and the first line said "the object moved about 0° a second in the image".
 

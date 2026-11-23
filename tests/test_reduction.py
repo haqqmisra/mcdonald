@@ -2590,7 +2590,7 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
 
 
 def test_a_rate_over_a_picture_that_held_still_is_the_cameras_hold():
-    """IMG_5611 (2026-11-01, `analysis/methods/mcdonald_phone_video_scope.md` WP3): the phone followed the object over a
+    """Clip W (2026-11-01, `analysis/methods/mcdonald_phone_video_scope.md` WP3): the phone followed the object over a
     sky with nothing to read, so the layers step read the scene as held still on screen in 77 % of its pairs and said,
     under Measurements, that a background rate there is an upper limit and not a measurement. The first line went on
     to say "the object moved about 0° a second in the image" (6 px/s at 4102 px/rad is 0.09°) and the bottom line "The

@@ -469,7 +469,7 @@ def relspeed_fan(omega, ax=None, thetas=(90, 30, 15, 8, 4, 2), R=None,
 
 # ---- the report's two figures (after the PR144 working note's two panels) -------------------------
 OBJECTS = [("weather balloon", 2.0), ("fighter jet", 17.0)]     # m: marked where an object that size would sit
-# m, the bands of the other things a witness's video is held against (an agent on IMG_5611, 2026-10-28, and the
+# m, the bands of the other things a witness's video is held against (an agent on clip W, 2026-10-28, and the
 # phone-video scope's WP8): a party balloon and a small drone share a band, a cluster of balloons and a tethered
 # aerostat sit between the weather balloon and the jet
 BANDS = [("party balloon or small drone", 0.3, 1.0), ("balloon cluster", 2.0, 5.0), ("tethered aerostat", 5.0, 20.0)]

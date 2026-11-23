@@ -421,7 +421,7 @@ def _frame_comb(ls, fps):
 PLATFORMS = ("aircraft", "boat", "car", "hand")
 # What a 400-Hz supply is on each recording platform (None: not given). Only an aircraft's bus is held to MIL-STD-704's
 # 393-407 Hz and so is a clock; an inverter or a generator on a boat or in a vehicle runs at 400 Hz too, held to nothing
-# public. IMG_5611 (a fishing boat, 2026-10-28): an agent's run read the lines of its diesel and its supply as "an
+# public. Clip W (filmed from a boat; 2026-10-28): an agent's run read the lines of its diesel and its supply as "an
 # aircraft's 400-Hz power" with "tape-transport sidebands" and "a propeller".
 SUPPLY = {"aircraft": "an aircraft's 400-Hz power",
           "boat": "a 400-Hz supply (on a boat: an inverter's or a generator's; an aircraft's bus runs at 400 Hz too)",
@@ -441,7 +441,7 @@ ENGINE_CYLINDERS = (3, 4, 6, 8)
 def engine_speeds(f0):
     """What a harmonic series on f0 can be as a piston engine's firing: a four-stroke fires each cylinder every second
     turn, so its firing rate is cylinders x rpm / 120 (a boat's diesel at 33.76 Hz: 4 cylinders at 1013 rpm, 6 at 675,
-    8 at 506 -- IMG_5611); a two-stroke fires every turn, cylinders x rpm / 60. The series cannot tell the cylinder
+    8 at 506 -- clip W); a two-stroke fires every turn, cylinders x rpm / 60. The series cannot tell the cylinder
     count, any more than it tells a propeller's blades (`propeller`)."""
     return dict(four_stroke=[dict(cylinders=c, rpm=round(120 * f0 / c, 1)) for c in ENGINE_CYLINDERS],
                 two_stroke=[dict(cylinders=c, rpm=round(60 * f0 / c, 1)) for c in ENGINE_CYLINDERS])

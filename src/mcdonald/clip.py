@@ -245,7 +245,7 @@ def frame_count(video, stream, fmt, fps):
 def rotation(stream):
     """The turn the container asks a player to give the frames before showing them, in degrees (0, 90, 180 or 270).
     A phone held upright codes its frames on their side and writes a display matrix beside them (ffprobe's side
-    data `rotation`: -90 on an iPhone held upright, IMG_5611); files from before ffmpeg 5 carry the tag `rotate`
+    data `rotation`: -90 on an iPhone held upright, clip W); files from before ffmpeg 5 carry the tag `rotate`
     instead. ffmpeg turns the frames as it decodes them (its autorotate, on unless `-noautorotate` is given), so
     the frames on disk, the player's and every stage's are upright: the size to work in is theirs, and the coded
     size is the container's record. Within a degree of 90 or 270 ffmpeg transposes, and the size swaps; at any
@@ -273,7 +273,7 @@ def probe(video):
     size turned by the container's display rotation (`rotation`); `coded_width` and `coded_height` are the
     container's own. Until 0.4.1 the coded size was taken, and on a portrait phone clip every stage that laid an
     array over the frames broke on it, and a field of view given across the picture was spread over the wrong
-    side (1.78 times too many pixels a degree on IMG_5611)."""
+    side (1.78 times too many pixels a degree on clip W)."""
     r = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(video)],
                        capture_output=True, encoding="utf-8", errors="replace")
     d = json.loads(r.stdout or "{}") if r.returncode == 0 else {}

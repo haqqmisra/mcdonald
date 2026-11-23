@@ -1555,7 +1555,7 @@ def run_case(video, track=None, marks=None, workdir=None, n0=None, n1=None, out=
         try:
             from . import tracksheet
             # a window lays the sheet out for its screen; the command line pages it so that each page can be checked
-            # on one screen (an agent on IMG_5611, 2026-10-28: "an 11520 x 4254 JPEG can't be checked on one screen")
+            # on one screen (an agent on clip W, 2026-10-28: "an 11520 x 4254 JPEG can't be checked on one screen")
             layout = sheet or tracksheet.paged(clip.n1 - clip.n0 + 1)
             # the release's id at its head, not its title: 22 of PURSUE's 144 titles describe the object as an observer saw
             # it ("Spherical", "TIC TAC", "fast moving"), and the person judging the sheet should not read that first (2026-11-07)

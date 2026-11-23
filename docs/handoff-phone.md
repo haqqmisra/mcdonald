@@ -2,9 +2,8 @@
 
 The scope is the uap repository's `analysis/methods/mcdonald_phone_video_scope.md` (Jacob's decisions of 2026-11-01:
 WP0, WP8 and WP3's report line as 0.4.1; WP1 and WP4 as 0.4.2; WP2 and WP3 as a theme ahead of 0.5; no track log, no
-filming). The case is IMG_5611, a witness's iPhone clip from a fishing boat on Rhode Island Sound (2026-06-12), in the
-uap repository's `analysis/cases/rhode_island_sound_2026/` (the clip itself in `data/external/case_sullivan/`, not for
-sharing without the witness's yes). What was found on it before any of this is that folder's `README.md`; what the
+filming). The case is clip W, a witness's iPhone clip sent to the maintainer, in a case folder of the private uap
+repository (the clip itself kept outside any repository, not for sharing without the witness's yes). What was found on it before any of this is that folder's `README.md`; what the
 package could not do is its `mcdonald_feedback_triage.md`.
 
 ## Where it stands
@@ -34,7 +33,7 @@ release mints the next.
   copy`), which writes the matrix; a `-timecode` track beside it is a data stream with no codec name, the shape of an
   iPhone's `mebx` tracks. Both signs (`90` and `-90`) decode to the upright twin pixel for pixel, each from the coded
   frames turned the other way.
-- Of 923 local videos only IMG_5611 carries a rotation flag or a `mebx` track (the scope's control table): uploads
+- Of 923 local videos only clip W carries a rotation flag or a `mebx` track (the scope's control table): uploads
   and releases strip them, so the drawn twins are the test, and the phone clip the only known answer.
 - Ten of the fourteen reference cases carry the layers held-still no-power, so their first lines changed in
   wording. `share rerun` renders both the stored and the fresh case with the current code, so the reference
@@ -50,7 +49,7 @@ release mints the next.
 ## Runs (Slurm, from each worktree)
 
 - `phone`: `tools/suites.sbatch` 17896 and `tests/test_golden.py --exercises` 17897, with the clip's own check
-  17898 (`analysis/cases/rhode_island_sound_2026/jobs/wp0_check.sbatch`). Results below, as they came in.
+  17898 (the case folder's `jobs/wp0_check.sbatch`). Results below, as they came in.
 - `phone-wp8`: the new checks alone (17902: overlay gate and paging, with test_cli 133), test_audio (17903),
   test_reduction 563 and test_published (17904), and after the bump test_reduction, test_cli and test_published (17905).
 

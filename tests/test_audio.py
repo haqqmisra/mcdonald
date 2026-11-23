@@ -397,7 +397,7 @@ def _wav(path, x, fs=48000):
 
 
 def test_the_platform_names_the_engine():
-    """IMG_5611 (a fishing boat, 2026-10-28): an agent's run named the boat's diesel "a propeller" and its supply "an
+    """Clip W (filmed from a boat; 2026-10-28): an agent's run named the boat's diesel "a propeller" and its supply "an
     aircraft's 400-Hz power". With the platform given as a boat the series is the boat's own engine (4 cylinders at
     1013 rpm, 6 at 675, 8 at 506: a four-stroke's firing rate, cylinders x rpm / 120), the supply an inverter's or a
     generator's and no clock, and no aircraft is named anywhere; with no platform given both readings are named; an

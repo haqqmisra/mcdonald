@@ -769,7 +769,7 @@ def _drawn_clip(td, n=100, h=48, w=64, name="drawn"):
 
 
 def test_the_overlay_is_asked_for_before_a_pointer():
-    """An agent on a phone clip (IMG_5611, 2026-10-28): `symbology` "finds a north pointer in a clip with no overlay",
+    """An agent on a phone clip (clip W, 2026-10-28): `symbology` "finds a north pointer in a clip with no overlay",
     the hue method reading 270 frames and fitting a pointer 646 px from the boresight to whatever was warm. With the
     survey's static masks the stage asks first whether anything is drawn on the frames at all: nothing (a phone's or any
     consumer camera's video) is no pointer to look for, said as no power and read in no frame; a few percent drawn
@@ -802,7 +802,7 @@ def test_the_overlay_is_asked_for_before_a_pointer():
 
 
 def test_a_runs_sheet_is_paged_for_a_screen():
-    """An agent on IMG_5611 (2026-10-28): "an 11520 x 4254 JPEG can't be checked on one screen", so `--i-looked` was a
+    """An agent on clip W (2026-10-28): "an 11520 x 4254 JPEG can't be checked on one screen", so `--i-looked` was a
     promise nobody could keep quickly. `mcdonald run` now lays its sheet out in pages of 10 columns and at most 8
     rows, each a screen's worth at full size; the command line's own `tracksheet` keeps its 30-column sheet, and a
     window its own layout. The phone-video scope's WP8."""
@@ -812,7 +812,7 @@ def test_a_runs_sheet_is_paged_for_a_screen():
     from mcdonald import tracksheet
     check(tracksheet.paged(24) == dict(cols=10, pages=1) and tracksheet.paged(80)["pages"] == 1 and tracksheet.paged(81)["pages"] == 2
           and tracksheet.paged(749)["pages"] == 10 and tracksheet.paged(872)["pages"] == 11,
-          "80 tiles to a page: one page up to 80 frames, IMG_5611's 749 frames on ten")
+          "80 tiles to a page: one page up to 80 frames, clip W's 749 frames on ten")
     if shutil.which("ffmpeg") is None:
         print("  SKIP  ffmpeg is not installed")
         return
@@ -4410,7 +4410,7 @@ def test_a_clip_on_its_side_is_measured_upright():
     """A phone held upright codes its frames on their side and writes a display rotation beside them, and ffmpeg
     turns them as it decodes. Until 0.4.1 `probe` took the coded size, so on a portrait clip W and H were each
     other's: `layers` and `tether` broke on the shapes, the track sheet was laid out on its side, and a field of
-    view given across the picture was spread over 1920 px in place of 1080 (IMG_5611, 2026-11-01). Drawn twins: the
+    view given across the picture was spread over 1920 px in place of 1080 (clip W, 2026-11-01). Drawn twins: the
     same frames upright, and coded on their side with the rotation that turns them back, both ways round -- the
     rotation is set on a stream copy, as ffmpeg writes it (6.0 and newer; older ones skip here). And a timecode
     track, which, like an iPhone's timed-metadata tracks, has no codec name: `integrity` crashed on that too."""

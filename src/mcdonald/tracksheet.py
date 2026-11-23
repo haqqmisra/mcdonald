@@ -98,7 +98,7 @@ PAGE_COLS, PAGE_ROWS = 10, 8     # a page of a run's sheet: 80 tiles, 3840 px wi
 def paged(n_frames, cols=PAGE_COLS, rows=PAGE_ROWS):
     """The layout `mcdonald run` gives its sheet, so that each page can be checked on one screen at full size: `cols`
     across, at most `rows` down, in as many pages as that takes. The command line's own default is one sheet of 30
-    columns, a picture for an image viewer to zoom into; IMG_5611's 749 frames made it 11520 x 5982 px, which an
+    columns, a picture for an image viewer to zoom into; clip W's 749 frames made it 11520 x 5982 px, which an
     agent could not check on one screen (2026-10-28)."""
     return dict(cols=cols, pages=max(1, -(-int(n_frames) // (cols * rows))))
 

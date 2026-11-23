@@ -2645,7 +2645,7 @@ def drive_several(td):
 
 
 def drive_on_its_side(td):
-    """A phone held upright codes its frames on their side and writes a display rotation beside them (IMG_5611,
+    """A phone held upright codes its frames on their side and writes a display rotation beside them (clip W,
     2026-11-01); ffmpeg turns them as it decodes. The window must open such a clip upright: the chooser's player
     reads the frames turned, and the marking window lays its view over the turned frame, so that a click lands on
     the frame's own pixel. Until 0.4.1 `probe` took the coded size, the view was laid out on its side, and the ring

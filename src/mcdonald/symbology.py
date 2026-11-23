@@ -610,7 +610,7 @@ def trial_frames(frames, n=TRIAL):
 
 
 OVERLAY_MIN = 0.001   # share of the picture the survey's static mask holds as drawn: under it nothing is drawn on the
-                      # frames at all (IMG_5611, a phone: 0.00 %; a burned-in display is a few percent: PR44 3.1 %, PR113 3.5 %)
+                      # frames at all (clip W, a phone: 0.00 %; a burned-in display is a few percent: PR44 3.1 %, PR113 3.5 %)
 
 
 def overlay_share(masks):
@@ -631,7 +631,7 @@ def measure(clip, step=3, method="auto", bore=None, box=None, tpl_box=None, min_
 
     Asked first, with `masks` (the survey's static masks) and a method chosen automatically: is anything drawn on
     the frames at all? A phone's or any consumer camera's video has no overlay (`overlay_share` under OVERLAY_MIN),
-    so there is no pointer to look for, and the stage says so and stops -- on IMG_5611 the hue method went on to
+    so there is no pointer to look for, and the stage says so and stops -- on clip W the hue method went on to
     read 270 frames and fit a "pointer" to whatever was warm-coloured, 646 px from the boresight (an agent's bug
     report, 2026-10-28). A method chosen automatically is then tried on TRIAL frames spread over the clip,
     and if it solves none of them the stage ends there: on PR135, whose pointer is a

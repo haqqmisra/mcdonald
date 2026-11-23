@@ -1758,7 +1758,7 @@ a reference case file is named, and the fourteen case files are remade once afte
 
 ## 0.4.1 (2026-11-01; pushed with 0.4.3 on 2026-11-07, no tag of its own)
 
-A checklist of the tests under the conclusion, the parallax ladder's still row after N. Long's revision, and a phone's video running with the report saying whose motion a rate is. The last is from a witness's iPhone clip filmed from a fishing boat (Rhode Island Sound, 2026-06-12: the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0, WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28; and `drift`'s Test 4b with its error and reach from the track's own speed band (merged from `drift-band`, 2026-11-02).
+A checklist of the tests under the conclusion, the parallax ladder's still row after N. Long's revision, and a phone's video running with the report saying whose motion a rate is. The last is from a witness's iPhone clip sent to the maintainer (clip W; the uap repository's `analysis/methods/mcdonald_phone_video_scope.md`, its WP0, WP3's report line and WP8), and an agent's tester feedback on it of 2026-10-28; and `drift`'s Test 4b with its error and reach from the track's own speed band (merged from `drift-band`, 2026-11-02).
 
 - **`drift`'s T4b reads the remains' fall from the track's own speed band** (`drift.fall`, `drift.test_wreck`;
   `docs/method.md` §34; from the Yemen case's band study, 2026-11-02). The remains' screen-down acceleration was a
