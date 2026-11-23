@@ -136,7 +136,7 @@ def main():
     if args.json:
         emit(envelope("report", {"case": str(path), "i_looked": args.i_looked, "known": known}, None,
                       [md, str(path)] + ([str(pdf)] if pdf else []),
-                      {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
+                      {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline", "in_short"), case._concluded())),
                        "checklist": case.checklist(), "reasons": case.reasons(), "grade": case.grade(),
                        "value_of_information": case.value_of_information(),
                        "identified_by": case.identified_by,

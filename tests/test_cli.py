@@ -303,9 +303,12 @@ def drive_the_report(video, td, case):
     check(d["results"]["identified_by"]["not_by_hand"] and json.loads((case / "planted_case.json").read_text(encoding="utf-8"))["identified_by"],
           "and so do the JSON on stdout and the case file")
     con = d["results"].get("conclusion") or {}
-    check(set(con) == {"label", "headline"} and md.index("## Conclusion") < md.index("## Summary of variables")
+    check(set(con) == {"label", "headline", "in_short"} and md.index("## Conclusion") < md.index("## Summary of variables")
           and f"**{con['label']}.** {con['headline']}" in md,
           "the report leads with its conclusion, which the envelope carries as a label and a headline", f"{con.get('label')}: {con.get('headline', '')[:80]}")
+    from mcdonald import report as report_
+    check(con["in_short"] and not report_.short_breaks(con["in_short"]) and len(con["in_short"]) < len(con["headline"]),
+          "and in one short sentence, as the window's card says it under the label (`in_short`; Jacob, 2026-11-23)", con.get("in_short", ""))
     check(any("kinematics" in k for k in d["results"]["stages"]) and isinstance(d["no_power"], list),
           "the stages' results are fields, with what had no power beside them", ", ".join(d["results"]["stages"]))
 

@@ -658,8 +658,9 @@ the first that will open.
   report gave -- is asked on the segment step too, folded under the count, in the
   units they think in (`known_qt.KnownForm`; remembered for the video, and what
   the Measure form's fields show, so the one press and the queue use it). Where
-  a report could not give a real speed, its card asks for the same things ("Add
-  what you know") and "Work out the speed" is `stages.add_known` -- what `report
+  a report could not give a real speed, its card says in one sentence what is missing
+  ("Its real speed needs the field of view and the distance, or a reference object of
+  known size", beside "Add what you know") and "Work out the speed" is `stages.add_known` -- what `report
   CASE --fov ...` does, below -- and where it could, the card says what the speed
   rests on, with "Change". What it found and the pictures along its track wait behind
   Advanced Mode's "Show what Find found" and "Check the track". The wait while a
@@ -700,8 +701,10 @@ the first that will open.
   report then appears as a card in the right column under the one button, the
   video still in sight (`report_qt.ReportCard`; one card per object after a
   queue of several): a badge and the label of its
-  conclusion (`report.Case.conclusion`: tentative, none, or firm, in one
-  sentence -- a beat at a wingbeat's rate makes a bird the leading explanation),
+  conclusion (`report.Case.conclusion`: tentative, none, or firm -- a beat at a
+  wingbeat's rate makes a bird the leading explanation), under the label the conclusion
+  in one short sentence (`report.Case.in_short`, 20 words at most, since 2026-11-23:
+  the whole of it is the full report's),
   then the numbers found as label-and-value rows, "More" for how sure
   the conclusion is (`report.Case.grade`: GRADE's domains, computed), what it rests on, at most four reasons the heaviest first,
   each weighed on the labelled infrared set where it can be (`report.Case.reasons`, `controls`; method section 47), and the bottom

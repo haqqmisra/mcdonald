@@ -69,6 +69,13 @@ TIP_WORDS = 15
 TIPS_SEEN = {}                # every tooltip that broke the rule since the last driver's own check: {text: why, where}
 TIPS_WALKED = [0.0]           # when the widgets were last walked: at a check, at most every TIPS_EVERY seconds
 TIPS_EVERY = 0.2              # ... a walk is some 40 ms of several thousand widgets, and a burst of checks is one state
+# A report card says its conclusion in one short sentence under the label (Jacob, 2026-11-23: "the text is too long, and
+# all of this text is already included in the full report. Can you condense this down to a single short sentence? This
+# should be for all verdicts"): `report.Case.in_short`, held by `report.short_breaks` on every card the suite shows,
+# walked with the tooltips. So is the line that says what a real speed needs ("is it possible to shorten this sentence
+# to save some space?").
+CARDS_SEEN = {}               # each such line that was not one short sentence: {text: why}
+CARDS_READ = set()            # ... and every one read, so that the check says how many it held
 
 
 def tip_breaks(text):
@@ -132,7 +139,32 @@ def see_tips(now=False):
     if now or time.monotonic() - TIPS_WALKED[0] >= TIPS_EVERY:
         for text, why, where in long_tips():
             TIPS_SEEN.setdefault(text, (why, where))
+        see_cards()
         TIPS_WALKED[0] = time.monotonic()
+
+
+def report_words():
+    from mcdonald import report
+    return report.IN_SHORT_WORDS
+
+
+def see_cards():
+    """Read every report card there is at this moment: the sentence under its label, and the line that says what a
+    real speed needs where the card asks. One that is not one short sentence is kept for the drive's last check."""
+    if "mcdonald.report_qt" not in sys.modules or "PySide6.QtWidgets" not in sys.modules:
+        return
+    from PySide6 import QtWidgets
+    from mcdonald import report, report_qt
+    app = QtWidgets.QApplication.instance()
+    for top in (app.topLevelWidgets() if app is not None else []):
+        if not type(top).__module__.startswith("mcdonald"):
+            continue
+        for card in top.findChildren(report_qt.ReportCard):
+            lines = [card.headline.text()] + ([card.ask_text.text()] if card.ask_text.text().startswith("Its real speed needs") else [])
+            for text in filter(None, lines):
+                CARDS_READ.add(text)
+                if report.short_breaks(text):
+                    CARDS_SEEN.setdefault(text, report.short_breaks(text))
 
 
 def check(cond, label, detail=""):
@@ -3146,16 +3178,20 @@ def drive_one_button(td):
         hz=3.94, double_hz=None, first=1, last=120, amplitude=0.2, stands=100.0)})).into(bird)
     d._fill(bird)
     check(d.label.text() == "Beats like a bird" and d.badge.text() == "" and d.badge.pixmap() is not None
-          and not d.badge.pixmap().isNull() and "bird" in d.headline.text(),
-          "a beat at a wingbeat's rate is reported as Beats like a bird, with a bird for its badge (Jacob, 2026-10-12)",
-          f"{d.label.text()!r} {d.badge.text()!r}")
+          and not d.badge.pixmap().isNull()
+          and d.headline.text() == bird.in_short() == "Its brightness rises and falls 3.9 times a second, the rate of a wingbeat."
+          and "leading explanation" in bird.conclusion()[1] and "leading explanation" not in d.headline.text(),
+          "a beat at a wingbeat's rate is reported as Beats like a bird, with a bird for its badge (Jacob, 2026-10-12), and "
+          "under the label one short sentence, the beat: the rest of the conclusion is the full report's (2026-11-23)",
+          f"{d.label.text()!r} {d.badge.text()!r} {d.headline.text()!r}")
     drawn = d.badge.pixmap().toImage()
     ship = report.Case("t", "/tmp/x.mp4")            # a thing of known size, and the speed across under the speed of sound
     report.Found("kinematics", {"v_px": "604 px/s"}, fields=dict(v_px_per_s=604.0, scale_bar_m_per_s=115.0)).into(ship)
     d._fill(ship)
     check(d.label.text() == "Subsonic motion" and d.badge.text() == "" and not d.badge.pixmap().isNull()
           and d.badge.pixmap().toImage() != drawn and d.badge.toolTip().startswith("slower than sound")
-          and "at most about 115 m/s" in d.headline.text() and "Mach 0.34" in d.headline.text(),
+          and d.headline.text() == "No farther than the reference object, it moved at most 115 m/s across the line of sight (Mach 0.34)."
+          and not report.short_breaks(d.headline.text()),
           "a thing of known size that puts it under the speed of sound is Subsonic motion, with a dial for its badge and the "
           "bound in the sentence (Jacob, 2026-10-22)", f"{d.label.text()!r}: {d.headline.text()[:80]}")
     slow = d.badge.pixmap().toImage()
@@ -3172,9 +3208,28 @@ def drive_one_button(td):
           and seen[100.0][1] == seen[3000.0][1] == ""
           and all(x != y for i, x in enumerate(pics) for y in pics[i + 1:])
           and seen[100.0][3].startswith("its speed across the picture is known") and "head-on" in seen[3000.0][3]
-          and "moves at least 230 m/s" in seen[100.0][4],
+          and "moves at least 230 m/s" in seen[100.0][4] and not report.short_breaks(seen[100.0][4])
+          and seen[3000.0][4] == "At the given 3 km, it moves at least 6,800 m/s across the line of sight (Mach 20).",
           "a field of view and a distance: an angle drawn where one is needed, the dial past the limit where even the least "
           "speed is faster than sound (Jacob, 2026-10-22)", f"{seen[100.0][0]!r}, {seen[3000.0][0]!r}")
+    from mcdonald import report_qt as rq
+
+    def asks(k=None, r=None):                        # the box under the numbers, where no real speed could be worked out
+        c = report.Case("t", "/tmp/x.mp4")
+        if k:
+            report.Found("scale", {"k": "1884 px/rad"}, fields=dict(k_px_per_rad=k)).into(c)
+        report.Found("kinematics", {"v_px": "604 px/s"},
+                     fields=dict(v_px_per_s=604.0, fit=dict(held=False), **({"range_m": r} if r else {}))).into(c)
+        return rq.ReportCard.asking(c)
+
+    lines = [asks()[0], asks(k=1884.0)[0], asks(r=3000.0)[0]]
+    check(lines == ["Its real speed needs the field of view and the distance, or a reference object of known size.",
+                    "Its real speed needs the distance, or a reference object of known size.",
+                    "Its real speed needs the field of view, or a reference object of known size."]
+          and not any(report.short_breaks(x) for x in lines) and asks()[1:] == ("Add what you know", True),
+          "what a real speed needs, in one short sentence beside its button: what is missing, or a reference object of known "
+          "size; the button asks, and its form names each in full (Jacob, 2026-11-23: \"is it possible to shorten this "
+          "sentence to save some space?\")", " | ".join(lines))
     # the speed band and what the track says with none of the four unknowns (0.4, method sections 32-33), in the card's
     # own words: a drawn object flying straight at a steady speed toward a pinhole camera, and one on an arc, speeding up
     from mcdonald import kinematics as kin, report_qt, stages
@@ -3946,6 +4001,10 @@ def drive(target):
                                  (drive_collector, ())):
                 driver(*args)
                 tips(driver.__name__)
+            check(len(CARDS_READ) >= 6 and not CARDS_SEEN,
+                  f"every report card shown said its conclusion in one short sentence under the label, and what a real speed "
+                  f"needs in one too: {len(CARDS_READ)} different lines, each at most {report_words()} words (Jacob, 2026-11-23)",
+                  "; ".join(f"{why}: {text[:110]!r}" for text, why in list(CARDS_SEEN.items())[:4]))
         saved = drive_saving(rig, new_rig)
         # what the two windows put on disk from the same clicks, for the harness to compare
         print(SAVED + json.dumps(saved, sort_keys=True), flush=True)
@@ -4658,8 +4717,7 @@ def drive_what_is_known(td):
     QtTest_wait(lambda: d.known.isHidden(), 60)
     data = json.loads((case / "planted_case.json").read_text(encoding="utf-8"))
     check(d.known.isHidden() and d.label.text() == "Indeterminate, range needed" and d.badge.text() == "↔"
-          and d.ask_text.text() == ("Its real speed needs the distance to the object, or the physical length of a "
-                                    "reference in the picture. Do you know either?")
+          and d.ask_text.text() == "Its real speed needs the distance, or a reference object of known size."
           and d.ask_button.text() == "Add what you know" and known_qt.remembered(clip) == {"fov": 30.0}
           and "range_m" not in data["stages"]["ingest"]["fields"]["known"] and mp.fields["range_m"].text() == ""
           and plain(d.ask_text.text()),

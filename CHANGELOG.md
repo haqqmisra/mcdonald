@@ -5,6 +5,21 @@ Every version that went out, newest first. The version is written in one place,
 
 ## Unreleased
 
+**The report's card says its conclusion in one short sentence** (2026-11-23; IDEAS.md TU9). The card is the summary
+in the window's right-hand column. Under its label it repeated the first paragraph of the full report, which ran to
+75 words on PR169. It now gives one sentence of 20 words or fewer: the finding the label rests on, with its number.
+- Under "Beats like a bird": "Its brightness rises and falls 5.9 times a second, the rate of a wingbeat."
+- Where a speed is given or bounded, the speed: "At the given 3 km, it moves at least 6,800 m/s across the line of
+  sight (Mach 20)."
+- Where only the picture's rate is known: "The object moved about 72 pixels a second across the picture."
+- The other sentences of the conclusion are in the full report, one press away. These are the look-alikes, a feature
+  that moves with the object, what the integrity checks found, and the object's size at a given distance.
+- The box that asks for what you know is shorter too: "Its real speed needs the field of view and the distance, or a
+  reference object of known size." The button beside it still says "Add what you know".
+- On PR169 the card is about a quarter shorter: 629 pixels tall, from 827.
+- `mcdonald run --json` and `report --json` carry the sentence as `conclusion.in_short`, beside `label` and
+  `headline`. The report itself is unchanged.
+
 **Every tooltip in the window is one short sentence** (2026-11-22; IDEAS.md TU7). A tooltip is the small box that
 appears when the pointer rests on a button or a row. Many had grown to two or three sentences, and the longest ran
 to 47 words. Each now says what the control does in 15 words or fewer. Nothing that mattered is lost.

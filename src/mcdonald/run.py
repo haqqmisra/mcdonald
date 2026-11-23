@@ -133,7 +133,7 @@ def main():
         no_power = [(f"{n}: {t}", w) for n, st in case.stages.items() for t, w in st["no_power"]]
         needs = [f"{x} ({n})" for n, st in case.stages.items() for x in st["needs"]]
         emit(envelope("run", inputs_of(args), clip, files,
-                      {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline"), case.conclusion())),
+                      {"bottom_line": case.bottom_line(), "conclusion": dict(zip(("label", "headline", "in_short"), case._concluded())),
                        "checklist": case.checklist(), "reasons": case.reasons(), "grade": case.grade(),
                        "value_of_information": case.value_of_information(),
                        "identified_by": case.identified_by,

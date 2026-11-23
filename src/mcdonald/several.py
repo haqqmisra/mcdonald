@@ -542,7 +542,7 @@ def row(t, same=None):
         clip = case.clip or {}
         label, head = case.conclusion()
         d.update(measured=True, stopped=case.stopped_in(), followed=_followed(case), bottom_line=case.bottom_line(),
-                 conclusion=dict(label=label, headline=head), grade=case.grade(), segment=case.segment,
+                 conclusion=dict(label=label, headline=head, in_short=case.in_short()), grade=case.grade(), segment=case.segment,
                  segment_said=case.segment_said(measured=False) or None,
                  frames=[clip.get("n0"), clip.get("n1")] if clip else None,
                  track_sheet_looked_at=((case.stages.get("verify") or {}).get("fields") or {}).get("reviewed"),

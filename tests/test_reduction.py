@@ -36,6 +36,21 @@ def close(a, b, tol):
     return a is not None and abs(a - b) <= tol
 
 
+# every conclusion these checks make leaves its one short sentence here, with its label: the last check by name walks
+# them (`report.short_breaks`; Jacob, 2026-11-23: the card says "a single short sentence ... for all verdicts")
+SHORTS = {}
+_concluded = report.Case._concluded
+
+
+def _concluded_and_kept(self):
+    out = _concluded(self)
+    SHORTS.setdefault(out[2], out[0])
+    return out
+
+
+report.Case._concluded = _concluded_and_kept
+
+
 # ---------------------------------------------------------------- symbology
 def test_the_angle_convention_is_what_it_claims():
     """One convention package-wide: clockwise from screen-up, so that a motion
@@ -485,15 +500,20 @@ def test_what_is_known_afterwards_and_the_speed_from_a_thing_of_known_size():
         stages.scale(type("C", (), dict(W=1920, H=1080, n0=1, rgb=lambda self, n: np.zeros((1080, 1920, 3))))(),
                      ref_px=920.0, ref_m=180.0).into(c)
         stages.kinematics(track, 30.0, 1920, "t", None, ref=r).into(c)
-        said[name] = (c.conclusion(), c.bottom_line(), c.stages["kinematics"]["fields"]["scale_bar_m_per_s"])
-    (label, head), line, bar = said["same distance"]
+        said[name] = (c.conclusion(), c.bottom_line(), c.stages["kinematics"]["fields"]["scale_bar_m_per_s"], c.in_short())
+    (label, head), line, bar, short = said["same distance"]
+    check(short == f"No farther than the reference object, it moved at most {bar:.0f} m/s across the line of sight (Mach 0.51)."
+          and said["ratio"][3] == ("At 0.5 times the reference object's distance, it moved about "
+                                   f"{said['ratio'][2]:.0f} m/s across the line of sight (Mach {said['ratio'][2] / report.A_SOUND:.2f})."),
+          "the window's card says each in one short sentence: the limit, or the speed at the ratio given, across the line of sight "
+          "(Jacob, 2026-11-23)", f"{short} | {said['ratio'][3]}")
     check(label == report.SUBSONIC and "If it is no farther away than the reference object of known size, the object moved at most "
           f"about {bar:.0f} m/s across the line of sight as the camera held it. That is under the speed of sound (Mach 0.51)." in head
           and "(180 m over 920 pixels)" in line and "It would be slower if nearer, and faster if farther" in line
           and "no more than Mach 0.51, under the speed of sound" in line and "Its real speed needs" not in line,
           "a thing of known size gives a speed: the conclusion says it, at most at that thing's distance, and the bottom line how",
           f"{label}: {head[:100]}")
-    (label, head), line, bar = said["ratio"]
+    (label, head), line, bar, _ = said["ratio"]
     check("At 0.5 times the distance of the reference object of known size (as given), the object moved "
           f"about {bar:.0f} m/s across the line of sight as the camera held it." in head and "at 0.5 times that reference's distance, as given" in line
           and "no farther away than 0.5 times that reference's distance" in line,
@@ -2337,6 +2357,8 @@ def test_the_report_shows_a_beat_that_is_the_objects():
           and "It also beats 7.9 times a second, its double" in head and "wingbeat" in head and "tumbling body" in head,
           "a beat at a wingbeat's rate makes a bird the leading explanation of the conclusion, labelled Beats like a bird (2026-10-12), with the alternatives named "
           "(Jacob, Galileo flyer 2, 2026-10-07)", head[:100])
+    check(c.in_short() == "Its brightness rises and falls 3.9 times a second, the rate of a wingbeat.",
+          "and the window's card says it in one short sentence, the beat the label rests on (Jacob, 2026-11-23)", c.in_short())
     flock = report.Case("t", "/tmp/x.mp4")                 # a group whose members beat, each its own: PR135's six (2026-10-08)
     members = {f"member {i}": dict(hz=hz, double_hz=None, first=1240, last=1392, amplitude=0.2, stands=100.0)
                for i, hz in enumerate((7.85, 7.38, 8.02, 7.10, 7.66, 7.61), 1)}
@@ -2552,6 +2574,8 @@ def test_a_field_of_view_without_a_range_is_indeterminate():
           and "it would move at least 2.27 × R meters a second across the line of sight, as the camera held it" in c.bottom_line()
           and "It would be 21/1884 × R meters across" in c.bottom_line(),
           "PR113 at 54 degrees: indeterminate, a range needed, and where a bird, a balloon and a jet would be", head[:120])
+    check(c.in_short() == "The object crossed the view at about 130° a second.",
+          "the window's card says of it only how fast it crossed the view: where each kind would be is the full report's", c.in_short())
     label, head = case(resolved=False).conclusion()
     check("It is no wider than a point here, 21 pixels (0.64°)." in head and "at least 18–180 m away" in head
           and "As a fighter jet (17 m), it would be at least 1.5 km away" in head, "a point no wider than the blur: each at least that far",
@@ -2768,6 +2792,12 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
           and "the least its speed as the camera held it can be" in c.bottom_line()
           and "Two aircraft meeting head-on can pass the speed of sound between them" in c.bottom_line(),
           "PR113 at 54 degrees and 3 km: even the least speed is past the speed of sound -- supersonic, relative", head[:110])
+    check(c.in_short() == "At the given 3 km, it moves at least 6,800 m/s across the line of sight (Mach 20)."
+          and case(100.0, 60.0).in_short().startswith("At the given 100 m, it moves about ")
+          and case(100.0, 60.0).in_short().endswith(" m/s as the camera held it (Mach 0.76).")
+          and case(100.0, held=True).in_short() == "At the given 100 m, it is about 1.1 m across.",
+          "the window's card: the least speed at the distance given; with an angle the speed itself; held in view, its size there",
+          f"{c.in_short()} | {case(100.0, 60.0).in_short()} | {case(100.0, held=True).in_short()}")
     label, head = case(100.0).conclusion()
     check(label == report.ANGLE_NEEDED and label == "Indeterminate, angle needed" and "about 1.1 m across, about a bird's or a "
           "party balloon's or a small drone's or a weather balloon's size. It moves at least 230 m/s across the line of sight" in head
@@ -2785,6 +2815,7 @@ def test_a_field_of_view_and_a_range_give_the_least_speed():
     report.Found("kinematics", {"speed_m_s": "250 m/s"}).into(hand)
     check(hand.conclusion() == ("Conclusion", "The object moved about 250 m/s as the camera held it, with the given "
                                               "range and scale."), "a case with only a speed is read as before", hand.conclusion()[1])
+    check(hand.in_short() == hand.conclusion()[1], "and its one sentence is the card's too", hand.in_short())
 
 
 def test_something_that_only_moves_with_it_is_not_in_the_headline():
@@ -4529,6 +4560,43 @@ def test_house_figure_style():
     letters = [n for n, f_ in inspect.getmembers(figures, inspect.isfunction)
                if any(f"\"({c})\"" in inspect.getsource(f_) for c in "abcdef")]
     check(not letters, "and no figure letters its panels (a), (b), (c): Jacob's text names a panel by its place", str(letters))
+
+
+def test_with_every_conclusion_goes_one_short_sentence():
+    """The window's card says the conclusion in one short sentence under its label (Jacob, 2026-11-23: "the text is too
+    long, and all of this text is already included in the full report. Can you condense this down to a single short
+    sentence? This should be for all verdicts"): `Case.in_short`. Its name sorts this check last, so that it walks every
+    conclusion the checks before it made (`SHORTS`) -- each must be one sentence of at most `report.IN_SHORT_WORDS` words
+    (`report.short_breaks`) -- and adding it moved no other check to another part."""
+    print("\nthe conclusion in one short sentence, for the window's card")
+    stopped = report.Case("t", "/tmp/x.mp4")
+    report.Found("layers", {}, no_power=[("layers", "stopped before it finished")]).into(stopped)
+    none = report.Case("t", "/tmp/x.mp4")
+    lost = report.Case("t", "/tmp/x.mp4")
+    report.Found("track", {}).into(lost)
+    moved = report.Case("t", "/tmp/x.mp4")
+    report.Found("kinematics", {"pixel_velocity": "72 px/s"}, fields=dict(v_px_per_s=72.0)).into(moved)
+    want = [(stopped, "No conclusion yet", "The measuring was stopped during layers, so the steps after it did not run."),
+            (none, "No conclusion", "No step produced a result."),
+            (lost, "No conclusion", "No object was tracked, so nothing here measures one."),
+            (moved, "No physical conclusion", "The object moved about 72 pixels a second across the picture.")]
+    got = [(c.conclusion()[0], c.in_short()) for c, _, _ in want]
+    check(got == [w[1:] for w in want], "a measuring that was stopped, no step, no track, and a rate in the picture alone: "
+          "each its one sentence", "; ".join(f"{g[0]}: {g[1]}" for g, w in zip(got, want) if g != w[1:])[:240])
+    check(all(c.conclusion()[1].startswith(c.in_short()) for c, _, _ in want),
+          "and each is how the full conclusion starts, so the card and the report cannot say two things")
+    breaks = {s: report.short_breaks(s) for s in SHORTS if report.short_breaks(s)}
+    check(not breaks, f"every conclusion these checks made ({len(SHORTS)} short sentences) is one sentence of at most "
+          f"{report.IN_SHORT_WORDS} words", "; ".join(f"{why}: {s}" for s, why in breaks.items())[:400])
+    check(report.short_breaks("One. Two.") and report.short_breaks("One: two is here.") and report.short_breaks("No stop")
+          and report.short_breaks(" ".join(["word"] * (report.IN_SHORT_WORDS + 1)) + ".")
+          and not report.short_breaks("It moves at least 6,800 m/s across the line of sight (Mach 0.5)."),
+          "the rule itself: a second sentence, a clause on a colon, no full stop or too many words break it; numbers do not")
+    labels = set(SHORTS.values())
+    if len(SHORTS) > 40:                             # the whole suite in one run: every label was made (a part of it makes fewer)
+        every = {report.BIRD, report.SUBSONIC, report.SUPERSONIC, report.INDETERMINATE, report.ANGLE_NEEDED,
+                 "No physical conclusion", "No conclusion", "No conclusion yet", "Conclusion", "Tentative conclusion"}
+        check(every <= labels, "and they cover every label the conclusion has", ", ".join(sorted(every - labels)))
 
 
 def main(argv=None):

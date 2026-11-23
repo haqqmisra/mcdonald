@@ -504,7 +504,7 @@ class ReportCard(QtWidgets.QFrame):
         self.show()
 
     def _fill(self, case):
-        label, head = case.conclusion()
+        label = case.conclusion()[0]
         glyph, colour = LOOK.get(label, ("–", MUTED))
         if glyph in DRAWN:
             self.badge.setPixmap(media_icon(glyph, "#0b1a1c").pixmap(QtCore.QSize(16, 16), self.devicePixelRatioF()))
@@ -514,7 +514,8 @@ class ReportCard(QtWidgets.QFrame):
             self.badge.setToolTip("")
         self.badge.setStyleSheet(f"border-radius: 11px; font-weight: bold; background: {colour}; color: #0b1a1c;")
         self.label.setText(label)
-        self.headline.setText(head)
+        # one short sentence under the label: the whole conclusion is the full report's (Jacob, 2026-11-23)
+        self.headline.setText(case.in_short())
         self.older.setText(case.older_said() if case.older() else "")
         self.older.setVisible(bool(case.older()))
         self.banner.setVisible(stages.SHEET_PROVISIONAL in case.notes)
@@ -566,12 +567,12 @@ class ReportCard(QtWidgets.QFrame):
         if kf.get("relative_speed_m_per_s") is None and kf.get("scale_bar_m_per_s") is None and kf.get("upper_bound_m_per_s") is None:
             k = (case.stages.get("scale", {}).get("fields") or {}).get("k_px_per_rad")
             r = kf.get("range_m")
-            need = ("the distance to the object" if k is not None and r is None else
-                    "the horizontal field of view" if k is None and r is not None else
-                    "the horizontal field of view and the distance to the object")
-            one = k is not None or r is not None
-            return (f"Its real speed needs {need}, or the physical length of a reference in the picture. Do you know "
-                    f"{'either' if one else 'any of these'}?", "Add what you know", True)
+            # short, for the box shares its row with the button, and the button asks (Jacob, 2026-11-23: "is it possible
+            # to shorten this sentence to save some space?"); the form under the button names each quantity in full
+            need = ("the distance" if k is not None and r is None else
+                    "the field of view" if k is None and r is not None else
+                    "the field of view and the distance")
+            return f"Its real speed needs {need}, or a reference object of known size.", "Add what you know", True
         said = known_qt.describe(stages.known_of(case))
         return (f"Worked out from what you gave: {said}." if said else "Worked out from what was given."), "Change", False
 

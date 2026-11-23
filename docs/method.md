@@ -4924,7 +4924,9 @@ is folded under the table (`<details>`: a link on the window's report page, a fo
 gone; the conclusion's sentence stays first, so the exercise pages, which quote it, stand. The window's report card had
 the same rows above its numbers, the answer in a word and why in the tooltip, until 2026-11-22: the maintainer found the
 card too long with them (up to fifteen wrapped rows, on every object's card), so the table is the full report's alone and
-the card keeps the conclusion, the numbers found and More. `mcdonald run --json` carries the rows as
+the card keeps the conclusion, the numbers found and More. Since 2026-11-23 the card says the conclusion in one short
+sentence under its label (`report.Case.in_short`, at most 20 words: the finding the label rests on, with its number),
+for the conclusion's whole paragraph is the full report's too. `mcdonald run --json` carries the rows as
 `results.checklist`. The rows are read from the stages' fields, as the conclusion and the bottom line are, so a case file
 from an earlier version gets its checklist when its report is opened or written again. Measured: the rows' own words are
 97 % at tier 4, 12 words a sentence; test_gui holds them to the window's plain words (no px, clip, velocity, provisional).

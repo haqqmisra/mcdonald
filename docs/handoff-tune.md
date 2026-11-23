@@ -150,6 +150,55 @@ make sure any of the yellow box "hover over" text is one short sentence at most"
 - Not fixed, seen by the window strand: a Preferences page opened while an earlier look for devices is still running
   can show that look's result (the test now waits; the window does not).
 
+## The next day: the card's conclusion in one sentence (2026-11-23)
+
+Jacob, with the merged window open: "This is looking good! For the summary on the right-hand pane, underneath the
+"Beats like a bird" headline: the text is too long, and all of this text is already included in the full report. Can
+you condense this down to a single short sentence? This should be for all verdicts. -- Also the line "It's real speed
+needs": is it possible to shorten this sentence to save some space?"
+
+- **One short sentence under the label** (IDEAS TU9). `report.Case.in_short`, made in the same pass as the label and
+  the full conclusion (`Case._concluded` returns the three; `conclusion()` is its first two, as before, so no caller
+  changed). The rule for which sentence: the beat where a bird is named; else how the object moved; else the first of
+  whatever else was found. Each as the card says it:
+
+  | Label | The card's sentence |
+  |---|---|
+  | Beats like a bird | Its brightness rises and falls 5.9 times a second, the rate of a wingbeat. |
+  | Beats like a bird (a flock) | Its 6 members each beat 7.1–8.0 times a second, the rate of a wingbeat. |
+  | No physical conclusion | The object moved about 72 pixels a second across the picture. (or "in the picture, as the camera held it", or "against the background") |
+  | Indeterminate, range needed | The object crossed the view at about 130° a second. |
+  | Indeterminate, angle needed; Supersonic motion | At the given 3 km, it moves at least 6,800 m/s across the line of sight (Mach 20). |
+  | Subsonic or Supersonic motion, an angle given | At the given 100 m, it moves about 260 m/s as the camera held it (Mach 0.76). |
+  | Subsonic motion, a farthest range | No farther than the given 5 km, it moves at most 260 m/s across the line of sight (Mach 0.76). |
+  | Subsonic motion, a reference object | No farther than the reference object, it moved at most 115 m/s across the line of sight (Mach 0.34). |
+  | the same, with a range ratio | At 2 times the reference object's distance, it moved about 115 m/s across the line of sight (Mach 0.34). |
+  | Conclusion, the camera held it at a given distance | At the given 100 m, it is about 1.1 m across. |
+  | Conclusion, a speed alone | The object moved about 250 m/s as the camera held it, with the given range and scale. |
+  | Conclusion, a beat that names no bird | Its brightness beats 7.1 times a second, too faintly to name a bird. (or "in one stretch only, too little to name a bird", or "but the whole picture shakes at that rate too") |
+  | No conclusion yet | The measuring was stopped during layers, so the steps after it did not run. |
+  | No conclusion | No object was tracked, so nothing here measures one. (or "No step produced a result.", "Nothing was measured about the object.") |
+
+  At most 20 words (`report.IN_SHORT_WORDS`; the speeds at a distance are the longest, 17 to 20), one sentence, no
+  colon or semicolon chain (`report.short_breaks`). The full report is unchanged, to the letter.
+- **"Its real speed needs…"**: was "Its real speed needs the horizontal field of view and the distance to the object,
+  or the physical length of a reference in the picture. Do you know any of these?" (31 words, seven lines beside the
+  button). Now "Its real speed needs the field of view and the distance, or a reference object of known size." (17
+  words, four lines), and with one of the two given, "…needs the distance, or…" or "…needs the field of view, or…".
+  The button beside it asks, and its form names each quantity in full, so the question went.
+- **Measured on PR169's card** in the real window on a virtual screen (`scripts/card169.py`, the same saved results
+  under both codes): the sentence 180 -> 36 pixels tall, the box 142 -> 88, the card 827 -> 629.
+- **For agents:** `conclusion.in_short` in `run --json`, `report --json` and the objects' list, beside `label` and
+  `headline` (docs/agents.md).
+- **Held by:** test_reduction's last check by name (`test_with_every_conclusion_goes_one_short_sentence`) walks every
+  conclusion the suite makes, 51 different sentences over every label, and exact words beside the existing checks of
+  each verdict; test_gui reads every report card it shows, at every check, with the tooltips; test_cli holds the new
+  field. Adding the reduction check moved no other check to another part: its name sorts last.
+- **Not on the card any more, and Jacob's to weigh:** the conclusion's other sentences. Most are detail (the
+  look-alikes, the size at a distance). One is a warning: "N integrity checks flag it as possibly added to the video".
+  The card's rows do not carry it, and the Yes/No rows that did came off the card on 2026-11-22. The one press skips
+  integrity, so the window meets it only after Advanced Mode's Measure with integrity ticked. Decision 12 below.
+
 ## Checks on the merged tree
 
 **`tune` 5dbea30** (everything of the round; a snapshot in `/scratch/mcdonald/tune-2026-11-22/snap/tune-e`).
@@ -242,3 +291,15 @@ make sure any of the yellow box "hover over" text is one short sentence at most"
     (exercises 2 to 4 still teach choosing a segment).
 11. **Not done.** The held-out third of the Find benchmark was not run (it is scored once, at a release). The Mac and
     Windows runs were not made (nothing was pushed). The C-TAP benchmark is rerun at a release, not here.
+12. **An integrity flag and the card** (2026-11-23). With the card's conclusion now one sentence, a report whose
+    integrity checks flag the object ("N integrity checks flag it as possibly added to the video") no longer says so
+    on its card; the full report does, in its conclusion and its checklist. The one press skips integrity, so this
+    is met only after Advanced Mode's Measure with integrity ticked. *Recommendation:* where a check flags the
+    object, let that be the card's sentence, whatever the label: nothing else on the card matters as much if the
+    object may have been added to the video. It is one line in `Case._concluded` (`short = flagged or named or
+    moved or also[0]`). Not done, because it would put a sentence under the label that is not about the label.
+13. **The card's words** (2026-11-23). The table in "The next day" above has each label's sentence. The speeds at a
+    given distance are the longest (17 to 20 words) because each keeps what it is a speed of ("across the line of
+    sight", "as the camera held it") and its Mach number. Without the Mach number each is two words shorter. The
+    box's line could lose its second half ("…needs the field of view and the distance.", three lines in place of
+    four), at the cost of not saying that a reference object of known size is another way.
