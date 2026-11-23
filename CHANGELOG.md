@@ -3,7 +3,7 @@
 Every version that went out, newest first. The version is written in one place,
 `src/mcdonald/__init__.py`; each release from 0.2.4 on is a git tag and is on PyPI.
 
-## Unreleased
+## 0.5.10 (2026-11-23)
 
 **The report's card says its conclusion in one short sentence** (2026-11-23; IDEAS.md TU9). The card is the summary
 in the window's right-hand column. Under its label it repeated the first paragraph of the full report, which ran to

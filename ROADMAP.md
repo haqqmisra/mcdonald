@@ -26,6 +26,11 @@ goes to the Journal of Open Source Software (JOSS), which accepts the repository
   and the drift paper's release, below.
 - **In 0.5.9 (2026-11-19):** the misfit gate in `drift`, the first of the four things set for after 0.5.8, for the
   drift paper too (below).
+- **In 0.5.10 (2026-11-23):** a round of fine-tuning after PR169, a 14-second infrared video of one bird that turns twice.
+  Find lists an object once where it turns (it had listed this one as three); a video can be started over, its
+  results set aside (`mcdonald clear`, Start over in the window); two objects can be said to be one; Exercise 1 is
+  PR169; the report's page is dark ink on white; every tooltip, and the conclusion on the report's card, is one short
+  sentence.
 - **Known answers in hand.** The Yemen clip, AARO's Puerto Rico lanterns and the Santa Barbara helicopter (the drift
   paper's three); AARO's fourteen resolved cases; the labelled infrared set (432 tracks of birds, drones, airplanes
   and helicopters); the five Galileo Project flyers; and since 2026-11-12 the Galileo Project's triangulated objects

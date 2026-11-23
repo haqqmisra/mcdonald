@@ -303,3 +303,23 @@ needs": is it possible to shorten this sentence to save some space?"
     sight", "as the camera held it") and its Mach number. Without the Mach number each is two words shorter. The
     box's line could lose its second half ("…needs the field of view and the distance.", three lines in place of
     four), at the cost of not saying that a reference object of known size is another way.
+
+## The release candidate, 0.5.10 (2026-11-23)
+
+Jacob, after the card's change: "Unless there are major outstanding problems, I think we will finally be ready to push
+and version release". Taken as: get the main line ready and say what stands in the way; the push and the tag wait for
+his word. The other sessions were asked: none was asked to release, none has anything waiting for the main line, and
+the 0.6 line stays held for his reading (the amateur session), so this is a patch of the main line.
+
+- **Branch `release-0.5.10`** (worktree `/hugespace/models/mcdonald-release`) = `tune` + one release commit: the
+  version and the date in `__init__.py`, CITATION.cff, both READMEs, the CHANGELOG's heading, ROADMAP's line.
+  Exercise 3's page no longer quotes the card's line word for word, so it holds for 0.4.2 and for 0.5.10.
+- **On `tune` since the card's commit:** 0f7e9e5, the amateur session's e62ff68 picked onto the main line: the
+  witness's phone clip is "clip W" in comments, docstrings, check labels and `docs/handoff-phone.md`, with no file
+  name, place, date or folder name (Jacob's decision of 2026-11-22, applied on the 0.6 line the day before; public
+  history keeps the old text). No code or number changes.
+- **The old Exercise 1 address** (`exercises/01-pr44/`, and `docs/exercises/01-pr44.md` on GitHub) stops existing
+  with this release. Jacob chose no forwarding page (the marketing session asked him: the posts are rewritten for
+  PR169).
+- **The date** is the day it goes out: if the push is on another day, it changes in the four places first
+  (`__released__`, CITATION.cff, the CHANGELOG's heading, ROADMAP's line), with test_reduction on the result.
