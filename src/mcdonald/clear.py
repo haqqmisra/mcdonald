@@ -84,7 +84,8 @@ def remembered(folder, tag=None):
     folder = Path(folder)
     names = [tag] if tag else tags(folder)
     move, kept, left = [], [], []
-    for p in sorted(folder.iterdir()) if folder.is_dir() else ():
+    # by name, as text: paths themselves sort without regard to case on Windows, and the lists would differ there
+    for p in sorted(folder.iterdir(), key=lambda p: p.name) if folder.is_dir() else ():
         if p.is_dir() and not p.is_symlink():
             if p.name == EARLIER:
                 continue                              # what was set aside before: neither moved again nor anyone else's
