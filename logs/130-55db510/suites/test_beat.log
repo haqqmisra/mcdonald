@@ -1,0 +1,107 @@
+
+the beat in the position: tracks drawn with no rhythm
+  PASS  every drawn track of 150 frames is read
+  PASS  a track drawn with no rhythm is given one about one time in a hundred (ALPHA)  p 0.30 0.23 0.26 0.73 0.19 0.20 0.45 0.21 0.34 0.35 0.57 0.67 0.43 0.64 0.34 0.30 0.81 0.16 0.62 0.64 0.95 0.66 0.85 0.69 0.14 0.95 0.26 0.35 0.76 0.09 0.16 0.28 0.18 0.60 0.95 0.54  [0 of 36 at a stated 1 %: green (green to 1, yellow to 3; P(X <= 0) = 0.6964)]
+  PASS  40 frames are not read: NO POWER, and why  40 frames with a position, under the 60 a rhythm needs
+
+the beat in the position: a planted wobble
+  PASS  a wobble of 0.4 px in 0.3 px of jitter is missed 5 % of the time at most (a judgement)  [0 of 10 at a stated 5 %: green (green to 1, yellow to 3; P(X <= 0) = 0.5987)]
+  PASS  at its frequency, within its error  10 of 10
+  PASS  its amplitude read back  median 0.42 px of 0.40 planted
+  PASS  and read at the frequency given beforehand it agrees with it  10 of 10
+        the variogram's hole beside it stood past 1 in 20 on 8 of 10
+  PASS  a track with no wobble does not agree with a beat it is given  chance 0.94
+  PASS  a rhythm at the codec's own rate is the video's: said apart, and the track is given no rhythm for it  codec 12.00 Hz, 29 times; the track's own strongest 7.35 Hz, chance 0.12
+  PASS  and a wobble under it is found all the same, where the codec's rate is the stronger of the two  3.38 Hz, chance 0.003; codec 30 times against its 8
+  PASS  a wobble 0.4 Hz from a codec line is not at it: a line has no width, and the wobble's frequency is known to less  11.62 ± 0.02 Hz
+  PASS  a steady motion on held pictures, every frame read as a sample: a "rhythm" at a third of the frame rate  10.00 Hz, chance 0.003
+  PASS  the held frames left out, the positions that are left keep the video's rhythm: the reading is not made, and says why  sampling lines [10.0]; the video holds its pictures at a steady rate (10.00 Hz), and the positions left between them keep that rhythm, so one of the object's own cannot be told from it
+  PASS  nor at a brightness beat given beforehand: what moves at that rate is the video's  power False
+  PASS  frames missing at random keep no cadence; one held in five keeps two (6 and 12 Hz)  []; [6.0, 12.0]
+
+the beat in the position, through the stage: a bird and a lamp
+  PASS  a point that bobs as it beats: its position carries the beat, read as the picture has it  position 6.293706293706293 Hz, chance 0.001998001998001998, beat 6.31 Hz
+  PASS  and the note says whose motion it is cannot be told  Its position, as the picture has it, rises and falls at 6.29 ± 0.00 Hz by 0.53 pixels, the rate of its brightness beat. By chance a track with only its own wander and jitter would show that 0.002 of t
+  PASS  it is more than a brightness beating over an uneven background gives, and still there with the brightness's share out  2.52 px for a unit of brightness against 0.13115715616193008 within the background's reach; 0% went with the brightness, chance 0.001998001998001998 of the rest
+  PASS  a point whose brightness alone beats: the beat is not in its position  Its position, as the picture has it, shows no rhythm beyond its own wander and jitter. The strongest, at 4.42 Hz, comes by chance 0.67 of the time. One of about 0.03 pixels would have shown three time
+  PASS  the same lamp over an uneven background: the rhythm its position shows is no more than such a background gives, and is said so  beats True; at the beat: line True, 0.042 px, 0.14511319712772294 px for a unit of brightness; A brightness beating over a background as uneven as this one can move a measured position 2.96, so the object may not move at all. The camera's own motion was not taken out, so this may be the camera's shake. It is the object's own only if the camera held still. The scene registered, or a second object in view, would show which.
+
+the beat in the position: a camera's shake, and members' differences
+  PASS  alone, every track carries the camera's 3.5 Hz  3.52 (chance 0.007) 3.52 (chance 0.007) 3.52 (chance 0.007)
+  PASS  in a group each is read against the other two
+  PASS  against them each carries its own beat, more than its background could make of its brightness  5.29 (own True, 2.4753319006912196 against 0.05260980349610609) 6.59 (own True, 2.5588132273412807 against 0.05269267482615456) 8.12 (own True, 2.383181618346831 against 0.0531466200500791)
+  PASS  with no brightness to hold the rhythm against, it is found and not called the object's own
+  PASS  and the shake is gone from every one  chance 1.00 chance 0.55 chance 0.43
+
+the beat in the position: a track against the registered scene
+  PASS  the scene is registered, and the track is read against it  scene {'frames': [1, 150], 'registered': 'frame to frame', 'step_px': 0.307668304846464, 'texture': 2.2716522583674865, 'power': True, 'why': None}; how scene; beats True: it beats at 6.306 ± 0.009 Hz, 23% of its brightness, over frames 1–150, clear of the codec's rhythm and not shared by the background beside it; it stands 1097.3 times over its own slow wander, where 6
+  PASS  against the scene the camera's 3.5 Hz is gone, and nothing is called the object's own  own None; strongest 5.833093081415228 Hz, chance 0.000999000999000999; Its position, with the scene's own motion taken out, rises and falls at 6.11 ± 0.21 Hz by 0.02 pixels, the rate of its brightness beat. By chance a track with only its own wander and jitter would show that 0.002 of the time. That is 0.17 pixels for each unit o
+  PASS  as the picture has it, the same track carries the camera's 3.5 Hz  3.52 Hz, chance 0.003
+
+a line in a look-alike band: behind a slow drift
+  PASS  a 4.4 % line at 10.5 Hz behind an 8 % drift, in grain of 1 %, is missed 5 % of the time at most (a judgement)  named by the band ['candle flames']  [0 of 10 at a stated 5 %: green (green to 1, yellow to 3; P(X <= 0) = 0.5987)]
+  PASS  with its amplitude, its chance and the background apertures' own standing beside it  0.039, chance 0.002, 15 against 2.4
+  PASS  said in the row's words  Its brightness has a line at 10.50 Hz, 3.9% of its brightness, in the 9.5-10.5 Hz band, which the background beside it does not show (chance 0.002). The stage's rule does not call it a beat: it reads the strongest rhythm of the whole band, and this line is not it. A line is not a wingbeat. The look-alikes that share its band are listed with the beat.
+  PASS  a line the background's apertures share is not the object's  [('sky lantern', 1.4, True), ('lamp on the bus, as heard', 18.9, True), ('400-Hz bus, as heard', 18.9, True), ('candle flames', 18.9, True)]
+  PASS  too few background frequencies: NO POWER  6 background frequencies to hold a line against, under the 20 it needs: the track is too short
+
+a line in a look-alike band: curves with no line
+  PASS  a curve with no line is given one about one time in a hundred, all its bands together (LINE_P)  [0 of 120 at a stated 1 %: green (green to 2, yellow to 6; P(X <= 0) = 0.2994)]
+
+the readings on an object that fades for a moment
+  PASS  the band search holds the beat, and no line that is not it  [[(9.99, True)], [(10.02, True)], [(10.02, True)]]; with another line: 0 of 8
+  PASS  the depth leaves out the pieces where the object is not all there, and reads the rest  [(9, 1, 0.134), (9, 1, 0.137), (9, 1, 0.132), (9, 1, 0.13)]
+  PASS  a steady beat with a faded moment is said to change depth about one time in a hundred (DEPTH_P)  [0.55, 0.93, 0.2, 0.87, 0.94, 0.79, 0.4, 0.64]  [0 of 8 at a stated 1 %: green (green to 0, yellow to 1; P(X <= 0) = 0.9227)]
+
+the readings beside the call: the call is as it was without them
+  PASS  a point that bobs as it beats: the call and every field the stage had are the same  beats True; added ['band_lines', 'lookalike_share', 'position_beat']
+  PASS  a point that bobs as it beats: the readings only add fields, notes and result lines  ['band_lines', 'lookalike_share', 'position_beat']
+  PASS  a line behind a drift: the call and every field the stage had are the same  beats True; added ['band_lines', 'lookalike_share', 'position_beat']
+  PASS  a line behind a drift: the readings only add fields, notes and result lines  ['band_lines', 'lookalike_share', 'position_beat']
+  PASS  the stage reports the 10.5-Hz line under its call, whatever the call is  beats True: it beats at 2.41 ± 0.02 Hz, 7% of its brightness, over frames 1–240, clear of the codec's  | Its brightness has a line at 10.50 Hz, 5.3% of its brightness, in the 9.5-10.5 Hz band, which the background beside it does not show (chance 0.002). A line is n | [('sky lantern', 7.53, 3.2, 0.9975012493753124, True, False, [3.0, 1.8, 2.7, 3.8]), ('lamp on the bus, as heard', 10.5, 82.1, 0.001999000499750125, False, False, [5.1, 3.8, 2.5, 2.4]), ('400-Hz bus, as heard', 10.5, 82.1, 0.001999000499750125, False, False, [4.5, 3.8, 2.5, 2.4]), ('candle flames', 10.5, 82.1, 0.001999000499750125, False, False, [2.9, 3.8, 1.9, 1.9])]None
+  PASS  a beat at a third of the frame rate: the call and every field the stage had are the same  beats True; added ['band_lines', 'lookalike_share', 'morphology', 'position_beat']
+  PASS  a beat at a third of the frame rate: the readings only add fields, notes and result lines  ['band_lines', 'lookalike_share', 'morphology', 'position_beat']
+  PASS  a steady beat at a third of the frame rate gets the three readings of its shape, its depth held  The beat at 9.99 Hz sits where a camera's own electronics or a power supply can make one (5 such look-alikes, listed with the beat). Three readings of its shape come next, and none of them decides. Its depth runs from 19.7% to 19.9% of its brightness over 2 pieces of 2.0 s, no more than a steady beat's does (chance 0.20). So its depth cannot tell it from a lamp's flicker. Its frequency wanders more than a clock's can
+  PASS  and its width outside a fixed core does not beat, or is not read  {'power': True, 'why': None, 'width': {'amplitude': 0.018660559438789227, 'p': 0.10733761553354618, 'line': False, 'phase_deg': -57.487132274976794}, 'planted': {'change': 0.1, 'amplitude': 0.4693174742401927, 'p': 8.240135369855638e-08, 'shows': True}}
+
+the shape of a beat: its depth along the track
+  PASS  ten seconds are read in five pieces of two
+  PASS  a beat of one depth is said to change about one time in a hundred (DEPTH_P)  [0.03, 0.5, 0.03, 0.2, 0.7, 0.64, 0.71, 0.71, 0.38, 0.61, 0.13, 0.79]  [0 of 12 at a stated 1 %: green (green to 0, yellow to 2; P(X <= 0) = 0.8864)]
+  PASS  a beat whose depth doubles along the track is missed 5 % of the time at most (a judgement)  [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.069]  [1 of 8 at a stated 5 %: green (green to 1, yellow to 3; P(X <= 1) = 0.9428)]
+  PASS  100 frames: not read, and why  too short to compare its depth along the track: 100 frames, and two pieces need 120
+
+the shape of a beat: its width outside a fixed core
+  PASS  brightness alone beating: no line in the width outside the core, where a planted change of 10 % shows  chance 0.04; planted chance 2.2e-09; 64% of its light outside the core
+  PASS  though its pixel area beats in step, as a brighter blob's does  area chance 3e-10, +10 deg from the brightness
+  PASS  its width beating by 8 %: a line in the width outside the core  chance 7.2e-11
+  PASS  a point: NO POWER, and why  too little of its light lies outside a core of 3 px to read a width there (it stands 0.8 times over its own frame-to-frame scatter, and 10 are needed): a point
+  PASS  a blob clipped beyond its core: NO POWER, and why  pixels outside its core are at the picture's floor or ceiling on 100% of the frames
+
+the shape of a beat: which marks ask for it
+  PASS  10.0 Hz at 30 frames a second is the chain's (a third of the frame rate, the folded supplies); 5.5 Hz is only the lantern's, and is not  10.0: 7 marks; 9.0: ['a lamp on that power, flickering at twice it']; 5.5: []
+
+the look-alike mark's base rate
+  PASS  70 % of 1.5-12 Hz at 29.97 and 30 frames a second: one piece, 4.7-12 Hz  0.695, [[4.7, 12.0]]
+  PASS  all of 1.5-24 Hz at 59.94 and 60  1.0000 1.0000
+  PASS  a beat read at a coarser resolution is marked over more of the band  0.714, 0.743
+  PASS  a planted 6-Hz beat, marked with the lantern's band: the finding says how much of the band carries such a mark  se: a look-alike, marked, not refused (at this frame rate such marks cover 71% of the frequencies a beat is looked for at, so a mark is weak evidence)
+
+the track's own jitter: a steady cloud under a hopping track
+  PASS  without the reading, the hop is heard as a beat of the object's own that comes back  2.55 Hz, 36%, 30 of 33 windows; its brightness is steady
+  PASS  with it, the beat is the track's: no beat of its own  11% of the beat left; the fit took 93% of the curve's variance; jitter 0.45 px
+  PASS  the finding and a note say so  what beats at 2.55 Hz, 36% of its brightness, over frames 1–600 follows the track's own jitter; with the jitter's share taken out, 11% of the beat is 
+  PASS  the beat's own numbers are as they were, and `mcdonald flicker` prints the reading
+  PASS  the same cloud under a track that does not hop: no beat, and nothing given to the track  no beat reaches 3 times what the background beside it does (1.0% of the object's brightnes
+
+the track's own jitter: a spot that beats keeps its beat
+  PASS  a spot beating 20 % at 4.3 Hz under a hop of half a pixel: the beat is its own  4.30 Hz, 19%; 100% of it left with what follows the jitter out
+  PASS  a bird that bobs half a pixel at its own beat, its track bobbing with it: the beat is its own  6.31 Hz; 114% left; the track's jitter 0.12 px
+
+the track's own jitter: the reading on drawn curves
+  PASS  a brightness made by where the aperture sits: the track's, 40 times in 40  kept 0.02-0.14
+  PASS  a beat beside a jitter that has nothing to do with it is given to the track 1 time in 100 at most  kept 0.99-1.01  [0 of 40 at a stated 1 %: green (green to 1, yellow to 3; P(X <= 0) = 0.6690)]
+  PASS  a track that bobs in time with the beat, at the beat's frequency only: kept, where a fit with the beat left in takes it  40 of 40 kept (kept 0.53-1.50); with the beat left in, the median kept 0.08
+  PASS  a track with no jitter has nothing to follow: the beat is kept whole
+  PASS  a hop whose effect changes sign along the track is still the track's, block by block  14 blocks, kept 0.16
+
+all passed

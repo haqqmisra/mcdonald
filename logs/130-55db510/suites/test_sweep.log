@@ -1,0 +1,34 @@
+mcDonald UAP Toolkit -- the beat sweep's tools
+
+the windows a video is cut into
+  PASS  PR073's 2,657 frames: the whole-video pass's own eight windows  [[(2221, 2620), (2591, 2657)]]
+  PASS  a video shorter than a window is one window  [[(1, 322)]]
+  PASS  every window at most 400 frames, each overlapping the next by 30 or more, the last ending on the last frame  [[(1, 400), (371, 770)]]
+
+Find's proposals made objects
+  PASS  kept: those seen on 40 frames or more, rated; not one seen on 20, nor one Find did not rate  [4]
+  PASS  the bright one seen in both windows is one object; the dark one beside it is another; one far off is a third  [[(1, 60, True), (1, 119, False), (50, 119, False)]]
+PRX 4 proposals -> 3 objects
+  PASS  objects/ID.tsv: a row an object, in order of first frame, with every window it was seen in  [o00	w01	1	1	119	bright	strong	70	101,200->221,201	1.0	w01:1;]
+
+the strict list, and the held-out third
+  PASS  two passing windows count as a beat come back only apart, and within half a hertz of each other
+42 of 126 held out (22 in use, 62 open); by release: 01 9/27, 02 15/50, 04 7/19, 05 6/16, 06 5/14
+holdout.tsv matches the draw
+  PASS  the held-out third, drawn again from its seed, is the committed table: 42 videos
+  PASS  strict: two windows apart at one frequency (o00), or the whole track over its drift at 8 % (o01) -- not at 3 % (o02); and the held-out video left out, and counted  [[('PRIN', 'o00'), ('PRIN', 'o01')], 1 left out]
+  PASS  told the gates are frozen, it is counted in
+
+the bird floor from a null, its challenger, and the probability it is overfit (floor.py, pbo.py)
+  PASS  the smallest floor that names no more than 1 % of 300: just over the fourth strongest (3 may pass); none needed for two
+  PASS  named: a beat that comes back at the floor or over, not where the camera's shake sits at it; a case with no amplitude as before
+  PASS  Clopper-Pearson: 0 of 307 under 1.2 %; 2 of 307 within 0.08-2.3 %  [0.01194 0.00079 0.02333]
+  PASS  at a rate of 1 % on 307 tracks, a one-sided test at 5 % allows up to 6
+  PASS  the one-sided 95 % bound: none in 286 is 1.04 %, so about 300 tracks cannot show under 1 %; 2 in 307 is about 2 %  [0.0104, 0.0204]
+  PASS  the operating point (B24): the stage's rule prices a false bird at a third of a missed one, the 8 % floor at 1.5  [0.335, 1.512]
+  PASS  set from the null: twelve false calls at 0.2-2.4 % of 300, so the floor lands over the fourth strongest and names at most 3  [0.02, {'median': 0.019, 'p5': 0.011, 'p95': 0.023, 'plain': 0.019}, 3]
+  PASS  the strata a frozen floor's rates are described by: track length, size, the set's own bins
+  PASS  CSCV: a rule right on every clip is chosen on every half and never overfit  [0.0]
+  PASS  CSCV: among coins, the best in sample is no better than the median out of sample about half the time  [0.31]
+
+ALL PASS
