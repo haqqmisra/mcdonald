@@ -323,3 +323,51 @@ the 0.6 line stays held for his reading (the amateur session), so this is a patc
   PR169).
 - **The date** is the day it goes out: if the push is on another day, it changes in the four places first
   (`__released__`, CITATION.cff, the CHANGELOG's heading, ROADMAP's line), with test_reduction on the result.
+
+## Released: 0.5.10, 2026-11-23
+
+Jacob's word, in this session, three times: "Go, release when all pass" (a question that named each step), then,
+after the Mac's failure, "Release when Windows passes", then, after Windows' own, "release now". The amateur session
+had relayed the same the hour before; a relayed word was not taken as the word for a push.
+
+- **`main` = `origin/main` = tag `v0.5.10` = 03fc2ee** (annotated, "mcdonald 0.5.10"), pushed about 11:02. GitHub
+  release 0.5.10 with the CHANGELOG's entry as its notes. PyPI: publish run 40 green, `mcdonald-0.5.10` wheel and
+  source archive. Site: run 37 green; `exercises/01-pr169/` answers, `exercises/01-pr44/` is gone, as he chose.
+  Zenodo's version DOI: 10.5281/zenodo.24471817 (in CITATION.cff with this commit).
+- **The commits since 30d27b6:** 91cde5d the card's one sentence (TU9); 0f7e9e5 clip W; c950175 the version;
+  55db510 and 03fc2ee, one fix each from the Mac's and Windows' runs (below).
+- **Linux, the release commit c950175** (snapshot `snap/rel-a`): every suite with the footage, job 22696: ALL SUITES
+  PASS, 29 suites, 4,464 checks, 1 SKIP (WxAgg, not installed): test_reduction 744 (734 + 10), test_gui 875 (873 + 2),
+  test_cli 165 (164 + 1), test_golden 266, test_measurement 722, test_drift 373, test_controls 118, test_tether 78,
+  the rest as on 5691539. All four exercise pages as they write themselves (job 22692): pass. The wheel and the
+  source archive build and pass `twine check --strict`; the wheel installs in a new environment, every module
+  imports, and with only the shipped list PR169 downloads from its public address (3,325,618 bytes, the local copy's
+  hash) and opens; `mkdocs build --strict` passes (`scripts/rel_build.sh`, `rel_try169.sh` in the scratch folder).
+- **A trap that cost a run:** the first three suite jobs of the morning (22687, 22689, 22691) were submitted from
+  snapshots without `MCDONALD_DATA=/models/data/mcdonald`. A snapshot has no data folder beside it, so the footage
+  checks skipped and the job still said ALL SUITES PASS. Caught from the counts (test_drift 359 for 373, test_tether
+  75 for 78, test_golden's skips naming the snapshot's own folder), cancelled, and run again with the folder named.
+- **Mac run 128 and Windows run 129, on c950175: one failed check each, in test_cli, and every other suite passed.**
+  - *Mac:* the check of `clear VIDEO --n0 --n1` compared the answer's real path with the temporary folder as Python
+    spells it, which on a Mac is a link (/var/folders for /private/var/folders). Reproduced on Linux with `TMPDIR`
+    set to a link (the same check fails, 164 pass); with both sides resolved 165 of 165 pass. The test's fault:
+    55db510.
+  - *Windows:* `clear --dry-run --json` listed what would stay in another order (extra, notes.txt, "PLANTED
+    report.pdf", ...). `clear.remembered` sorted the folder's paths, and a Windows path sorts without regard to case
+    (PureWindowsPath gives the run's order exactly). It now sorts by the name as text, the same everywhere; on Linux
+    and a Mac nothing changes: 03fc2ee. `sorted()` of paths is used in some twenty other places of the package; none
+    is known to print a list that mixes cases, and none was changed.
+- **On the released commit 03fc2ee:** the Linux lanes on arthur (job 22701) had passed test_cli 165, test_gui 875
+  and 20 more suites with no failure when the tag went on, and their footage lane was still running; Windows run 131
+  (03fc2ee) and Mac run 130 (55db510, one commit before: the Windows fix changes nothing on a Mac) were under way.
+  Their ends are recorded below when they come in.
+- **A new environment from PyPI** (`/scratch/mcdonald/venv-0.5.10`, `mcdonald[gui]==0.5.10`): 0.5.10, `setup
+  --no-desktop` Ready, PR169 downloads and opens. Jacob's menu entry untouched.
+- **What Jacob asked for after it (2026-11-23):** the suites job fails loudly where `golden` is asked for and the data
+  folder is missing; each suite's PASS and SKIP counts are compared with the last known-good ones by the job itself;
+  and release tests run on arthur in side-by-side lanes by default (`mcdonald-test --on arthur --golden`, not the one
+  sequential job). Found on the way: the Mac's job has a 60-minute limit and its suites took 55.6 minutes in run 128.
+- **The 0.6 line** is held for his reading (amateur 8135977, dev-0.6 779d04d); its unpushed history was rewritten on
+  his word, so the hashes of that line written earlier in this file (0c55fa5, 7f2b709, d02cd36, 350231f, 0a9b3d7) no
+  longer exist. `tune-06` 0a60dcc holds TU9 on the old amateur line, for whoever merges the main line into it. The
+  C-TAP benchmark is offered after a release that changes Find, as this one does.
