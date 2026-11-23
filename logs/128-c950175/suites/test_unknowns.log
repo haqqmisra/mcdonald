@@ -1,0 +1,138 @@
+
+the class table: every number with its source
+  PASS  no number of class_envelopes.csv is without a source  []
+  PASS  the table has a class of birds
+  PASS  the table has a class of airliners
+  PASS  the table has a class of light aircrafts
+  PASS  the table has a class of fighters
+  PASS  the table has a class of helicopters
+  PASS  the table has a class of balloons
+  PASS  the table has a class of multirotors
+  PASS  and the five unmanned aircraft groups of the US Department of Defense  ['unmanned aircraft of group 1', 'unmanned aircraft of group 2', 'unmanned aircraft of group 3', 'unmanned aircraft of group 4', 'unmanned aircraft of group 5']
+  PASS  each class's range runs from low to high
+  PASS  the strongest wind is in the table, with its source  122.94 m/s
+  PASS  at least five classes carry a limit load, each sourced  {'small birds': 9.0, 'airliners': 2.5, 'light aircraft': 6.0, 'fighter jets': 9.0, 'helicopters': 3.5, 'multirotor camera drones': 1.22}
+  PASS  an airliner at its fastest covers a handful of its lengths a second  0.8-7.4
+  PASS  a number without a source is caught
+  PASS  an approach speed is 1.3 times the stall speed (14 CFR 97.3): the least speed is the stall's; a row with no greatest speed still gives its length and its least speed  (49.99999999999999, 250.0), (0.9999999999999999, 8.333333333333334)
+
+Av11: the rate over the extent, on drawn bodies at every aspect
+  PASS  the ratio is never above the true speed over the true length  at most 1.0000 of it
+  PASS  it equals it wherever the body's own length shows longest  11 aspects, 1.0000-1.0000
+  PASS  and reads far under it where the body points nearly at the camera with its wings across  39 aspects, down to 0.077
+  PASS  a slender body reads its true 5 lengths a second at 40 degrees to the line of sight  5.0000
+  PASS  a ball at 30 degrees reads sin(30) of its 20 diameters a second  10.000
+
+Av11: a lower bound against the classes (a drawn table)
+  PASS  a class's range is its least and greatest speeds over its length  (2.0, 8.333333333333334)
+  PASS  5 a second: within the jets, under the birds (not excluded), a balloon in a wind of 2.5 m/s  {'within': ['big jets'], 'faster': ['small birds'], 'with_wind': [('balloons', 2.5)], 'outside': [], 'wind_max_m_s': 100.0}
+  PASS  9 a second: a jet only with a tail wind of 9 x 30 - 250 = 20 m/s  [('big jets', 20.0), ('balloons', 4.5)]
+  PASS  20 a second: outside the jets even with the strongest wind (350 m/s needed, 100 the most); birds not excluded  {'within': [], 'faster': ['small birds'], 'with_wind': [('balloons', 10.0)], 'outside': ['big jets'], 'wind_max_m_s': 100.0}
+  PASS  50 a second: within the birds
+  PASS  nothing is excluded for being slow: a lower bound excludes only from above  {'within': [], 'faster': ['big jets', 'small birds'], 'with_wind': [('balloons', 0.25)], 'outside': [], 'wind_max_m_s': 100.0}
+
+Av11: the reading, and where it has none
+  PASS  a still camera and a resolved object: at least 5 a second, against the classes
+  PASS  said as a bound, with the classes it is in the range of  at least 5 body lengths a second
+  PASS  the plain sentences say it is a lower limit and that sharing a range identifies nothing
+  PASS  body lengths: every sentence under 40 words, and no 'thing'  []
+  PASS  no power where the camera may have followed it  the picture behind it held still on screen: the rate over the size is not the object's own
+  PASS  no power where the camera moved  the camera flew at 100 m/s: the rate over the size is not the object's own speed in its le
+  PASS  no power with no length  needs the object's length in the picture (--size-px), or a track to take its rate from
+  PASS  an unresolved object: blur widths, and no class
+  PASS  the sentences name no class for a blur
+  PASS  blur widths: every sentence under 40 words, and no 'thing'  []
+
+Av10: the tilt's band on a turn rate
+  PASS  the turn's own rate is 0.44 to 10 times the picture's nine times in ten  0.439-10.01
+
+Av10: the arithmetic
+  PASS  1 rad/s: 1.8 g at a bird's 15 m/s, 20 g at 200 m/s (the aviation survey's two)  1.83, 20.4
+  PASS  held to 2.5 g at 1 rad/s: no faster than g sqrt(2.5² - 1) = 22.5 m/s  22.47
+  PASS  no speed from a limit of 1 g, or from no turn
+
+Av10: the turn rate, from drawn turns
+  PASS  a loop of 420 degrees tilted 40: the rate read whole, the same at any tilt  0.800 for 0.800
+  PASS  with its error from the track's own covariance  0.7997-0.8003
+  PASS  a bend of 40 degrees seen face on: the heading swept over the time  0.795 rad/s, 37.9 deg
+  PASS  the band from the tilt holds the turn's own rate about nine times in ten  [21 of 200 at a stated 10 %: green (green to 26, yellow to 36, and as far the other way; P(X <= 21) = 0.6484)]
+  PASS  no rate from a track that does not bend
+  PASS  nor from one that swings about with no loop claimed (PR077's object 1): a sagitta is for a small bend
+
+Av10: the curve against the classes (a drawn table)
+  PASS  at 1 rad/s a body held to 2.5 g flies no faster than 22.5 m/s: under the jets' least 60, so not theirs  22.47
+  PASS  a bird held to 7.8 g could have, at up to 76 m/s  75.9
+  PASS  a class with no limit load has no row
+  PASS  at 0.2 rad/s the jets could have flown it (112 m/s)
+  PASS  a bend: each class's speed at the slowest turn the tilt allows, the most it could be  64 m/s
+  PASS  with 5 lengths a second: the longest body within a class's limit is its speed limit over 5  15.2 m
+  PASS  a jet within 2.5 g at 5 lengths a second would be under 4.5 m long, and they are 30: said beside the speed's verdict  4.49 m
+  PASS  a limit binds only inside the speeds a class flies at: at 0.2 rad/s the jets' does (112 m/s), the birds' does not (379)
+  PASS  no power where the camera may have turned  the picture behind the object held still on screen, which a camera following the
+  PASS  no power where the camera moved  the camera moved, and its own turn bends the track as the object's does
+  PASS  the plain sentences name the class that could not, and the conditions
+  PASS  the load: every sentence under 40 words, and no 'thing'  []
+  PASS  the trade's row carries the curve and the verdict
+
+the kinematics stage: the two readings, their rows and the figure
+wrote /var/folders/q2/p1t6rgxj5fj32g1dc7dmd49r0000gn/T/tmplqalm777/drawn_speed.png  (7.400 x 6.364 in at 200 dpi)
+wrote /var/folders/q2/p1t6rgxj5fj32g1dc7dmd49r0000gn/T/tmplqalm777/drawn_load.png  (7.400 x 4.588 in at 200 dpi)
+  PASS  a drawn loop on a camera nothing says moved: both readings have power
+  PASS  the bound is the row's own number, unmoved
+  PASS  the load-factor figure is drawn
+  PASS  each has its result line
+  PASS  and neither adds to the stage's no-power list
+  PASS  the summary has both rows
+  PASS  and the paragraph both readings
+  PASS  where the picture behind held still on screen, neither has power
+  PASS  the summary's rows say NO POWER, with why  NO POWER: the picture behind the object held still on screen, which a camera fol
+  PASS  with no length given the row says what it needs
+
+Av10 on a known bird: Galileo flyer 4's loop
+  PASS  the loop gives a turn rate  0.45 rad/s, 0.29-0.61
+  PASS  and birds could have flown it  small birds to 302 m/s
+  PASS  at a bird's 15 m/s the turn takes under 3 times its weight  1.21
+
+D8: one unknown, answers by hand
+  PASS  only the range is unknown
+  PASS  under 30 m/s: 0.492 with the range log-uniform and 0.029 evenly, by hand (the same region, two answers)  0.4929, 0.0291
+  PASS  knowing the range settles nearly all of it (all but the one bin the threshold falls in), and both measures say so  0.977, 0.977
+  PASS  once known, the answer is yes or no
+  PASS  under 343 m/s: 0.845 with the range log-uniform and 0.342 evenly, by hand (the same region, two answers)  0.8437, 0.3407
+  PASS  knowing the range settles nearly all of it (all but the one bin the threshold falls in), and both measures say so  0.960, 0.937
+  PASS  once known, the answer is yes or no
+  PASS  the direction isotropic: under 30 m/s with the chance sqrt(1 - (20/30)²) = 0.745  0.7442
+  PASS  the range rate drawn evenly up to the speed cap: 0.022 (the same clip, another answer: why two measures are kept)  0.0223
+  PASS  and the aspect angle would settle it  0.902
+  PASS  nothing unknown: nothing to ask for  none of the four is unknown: the speed follows from what was given
+  PASS  no rate: no question
+
+D8: two unknowns, against quadrature
+  PASS  invariant: the chance now  0.4768 for 0.4765
+  PASS  invariant: the bits the range and the scale would each settle, to 0.02 of the integral  R 0.534 for 0.536, k 0.106 for 0.104
+  PASS  invariant: and their order  ['R', 'k']
+  PASS  evenly: the chance now  0.0130 for 0.0129
+  PASS  evenly: the bits the range and the scale would each settle, to 0.02 of the integral  R 0.055 for 0.056, k 0.015 for 0.015
+  PASS  evenly: and their order  ['R', 'k']
+  PASS  the same case gives the same table twice (seeded draws)
+
+D8: the ranking, and where there is none
+  PASS  both name the range: it is ranked first  Is its own speed under 30 m/s? Of the 2 missing quantities, the range would settle the most: 68 to 70 % of that question.
+  PASS  one names the scale, the other the range: the row says so and ranks nothing  Is its own speed under 30 m/s? The two ways of weighing what is not known disagree on what would settle the most. One names the angular scale, and the other the range, so none is ranked.
+  PASS  the same first, but not clear of the next in one: too close to rank  Is its own speed under 30 m/s? The range and the angular scale would settle about as much as each other, too close to rank.
+  PASS  the asks: every sentence under 40 words, and no 'thing'  []
+  PASS  a chance of one in fifty thousand under one measure: nothing is left to settle there, and the row says so  Is its own speed under 30 m/s? The two ways of weighing what is not known disagree on what would settle the most. One names nothing, the answer being all but settled there, and the other the range, so none is ranked.
+        evenly: p 0.019, v_own 0.095, R 0.002; invariant: p 0.366, v_own 0.503, R 0.084
+  PASS  agreement is the two firsts being one and the same
+
+D8: in the case's ledger
+  PASS  a track and nothing else: all four are unknown
+  PASS  the report's ledger has the table: two questions by four unknowns
+  PASS  and says what it is not
+  PASS  a question the even way leaves all but settled has a dash for its share there, not a share of nothing  | Is its own speed under 30 m/s? | the angular scale | 0 % | 0 % to 0 % | — | 34 % | 31 % to 36 % | 0 % |
+  PASS  the asks' words: every sentence under 40 words, and no 'thing'  []
+  PASS  the case's JSON carries it
+  PASS  worked out once for a case as it stands
+  PASS  a track the camera held has no rate of its own: no table
+
+ALL PASS
